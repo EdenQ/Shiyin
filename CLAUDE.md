@@ -75,7 +75,9 @@ sqlite3 ~/Library/Application\ Support/Shiyin/shiyin.sqlite # 看資料
 - 建置輸出放到 repo 外（`Directory.Build.props` 的 ArtifactsPath），不要放進專案。
 - 虛擬機（Parallels，Windows 11 ARM64）：使用者在用拾音錄會議時（Mac 的 `audio/recording/` 有檔案）不開、不跑重的工作；從 SSH 開的 app 不會出現在桌面，開 app、截圖、按按鈕用桌面代理（design-windows §15.4）；不用 Coherence 模式。
 - Windows 的 release 用 `win-vX.Y.Z` tag，一律不設成 latest（Mac 的更新網址用 latest）；第一個 Windows release 之前官網要先改好（design-windows §14.3、§14.4）。
-- Windows 版的指令（建置、打包、shiyinctl.exe）做出來後補在這裡（tasks W8.6）。
+- .NET 10 SDK 裝在 `~/.dotnet`（使用者的資料夾，沒有加進 PATH）。在 `windows/` 下跑：`~/.dotnet/dotnet test --project tests/Shiyin.Tests`（標準答案、資料庫、整理工具，Mac 上就能跑；建置輸出在 `~/Library/Caches/ShiyinBuild-win`）。
+- 重新產生標準答案：建 Mac 的 DEBUG 版，用暫存的 `SHIYIN_HOME` 啟動（`open -g -n --env SHIYIN_HOME=… … --args -ApplePersistenceIgnoreState YES -llmProvider none`），`shiyinctl dump-golden "$PWD/shared/golden/fixtures.json" <資料夾>`，等 `<資料夾>/result.json` 出現（`"ok": true`），刪掉 result.json 後換掉 `shared/golden/expected/`。跑兩次比對要完全相同。
+- Windows 版其他的指令（建置 app、打包、shiyinctl.exe）做出來後補在這裡（tasks W8.6）。
 
 ## 介面文字（3.1 起）
 
