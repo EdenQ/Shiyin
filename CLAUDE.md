@@ -77,7 +77,12 @@ sqlite3 ~/Library/Application\ Support/Shiyin/shiyin.sqlite # 看資料
 - Windows 的 release 用 `win-vX.Y.Z` tag，一律不設成 latest（Mac 的更新網址用 latest）；第一個 Windows release 之前官網要先改好（design-windows §14.3、§14.4）。
 - .NET 10 SDK 裝在 `~/.dotnet`（使用者的資料夾，沒有加進 PATH）。在 `windows/` 下跑：`~/.dotnet/dotnet test --project tests/Shiyin.Tests`（標準答案、資料庫、整理工具，Mac 上就能跑；建置輸出在 `~/Library/Caches/ShiyinBuild-win`）。
 - 重新產生標準答案：建 Mac 的 DEBUG 版，用暫存的 `SHIYIN_HOME` 啟動（`open -g -n --env SHIYIN_HOME=… … --args -ApplePersistenceIgnoreState YES -llmProvider none`），`shiyinctl dump-golden "$PWD/shared/golden/fixtures.json" <資料夾>`，等 `<資料夾>/result.json` 出現（`"ok": true`），刪掉 result.json 後換掉 `shared/golden/expected/`。跑兩次比對要完全相同。
-- Windows 版其他的指令（建置 app、打包、shiyinctl.exe）做出來後補在這裡（tasks W8.6）。
+- Mac 上只能編譯檢查 app（`dotnet build Shiyin.Windows.slnx`，App、Platform 用 `EnableWindowsTargeting`，不自帶 Windows App SDK、不產生 .pri，建出來的東西不能用）；真的建置、打包在 Windows：`scripts/windows/build-whisper.ps1 -Arch x64|arm64`（whisper.cpp 固定在 d1be6fde）、`scripts/windows/pack.ps1 -Version … -Arch … -Whisper …`（自帶 .NET 和 Windows App SDK、vpk pack、安裝檔改成 `Shiyin-<版本>-win-<架構>-Setup.exe`、簽更新說明）。
+- 更新金鑰：`~/.dotnet/dotnet run scripts/windows/update-key.cs -- keygen|manifest|sign|verify`；私鑰放 GitHub secrets 的 `SHIYIN_UPDATE_KEY` 要使用者同意，公鑰貼進 `AppHost.cs` 的 `UpdateKey.Public`（空的時候不檢查更新）。
+- 介面文字：改過 C# 的介面文字一定要跑 `python3 scripts/dev/l10n.py windows-check`，缺的英文用 `windows-apply <翻譯.json>` 寫進 `windows/src/Shiyin.App/Strings/Windows.xcstrings`（Mac 的翻譯表不動）。不會顯示在介面上的中文行尾加 `// l10n-skip`。
+- 評估（Mac 上）：`SHIYIN_NATIVE_DIR=~/Library/Caches/ShiyinBuild-win/whisper-build-mac ~/.dotnet/dotnet ~/Library/Caches/ShiyinBuild-win/bin/Shiyin.Eval/debug/shiyin-eval.dll transcribe-eval|detect-eval|diarize-eval|fast-eval|live-eval …`；說話者辨識的模型放 `~/Library/Caches/ShiyinBuild-win/models`（`SHIYIN_DIARIZATION_MODELS`、`SHIYIN_SPEECH_MODELS`），`diarize-eval` 的逐字稿給 `-` 時只看分出幾個人和每人的聲紋（AMI 9 場的聲紋比對用 `scripts/dev/voiceprint-eval.py`）。
+- 測試在 Mac 上不能碰使用者的資料：`ShiyinPaths.FromEnvironment()` 在 Windows 以外一定要有 `SHIYIN_HOME`（.NET 在 Mac 的 LocalApplicationData 就是 Mac 版拾音的資料夾）；測試一律用暫存資料夾（`TempHome`）。
+- DEBUG 版的控制通道是 named pipe `shiyin-debug`，用 `shiyinctl.exe`（`windows/src/Shiyin.Ctl`）送指令：`state`、`select`、`tab`、`record-sim <檔案> <倍速> <1=雙聲道>`、`recordstop`、`llmprovider`、`llmkey`（只放記憶體，DEBUG 預設不讀真的認證管理員）、`llmurl`、`modelurl`、`hotkey`、`meetingapp <app> on|off`…（`Shiyin.App/Debug/ControlPipe.cs`）。
 
 ## 介面文字（3.1 起）
 
