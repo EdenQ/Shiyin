@@ -12,6 +12,8 @@
 
 不需要 Python、Homebrew、ffmpeg。選型的理由在 design.md 的決策紀錄（D#）。已經刪掉的舊文件（第二版的規格 `docs/archive/v2/`、選型實驗 `docs/spikes/`、3.4.0 以前完整的 `docs/tasks.md`）用 `git show b621ed6:<路徑>` 看。
 
+**Windows 版**（開發中，2026-10-20 起）：C# .NET 10＋WinUI 3，程式放 `windows/`，功能對齊 Mac 3.6.0；需求在 requirements 第 22 節（R26～R28），設計在 `docs/design-windows.md`，任務在 tasks.md 的「Windows 版」。見下面的「Windows 版」一節。
+
 ## 開發流程：SDD（規格驅動）
 
 本專案先寫規格再寫程式，規格放在 `docs/`：
@@ -20,10 +22,11 @@
 |---|---|
 | `docs/requirements.md` | 要做什麼：需求編號 R#、N#，第 8 節是驗收結果 |
 | `docs/design.md` | 怎麼做：架構、資料模型、提示詞、介面、決策紀錄 D# |
+| `docs/design-windows.md` | Windows 版怎麼做：跟 Mac 不同的地方、標準答案、驗證環境、決策紀錄 D42 起 |
 | `docs/tasks.md` | 還沒完成的任務，每項都有驗證方式；做完就刪掉 |
 
 開發時的規則：
-- 開工前先讀這三份文件，從 `tasks.md` 的任務接著做。
+- 開工前先讀 requirements、design、tasks（做 Windows 版時加上 design-windows），從 `tasks.md` 的任務接著做。
 - 每完成一項任務，照它的「驗證」實際跑過一次，從 `tasks.md` 刪掉，跑了什麼、結果如何寫在 commit 訊息。`[~]` 表示程式完成，但有部分驗證要等使用者（權限、真實錄音、API key），只寫還差什麼。
 - docs 只留還用得到的：做完的任務、用不到的文件直接刪掉，不另外留紀錄檔（都在 git 歷史裡）。
 - 程式要偏離 `design.md` 時，先改 `design.md`（重要的取捨寫進決策紀錄 D#），再改程式，commit 訊息寫原因。
@@ -62,6 +65,17 @@ sqlite3 ~/Library/Application\ Support/Shiyin/shiyin.sqlite # 看資料
 - log 不寫逐字稿和會議紀錄的內容。
 - 從 Finder 開的 app 拿不到使用者 shell 的 PATH。要執行 claude、codex 時，用固定路徑，或在子程序的環境變數裡補上 PATH。
 - 回覆和文件一律用繁體中文（台灣用語）。
+
+## Windows 版
+
+- Mac 版的行為不能因為 Windows 版改變；為了比對兩邊而加的 Mac 程式只能在 DEBUG 版（R26.5）。
+- 兩邊一致靠標準答案（design-windows §4）：Mac 改了提示詞、範本、匯出、資料庫 migration、轉錄流程的規則，要重跑 Mac DEBUG 版的 `dump-golden`、commit `shared/golden/`，Windows 的程式跟著改到測試通過。
+- 錄音、資料庫、模型放 `SHIYIN_HOME`（Windows 預設 `%LOCALAPPDATA%\Shiyin`）；設定是裡面的 `settings.json`；API key 只能存在認證管理員（`com.weiwei.shiyin.apikey/<帳號>`）。安裝位置（`%LOCALAPPDATA%\ShiyinApp`）跟資料分開。
+- 外部程式一律用 `ProcessStartInfo.ArgumentList`，**不能經過 cmd.exe**（npm 的 `.cmd`）：參數會被截斷、改寫。
+- 建置輸出放到 repo 外（`Directory.Build.props` 的 ArtifactsPath），不要放進專案。
+- 虛擬機（Parallels，Windows 11 ARM64）：使用者在用拾音錄會議時（Mac 的 `audio/recording/` 有檔案）不開、不跑重的工作；從 SSH 開的 app 不會出現在桌面，開 app、截圖、按按鈕用桌面代理（design-windows §15.4）；不用 Coherence 模式。
+- Windows 的 release 用 `win-vX.Y.Z` tag，一律不設成 latest（Mac 的更新網址用 latest）；第一個 Windows release 之前官網要先改好（design-windows §14.3、§14.4）。
+- Windows 版的指令（建置、打包、shiyinctl.exe）做出來後補在這裡（tasks W8.6）。
 
 ## 介面文字（3.1 起）
 
@@ -104,7 +118,7 @@ Shiyin 3.3.0: Japanese meetings and automatic language detection
 - 測試資料會寫進使用者真正的資料庫。測完用 `shiyinctl purge <id>` 刪掉自己建立的會議，改過的設定用 `defaults delete com.weiwei.shiyin <key>` 還原。
 - 要用使用者的真實資料測（例如 migration）時，另外建一個 `SHIYIN_HOME`：資料庫用 `sqlite3 <正式資料庫> ".backup <複本>"` 複製（app 開著也安全）；`audio/recording/`（錄音中的暫存檔）不要複製，複本裡錄音中的會議（`source='recording'`、`audio_file=''`）刪掉；DEBUG 版加 `-llmProvider none -autoSummarize NO -correctTranscript NO` 啟動。2026-10-19 曾經複製到使用者正在錄的會議，DEBUG 版把它當成當掉的錄音復原、轉錄，還用使用者的 Claude 整理了一次。
 - 設定（UserDefaults `com.weiwei.shiyin`）跟使用者正式安裝的 app 共用，換 `SHIYIN_HOME` 也一樣。測完要 `defaults read com.weiwei.shiyin` 檢查有沒有留下測試改的值（曾經把 `defaultMeetingLanguage` 留成 en，使用者升級後新會議會預設英文）。
-- 說話者辨識不能用 `say` 合成的聲音測（會判成同一人），要用真人錄音，例如 AMI 會議語料（`~/FluidAudioDatasets`）。
+- 說話者辨識不能用 `say` 合成的聲音測（會判成同一人），要用真人錄音，例如 AMI 會議語料（`~/Library/Caches/ShiyinSpike/eval32/ami-vp/`；標註在 `~/Library/Caches/ShiyinSpike/Datasets/ami_public_1.6.2`，AISHELL-4 在 `~/Library/Caches/ShiyinSpike/aishell4/`）。
 - 說話者分不出人（3.5.1）：`shiyinctl voiceprint-eval` 的設定每一項可以加 `threshold`、`minSpeakers`、`numSpeakers`（字串），同一段錄音換設定比較分出幾個人；`shiyinctl rediarize <id> <人數|auto>` 只重新辨識說話者。
 - 轉錄的記憶體、分段（3.5）：`shiyinctl transcribe-eval` 的輸出有各階段的記憶體峰值（`memory`）和分段位置（`seams`）；設定 JSON 加 `"chunkSeconds": 0` 不分段。量記憶體要每次重開 app（同一個 app 連續跑，前一次留下的記憶體會算進去）。
 - 模擬錄音（`shiyinctl record-sim <檔案> <倍速> <1=雙聲道>`）的雙聲道是同一個讀檔迴圈同時送兩個聲道。不要改成兩個獨立的音源：高倍速時兩邊速度不同，寫檔時會補靜音，檔案變長，那是測試工具的假象。
