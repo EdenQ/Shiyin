@@ -85,7 +85,7 @@ sqlite3 ~/Library/Application\ Support/Shiyin/shiyin.sqlite # 看資料
 - 介面文字：改過 C# 的介面文字一定要跑 `python3 scripts/dev/l10n.py windows-check`，缺的英文用 `windows-apply <翻譯.json>` 寫進 `windows/src/Shiyin.App/Strings/Windows.xcstrings`（Mac 的翻譯表不動）。不會顯示在介面上的中文行尾加 `// l10n-skip`。
 - 評估（Mac 上）：`SHIYIN_NATIVE_DIR=~/Library/Caches/ShiyinBuild-win/whisper-build-mac ~/.dotnet/dotnet ~/Library/Caches/ShiyinBuild-win/bin/Shiyin.Eval/debug/shiyin-eval.dll transcribe-eval|detect-eval|diarize-eval|fast-eval|live-eval …`；說話者辨識的模型放 `~/Library/Caches/ShiyinBuild-win/models`（`SHIYIN_DIARIZATION_MODELS`、`SHIYIN_SPEECH_MODELS`），`diarize-eval` 的逐字稿給 `-` 時只看分出幾個人和每人的聲紋（AMI 9 場的聲紋比對用 `scripts/dev/voiceprint-eval.py`）。
 - 測試在 Mac 上不能碰使用者的資料：`ShiyinPaths.FromEnvironment()` 在 Windows 以外一定要有 `SHIYIN_HOME`（.NET 在 Mac 的 LocalApplicationData 就是 Mac 版拾音的資料夾）；測試一律用暫存資料夾（`TempHome`）。
-- DEBUG 版的控制通道是 named pipe `shiyin-debug`，用 `shiyinctl.exe`（`windows/src/Shiyin.Ctl`）送指令：`state`、`select`、`tab`、`record-sim <檔案> <倍速> <1=雙聲道>`、`recordstop`、`llmprovider`、`llmkey`（只放記憶體，DEBUG 預設不讀真的認證管理員）、`llmurl`、`modelurl`、`hotkey`、`meetingapp <app> on|off`…（`Shiyin.App/Debug/ControlPipe.cs`）。
+- DEBUG 版的控制通道是 named pipe `shiyin-debug`，用 `shiyinctl.exe`（`windows/src/Shiyin.Ctl`）送指令：`state`、`select`、`tab`、`record-sim <檔案> <倍速> <1=雙聲道>`、`recordstop`、`llmprovider`、`llmkey`（只放記憶體，DEBUG 預設不讀真的認證管理員）、`llmurl`、`modelurl`、`hotkey`、`meetingapp <app> on|off`、`open settings|guide|report|ask|onboarding`（不是 `settings`；`closewindow` 只能關 main，其他視窗用 `uia.sh close`）…（`Shiyin.App/Debug/ControlPipe.cs`）。測 NVIDIA 顯示卡加速（design-windows §8）：x64 DEBUG 版要 `--self-contained` 建（虛擬機只有 ARM64 的 .NET），加 `--set debugNvidia=YES` 啟動，用全新的 `SHIYIN_HOME`。
 
 ## 介面文字（3.1 起）
 
