@@ -75,6 +75,7 @@ sqlite3 ~/Library/Application\ Support/Shiyin/shiyin.sqlite # 看資料
 - 建置輸出放到 repo 外（`Directory.Build.props` 的 ArtifactsPath），不要放進專案。
 - 虛擬機（UTM，Windows 11 ARM64，design-windows §15.2）：工具在 `scripts/windows/vm/`（`sync.sh` 同步原始碼到 `C:\src`、`ssh.sh`／`run.sh` 建置和測試、`ctl.sh` 控制通道、`insession.sh`／`uia.sh` 在桌面開 app 和按按鈕、`shot.sh` 截圖），金鑰、IP 在 `~/Library/Caches/ShiyinBuild-win/vm`。使用者在用拾音錄會議時（Mac 的 `audio/recording/` 有檔案）不開、不跑重的工作；`diskguard.sh` 在背景跑（Mac 剩不到 10 GB 就停掉虛擬機），虛擬機裡刪了大檔案後跑 `Optimize-Volume -DriveLetter C -ReTrim` 才會還空間給 Mac。從 SSH 開的 app 不會出現在桌面，要用 `insession.sh`（§15.4）。虛擬機沒有音效裝置，錄音用 `record-sim`。
 - 有中文的 `.ps1` 存成有 BOM 的 UTF-8：Windows 內建的 PowerShell 5.1 會把沒有 BOM 的檔案當成 Big5，整個腳本解析失敗。
+- PowerShell 傳給外部程式的 `-D名稱=$變數`、`--名稱=$變數` 要整串加雙引號（`"-DFOO=$x"`）：「-」開頭的參數裡的變數不會展開，程式拿到的是 `$x` 這串字（2026-10-22 CI 建 whisper 時，x64 因此去找 Vulkan）。
 - 測安裝檔（design-windows §14）：`pack.ps1` 打包、`Setup.exe --silent` 安裝、`%LOCALAPPDATA%\ShiyinApp\Update.exe --uninstall --silent` 移除；移除後等 20 秒再重裝（Velopack 會延後刪安裝資料夾，會把剛裝好的刪掉）。測 app 內更新用 `pack.ps1 -UpdateTest`（§14.2）。安裝版跟 DEBUG 版共用通知的 AppUserModelID，移除安裝版會把通知中心裡 DEBUG 版的通知一起清掉。
 - 官網的 Windows 版截圖：docs/website.md §16.4（虛擬機調成 150%、示範資料 `C:\ShiyinDemo`、`C:\ShiyinDemoEN`、`scripts/windows/vm/ps` 的 snapwin、clickname、dpi、display、setnotes），截完改回 100%、1024×768。截圖程式要宣告支援高 DPI，不然座標會被換算；PowerShell 的變數不分大小寫（`$h` 會蓋掉 `$H`）。
 - Windows 的 release 用 `win-vX.Y.Z` tag，一律不設成 latest（Mac 的更新網址用 latest）；第一個 Windows release 之前官網要先改好（design-windows §14.3、§14.4）。
