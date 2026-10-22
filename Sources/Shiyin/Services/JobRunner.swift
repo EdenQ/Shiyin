@@ -261,6 +261,8 @@ final class JobRunner {
         try db.saveTranscript(job.meetingId, segments: segments, duration: Int(duration.rounded()),
                               speakerCount: speakers.compactMap { $0 }.max() ?? 0, voices: result.voices,
                               transcribedWith: pipeline.options.transcribedWith)
+        // 套用失敗不影響逐字稿和之後的整理，只記 log
+        do { try applySpeakerTags(job.meetingId) } catch { log.error("apply speaker tags failed: \(error.logSummary, privacy: .public)") }
         // 聲紋比對（design §21.4）：在整理之前，會議紀錄裡就會是名字
         if AppSettings.voiceprints {
             let matched = try db.matchVoiceprints(job.meetingId)
@@ -281,6 +283,16 @@ final class JobRunner {
             }
         }
         wake()
+    }
+
+    /// 錄音中標記的說話者（design §24.3、R23）：在聲紋比對之前套用，使用者自己標的優先；跟手動改名一樣記住聲紋
+    func applySpeakerTags(_ meetingId: Int64) throws {
+        let tagged = try db.applySpeakerTags(meetingId)
+        guard !tagged.isEmpty else { return }
+        log.info("speaker tags applied to \(tagged.count) speakers")
+        if AppSettings.voiceprints {
+            for (idx, name) in tagged { try db.learnVoiceprint(meetingId, idx: idx, name: name, source: "tag") }
+        }
     }
 
     // MARK: 猜說話者（design §21.5、R19.2）

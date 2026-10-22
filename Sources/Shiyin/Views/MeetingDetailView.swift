@@ -376,6 +376,9 @@ struct MeetingTop: View {
             if !detail.speakerSuggestions.isEmpty && !isRecording && !trashed {
                 SpeakerSuggestionsBanner(detail: detail)
             }
+            if !detail.unappliedTags.isEmpty && !isRecording && !trashed {
+                UnappliedTagsBanner(detail: detail)
+            }
         }
         .padding(.horizontal, 32)
         .padding(.top, 22)
@@ -422,6 +425,30 @@ private struct AutoSpeakerName: View {
                 .background(Color.secondary.opacity(0.15), in: Capsule())
         }
         .help("拾音認出這個人的聲音，自動帶入名字。不對的話點名字")
+    }
+}
+
+/// 錄音時標記、沒有自動套用的名字（design §24.4、R23.5）：「查看」跳到逐字稿上的位置，在那裡套用或刪掉
+private struct UnappliedTagsBanner: View {
+    @Environment(AppModel.self) private var model
+    let detail: MeetingDetail
+
+    var body: some View {
+        let tags = detail.unappliedTags
+        let names = SpeakerTagging.roster(participants: [], tagged: tags.map(\.name))
+        HStack(spacing: 10) {
+            Label("錄音時標記的 \(names.count) 個名字沒有自動套用：\(names.joined(separator: String(localized: "、")))",
+                  systemImage: "person.crop.circle.badge.questionmark")
+            Spacer()
+            Button("查看") {
+                model.tab = .transcript
+                if let first = tags.first?.id, let segment = detail.tagMatches[first]?.segmentId { model.flashSegment(segment) }
+            }
+        }
+        .font(.callout)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(Color.signal.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
     }
 }
 

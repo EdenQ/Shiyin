@@ -72,6 +72,9 @@ struct MeetingDetail: Equatable {
     var speakerSources: [Int: String] = [:]
     /// AI 猜的名字（design §21.5）：還是預設名稱的說話者才有
     var speakerSuggestions: [Int: SpeakerNaming.Suggestion] = [:]
+    /// 錄音中標記的說話者（design §24），依標記的先後；每個標記對上的說話者、逐字稿上的位置（buildIndexes 算）
+    var speakerTags: [SpeakerTag] = []
+    var tagMatches: [Int64: SpeakerTagging.Match] = [:]
 
     mutating func loadSpeakers(_ rows: [SpeakerName]) {
         speakers = Dictionary(uniqueKeysWithValues: rows.map { ($0.idx, $0.name) })
@@ -88,6 +91,34 @@ struct MeetingDetail: Equatable {
         let ordered = segments.compactMap { s in s.id.map { (start: s.start, id: $0) } }.sorted { $0.start < $1.start }
         timelineStarts = ordered.map(\.start)
         timelineIds = ordered.map(\.id)
+        tagMatches = Dictionary(uniqueKeysWithValues: speakerTags.compactMap { tag in
+            tag.id.map { ($0, SpeakerTagging.match(tag.tag, in: segments)) }
+        })
+    }
+
+    /// 「正在說話」的名單：與會者，接著是標過的名字（design §24.2）
+    var tagRoster: [String] {
+        SpeakerTagging.roster(participants: meeting.participantList, tagged: speakerTags.map(\.name))
+    }
+
+    /// 即時逐字稿的一行有的標記：中間點落在這一行裡的，有好幾個時用最後標的（design §24.2）
+    func liveTag(start: Double, end: Double) -> SpeakerTag? {
+        speakerTags.last { SpeakerTagging.belongs($0.tag, toLine: start, end) }
+    }
+
+    /// 錄音時標記、沒套用的名字（design §24.4）：逐字稿上那一段的說話者現在的名字跟標記不同。依時間排
+    var unappliedTags: [SpeakerTag] {
+        speakerTags.filter(isUnapplied).sorted { $0.start < $1.start }
+    }
+
+    func unappliedTags(on segmentId: Int64?) -> [SpeakerTag] {
+        guard let segmentId else { return [] }
+        return speakerTags.filter { tag in tag.id.flatMap { tagMatches[$0]?.segmentId } == segmentId && isUnapplied(tag) }
+    }
+
+    func isUnapplied(_ tag: SpeakerTag) -> Bool {
+        guard let id = tag.id, let idx = tagMatches[id]?.segmentSpeaker else { return false }
+        return !SpeakerTagging.sameName(speakerName(idx) ?? "", tag.name)
     }
 
     /// 播放到 time 時的段落：開始時間不晚於 time + 0.05 的最後一段（二分搜尋）
@@ -339,6 +370,7 @@ final class AppModel {
             speakers: Dictionary(uniqueKeysWithValues: speakerRows.map { ($0.idx, $0.name) }),
             bookmarks: (try? db.bookmarks(id)) ?? [], corrections: (try? db.corrections(id)) ?? [])
         loaded.loadSpeakers(speakerRows)
+        loaded.speakerTags = (try? db.speakerTags(id)) ?? []
         loaded.buildIndexes()
         detail = loaded
         if forceAudio || previous?.id != meeting.id || previous?.audioFile != meeting.audioFile {
@@ -967,6 +999,61 @@ final class AppModel {
         perform(.detail([.speakers])) { try db.clearSpeakerSuggestion(id, idx: idx) }
     }
 
+    // MARK: 錄音中標記說話者（design §24、R23）
+
+    /// 一行的選單、＋ 的輸入框列出的認識的人（打開錄音畫面時讀一次）
+    var knownPeople: [String] = []
+
+    func refreshKnownPeople() {
+        knownPeople = (try? db.peopleNames()) ?? []
+    }
+
+    /// 「正在說話」的名字：標記現在這幾秒。標記的名字不加進與會者，打錯、清除之後就不會留下（design §24.2）
+    func tagSpeakerNow(_ name: String) {
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let id = recorder.meetingId, !recorder.isPaused, !name.isEmpty else { return }
+        let time = recorder.elapsed
+        perform(.detail([.speakerTags])) { try db.tagNow(id, at: time, name: name) }
+        noticeMessage = String(localized: "已標記 \(TimeFormat.string(time)) 是\(name)在說話")
+    }
+
+    /// 標記即時逐字稿的一行（換成別人也是這個）
+    func tagLiveLine(_ line: Recorder.LiveLine, as name: String) {
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let id = recorder.meetingId, !name.isEmpty else { return }
+        perform(.detail([.speakerTags])) { try db.tagLine(id, start: line.start, end: line.end, name: name) }
+    }
+
+    func clearLiveLineTag(_ line: Recorder.LiveLine) {
+        guard let id = recorder.meetingId else { return }
+        perform(.detail([.speakerTags])) { try db.clearLineTags(id, start: line.start, end: line.end) }
+    }
+
+    /// 「正在說話」那一排的 ＋：加進與會者
+    func addParticipant(_ name: String) {
+        guard let id = recorder.meetingId ?? selection else { return }
+        perform(.detail([.meeting])) { try db.addParticipant(id, name: name) }
+    }
+
+    /// 錄完：刪掉沒套用的標記（design §24.4）
+    func deleteSpeakerTag(_ id: Int64) {
+        perform(.detail([.speakerTags])) { try db.deleteSpeakerTag(id) }
+    }
+
+    #if DEBUG
+    /// shiyinctl tagui：add 等於按「正在說話」的 ＋，name:<行的 id> 等於一行選單裡的「其他名字…」（打開彈出視窗）
+    var debugTagUI: String?
+
+    /// shiyinctl applytags：等於重新轉錄存檔後那幾步：標記帶入的名字回到預設、套用標記、聲紋比對（design §24.5）
+    func debugApplyTags(_ id: Int64) {
+        perform(.detail([.speakers, .meeting])) {
+            try db.resetTaggedSpeakers(id)
+            try runner.applySpeakerTags(id)
+            if AppSettings.voiceprints { try db.matchVoiceprints(id) }
+        }
+    }
+    #endif
+
     // MARK: 偵測線上會議（design §21.7、R19.4）
 
     @ObservationIgnored let meetingDetector = MeetingDetector()
@@ -1294,6 +1381,7 @@ final class AppModel {
         static let segments = DetailParts(rawValue: 1 << 2)
         static let corrections = DetailParts(rawValue: 1 << 3)
         static let meeting = DetailParts(rawValue: 1 << 4)   // 會議本身、會議紀錄、版本數
+        static let speakerTags = DetailParts(rawValue: 1 << 5)
     }
 
     func perform(_ scope: ReloadScope = .all, _ work: () throws -> Void) {
@@ -1323,12 +1411,13 @@ final class AppModel {
         if parts.contains(.bookmarks) { updated.bookmarks = (try? db.bookmarks(id)) ?? [] }
         if parts.contains(.segments) { updated.segments = (try? db.segments(id)) ?? [] }
         if parts.contains(.corrections) { updated.corrections = (try? db.corrections(id)) ?? [] }
+        if parts.contains(.speakerTags) { updated.speakerTags = (try? db.speakerTags(id)) ?? [] }
         if parts.contains(.meeting), let meeting = try? db.meeting(id) {
             updated.meeting = meeting
             updated.notes = meeting.decodedNotes
             updated.versionCount = (try? db.versionCount(id)) ?? 0
         }
-        if !parts.isDisjoint(with: [.segments, .corrections]) || !segmentIds.isEmpty { updated.buildIndexes() }
+        if !parts.isDisjoint(with: [.segments, .corrections, .speakerTags]) || !segmentIds.isEmpty { updated.buildIndexes() }
         detail = updated
     }
 

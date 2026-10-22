@@ -197,12 +197,44 @@ enum DebugControl {
             }
             for window in NSApp.windows where window.isVisible { dump(window, depth: 0) }
             try? lines.joined(separator: "\n").write(toFile: args[1], atomically: true, encoding: .utf8)
+        case "windowshot":   // windowshot <輸出.png> [main|popover]：app 自己把視窗畫成圖片，不需要螢幕錄製權限（design §24.5）
+            let popover = args.count > 2 && args[2] == "popover"
+            let window = NSApp.windows.last { $0.isVisible && (popover ? $0.className.contains("Popover") : $0.identifier?.rawValue == "main") }
+            if let view = window?.contentView?.superview ?? window?.contentView,
+               let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) {
+                view.cacheDisplay(in: view.bounds, to: rep)
+                try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: args[1]))
+            }
         case "press":
             let matches = accessibilityButtons(label: args[1])
             let index = args.count > 2 ? Int(args[2]) ?? 0 : 0
             let pressed = matches.indices.contains(index) && matches[index].accessibilityPerformPress()
             if args.count > 3 { write(["found": matches.count, "pressed": pressed], to: args[3]) }
         case "bookmark": model.addBookmark(at: Double(args[2]) ?? 0, meetingId: id)
+        case "tagspeaker":   // tagspeaker now <名字> | line <第幾行> <名字|-> | add <會議 id> <開始> <結束> <名字> | delete <標記 id>（design §24.5）
+            let count = ["now": 3, "line": 4, "add": 6, "delete": 3][args.count > 1 ? args[1] : ""] ?? Int.max
+            guard args.count >= count else { break }
+            switch args[1] {
+            case "now": model.tagSpeakerNow(args[2])
+            case "line":
+                let lines = model.recorder.liveLines
+                guard let index = Int(args[2]), lines.indices.contains(index) else { break }
+                if args[3] == "-" { model.clearLiveLineTag(lines[index]) } else { model.tagLiveLine(lines[index], as: args[3]) }
+            case "add":
+                model.perform(.detail([.speakerTags])) {
+                    try model.db.addSpeakerTag(Int64(args[2]) ?? 0, start: Double(args[3]) ?? 0, end: Double(args[4]) ?? 0, name: args[5])
+                }
+            default: model.deleteSpeakerTag(Int64(args[2]) ?? 0)
+            }
+        case "tagui":   // tagui add | tagui name <第幾行>：等於按 ＋、一行選單裡的「其他名字…」，打開輸入名字的彈出視窗（design §24.5）
+            if args.count > 2, args[1] == "name", let index = Int(args[2]), model.recorder.liveLines.indices.contains(index) {
+                model.debugTagUI = "name:\(model.recorder.liveLines[index].id)"
+            } else if args.count > 1, args[1] == "add" {
+                model.debugTagUI = "add"
+            }
+        case "addparticipant": model.selection = id; model.addParticipant(args[2])   // addparticipant <會議 id> <名字>：等於在 ＋ 按「加入」
+        case "applytags": model.selection = id; if let id { model.debugApplyTags(id) }   // applytags <會議 id>：重新套用標記
+        case "speakertags": write(speakerTagsReport(id ?? 0), to: args[2])   // speakertags <會議 id> <輸出.json>
         case "addterm": model.addTerm(args[1])
         case "dismissterm": model.dismissGlossarySuggestion(args[1])
         case "record":
@@ -424,8 +456,35 @@ enum DebugControl {
         if let detail = model.detail {
             out["transcribedWith"] = detail.meeting.transcribedWith
             out["canUpgradeTranscript"] = model.canUpgradeTranscript(detail.meeting)   // design §21.17
+            // 錄音中標記說話者（design §24.5）：即時逐字稿每一行的名字、「正在說話」的名單
+            if detail.meeting.id == model.recorder.meetingId, var recorder = out["recorder"] as? [String: Any] {
+                recorder["liveTags"] = model.recorder.liveLines.map { detail.liveTag(start: $0.start, end: $0.end)?.name ?? "" }
+                recorder["tagRoster"] = detail.tagRoster
+                out["recorder"] = recorder
+            }
+            out["unappliedTags"] = detail.unappliedTags.map(\.name)
         }
         return out
+    }
+
+    /// speakertags：每個標記對上的說話者、重疊比例、逐字稿上的位置、是不是沒套用；說話者的名字和來源（design §24.5）
+    private static func speakerTagsReport(_ id: Int64) -> [String: Any] {
+        let db = AppModel.shared.db
+        let segments = (try? db.segments(id)) ?? []
+        let speakers = (try? db.speakers(id)) ?? []
+        let names = Dictionary(uniqueKeysWithValues: speakers.map { ($0.idx, $0.name) })
+        let tags = ((try? db.speakerTags(id)) ?? []).map { tag -> [String: Any] in
+            let match = SpeakerTagging.match(tag.tag, in: segments)
+            return ["id": tag.id ?? 0, "start": tag.start, "end": tag.end, "name": tag.name, "kind": tag.kind,
+                    "speaker": match.speaker ?? -1, "share": match.share, "segment": match.segmentId ?? -1,
+                    "segmentSpeaker": match.segmentSpeaker ?? -1,
+                    "unapplied": match.segmentSpeaker.map { !SpeakerTagging.sameName(names[$0] ?? "", tag.name) } ?? false]
+        }
+        return ["tags": tags,
+                "speakers": speakers.map { ["idx": $0.idx, "name": $0.name, "source": $0.nameSource, "person": $0.personId ?? -1,
+                                            "seconds": $0.speechSeconds] },
+                "participants": (try? db.meeting(id))?.participants ?? "",
+                "people": ((try? db.peopleSummaries()) ?? []).map { ["name": $0.name, "voiceprints": $0.voiceprintCount] }]
     }
 
     /// 提示文字是 placeholder 的輸入框（依畫面上的順序）

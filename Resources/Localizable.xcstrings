@@ -131,6 +131,17 @@
         }
       }
     },
+    "%@正在說話：標記現在這幾秒，錄完會套到他的說話者": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ is speaking: tags the last few seconds, applied to their speaker after recording"
+          }
+        }
+      }
+    },
     "%@（副本）": {
       "extractionState": "manual",
       "localizations": {
@@ -1642,6 +1653,17 @@
         }
       }
     },
+    "其他名字…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Other Name…"
+          }
+        }
+      }
+    },
     "出了一點問題": {
       "extractionState": "manual",
       "localizations": {
@@ -1752,6 +1774,17 @@
         }
       }
     },
+    "刪除標記": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete Tag"
+          }
+        }
+      }
+    },
     "刪除的會議會先放進側欄最下面的「垃圾桶」，30 天內都可以還原。": {
       "extractionState": "manual",
       "localizations": {
@@ -1847,6 +1880,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "Add"
+          }
+        }
+      }
+    },
+    "加入名字": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add Name"
+          }
+        }
+      }
+    },
+    "加入與會者的名字": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add a participant's name"
           }
         }
       }
@@ -2558,6 +2613,17 @@
         }
       }
     },
+    "套用到%@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apply to %@"
+          }
+        }
+      }
+    },
     "套用後，逐字稿和會議紀錄都會換成名字。": {
       "extractionState": "manual",
       "localizations": {
@@ -2906,6 +2972,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Paused. Click to open the meeting being recorded."
+          }
+        }
+      }
+    },
+    "已標記 %@ 是%@在說話": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tagged %@: %@ is speaking"
           }
         }
       }
@@ -3682,6 +3759,17 @@
         }
       }
     },
+    "按 ＋ 加入與會者的名字，誰在說話就按他的名字": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Press + to add participants, then press a name while that person is speaking"
+          }
+        }
+      }
+    },
     "按「停止並轉錄」後，拾音會在這台 Mac 上重新轉錄（中文、英文用 Breeze ASR 25，日文用 Whisper large-v3-turbo），並分辨不同的說話者。等待的時候，會議紀錄會先用即時逐字稿整理一份草稿，正式版好了會自動換掉。逐字稿上點「說話者 1」可以改成人名，整場都會跟著改；拾音會記住這個人的聲音，之後的會議自動帶入名字（標「自動」，認錯了點一下就能改）。": {
       "extractionState": "manual",
       "localizations": {
@@ -3999,6 +4087,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Switch back to %@"
+          }
+        }
+      }
+    },
+    "改成別人或清除標記": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Change to someone else or clear the tag"
           }
         }
       }
@@ -5093,6 +5192,17 @@
         }
       }
     },
+    "標記": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tag"
+          }
+        }
+      }
+    },
     "標記這個時間點（⌘B），整理時會被當成重點": {
       "extractionState": "manual",
       "localizations": {
@@ -5446,6 +5556,17 @@
         }
       }
     },
+    "正在說話": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speaking"
+          }
+        }
+      }
+    },
     "正在轉錄，完成後才能刪除模型": {
       "extractionState": "manual",
       "localizations": {
@@ -5772,6 +5893,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Clear Questions"
+          }
+        }
+      }
+    },
+    "清除標記": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear Tag"
           }
         }
       }
@@ -7903,6 +8035,28 @@
         }
       }
     },
+    "這段是誰說的": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Who Said This"
+          }
+        }
+      }
+    },
+    "這段是誰說的？標記後，錄完會套到他的說話者": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Who said this? After recording, the name is applied to their speaker"
+          }
+        }
+      }
+    },
     "通知": {
       "extractionState": "manual",
       "localizations": {
@@ -8614,6 +8768,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "Recording, transcription or summarizing is in progress. Update when it's done."
+          }
+        }
+      }
+    },
+    "錄音時標記為%@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tagged as %@ during recording"
+          }
+        }
+      }
+    },
+    "錄音時標記的 %lld 個名字沒有自動套用：%@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld name tagged during recording wasn't applied: %@"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld names tagged during recording weren't applied: %@"
+                }
+              }
+            }
           }
         }
       }

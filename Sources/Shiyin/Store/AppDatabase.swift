@@ -222,6 +222,21 @@ final class AppDatabase: @unchecked Sendable {
                 );
                 """)
         }
+        // 錄音中標記的說話者（design §24.1、R23）
+        migrator.registerMigration("v8") { db in
+            try db.execute(sql: """
+                CREATE TABLE speaker_tags (
+                  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                  meeting_id INTEGER NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+                  start      REAL NOT NULL,
+                  end        REAL NOT NULL,
+                  name       TEXT NOT NULL,
+                  kind       TEXT NOT NULL,
+                  created_at TEXT NOT NULL
+                );
+                CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
+                """)
+        }
         return migrator
     }
 
@@ -385,8 +400,10 @@ final class AppDatabase: @unchecked Sendable {
             // 說話者：保留已改過的名字，新的編號補上預設名字（跟著會議語言）
             let language = try Meeting.fetchOne(db, key: meetingId)?.meetingLanguage ?? .zh
             let existing = try SpeakerName.filter(Column("meeting_id") == meetingId).fetchAll(db)
-            // 預設名稱（任何語言的「說話者 1」）不算改過，換了會議語言後要用新語言的預設名稱
-            let named = Dictionary(uniqueKeysWithValues: existing.filter { !Self.isDefaultSpeakerName($0.name) }.map { ($0.idx, $0) })
+            // 預設名稱（任何語言的「說話者 1」）不算改過，換了會議語言後要用新語言的預設名稱。
+            // 用標記帶入的名字也不保留：說話者的編號可能變了，存完再用標記重新對一次（design §24.3）
+            let named = Dictionary(uniqueKeysWithValues: existing.filter { !Self.isDefaultSpeakerName($0.name) && $0.nameSource != "tag" }
+                .map { ($0.idx, $0) })
             try SpeakerName.filter(Column("meeting_id") == meetingId).deleteAll(db)
             for idx in stride(from: 1, through: speakerCount, by: 1) {
                 var speaker = SpeakerName(meetingId: meetingId, idx: idx,
@@ -561,6 +578,98 @@ final class AppDatabase: @unchecked Sendable {
     func deleteBookmark(_ id: Int64) throws {
         _ = try pool.write { db in try Bookmark.deleteOne(db, key: id) }
     }
+
+    // MARK: 錄音中標記的說話者（design §24、R23）
+
+    func speakerTags(_ meetingId: Int64) throws -> [SpeakerTag] {
+        try pool.read { db in try SpeakerTag.filter(Column("meeting_id") == meetingId).order(Column("id")).fetchAll(db) }
+    }
+
+    /// 標記即時逐字稿的一行：先刪掉這一行有的標記（中間點在這一行裡的），改名字才不會留下兩個名字
+    func tagLine(_ meetingId: Int64, start: Double, end: Double, name: String) throws {
+        try pool.write { db in
+            try Self.deleteLineTags(db, meetingId: meetingId, start: start, end: end)
+            var tag = SpeakerTag(meetingId: meetingId, start: start, end: end, name: name, kind: "line")
+            try tag.insert(db)
+        }
+    }
+
+    func clearLineTags(_ meetingId: Int64, start: Double, end: Double) throws {
+        try pool.write { db in try Self.deleteLineTags(db, meetingId: meetingId, start: start, end: end) }
+    }
+
+    private static func deleteLineTags(_ db: Database, meetingId: Int64, start: Double, end: Double) throws {
+        try db.execute(sql: "DELETE FROM speaker_tags WHERE meeting_id = ? AND (start + \"end\") / 2 BETWEEN ? AND ?",
+                       arguments: [meetingId, start, end])
+    }
+
+    /// 「正在說話」：標記按下前 3 秒到後 1 秒；前一個「正在說話」的中間點差不到 2 秒就取代它（按錯馬上改）
+    func tagNow(_ meetingId: Int64, at time: Double, name: String) throws {
+        let range = SpeakerTagging.nowRange(at: time)
+        try pool.write { db in
+            try db.execute(sql: "DELETE FROM speaker_tags WHERE meeting_id = ? AND kind = 'now' AND abs((start + \"end\") / 2 - ?) < ?",
+                           arguments: [meetingId, (range.start + range.end) / 2, SpeakerTagging.nowReplaceWithin])
+            var tag = SpeakerTag(meetingId: meetingId, start: range.start, end: range.end, name: name, kind: "now")
+            try tag.insert(db)
+        }
+    }
+
+    func addSpeakerTag(_ meetingId: Int64, start: Double, end: Double, name: String, kind: String = "line") throws {
+        try pool.write { db in
+            var tag = SpeakerTag(meetingId: meetingId, start: start, end: end, name: name, kind: kind)
+            try tag.insert(db)
+        }
+    }
+
+    func deleteSpeakerTag(_ id: Int64) throws {
+        _ = try pool.write { db in try SpeakerTag.deleteOne(db, key: id) }
+    }
+
+    /// 與會者加一個名字（design §24.2）：已經有了就不加，分隔符號跟原本的一樣
+    func addParticipant(_ meetingId: Int64, name: String) throws {
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+        try pool.write { db in
+            guard var m = try Meeting.fetchOne(db, key: meetingId),
+                  !m.participantList.contains(where: { SpeakerTagging.sameName($0, name) }) else { return }
+            let existing = m.participants.trimmingCharacters(in: .whitespaces)
+            let separator = existing.contains("、") ? "、" : existing.contains("，") ? "，" : ", "  // l10n-skip
+            m.participants = existing.isEmpty ? name : existing + separator + name
+            m.updatedAt = Clock.now()
+            try m.update(db)
+        }
+    }
+
+    /// 錄完套用標記（design §24.3）：轉錄存檔後、聲紋比對前。名字還是預設的說話者，對上他的標記都是同一個名字，
+    /// 就改成那個名字（name_source = tag）。回傳套用了的說話者，學聲紋由呼叫的人做（要看設定）
+    func applySpeakerTags(_ meetingId: Int64) throws -> [(idx: Int, name: String)] {
+        try pool.write { db in
+            let tags = try SpeakerTag.filter(Column("meeting_id") == meetingId).order(Column("id")).fetchAll(db)
+            guard !tags.isEmpty else { return [] }
+            let segments = try Segment.filter(Column("meeting_id") == meetingId && Column("kind") == "final").fetchAll(db)
+            let candidates = try Int.fetchAll(db, sql: "SELECT idx FROM speakers WHERE meeting_id = ? AND name_source = 'default'",
+                                              arguments: [meetingId])
+            let names = SpeakerTagging.names(for: tags.map(\.tag), in: segments, candidates: Set(candidates))
+            for (idx, name) in names {
+                try db.execute(sql: "UPDATE speakers SET name = ?, name_source = 'tag' WHERE meeting_id = ? AND idx = ?",
+                               arguments: [name, meetingId, idx])
+            }
+            return names.sorted { $0.key < $1.key }.map { (idx: $0.key, name: $0.value) }
+        }
+    }
+
+    #if DEBUG
+    /// shiyinctl applytags：用標記帶入的名字先回到預設名稱，等於重新轉錄存檔時（design §24.5）
+    func resetTaggedSpeakers(_ meetingId: Int64) throws {
+        try pool.write { db in
+            let language = try Meeting.fetchOne(db, key: meetingId)?.meetingLanguage ?? .zh
+            for idx in try Int.fetchAll(db, sql: "SELECT idx FROM speakers WHERE meeting_id = ? AND name_source = 'tag'", arguments: [meetingId]) {
+                try db.execute(sql: "UPDATE speakers SET name = ?, name_source = 'default', person_id = NULL WHERE meeting_id = ? AND idx = ?",
+                               arguments: [language.text(zh: "說話者 \(idx)", en: "Speaker \(idx)", ja: "話者 \(idx)"), meetingId, idx])  // l10n-skip
+            }
+        }
+    }
+    #endif
 
     func updateUserNotes(_ meetingId: Int64, _ text: String) throws {
         try pool.write { db in

@@ -102,7 +102,7 @@ struct SpeakerName: SnakeCaseRecord, Hashable {
     var idx: Int
     var name: String
     // v7（design §21.1）
-    var nameSource: String = "default"     // default / manual / voiceprint / suggestion
+    var nameSource: String = "default"     // default / manual / voiceprint / suggestion / tag（錄音中標記，design §24）
     var personId: Int64?
     var embedding: Data?                   // 聲紋，Float32×256
     var speechSeconds: Double = 0
@@ -122,6 +122,24 @@ struct Bookmark: SnakeCaseRecord, Identifiable, Hashable {
 
     mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
 }
+
+/// 錄音中標記的說話者（design §24、R23）：錄完依時間套到正式轉錄分出的說話者
+struct SpeakerTag: SnakeCaseRecord, Identifiable, Hashable {
+    static let databaseTableName = "speaker_tags"
+    var id: Int64?
+    var meetingId: Int64
+    var start: Double
+    var end: Double
+    var name: String
+    var kind: String                       // line：即時逐字稿的一行；now：「正在說話」按鈕
+    var createdAt: String = Clock.now()
+
+    var tag: SpeakerTagging.Tag { SpeakerTagging.Tag(start: start, end: end, name: name) }
+
+    mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
+}
+
+extension Segment: SpeakerSpan {}
 
 /// 逐字稿校正建議（design §17.4、R14.4）：pending 待確認、accepted 已接受（段落文字已改）、rejected 已拒絕
 struct Correction: SnakeCaseRecord, Identifiable, Hashable {

@@ -30,8 +30,15 @@ struct RecordingPanel: View {
             Divider()
             // 不用 HSplitView：它在 NavigationSplitView 裡會把內容撐到視窗的預設寬度，視窗窄的時候左右被切掉
             HStack(spacing: 0) {
-                Isolated { liveTranscript(recorder) }
-                    .frame(minWidth: 300, maxWidth: .infinity)
+                VStack(spacing: 0) {
+                    // 錄音中標記說話者（design §24.2）：說話者辨識關掉時沒有說話者可以套用，不顯示
+                    if AppSettings.diarize {
+                        SpeakerTagBar(roster: detail.tagRoster)
+                        Divider()
+                    }
+                    Isolated { liveTranscript(recorder) }
+                }
+                .frame(minWidth: 300, maxWidth: .infinity)
                 Divider()
                 VStack(alignment: .leading, spacing: 8) {
                     Text("我的筆記").font(.songti(16))
@@ -45,6 +52,7 @@ struct RecordingPanel: View {
                 .frame(width: 300)
             }
         }
+        .onAppear { model.refreshKnownPeople() }
     }
 
     private func controls(_ recorder: Recorder) -> some View {
@@ -134,6 +142,8 @@ struct RecordingPanel: View {
         #endif
         // 每個重點只標在一段上：開始時間不晚於它的最後一段
         let starred = Set(detail.bookmarks.compactMap { mark in recorder.liveLines.last(where: { $0.start <= mark.time })?.id })
+        let tagging = AppSettings.diarize
+        let roster = detail.tagRoster
         return ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 8) {
@@ -142,21 +152,17 @@ struct RecordingPanel: View {
                             .foregroundStyle(.secondary)
                     }
                     ForEach(recorder.liveLines) { line in
-                        HStack(alignment: .firstTextBaseline, spacing: 12) {
-                            Text(TimeFormat.string(line.start)).font(.callout.monospacedDigit()).foregroundStyle(Color.celadon)
-                                .frame(width: 52, alignment: .trailing)
-                            Text(line.text).textSelection(.enabled).fixedSize(horizontal: false, vertical: true).meetingText()
-                            if starred.contains(line.id) {
-                                Image(systemName: "star.fill").foregroundStyle(Color.signal).font(.caption)
-                            }
-                        }
-                        .id(line.id)
+                        LiveLineRow(line: line, tagged: tagging ? detail.liveTag(start: line.start, end: line.end)?.name : nil,
+                                    roster: roster, starred: starred.contains(line.id), tagging: tagging)
+                            .id(line.id)
                     }
                     // 還沒定稿的文字一直在變，只讓這一行重算，不拖著整份即時逐字稿（design §21.12）
                     Isolated {
                         if !recorder.volatileText.isEmpty {
                             HStack(alignment: .firstTextBaseline, spacing: 12) {
                                 Text("…").frame(width: 52, alignment: .trailing).foregroundStyle(.tertiary)
+                                // 跟定稿的行對齊：空出標記名字那一欄
+                                if tagging { Color.clear.frame(width: 64, height: 0) }
                                 Text(recorder.volatileText).foregroundStyle(.secondary).meetingText()
                             }
                             .id("volatile")
@@ -188,6 +194,211 @@ struct RecordingPanel: View {
                 }
             }
         }
+    }
+}
+
+/// 「正在說話」（design §24.2、R23.2）：誰在說話就按他的名字，標記現在這幾秒；＋ 加入與會者
+private struct SpeakerTagBar: View {
+    @Environment(AppModel.self) private var model
+    let roster: [String]
+    @State private var adding = false
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text("正在說話").foregroundStyle(.secondary)
+            if roster.isEmpty {
+                Text("按 ＋ 加入與會者的名字，誰在說話就按他的名字").foregroundStyle(.tertiary).lineLimit(1)
+                Spacer(minLength: 0)
+            } else {
+                ScrollView(.horizontal) {
+                    HStack(spacing: 6) {
+                        ForEach(Array(roster.enumerated()), id: \.element) { index, name in
+                            // 選單、工具列以外的按鈕才畫得出膠囊背景；顏色跟一行前面的名字一樣，依名單的順序
+                            Button { model.tagSpeakerNow(name) } label: {
+                                Text(name)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 3)
+                                    .foregroundStyle(Color.speaker(index + 1))
+                                    .background(Color.speaker(index + 1).opacity(0.12), in: Capsule())
+                            }
+                            .buttonStyle(.plain)
+                            .help("\(name)正在說話：標記現在這幾秒，錄完會套到他的說話者")
+                        }
+                    }
+                }
+                .scrollIndicators(.never)
+                .disabled(model.recorder.isPaused)
+            }
+            Button { adding = true } label: { Image(systemName: "plus") }
+                .buttonStyle(.borderless)
+                .help("加入與會者的名字")
+                .accessibilityLabel("加入名字")
+                .popover(isPresented: $adding, arrowEdge: .bottom) {
+                    SpeakerNameForm(actionTitle: "加入", exclude: roster) { name in
+                        model.addParticipant(name)
+                        adding = false
+                    } onCancel: { adding = false }
+                }
+        }
+        .font(.callout)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 8)
+        #if DEBUG
+        .onChange(of: model.debugTagUI) { _, value in
+            guard value == "add" else { return }
+            adding = true
+            model.debugTagUI = nil
+        }
+        #endif
+    }
+}
+
+/// 即時逐字稿的一行（design §5.4）：時間、這段是誰說的（design §24.2、R23.1）、文字、重點
+private struct LiveLineRow: View {
+    @Environment(AppModel.self) private var model
+    let line: Recorder.LiveLine
+    let tagged: String?
+    let roster: [String]
+    let starred: Bool
+    let tagging: Bool
+    @State private var hovering = false
+    @State private var naming = false
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text(TimeFormat.string(line.start)).font(.callout.monospacedDigit()).foregroundStyle(Color.celadon)
+                .frame(width: 52, alignment: .trailing)
+            if tagging { tagMenu }
+            Text(line.text).textSelection(.enabled).fixedSize(horizontal: false, vertical: true).meetingText()
+            if starred {
+                Image(systemName: "star.fill").foregroundStyle(Color.signal).font(.caption)
+            }
+        }
+        .onHover { hovering = $0 }
+        // 右鍵選單會取代文字原本的選單，所以「拷貝」要自己放（跟逐字稿分頁一樣）
+        .contextMenu {
+            if tagging {
+                menuItems
+                Divider()
+            }
+            Button("拷貝") {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(line.text, forType: .string)
+            }
+        }
+        .popover(isPresented: $naming, arrowEdge: .bottom) {
+            SpeakerNameForm(actionTitle: "標記", exclude: roster) { name in
+                model.tagLiveLine(line, as: name)
+                naming = false
+            } onCancel: { naming = false }
+        }
+        #if DEBUG
+        .onChange(of: model.debugTagUI) { _, value in
+            guard value == "name:\(line.id)" else { return }
+            naming = true
+            model.debugTagUI = nil
+        }
+        #endif
+    }
+
+    /// 標過是名字（說話者的顏色，依名單的順序），沒標是淡淡的人像、滑過時變清楚。
+    /// 選單在畫面上只畫標題的文字，所以名字不加背景
+    private var tagMenu: some View {
+        Menu { menuItems } label: {
+            if let tagged {
+                let index = roster.firstIndex { SpeakerTagging.sameName($0, tagged) } ?? 0
+                Text(tagged).fontWeight(.medium).foregroundStyle(Color.speaker(index + 1))
+            } else {
+                Image(systemName: "person.crop.circle").foregroundStyle(.secondary)
+            }
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .lineLimit(1)
+        .frame(width: 64, alignment: .leading)
+        .opacity(tagged != nil || hovering ? 1 : 0.35)
+        .help(tagged == nil ? "這段是誰說的？標記後，錄完會套到他的說話者" : "改成別人或清除標記")
+        .accessibilityLabel(tagged ?? String(localized: "這段是誰說的"))
+    }
+
+    @ViewBuilder
+    private var menuItems: some View {
+        Section("這段是誰說的") {
+            ForEach(roster, id: \.self) { name in
+                Button {
+                    model.tagLiveLine(line, as: name)
+                } label: {
+                    if let tagged, SpeakerTagging.sameName(tagged, name) { Label(name, systemImage: "checkmark") } else { Text(name) }
+                }
+            }
+        }
+        let others = model.knownPeople.filter { person in !roster.contains { SpeakerTagging.sameName($0, person) } }
+        if !others.isEmpty {
+            // 設定頁的「認識的人」英文帶 app 名稱，放在選單裡太長
+            Menu(MeetingLanguage.ui(zh: "認識的人", en: "Known People")) {
+                ForEach(others, id: \.self) { person in
+                    Button(person) { model.tagLiveLine(line, as: person) }
+                }
+            }
+        }
+        Button("其他名字…") { naming = true }
+        if tagged != nil {
+            Divider()
+            Button("清除標記") { model.clearLiveLineTag(line) }
+        }
+    }
+}
+
+/// 輸入說話者的名字（design §24.2）：Enter 或按鈕送出；下面列出還不在名單裡的認識的人，點了就用那個名字
+private struct SpeakerNameForm: View {
+    @Environment(AppModel.self) private var model
+    let actionTitle: LocalizedStringKey
+    let exclude: [String]
+    let onDone: (String) -> Void
+    let onCancel: () -> Void
+    @State private var name = ""
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        let typed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let people = model.knownPeople.filter { person in
+            !exclude.contains { SpeakerTagging.sameName($0, person) } && (typed.isEmpty || person.localizedCaseInsensitiveContains(typed))
+        }
+        VStack(alignment: .leading, spacing: 10) {
+            TextField("名字", text: $name)
+                .textFieldStyle(.roundedBorder)
+                .focused($focused)
+                .onSubmit(submit)
+            if !people.isEmpty {
+                Text(MeetingLanguage.ui(zh: "認識的人", en: "Known People")).font(.caption).foregroundStyle(.secondary)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(people, id: \.self) { person in
+                            Button(person) { onDone(person) }.buttonStyle(.link)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(height: min(120, CGFloat(people.count) * 22))
+            }
+            HStack {
+                Spacer()
+                Button("取消", role: .cancel, action: onCancel)
+                    .keyboardShortcut(.cancelAction)
+                Button(actionTitle, action: submit)
+                    .keyboardShortcut(.defaultAction)
+                    .buttonStyle(.borderedProminent)
+                    .disabled(typed.isEmpty)
+            }
+        }
+        .padding(14)
+        .frame(width: 260)
+        .onAppear { focused = true }
+    }
+
+    private func submit() {
+        let typed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !typed.isEmpty { onDone(typed) }
     }
 }
 

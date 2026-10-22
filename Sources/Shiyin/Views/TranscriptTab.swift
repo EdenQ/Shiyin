@@ -290,6 +290,20 @@ struct TranscriptTab: View {
         .font(.caption)
     }
 
+    /// 錄音時標記、沒套用的名字（design §24.4、R23.5）：套用到這一段的說話者（跟手動改名一樣），或刪掉標記
+    private func tagLine(_ tag: SpeakerTag, speaker idx: Int) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Label("錄音時標記為\(tag.name)", systemImage: "person.crop.circle.badge.questionmark")
+                .foregroundStyle(Color.signal)
+            Spacer(minLength: 8)
+            Button("刪除標記") { if let id = tag.id { model.deleteSpeakerTag(id) } }
+                .buttonStyle(.link)
+            Button("套用到\(detail.speakerName(idx) ?? "")") { model.renameSpeaker(idx, to: tag.name) }
+                .buttonStyle(.link)
+        }
+        .font(.caption)
+    }
+
     @ViewBuilder
     private func row(_ segment: Segment) -> some View {
         let isCurrent = segment.id == currentSegmentId
@@ -340,6 +354,9 @@ struct TranscriptTab: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .onTapGesture(count: 2) { startEdit(segment) }
                     ForEach(corrections) { correctionLine($0) }
+                    if let idx = segment.speaker {
+                        ForEach(detail.unappliedTags(on: segment.id)) { tagLine($0, speaker: idx) }
+                    }
                 }
             }
         }
