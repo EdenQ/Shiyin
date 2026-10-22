@@ -20,7 +20,7 @@
 
 | 文件 | 內容 |
 |---|---|
-| `docs/requirements.md` | 要做什麼：需求編號 R#、N#，第 8 節是驗收結果 |
+| `docs/requirements.md` | 要做什麼：需求編號 R#、N#（已發布版本的驗收結果不留在文件裡，在 git 歷史） |
 | `docs/design.md` | 怎麼做：架構、資料模型、提示詞、介面、決策紀錄 D# |
 | `docs/design-windows.md` | Windows 版怎麼做：跟 Mac 不同的地方、標準答案、驗證環境、決策紀錄 D42 起 |
 | `docs/tasks.md` | 還沒完成的任務，每項都有驗證方式；做完就刪掉 |
