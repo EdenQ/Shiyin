@@ -21,7 +21,7 @@ struct SettingsView: View {
 
 struct ProviderSettings: View {
     @Environment(AppModel.self) private var model
-    @AppStorage(AppSettings.providerKey) private var provider = LLMProvider.claude.rawValue
+    @AppStorage(AppSettings.providerKey) private var storedProvider = ""
     @AppStorage(AppSettings.autoSummarizeKey) private var autoSummarize = true
     @AppStorage(AppSettings.correctTranscriptKey) private var correctTranscript = true
     @State private var modelName = ""
@@ -39,18 +39,28 @@ struct ProviderSettings: View {
     @State private var login: CLILogin.Status?
     @State private var checkingLogin = false
 
-    private var current: LLMProvider { LLMProvider(rawValue: provider) ?? .claude }
+    /// 選單顯示的值：沒選過時顯示自動選到的那一個，找不到 CLI 時是「之後再設定」（空字串）；改了才寫進設定（R35.3）
+    private var provider: String {
+        if LLMProvider(rawValue: storedProvider) != nil { return storedProvider }
+        let detected = AppSettings.detectedProvider
+        return detected == .none ? "" : detected.rawValue
+    }
+    private var current: LLMProvider { LLMProvider(rawValue: provider) ?? .none }
 
     var body: some View {
         Form {
-            Picker("整理工具", selection: $provider) {
+            Picker("整理工具", selection: Binding(get: { provider }, set: { storedProvider = $0 })) {
+                // 這台 Mac 沒有 claude、codex 時才有：選它等於清掉設定，回到「還沒設定」
+                if AppSettings.detectedProvider == .none { Text("之後再設定（先不整理）").tag("") }
                 ForEach(LLMProvider.allCases) { Text($0.label).tag($0.rawValue) }
             }
             if current == .claude || current == .codex {
                 LabeledContent("狀態") {
                     HStack(spacing: 8) {
                         if Paths.findTool(current == .claude ? "claude" : "codex") == nil {
-                            Text("找不到，請先安裝並登入").foregroundStyle(.secondary)
+                            Text(current == .codex ? "這台 Mac 沒有安裝 codex：沒有在用 Codex 的話，請改選 API"
+                                                   : "這台 Mac 沒有安裝 claude：沒有在用 Claude Code 的話，請改選 API")
+                                .foregroundStyle(.secondary)
                         } else if checkingLogin {
                             Text("檢查登入狀態…").foregroundStyle(.secondary)
                         } else if let login {
@@ -107,6 +117,7 @@ struct ProviderSettings: View {
                 if let keyError {
                     Text(keyError).font(.caption).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
                 }
+                if let url = current.apiKeyURL { Link("取得 API key", destination: url) }
             }
             if current != .none {
                 HStack {
@@ -149,7 +160,7 @@ struct ProviderSettings: View {
         }
         .formStyle(.grouped)
         .onAppear(perform: load)
-        .onChange(of: provider) { _, _ in load() }
+        .onChange(of: storedProvider) { _, _ in load() }
         #if DEBUG
         .onChange(of: model.debugSettingsAction) { _, action in
             guard let action else { return }
@@ -297,7 +308,10 @@ struct ProviderSettings: View {
 
     private var privacyText: String {
         switch current {
-        case .none: return String(localized: "目前不整理：錄音、轉錄、逐字稿全部留在這台 Mac。")
+        case .none:
+            return provider.isEmpty
+                ? String(localized: "還沒設定整理工具：錄音、轉錄、逐字稿全部留在這台 Mac。選好整理工具之後，才會整理成會議紀錄。")
+                : String(localized: "目前不整理：錄音、轉錄、逐字稿全部留在這台 Mac。")
         case .claude, .anthropic:
             return String(localized: "整理、提問、猜說話者時會把逐字稿文字、你的筆記、詞彙表和會議基本資料送到 Anthropic（Claude）。錄音檔不會送出。")
         case .codex, .openai:
@@ -806,6 +820,7 @@ struct AdvancedSettings: View {
     @Environment(AppModel.self) private var model
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @AppStorage(Updater.urlKey) private var updateURL = ""
+    @State private var showingUsageStats = false
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
@@ -854,13 +869,55 @@ struct AdvancedSettings: View {
                     model.noticeMessage = String(localized: "搜尋索引已重建")
                 }
             }
+            // 匿名使用統計（design §30.5、R40.4）：有統計網址的版本才有。放在最下面、只留一行，開關收在「詳細…」裡
+            if UsageStats.isOffered {
+                Section {
+                    LabeledContent("匿名使用統計") {
+                        Button("詳細…") { showingUsageStats = true }
+                    }
+                }
+            }
         }
         .formStyle(.grouped)
         .onAppear { model.refreshEnvironment() }
+        .sheet(isPresented: $showingUsageStats) {
+            UsageStatsSheet { showingUsageStats = false }
+        }
     }
 
     private var isFailure: Bool {
         if case .failed = model.updater.state { return true }
         return false
+    }
+}
+
+/// 「匿名使用統計」的「詳細…」（design §30.5、R40.4）：開關、說明、重設匿名 ID。不顯示送出的 JSON（使用者決定）
+private struct UsageStatsSheet: View {
+    let done: () -> Void
+    @AppStorage(UsageStats.enabledKey) private var usageStats = true
+    @State private var didReset = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("匿名使用統計").font(.headline)
+            Toggle("分享匿名使用統計", isOn: $usageStats)
+                .onChange(of: usageStats) { _, on in
+                    // 關掉時清掉還沒送的資料（R40.4），打開時建立今天的匯總
+                    if on { UsageStats.shared.touch() } else { UsageStats.shared.clearPending() }
+                }
+            Text("每天送一份匿名的使用統計給會議助手的開發者：版本、系統、錄音和轉錄了幾分鐘、用了哪些功能、失敗幾次。不會送會議標題、逐字稿、會議紀錄、人名、聲紋或任何檔案。")
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            HStack {
+                Button("重設匿名 ID") {
+                    UsageStats.shared.resetInstallId()
+                    didReset = true
+                }
+                if didReset { Text("已重設匿名 ID").font(.callout).foregroundStyle(.secondary) }
+                Spacer()
+                Button("完成", action: done).keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(20)
+        .frame(width: 460)
     }
 }

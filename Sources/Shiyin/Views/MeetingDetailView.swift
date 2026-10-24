@@ -39,7 +39,7 @@ struct MeetingDetailView: View {
                 ToolbarItem(placement: .principal) {
                     Picker("分頁", selection: $model.tab) {
                         ForEach(DetailTab.allCases) { tab in
-                            if tab == .review, let count = detail.notes?.reviewItems.count, count > 0 {
+                            if tab == .review, case let count = detail.reviewCount, count > 0 {
                                 Text("\(tab.label) \(count)").tag(tab)
                             } else {
                                 Text(tab.label).tag(tab)
@@ -110,7 +110,7 @@ struct MeetingHeader: View {
                 HStack(spacing: 6) {
                     ForEach(detail.speakers.keys.sorted(), id: \.self) { idx in
                         if detail.speakerSources[idx] == "voiceprint" {
-                            AutoSpeakerName(idx: idx, name: detail.speakers[idx] ?? "")
+                            AutoSpeakerName(idx: idx, name: detail.speakers[idx] ?? "", others: detail.speakerCandidates[idx] ?? [])
                         } else {
                             Text(detail.speakers[idx] ?? "").foregroundStyle(Color.speaker(idx))
                         }
@@ -156,6 +156,28 @@ struct MeetingHeader: View {
         }
         .fixedSize()
         .help("會議語言：決定轉錄和會議紀錄用的語言。改了之後，從「更多」重新轉錄或重新整理會議紀錄")
+        // 錄音中先填人數（design §26.2）：錄完轉錄時用
+        if model.recorder.isRecording && model.recorder.meetingId == meeting.id {
+            Menu {
+                Button {
+                    model.setMinSpeakers(nil)
+                } label: {
+                    if meeting.minSpeakers == nil { Label("自動判斷", systemImage: "checkmark") } else { Text("自動判斷") }
+                }
+                ForEach(2...12, id: \.self) { n in
+                    Button {
+                        model.setMinSpeakers(n)
+                    } label: {
+                        if meeting.minSpeakers == n { Label("\(n) 人", systemImage: "checkmark") } else { Text("\(n) 人") }
+                    }
+                }
+            } label: {
+                Label(meeting.minSpeakers.map { String(localized: "大約 \($0) 人") } ?? String(localized: "人數：自動判斷"),
+                      systemImage: "person.2")
+            }
+            .fixedSize()
+            .help("大約幾個人：人多、吵雜或手機放在桌上錄音時，先告訴會議助手大約幾個人，說話者會分得比較準")
+        }
     }
 }
 
@@ -242,13 +264,17 @@ struct StatusBanner: View {
             .padding(.vertical, 10)
             .background(background(status), in: RoundedRectangle(cornerRadius: 8))
         } else if let helper = model.runner.running.values.first(where: {
-            $0.job.meetingId == detail.meeting.id && ($0.job.kind == .correct || $0.job.kind == .nameSpeakers)
+            $0.job.meetingId == detail.meeting.id && ($0.job.kind == .correct || $0.job.kind == .nameSpeakers || $0.job.kind == .rediarize)
         }) {
             // 背景的輔助工作（design §21.2）：不算會議的狀態，但讓使用者知道還在跑
             let provider = helper.provider?.shortLabel ?? ""
             HStack(spacing: 10) {
                 ProgressView().controlSize(.small)
-                Text(helper.job.kind == .correct ? "正在用 \(provider) 檢查可能聽錯的字…" : "正在用 \(provider) 猜說話者的名字…")
+                switch helper.job.kind {
+                case .correct: Text("正在用 \(provider) 檢查可能聽錯的字…")
+                case .rediarize: Text("正在重新辨識說話者…")
+                default: Text("正在用 \(provider) 猜說話者的名字…")
+                }
                 Spacer(minLength: 12)
                 Button("取消") { model.cancelJobs() }
             }
@@ -339,11 +365,13 @@ struct MoreMenu: View {
             Button("重新整理會議紀錄", systemImage: "arrow.clockwise") { model.resummarize() }
             Button("檢查可能聽錯的字", systemImage: "text.magnifyingglass") { model.checkTranscript() }
             Button("重新轉錄（含說話者辨識）", systemImage: "waveform") { model.retranscribe() }
+            Button("重新辨識說話者…", systemImage: "person.2.wave.2") { model.requestRediarize() }
+            Button("復原說話者的調整", systemImage: "arrow.uturn.backward.circle") { model.undoSpeakerEdit() }
             Button("復原上一版會議紀錄", systemImage: "arrow.uturn.backward") { model.undoNotes() }
             Divider()
             Button("匯出…", systemImage: "square.and.arrow.up") { model.openExportSheet() }
             Menu("複製會議紀錄", systemImage: "doc.on.doc") {
-                Button("富文字（貼到 Word、Notion、郵件）") { model.copyNotes(.rich) }
+                Button("保留格式（貼到 Word、Notion、郵件）") { model.copyNotes(.rich) }
                 Button("Markdown") { model.copyNotes(.markdown) }
                 Button("純文字（貼到 Slack、訊息）") { model.copyNotes(.plain) }
             }
@@ -400,17 +428,27 @@ struct DraftNotesBanner: View {
     }
 }
 
-/// 聲紋自動帶入的說話者名字（design §21.4、R19.3）：名字後面標「自動」，點一下可以說不是他或到逐字稿改名
+/// 聲紋自動帶入的說話者名字（design §21.4、R19.3）：名字後面標「自動」。
+/// 點一下直接選是別人（最像的幾位認識的人，一次改名、記住聲音、改會議紀錄，R33.4），或說不是他
 private struct AutoSpeakerName: View {
     @Environment(AppModel.self) private var model
     let idx: Int
     let name: String
+    let others: [String]
 
     var body: some View {
         HStack(spacing: 3) {
             Menu {
-                Button("不是\(name)") { model.rejectVoiceprintMatch(idx) }
-                Button("到逐字稿改名") { model.tab = .transcript }
+                if !others.isEmpty {
+                    Section("是別人：") {
+                        ForEach(others, id: \.self) { other in
+                            Button(other) { model.renameSpeaker(idx, to: other) }
+                        }
+                    }
+                }
+                Button("其他人…（到逐字稿改名）") { model.tab = .transcript }
+                Divider()
+                Button("不是\(name)（不知道是誰）") { model.rejectVoiceprintMatch(idx) }
             } label: {
                 Text(name).foregroundStyle(Color.speaker(idx))
             }
@@ -461,7 +499,7 @@ private struct SpeakerSuggestionsBanner: View {
     var body: some View {
         let suggestions = detail.speakerSuggestions.sorted { $0.key < $1.key }
         HStack(spacing: 10) {
-            Label("從對話內容猜到 \(suggestions.count) 位說話者的名字", systemImage: "person.crop.circle.badge.questionmark")
+            Label("猜到 \(suggestions.count) 位說話者的名字", systemImage: "person.crop.circle.badge.questionmark")
             Spacer()
             Button("查看") { showing = true }
                 .popover(isPresented: $showing, arrowEdge: .bottom) {

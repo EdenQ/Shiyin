@@ -1,6 +1,6 @@
 <img src="docs/images/icon.png" width="96" alt="拾音圖示">
 
-**繁體中文** | [English](README.en.md) | 官網：[shiyin.weibuilds.com](https://shiyin.weibuilds.com)
+**繁體中文** | [English](.github/README.md) | 官網：[shiyin.weibuilds.com](https://shiyin.weibuilds.com)
 
 # 拾音 Shiyin
 
@@ -26,6 +26,8 @@ macOS 的會議紀錄 app。錄下會議（現場或線上），錄音中就能�
 - **錄音**
   - 來源可以選「只錄麥克風」「麥克風＋電腦聲音（線上會議）」「只錄電腦聲音」。Zoom、Meet、Teams 對方的聲音也錄得到
   - 錄音中顯示即時逐字稿、各來源的音量；可以暫停、標記重點、做筆記
+  - 收音提醒：麥克風沒有收到聲音、聲音太小、背景太吵時，錄音畫面會提醒你
+  - 人多、吵雜時，錄音中或匯入時就可以選「大約幾個人」，說話者分得比較準
   - 關掉主視窗後錄音照常進行，選單列可以暫停、停止；在其他 app 裡按 ⌃⌥⌘R 也能開始或停止錄音
   - 錄音中接上或拔掉耳機、換了輸出裝置，會自動接上繼續錄
   - 偵測到 Zoom、Teams、Google Meet 等線上會議開始用麥克風時，提醒你開始錄音；會議好像結束時提醒停止。只提醒，不會自動錄
@@ -41,6 +43,9 @@ macOS 的會議紀錄 app。錄下會議（現場或線上），錄音中就能�
 - **說話者辨識**：逐字稿每段標上說話者，每個人一個顏色；可以改名、只看某一位說話者
   - 聲紋：替說話者取名後，拾音記住這個人的聲音，之後的會議自動帶入名字（標「自動」，認錯可以改正）。聲紋只存在這台 Mac，設定裡可以查看、刪除、關閉
   - AI 從對話內容猜說話者的名字（例如「謝謝小陳的報告」），列成建議，按「套用」才改；改名時會議紀錄裡的名字一起換
+  - 人多、吵雜或手機遠距收音，分出來的人太少時：「更多 → 重新辨識說話者…」選大約幾個人，只重新分辨誰在說話，逐字稿的文字不變
+  - 分錯了很好改：同一個人被分成兩位，在說話者名字上點一下選「合併到…」；某幾句分錯人，在逐字稿按右鍵選「這句是誰說的」或「這段連續的話是誰說的」。改過的可以從「更多 → 復原說話者的調整」復原，重新辨識說話者時也會保留
+  - 拾音覺得可能把不同的人當成同一位時（人多、吵雜），逐字稿上方會提醒你重新辨識說話者
 - **會議紀錄**
   - 範本：一般會議、一對一、訪談、課堂／演講、腦力激盪，也可以自訂
   - 整理工具：Claude Code、Codex CLI、Anthropic API、OpenAI API、Gemini API、OpenAI 相容 API（Groq、OpenRouter、本機的 Ollama、LM Studio），或「不整理」只要逐字稿
@@ -50,7 +55,7 @@ macOS 的會議紀錄 app。錄下會議（現場或線上），錄音中就能�
 
   | 項目 | 格式 |
   |---|---|
-  | 會議紀錄 | Markdown、PDF、Word；也可以複製成富文字、Markdown、純文字 |
+  | 會議紀錄 | Markdown、PDF、Word；也可以複製成保留格式的文字（貼到 Word、Notion、郵件）、Markdown、純文字 |
   | 逐字稿 | txt、Markdown、srt、vtt、Word（可選要不要時間點和說話者） |
   | 錄音 | m4a、wav |
   | 整場會議 | .shiyin 封包（錄音、逐字稿、說話者、紀錄、筆記、重點），對方雙擊就能匯入 |
@@ -99,6 +104,37 @@ scripts/build-app.sh --install         # 建置 release 版並安裝到 ~/Applic
 
 沒有執行 `make-signing-cert.sh --trust` 也能建置，會改用 ad-hoc 簽章，只是每次重新建置後系統可能會再問一次權限。
 
+## Windows 版
+
+Windows 版在 [`windows/`](windows/)（C#、.NET 10、WinUI 3），功能跟 Mac 4.0 相同。到[官網](https://shiyin.weibuilds.com/windows/)或這個 repo 的 Releases 下載（tag 是 `win-vX.Y.Z`）。
+
+| 項目 | 需求 |
+|---|---|
+| 系統 | Windows 11（x64 或 ARM64）。N 版要先裝「媒體功能套件」（Media Feature Pack） |
+| 記憶體 | 8 GB 以上 |
+| 磁碟空間 | 第一次使用時下載：快速辨識約 240 MB、說話者辨識約 45 MB、轉錄模型約 1.7 GB；日文會議另外 574 MB |
+| 顯示卡 | 不是必要的。x64 的電腦有 NVIDIA 顯示卡時，拾音會自動下載顯示卡加速（約 685 MB），正式轉錄改用顯示卡（40 分鐘的會議用 RTX 3060 約 8 分鐘，只用 CPU 約 30 分鐘） |
+| 效能 | NVIDIA 顯示卡最快：顯示記憶體建議 4 GB 以上、驅動要 527 版以後。只用 CPU 時比較慢，筆電可能比會議本身還久；轉錄最多用 8 個執行緒。等不及的話，「設定 → 錄音 → 正式轉錄」改成「快速辨識」（快很多但比較不準）。錄音中的即時逐字稿約用一個 CPU 核心的三分之一 |
+| 整理工具 | 同 Mac |
+
+跟 Mac 版不一樣的地方：
+
+- **安裝**：執行 `Shiyin-<版本>-win-x64-Setup.exe`（ARM 的電腦用 `win-arm64` 那個），不用系統管理員權限，裝在 `%LOCALAPPDATA%\ShiyinApp`。安裝檔沒有程式碼簽章：出現「Windows 已保護您的電腦」時按「其他資訊」→「仍要執行」；開著「智慧型應用程式控制」時會被直接擋下，要先到「Windows 安全性 → 應用程式與瀏覽器控制」關掉它。之後有新版時，拾音會在 app 裡問你要不要更新。
+- **系統匣**取代選單列：關掉主視窗時拾音留在系統匣，錄音和轉錄不會中斷；Windows 11 預設把新圖示收在工作列的「^」裡。
+- **快捷鍵**：⌘ 換成 Ctrl；在其他 app 裡用 Ctrl+Alt+Shift+R 開始或停止錄音、Ctrl+Alt+Shift+B 標記重點。
+- **辨識**：即時逐字稿和「快速辨識」（取代 macOS 內建辨識，轉錄模型還沒下載好時先用）是 SenseVoice；說話者辨識是 sherpa-onnx，聲紋跟 Mac 版不通用。.shiyin 封包兩邊可以互相匯入。
+- **資料與隱私**：資料在 `%LOCALAPPDATA%\Shiyin`（只有這個 Windows 使用者讀得到），設定是裡面的 `settings.json`；API key 存在 Windows 的「認證管理員」，不寫進檔案或 log。解除安裝不會刪掉錄音和資料庫。其他同上面的〈資料與隱私〉。
+- **授權**：另外用了 sherpa-onnx、ONNX Runtime、SenseVoice、pyannote、3D-Speaker、NAudio、Velopack、WinUIEx、Windows App SDK 等，完整的清單和條文在「關於拾音」和安裝資料夾的 `Third-Party Licenses.txt`（`scripts/windows/make-third-party-licenses.py` 產生，更新套件後要重跑）。
+
+從原始碼建置要在 Windows 上，需要 .NET 10 SDK、Visual Studio Build Tools（C++）、CMake：
+
+```powershell
+pwsh scripts/windows/build-whisper.ps1 -Arch x64 -Out build\whisper-x64
+pwsh scripts/windows/pack.ps1 -Version 4.0.0 -Arch x64 -Whisper build\whisper-x64   # 安裝檔在 dist\win-x64
+```
+
+不碰畫面的程式（資料庫、提示詞、整理工具、轉錄流程）在 Mac 上也能測：`cd windows && dotnet test --project tests/Shiyin.Tests`。
+
 ## 發布新版
 
 ### 用 GitHub Actions（推薦）
@@ -121,6 +157,7 @@ scripts/build-app.sh --install         # 建置 release 版並安裝到 ~/Applic
 |---|---|---|
 | `SHIYIN_SIGNING_P12`、`SHIYIN_SIGNING_P12_PASSWORD` | Secret | 自簽憑證。用 `scripts/export-signing-cert.sh --to-github <owner/repo>` 從自己的電腦設定，CI 簽出來的 app 才會跟你電腦上建的一致；沒有設定就用 ad-hoc 簽章 |
 | `SHIYIN_UPDATE_URL` | Variable | 寫進 app 的更新網址 |
+| `SHIYIN_USAGE_URL` | Variable | 寫進 app 的匿名使用統計網址（選填；沒設就不送統計） |
 | `SHIYIN_RELEASES_REPO`、`SHIYIN_RELEASES_TOKEN` | Variable、Secret | 另外發布到一個公開的 repo（程式碼維持私人、又想讓 app 自動更新時用） |
 
 ### 在自己的電腦上發布
@@ -155,8 +192,9 @@ app 會檢查新版的簽章是否跟目前的 app 相符。執行過 `make-sign
 | 整理、校稿、提問、猜說話者 | 逐字稿文字、你的筆記、詞彙表、會議基本資料會送到你選的服務（Anthropic、OpenAI、Google，或 OpenAI 相容 API 填的網址）。問所有會議時只送找到的相關片段。錄音檔不會送出 |
 | 聲紋 | 說話者的聲音特徵（一組數字，不是錄音）只存在本機資料庫，不上傳、不放進匯出的 .shiyin 封包；設定 → 說話者可以刪除或關閉 |
 | 回報問題 | 只在你按「在 GitHub 回報」時用瀏覽器打開 GitHub，內容你看過、自己送出：版本、環境、錯誤的種類，不含會議內容、檔名或 API key |
+| 匿名使用統計 | 每天送一份給拾音的開發者：版本、系統、錄音和轉錄的分鐘數、用了哪些功能、失敗次數，加上一個隨機的匿名 ID。不含會議標題、逐字稿、會議紀錄、人名、聲紋或任何檔案。設定 → 進階可以關掉 |
 | API key | 存在 macOS 鑰匙圈，不寫進檔案或 log |
-| 整理工具選「不整理」 | 完全離線 |
+| 整理工具選「不整理」，並關掉匿名使用統計 | 完全離線 |
 | OpenAI 相容 API 填本機網址（Ollama、LM Studio） | 整理也在這台 Mac 上完成，內容不會離開電腦 |
 
 ## 設定（⌘,）
@@ -177,7 +215,7 @@ app 會檢查新版的簽章是否跟目前的 app 相符。執行過 `make-sign
 
 | 文件 | 內容 |
 |---|---|
-| [`docs/requirements.md`](docs/requirements.md) | 需求與驗收結果 |
+| [`docs/requirements.md`](docs/requirements.md) | 需求 |
 | [`docs/design.md`](docs/design.md) | 架構、資料模型、提示詞、介面、決策紀錄 |
 | [`docs/tasks.md`](docs/tasks.md) | 還沒完成的任務 |
 | [`CLAUDE.md`](CLAUDE.md) | 開發與驗證時要注意的事 |
@@ -243,6 +281,12 @@ sqlite3 ~/Library/Application\ Support/Shiyin/shiyin.sqlite             # 看資
 | [GRDB.swift](https://github.com/groue/GRDB.swift) | SQLite 資料庫、全文搜尋 | MIT |
 
 轉錄模型和說話者辨識模型不放在這個 repo 裡，第一次使用時才下載。app 和 DMG 都附有上面這些套件的完整授權條款：「關於拾音」視窗、DMG 裡的 `Third-Party Licenses.txt`（`scripts/dev/make-third-party-licenses.sh` 產生，更新套件後要重跑）。
+
+## 贊助
+
+拾音是個人的開源專案，免費使用。覺得好用的話，可以在 Ko-fi 請我喝杯咖啡。
+
+[![在 Ko-fi 請我喝杯咖啡](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/weiwei_chang)
 
 ## 授權
 

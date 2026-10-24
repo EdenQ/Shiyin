@@ -13,6 +13,8 @@ struct ImportOptions {
     var folder: String = ""
     /// 會議語言（design §16.3）
     var language: MeetingLanguage = AppSettings.defaultMeetingLanguage
+    /// 大約幾個人（design §26.2）：nil 是自動判斷
+    var minSpeakers: Int? = nil
 }
 
 enum ImportError: LocalizedError {
@@ -86,13 +88,14 @@ enum Importer {
         defer { if accessing { url.stopAccessingSecurityScopedResource() } }
 
         let title = options.title.trimmingCharacters(in: .whitespacesAndNewlines)
-        let draft = Meeting(
+        var draft = Meeting(
             title: title, titleLocked: !title.isEmpty,
             meetingDate: options.date ?? inferDate(filename: url.lastPathComponent, modified: modificationDate(url)),
             participants: options.participants.trimmingCharacters(in: .whitespacesAndNewlines),
             sourceFilename: options.sourceName ?? url.lastPathComponent,
             templateId: options.templateId ?? AppSettings.defaultTemplate, source: "import", folder: options.folder,
             language: options.language.rawValue)
+        draft.minSpeakers = options.minSpeakers
         let meeting = try db.insertMeeting(draft, audioExtension: safeExtension(url))
         var moved = false
         do {
@@ -105,6 +108,8 @@ enum Importer {
                 try FileManager.default.copyItem(at: url, to: meeting.audioURL)
             }
             try db.enqueue(meeting.id!, kind: .transcribe)
+            // 匿名使用統計（design §30.1）：復原當掉的錄音（move）不算匯入
+            if !move { UsageStats.shared.imported() }
         } catch {
             try? db.deleteMeeting(meeting.id!)
             if moved {

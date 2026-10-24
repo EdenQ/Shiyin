@@ -82,9 +82,13 @@ extension AppModel {
         if let meetingId { loadMeetingQuestions(meetingId) } else { loadAllQuestions() }
     }
 
-    /// 不能問時的原因（整理工具設定為不整理、正在問別的）
+    /// 不能問時的原因（還沒設定整理工具、設定為不整理、正在問別的）
     var askUnavailableReason: String? {
-        if AppSettings.provider == .none { return String(localized: "整理工具設定為「不整理」，沒辦法提問；請到設定改成 Claude、Codex 或 API") }
+        if AppSettings.provider == .none {
+            return AppSettings.needsProviderSetup
+                ? String(localized: "還沒設定整理工具，沒辦法提問；請到設定選擇 Claude、Codex 或 API")
+                : String(localized: "整理工具設定為「不整理」，沒辦法提問；請到設定改成 Claude、Codex 或 API")
+        }
         return nil
     }
 
@@ -216,6 +220,7 @@ extension AppModel {
                 let record = try await work()
                 guard !Task.isCancelled else { return }
                 try db.saveQuestion(record)
+                UsageStats.shared.asked()
                 if case .meeting(let id) = target { loadMeetingQuestions(id) } else { loadAllQuestions() }
             } catch is CancellationError {
             } catch {

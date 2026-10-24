@@ -1,4 +1,5 @@
 #if DEBUG
+import FluidAudio
 import AVFoundation
 import AppKit
 import SwiftUI
@@ -54,6 +55,12 @@ enum DebugControl {
         // 聲紋（design §21.4）：notthis <會議 id> <說話者>（不是他）；people <輸出.json>；personrename <id> <名字>；
         // persondelete <id>；peopledeleteall
         case "notthis": model.selection = id; model.rejectVoiceprintMatch(Int(args[2]) ?? 1)
+        // speakerreview <會議 id> <回答 JSON：{"說話者編號":"是"|"不是，名字"}> <略過的說話者，逐號分隔>：等於在待確認送出說話者的題目（R33.2）
+        case "speakerreview":
+            model.selection = id
+            let answers = (try? JSONDecoder().decode([String: String].self, from: Data(args[2].utf8))) ?? [:]
+            model.answerSpeakerQuestions(Dictionary(uniqueKeysWithValues: answers.compactMap { k, v in Int(k).map { ($0, v) } }),
+                                         skipped: Set(args[3].split(separator: ",").compactMap { Int($0) }))
         // 猜說話者（design §21.5）：namespeakers <會議 id>（排工作）；applysuggestion、dismisssuggestion <會議 id> <說話者>；
         // applyallsuggestions <會議 id>
         // 對會議提問（design §21.8）：ask <會議 id> <問題>；askall <all|folder|recent> <問題>；
@@ -83,6 +90,19 @@ enum DebugControl {
         case "reportinfo":
             let text = ProblemReport.text(db: model.db)
             write(["text": text, "url": ProblemReport.url(body: text)?.absoluteString ?? "", "issuesURL": ProblemReport.issuesURL], to: args[1])
+        // rediarize <會議 id> <人數|auto>：等於在選人數的視窗按「開始」；rediarizerequest <會議 id>：等於按「更多 → 重新辨識說話者…」
+        case "rediarize": if let id { model.rediarize(meetingId: id, minSpeakers: args[2] == "auto" ? nil : Int(args[2])) }
+        case "rediarizerequest": model.selection = id; model.requestRediarize()
+        // 說話者的修正（design §24.6）：mergespeaker <會議 id> <來源> <目標>；reassign <會議 id> <說話者|new> <段落 id…>；undospeaker <會議 id>；
+        // speakerhint <會議 id> dismiss：等於按「不用了」
+        case "mergespeaker": model.selection = id; model.mergeSpeaker(Int(args[2]) ?? 0, into: Int(args[3]) ?? 0)
+        case "reassign":
+            model.selection = id
+            model.reassignSegments(args.dropFirst(3).compactMap { Int64($0) }, to: args[2] == "new" ? nil : Int(args[2]))
+        case "undospeaker": model.selection = id; model.undoSpeakerEdit()
+        case "speakerhint": model.selection = id; if args.count > 2, args[2] == "dismiss" { model.dismissSpeakerHint() }
+        case "minspeakers": model.selection = id; model.setMinSpeakers(args[2] == "auto" ? nil : Int(args[2]))   // 錄音中的「人數」選單（design §26.2）
+        case "levelhint": if args.count > 1, args[1] == "dismiss" { model.recorder.dismissLevelHint() }   // 收音提醒按「知道了」
         case "namespeakers": if let id { try? model.db.enqueue(id, kind: .nameSpeakers); model.runner.wake() }
         case "applysuggestion": model.selection = id; model.applySpeakerSuggestion(Int(args[2]) ?? 1)
         case "dismisssuggestion": model.selection = id; model.dismissSpeakerSuggestion(Int(args[2]) ?? 1)
@@ -97,6 +117,8 @@ enum DebugControl {
         case "template": model.selection = id; model.setTemplate(args[2])
         case "language": model.selection = id; model.setMeetingLanguage(MeetingLanguage(rawValue: args[2]) ?? .zh)
         case "transcribe-eval": transcribeEval(audio: args[1], options: args[2], output: args[3])   // design §17.1
+        case "dump-golden": GoldenDump.run(fixtures: args[1], output: args[2])   // design-windows §4.1
+        case "segment-embed": segmentEmbed(audio: args[1], spans: args[2], output: args[3], batched: args.count > 4 ? Int(args[4]) : nil)   // design §6.3.2
         case "correct-eval": correctEval(input: args[1], options: args[2], output: args[3])          // design §17.4
         case "detect-eval": detectEval(audio: args[1], start: Double(args[2]) ?? 0, output: args[3])  // design §18.8
         case "checktranscript": model.selection = id; model.checkTranscript()
@@ -162,6 +184,7 @@ enum DebugControl {
         case "settingsaction": model.debugSettingsAction = Array(args.dropFirst())   // settingsaction pickmodel | savekey <key>（設定頁要開著）
         // voiceprint-eval <設定.json> <輸出.json>：設定是 [{"file": 音檔, "name": 名稱}]；每個檔案跑說話者辨識，
         // 輸出每位說話者的聲紋、說話秒數、說話的時段，用來跟 AMI 標註比對、決定門檻（design §21.4.1）
+        // 設定的每一項可以加 threshold、minSpeakers、numSpeakers（字串）換分群設定，比較分出幾個人；dump（路徑）倒出每個片段的聲紋
         case "voiceprint-eval":
             let config = (try? JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: args[1])))) as? [[String: String]] ?? []
             let output = args[2]
@@ -172,18 +195,72 @@ enum DebugControl {
                     let started = Date()
                     do {
                         let samples = try await AudioDecoder.decode(URL(fileURLWithPath: file))
-                        let diarization = try await Diarizer.diarize(samples: samples) { _ in }
+                        var clustering: OfflineDiarizerConfig.Clustering?
+                        if item["threshold"] != nil || item["minSpeakers"] != nil || item["numSpeakers"] != nil {
+                            var c = OfflineDiarizerConfig.Clustering.community
+                            if let t = item["threshold"].flatMap(Double.init) { c.threshold = t }
+                            c.minSpeakers = item["minSpeakers"].flatMap(Int.init)
+                            c.numSpeakers = item["numSpeakers"].flatMap(Int.init)
+                            clustering = c
+                        }
+                        // 短句的實驗：zeroVote（重新嵌入沒人認領的片段，最短秒數）、minSegment（算聲紋的最短秒數）、step（視窗步距比例）
+                        var config: OfflineDiarizerConfig?
+                        if item["zeroVote"] != nil || item["minSegment"] != nil || item["step"] != nil || item["legacy"] != nil {
+                            // legacy：改之前的設定（FluidAudio 的預設），跟現在比
+                            var c = item["legacy"] != nil ? OfflineDiarizerConfig(clustering: clustering ?? .community, exposeChunkEmbeddings: true)
+                                : Diarizer.config(clustering: clustering ?? .community)
+                            if let v = item["zeroVote"].flatMap(Double.init) { c.zeroVoteReembed = .init(enabled: true, minDurationSeconds: v) }
+                            if let v = item["minSegment"].flatMap(Double.init) { c.embedding.minSegmentDurationSeconds = v }
+                            if let v = item["step"].flatMap(Double.init) { c.segmentation.stepRatio = v }
+                            config = c
+                        }
+                        let diarization = try await Diarizer.diarize(samples: samples, clustering: clustering, config: config) { _ in }
+                        // dump：<路徑>.f32 是每個片段的聲紋（256 個 Float32 一筆），<路徑>.json 是對應的群、片段、片段裡的說話者
+                        if let dump = item["dump"] {
+                            var floats: [Float] = []
+                            for chunk in diarization.chunks { floats += chunk.embedding256 }
+                            try floats.withUnsafeBytes { Data($0) }.write(to: URL(fileURLWithPath: dump + ".f32"))
+                            write(["cluster": diarization.chunks.map(\.speakerId), "chunk": diarization.chunks.map(\.chunkIndex),
+                                   "local": diarization.chunks.map(\.speakerIndex), "start": diarization.chunks.map(\.startTimeSeconds),
+                                   "end": diarization.chunks.map(\.endTimeSeconds)], to: dump + ".json")
+                        }
                         let speakers: [[String: Any]] = diarization.voiceprints.keys.sorted().map { number in
                             ["number": number, "seconds": diarization.speechSeconds[number] ?? 0,
                              "embedding": diarization.voiceprints[number] ?? [],
                              "turns": diarization.turns.filter { $0.speaker == number }.map { [$0.start, $0.end] }]
                         }
                         results.append(["name": item["name"] ?? file, "seconds": Double(samples.count) / AudioDecoder.sampleRate,
-                                        "elapsed": Date().timeIntervalSince(started), "speakers": speakers])
+                                        "elapsed": Date().timeIntervalSince(started), "speakers": speakers,
+                                        "collisionRate": diarization.quality?.collisionRate ?? -1,
+                                        "multiSpeakerChunks": diarization.quality?.multiSpeakerChunks ?? -1,
+                                        "cohesion": diarization.quality?.cohesion ?? -1,
+                                        "mergeRisk": diarization.quality?.mergeRisk ?? -1])
                     } catch {
                         results.append(["name": item["name"] ?? file, "error": error.localizedDescription])
                     }
                     write(["done": results.count, "total": config.count, "results": results], to: output)
+                }
+            }
+        case "summon":   // summon：把拾音的視窗移到目前的桌面、放到最前面（真的畫面上用輔助使用測試時，視窗在別的桌面會按不到）
+            for window in NSApp.windows where window.isVisible && window.frame.width > 400 {
+                window.collectionBehavior.insert(.moveToActiveSpace)
+                window.makeKeyAndOrderFront(nil)
+                window.collectionBehavior.remove(.moveToActiveSpace)
+            }
+            NSApp.activate()
+        case "livescroll":   // livescroll <0～1>：把錄音畫面的即時逐字稿捲到這個位置（0 是最上面），等於拖捲軸（design §25）
+            let fraction = CGFloat(Double(args[1]) ?? 0)
+            func scrollViews(_ view: NSView) -> [NSScrollView] {
+                (view as? NSScrollView).map { [$0] } ?? view.subviews.flatMap(scrollViews)
+            }
+            for window in NSApp.windows where window.isVisible {
+                for scroll in scrollViews(window.contentView ?? NSView())
+                where !(scroll.documentView is NSTextView) && !(scroll.documentView is NSTableView) {
+                    guard let document = scroll.documentView else { continue }
+                    let range = max(0, document.frame.height - scroll.contentView.bounds.height)
+                    let y = document.isFlipped ? range * fraction : range * (1 - fraction)
+                    scroll.contentView.scroll(to: NSPoint(x: 0, y: y))
+                    scroll.reflectScrolledClipView(scroll.contentView)
                 }
             }
         case "axdump":   // axdump <輸出.txt>：倒出輔助使用的元件樹（角色、標籤），找 press 要用的標籤
@@ -270,10 +347,11 @@ enum DebugControl {
                 }
                 catch { try? "ERROR \(error.localizedDescription)".write(to: url.appendingPathExtension("error"), atomically: true, encoding: .utf8) }
             }
-        case "import":   // import [lang=ja] <檔案>…
+        case "import":   // import [lang=ja] [minSpeakers=6] <檔案>…（minSpeakers：匯入對話框的「大約幾個人」，design §26.2）
             var files = Array(args.dropFirst()), options = ImportOptions()
-            if let first = files.first, first.hasPrefix("lang=") {
-                options.language = MeetingLanguage(rawValue: String(first.dropFirst(5))) ?? .zh
+            while let first = files.first, first.hasPrefix("lang=") || first.hasPrefix("minSpeakers=") {
+                if first.hasPrefix("lang=") { options.language = MeetingLanguage(rawValue: String(first.dropFirst(5))) ?? .zh }
+                else { options.minSpeakers = Int(first.dropFirst(12)) }
                 files.removeFirst()
             }
             model.requestImport(files.map { URL(fileURLWithPath: $0) })
@@ -322,6 +400,13 @@ enum DebugControl {
         case "installupdate":
             if case .available(let manifest) = model.updater.state { Task { await model.updater.install(manifest, model: model) } }
         case "dismissupdate": model.updater.prompt = nil
+        // 匿名使用統計（design §30.7）：DEBUG 版只在這裡設了網址才累計、送出
+        case "usageurl":   // usageurl <網址|off>：只在記憶體設統計網址
+            UsageStats.debugURL = args.count > 1 && args[1] != "off" ? args[1] : nil
+            UsageStats.shared.touch()
+        case "usage": write(UsageStats.shared.debugSnapshot(), to: args[1])   // usage <輸出.json>：目前的檔案和下一份要送的
+        case "usageage": UsageStats.shared.debugAge(days: Int(args[1]) ?? 1)   // usageage <天數>：把今天的匯總改成幾天前
+        case "usagesend": Task { await UsageStats.shared.sendPending() }
         // 全域快捷鍵（R11.3）：不能送按鍵，用這個模擬按下
         case "hotkey":   // hotkey [bookmark]：模擬按下 ⌃⌥⌘R（或 ⌃⌥⌘B）
             if args.count > 1 && args[1] == "bookmark" { GlobalHotKey.shared.fireBookmark() } else { GlobalHotKey.shared.fire() }
@@ -371,7 +456,7 @@ enum DebugControl {
         case "setkey": try? Keychain.set(args[1], args[2])          // setkey anthropic|openai <key>
         case "delkey": Keychain.delete(args[1])
         case "settings": NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-        case "preview":   // preview <settings|onboarding [步驟]>
+        case "preview":   // preview <settings|onboarding [步驟]|import|rename>（import：匯入對話框；rename：說話者的改名小視窗，design §26.2、§24.2）
             // 設定視窗要 app 在前景才打得開；這裡把畫面放進桌面層的無邊框視窗（被所有視窗蓋住；
             // 螢幕外的視窗截不到），不搶前景，再用 screencapture -l 截（closewindow <settings|onboarding>-preview 關掉）。
             // preview detail：目前選取的會議頁（量長會議的效能用，design §21.12：不在畫面上的視窗 SwiftUI 不更新）
@@ -385,7 +470,16 @@ enum DebugControl {
             window.identifier = NSUserInterfaceItemIdentifier(onboarding ? "onboarding-preview" : detailPage ? "detail-preview" : "settings-preview")
             window.title = window.identifier!.rawValue
             window.isReleasedWhenClosed = false
-            if detailPage {
+            if args.count > 1 && (args[1] == "import" || args[1] == "rename") {
+                window.identifier = NSUserInterfaceItemIdentifier("\(args[1])-preview")
+                window.title = window.identifier!.rawValue
+                let view = args[1] == "import"
+                    ? AnyView(ImportSheet(urls: [URL(fileURLWithPath: "/tmp/週會 0827.m4a")]).environment(model))   // l10n-skip
+                    : AnyView(RenameSpeakerForm(name: .constant("說話者 2"), mergeTargets: [(1, "小明"), (3, "說話者 3")],   // l10n-skip
+                                                onMerge: { _ in }, onSave: {}))
+                window.contentView = NSHostingView(rootView: view.background(Color(nsColor: .windowBackgroundColor)))
+                window.setContentSize(window.contentView!.fittingSize)
+            } else if detailPage {
                 window.contentView = NSHostingView(rootView: AnyView(DetailPreview().environment(model)))
             } else {
                 window.contentView = onboarding
@@ -407,6 +501,11 @@ enum DebugControl {
         var out: [String: Any] = [
             "selection": model.selection ?? -1,
             "tab": model.tab.rawValue,
+            // 選中的會議：說話者的名字、來源、建議、最像的幾位認識的人（R33，「自動」名字的選單）
+            "speakers": (model.detail?.speakers ?? [:]).keys.sorted().map { idx -> [String: Any] in
+                ["idx": idx, "name": model.detail?.speakers[idx] ?? "", "source": model.detail?.speakerSources[idx] ?? "",
+                 "suggestion": model.detail?.speakerSuggestions[idx]?.name ?? "", "candidates": model.detail?.speakerCandidates[idx] ?? []]
+            },
             "glossary": model.glossary.map(\.term),
             "glossarySuggestions": model.glossarySuggestions.map { ["term": $0.term, "source": $0.sourceLabel] },
             "environment": model.environment.items.map { ["name": $0.name, "ok": $0.ok] },
@@ -428,6 +527,7 @@ enum DebugControl {
                          "micLevel": model.recorder.micLevel, "systemLevel": model.recorder.systemLevel,
                          "liveLines": model.recorder.liveLines.count, "volatile": model.recorder.volatileText,
                          "liveStatus": model.recorder.liveStatus, "permissionDenied": model.recorder.permissionDenied,
+                         "levelCheck": model.recorder.levelCheck,   // 收音提醒（design §26.1）
                          "failure": model.recorder.failureMessage ?? "", "language": model.recorder.language.rawValue,
                          "languageSwitch": model.recorder.languageSwitch.map { "\($0.from.rawValue)→\($0.to.rawValue)" } ?? "",
                          "deviceWarning": model.recorder.deviceWarning ?? ""],
@@ -450,19 +550,29 @@ enum DebugControl {
             "highlightSegment": model.highlightSegment ?? -1,
             "errorMessage": model.errorMessage ?? "",
             "noticeMessage": model.noticeMessage ?? "",
-            "windows": NSApp.windows.map { ["id": $0.identifier?.rawValue ?? "", "title": $0.title, "visible": $0.isVisible] },
+            // 視窗的最小尺寸（SwiftUI 依內容算的）：錄音中卡住的調查用
+            "windows": NSApp.windows.map { ["id": $0.identifier?.rawValue ?? "", "title": $0.title, "visible": $0.isVisible,
+                                            "minWidth": $0.contentMinSize.width, "minHeight": $0.contentMinSize.height,
+                                            "minSizeW": $0.minSize.width, "minSizeH": $0.minSize.height,
+                                            "width": $0.frame.width, "height": $0.frame.height] },
         ]
         if let status = model.detailStatus { out["detailStatus"] = status.label }
         if let detail = model.detail {
             out["transcribedWith"] = detail.meeting.transcribedWith
             out["canUpgradeTranscript"] = model.canUpgradeTranscript(detail.meeting)   // design §21.17
-            // 錄音中標記說話者（design §24.5）：即時逐字稿每一行的名字、「正在說話」的名單
+            // 錄音中標記說話者（design §F2.5）：即時逐字稿每一行的名字、「正在說話」的名單
             if detail.meeting.id == model.recorder.meetingId, var recorder = out["recorder"] as? [String: Any] {
                 recorder["liveTags"] = model.recorder.liveLines.map { detail.liveTag(start: $0.start, end: $0.end)?.name ?? "" }
                 recorder["tagRoster"] = detail.tagRoster
                 out["recorder"] = recorder
             }
             out["unappliedTags"] = detail.unappliedTags.map(\.name)
+            out["minSpeakers"] = detail.meeting.minSpeakers ?? 0   // design §23
+            out["showRediarizeSheet"] = model.showRediarizeSheet
+            out["speakerCheck"] = detail.meeting.speakerCheck ?? -1   // design §24.6
+            out["showsSpeakerHint"] = detail.showsSpeakerHint
+            out["speakerUndo"] = (try? model.db.speakerUndoLabel(detail.meeting.id!)) ?? ""
+            out["manualSegments"] = detail.segments.filter(\.speakerManual).count
         }
         return out
     }
@@ -568,6 +678,56 @@ enum DebugControl {
                                                            "suggestion": $0.suggestion, "reason": $0.reason] }
             } catch {
                 result["error"] = error.localizedDescription
+            }
+            result["elapsed"] = Date().timeIntervalSince(started)
+            write(result, to: output + ".tmp")
+            try? FileManager.default.removeItem(atPath: output)
+            try? FileManager.default.moveItem(atPath: output + ".tmp", toPath: output)
+        }
+    }
+
+    /// segment-embed <錄音> <時段.json：[[開始, 結束], …]> <輸出.json>：每一段帶著前後文（10 秒的窗、遮罩只標這一段）
+    /// 用 FluidAudio 的 wespeaker_v2 算聲紋，給短句的實驗離線比對（design §6.3.2）。模型放在快取資料夾，不放進拾音的模型資料夾
+    private static func segmentEmbed(audio: String, spans: String, output: String, batched: Int? = nil) {
+        Task { @MainActor in
+            let started = Date()
+            var result: [String: Any] = ["audio": audio]
+            do {
+                let samples = try await AudioDecoder.decode(URL(fileURLWithPath: audio))
+                let list = (try JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: spans))) as? [[Double]]) ?? []
+                // batched：用 app 的做法（SpeakerRecheck，一次三句），跟 FluidAudio 的 extractor 比
+                if let batched {
+                    let model = try await SpeakerRecheck.prepare()
+                    result["embeddings"] = try SpeakerRecheck.embed(list.map { ($0[0], $0[1]) }, samples: samples, model: model, perCall: batched)
+                    result["elapsed"] = Date().timeIntervalSince(started)
+                    write(result, to: output + ".tmp")
+                    try? FileManager.default.removeItem(atPath: output)
+                    try? FileManager.default.moveItem(atPath: output + ".tmp", toPath: output)
+                    return
+                }
+                let dir = URL.cachesDirectory.appending(path: "ShiyinEval/wespeaker", directoryHint: .isDirectory)
+                let models = try await DiarizerModels.downloadIfNeeded(to: dir)
+                let extractor = EmbeddingExtractor(embeddingModel: models.embeddingModel)
+                let shape = models.segmentationModel.modelDescription.outputDescriptionsByName["segments"]?.multiArrayConstraint?.shape
+                let frames = shape.map { $0[1].intValue } ?? 589
+                let window = 160_000, rate = AudioDecoder.sampleRate
+                var embeddings: [Any] = []
+                for span in list where span.count == 2 {
+                    let center = (span[0] + span[1]) / 2
+                    let start = max(0, min(Int((center - 5) * rate), samples.count - window))
+                    var clip = Array(samples[start..<min(samples.count, start + window)])
+                    if clip.count < window { clip += [Float](repeating: 0, count: window - clip.count) }
+                    let from = Double(start) / rate
+                    let mask = (0..<frames).map { i -> Float in
+                        let t = from + (Double(i) + 0.5) * 10 / Double(frames)
+                        return t >= span[0] && t <= span[1] ? 1 : 0
+                    }
+                    guard mask.reduce(0, +) >= 1 else { embeddings.append(NSNull()); continue }
+                    embeddings.append(try extractor.getEmbeddings(audio: clip, masks: [mask], minActivityThreshold: 0).first ?? [])
+                }
+                result["embeddings"] = embeddings
+            } catch {
+                result["error"] = "\(error)"
             }
             result["elapsed"] = Date().timeIntervalSince(started)
             write(result, to: output + ".tmp")

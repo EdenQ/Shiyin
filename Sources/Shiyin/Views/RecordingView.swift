@@ -27,6 +27,19 @@ struct RecordingPanel: View {
                 .padding(.vertical, 8)
                 .background(Color.signal.opacity(0.12))
             }
+            if let hint = recorder.levelHint {
+                // 收音提醒（design §26.1）
+                HStack(spacing: 12) {
+                    Label(Self.levelHintText(hint), systemImage: hint == .noisy ? "waveform.badge.exclamationmark" : "mic.badge.xmark")
+                    Spacer()
+                    Button("知道了") { recorder.dismissLevelHint() }
+                        .help("這場錄音不再提示這件事")
+                }
+                .font(.callout)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(Color.signal.opacity(0.12))
+            }
             Divider()
             // 不用 HSplitView：它在 NavigationSplitView 裡會把內容撐到視窗的預設寬度，視窗窄的時候左右被切掉
             HStack(spacing: 0) {
@@ -55,20 +68,28 @@ struct RecordingPanel: View {
         .onAppear { model.refreshKnownPeople() }
     }
 
+    static func levelHintText(_ hint: Recorder.LevelHint) -> String {
+        switch hint {
+        case .silent: return String(localized: "麥克風沒有收到聲音：可能被靜音、被其他 app 佔用，或選錯了麥克風。可以在設定的「錄音」換一個。")
+        case .quiet: return String(localized: "聲音有點小：手機或筆電放近說話的人一點。")
+        case .noisy: return String(localized: "背景有點吵，說話者可能分不準。錄完可以用「重新辨識說話者」告訴會議助手大約幾個人。")
+        }
+    }
+
     private func controls(_ recorder: Recorder) -> some View {
         HStack(spacing: 14) {
             HStack(spacing: 8) {
                 Circle().fill(recorder.isPaused ? Color.secondary : .red).frame(width: 10, height: 10)
                 Text(recorder.isPaused ? "已暫停" : "錄音中")
-                Text(TimeFormat.string(recorder.elapsed)).monospacedDigit().foregroundStyle(.secondary)
+                RecorderClock(recorder: recorder).foregroundStyle(.secondary)
             }
             .font(.title3)
             if recorder.hasMic {
-                Label { VUMeter(level: recorder.micLevel) } icon: { Image(systemName: "mic") }
+                Label { RecorderMeter(recorder: recorder, system: false) } icon: { Image(systemName: "mic") }
                     .help("麥克風音量")
             }
             if recorder.hasSystem {
-                Label { VUMeter(level: recorder.systemLevel) } icon: { Image(systemName: "speaker.wave.2") }
+                Label { RecorderMeter(recorder: recorder, system: true) } icon: { Image(systemName: "speaker.wave.2") }
                     .help("電腦播放的聲音（線上會議的對方）")
             }
             Spacer(minLength: 0)
@@ -173,13 +194,22 @@ struct RecordingPanel: View {
                         }
                     }
                     Color.clear.frame(height: 1).id("bottom")
-                        .onAppear { followLatest = true }
-                        .onDisappear { followLatest = false }
                 }
                 .padding(20)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            // 使用者往回看時（底部不在畫面內）不要自動捲動（R2.2）
+            // 使用者往回看時不要自動捲動（R2.2）：看捲動的位置。往上捲（內容沒有變短）就不跟了，回到底部再跟。
+            // 不用「底部的標記出現／消失」改狀態：那是在排版途中改，可能讓排版一直重來（design §25）
+            .onScrollGeometryChange(for: LivePosition.self) { geometry in
+                LivePosition(offset: geometry.contentOffset.y, content: geometry.contentSize.height,
+                             bottom: geometry.visibleRect.maxY)
+            } action: { old, new in
+                if new.bottom >= new.content - 40 {
+                    if !followLatest { followLatest = true }
+                } else if new.offset < old.offset - 1 && new.content >= old.content {
+                    if followLatest { followLatest = false }
+                }
+            }
             .onChange(of: recorder.liveLines.count) { _, _ in
                 guard followLatest else { return }
                 if reduceMotion { proxy.scrollTo("bottom", anchor: .bottom) }
@@ -189,6 +219,7 @@ struct RecordingPanel: View {
                 if !followLatest {
                     Button("回到最新", systemImage: "arrow.down") {
                         proxy.scrollTo("bottom", anchor: .bottom)
+                        followLatest = true
                     }
                     .padding(12)
                 }
@@ -492,6 +523,36 @@ struct UserNotesTab: View {
         .padding(.vertical, 20)
         .frame(maxWidth: 760, alignment: .leading)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+}
+
+/// 即時逐字稿捲動的位置：捲了多少、內容多高、看得到的底部在哪
+struct LivePosition: Equatable {
+    var offset: CGFloat
+    var content: CGFloat
+    var bottom: CGFloat
+}
+
+/// 錄音的經過時間：在自己的 body 裡讀，整秒變了只重算這一個 Text（design §25）
+struct RecorderClock: View {
+    let recorder: Recorder
+    var body: some View { Text(TimeFormat.string(Double(recorder.elapsedSeconds))).monospacedDigit() }
+}
+
+/// 錄音的音量條（design §25）：AppKit 的 view 自己定時讀音量，不經過 SwiftUI 的更新。
+/// DEBUG 截圖（ImageRenderer 畫不出 AppKit 的 view）時用 SwiftUI 的 VUMeter
+struct RecorderMeter: View {
+    @Environment(\.snapshotMode) private var snapshotMode
+    let recorder: Recorder
+    let system: Bool
+    var segments = 14
+
+    var body: some View {
+        if snapshotMode {
+            VUMeter(level: system ? recorder.systemLevel : recorder.micLevel, segments: segments)
+        } else {
+            LevelMeter(segments: segments) { [recorder, system] in system ? recorder.systemLevel : recorder.micLevel }
+        }
     }
 }
 

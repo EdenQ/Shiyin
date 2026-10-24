@@ -20,7 +20,7 @@ struct GuideView: View {
         Step(symbol: "doc.text", title: String(localized: "看會議紀錄"),
              body: String(localized: "轉錄完會自動整理。「摘要」有重點、決議、待辦和未決問題；「詳細」依議題分段；每一條後面的時間點點一下，就從錄音那裡開始播放。右上角的範本選單可以換成一對一、訪談、課堂／演講、腦力激盪等格式，換完從「更多」選「重新整理會議紀錄」。想找某件事，可以在「提問」分頁直接問，例如「預算最後決定多少？」，回答會附上時間點；工具列的「提問」可以一次問所有會議。")),
         Step(symbol: "questionmark.bubble", title: String(localized: "回答待確認、修改"),
-             body: String(localized: "「待確認」列出整理時沒把握的人名、專有名詞、負責人和期限。在「你的回答」欄位直接回答，按「送出」，會議紀錄就會依你的答案修正；看不懂或不重要的勾「略過」。也可以在「摘要」按「編輯」直接改。改錯了可以從「更多」選「復原上一版會議紀錄」。")),
+             body: String(localized: "「待確認」列出整理時沒把握的人名、專有名詞、負責人和期限。能用是或否回答的直接按「是」「不是」，其他的在「你的回答」欄位回答，按「送出」，會議紀錄就會依你的答案修正；看不懂或不重要的勾「略過」。也可以在「摘要」按「編輯」直接改。改錯了可以從「更多」選「復原上一版會議紀錄」。")),
         Step(symbol: "square.and.arrow.up", title: String(localized: "匯出、分享"),
              body: String(localized: "從「更多」選「匯出…」（⌘E）：會議紀錄可以存成 Markdown、PDF、Word；逐字稿可以存成 txt、srt、vtt、Word；錄音可以存成 m4a、wav；「整場會議（.shiyin）」可以傳給同事，對方雙擊就能匯入。「複製會議紀錄」可以直接貼到 Notion、Slack 或郵件。")),
     ]
@@ -69,6 +69,8 @@ struct GuideView: View {
                 GuideBullet(String(localized: "逐字稿裡琥珀色的段落辨識信心比較低，值得回頭聽；時間軸上的三角形是待確認題目、圓點是你標的重點。"))
                 GuideBullet(String(localized: "會議可以分資料夾：在會議上按右鍵（或「更多」）選「移到資料夾」→「新資料夾…」。側欄上方的「資料夾」可以切換只看某個資料夾；正在看某個資料夾時，新錄的和匯入的會議都會放進去。資料夾按右鍵可以重新命名或刪除（會議會保留）。"))
                 GuideBullet(String(localized: "刪除的會議會先放進側欄最下面的「垃圾桶」，30 天內都可以還原。"))
+                GuideBullet(String(localized: "說話者分得太少（人多、吵雜、手機放在桌上遠距收音）時，從「更多」選「重新辨識說話者…」，告訴會議助手大約幾個人。只會重新分辨誰在說話，逐字稿的文字不會變。錄音中（會議標題右邊的「人數」）或匯入時也可以先選。"))
+                GuideBullet(String(localized: "說話者分錯了：同一個人被分成兩位，點說話者的名字選「合併到…」；某幾句分錯人，在逐字稿按右鍵選「這句是誰說的」。改錯了可以從「更多」選「復原說話者的調整」。"))
                 GuideBullet(String(localized: "開 Zoom、Teams、Google Meet 等線上會議時，會議助手會提醒你開始錄音；會議好像結束時提醒停止。不想被某個 app 提醒，在提醒上按「不要再提醒」。"))
                 GuideBullet(String(localized: "遇到問題，可以從「輔助說明」選單選「回報問題…」，會附上版本和環境（不含會議內容）。"))
             }
@@ -89,6 +91,10 @@ struct GuideView: View {
                 GuideBullet(String(localized: "整理、回答待確認、提問、猜說話者時，會把逐字稿文字、你的筆記和詞彙表送到你選的整理工具，錄音檔不會送出。選「不整理」就完全離線。"))
                 GuideBullet(String(localized: "聲紋（說話者的聲音特徵，一組數字，不是錄音）只存在這台 Mac，不會放進匯出的 .shiyin 封包。"))
                 GuideBullet(String(localized: "API key 存在 macOS 鑰匙圈，不會寫進任何檔案。"))
+                // 匿名使用統計（design §30.5）：有統計網址的版本才寫
+                if UsageStats.isOffered {
+                    GuideBullet(String(localized: "每天送一份匿名的使用統計（版本、系統、錄音和轉錄的分鐘數、用了哪些功能、失敗次數），不含任何會議內容。在設定 → 進階可以關掉。"))
+                }
             }
 
             GuideSection(title: String(localized: "系統需求")) {

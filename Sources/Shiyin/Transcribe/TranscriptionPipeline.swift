@@ -24,6 +24,8 @@ struct TranscriptionOptions: Codable {
     var audioSource = "mix"
     /// whisper 每段幾秒（design §21.16、D34）；評估時設 0 不分段
     var chunkSeconds: Double = 600
+    /// 說話者辨識至少分出幾個人（design §23.2），nil 自動判斷
+    var minSpeakers: Int?
 
     init() {}
 
@@ -31,8 +33,9 @@ struct TranscriptionOptions: Codable {
     var transcribedWith: String { engine == .system ? "system" : language == .ja ? "japanese" : "breeze" }
 
     @MainActor
-    static func current(language: MeetingLanguage, glossary: [String], channels: String) -> TranscriptionOptions {
+    static func current(language: MeetingLanguage, glossary: [String], channels: String, minSpeakers: Int? = nil) -> TranscriptionOptions {
         var options = TranscriptionOptions()
+        options.minSpeakers = minSpeakers
         // 這個語言的模型還沒下載好時，這一場先用 macOS 內建辨識（design §21.17、D35）
         options.engine = AppSettings.useSystemTranscriber || !ModelStore.hasTranscriptionModel(for: language) ? .system : .breeze
         options.language = language
@@ -56,6 +59,7 @@ struct TranscriptionOptions: Codable {
         model = try c.decodeIfPresent(String.self, forKey: .model)
         audioSource = try c.decodeIfPresent(String.self, forKey: .audioSource) ?? "mix"
         chunkSeconds = try c.decodeIfPresent(Double.self, forKey: .chunkSeconds) ?? 600
+        minSpeakers = try c.decodeIfPresent(Int.self, forKey: .minSpeakers)
     }
 }
 
@@ -69,6 +73,8 @@ struct TranscriptionResult {
     var voices: [Int: SpeakerVoice] = [:]
     /// whisper 分段的位置（秒）；評估工具用來檢查接縫
     var seams: [Double] = []
+    /// 說話者辨識分得準不準的線索（design §24.3）；分聲道、沒辨識時是 nil
+    var diarizationQuality: Diarizer.Quality? = nil
 }
 
 struct SpeakerVoice {
@@ -111,13 +117,14 @@ struct TranscriptionPipeline {
         guard let (transcribed, seams) = try await transcribe(samples, from: 0, span: share) else { return nil }
         var speakers: [Int?] = transcribed.map { _ in nil }
         var voices: [Int: SpeakerVoice] = [:]
+        var quality: Diarizer.Quality?
         if diarize {
             stage(String(localized: "辨識說話者"))
-            (speakers, voices) = await self.speakers(of: transcribed, in: samples, source: options.audioSource) { report(share + $0 * (1 - share)) }
+            (speakers, voices, quality) = await self.speakers(of: transcribed, in: samples, source: options.audioSource) { report(share + $0 * (1 - share)) }
         }
         guard shouldContinue() else { return nil }
         return TranscriptionResult(segments: transcribed, speakers: speakers, channels: transcribed.map { _ in nil }, duration: duration,
-                                   voices: voices, seams: seams)
+                                   voices: voices, seams: seams, diarizationQuality: quality)
     }
 
     // MARK: whisper 從檔案依序讀（design §21.16）
@@ -142,17 +149,19 @@ struct TranscriptionPipeline {
         let duration = Double(result.sampleCount) / AudioDecoder.sampleRate
         var speakers: [Int?] = result.segments.map { _ in nil }
         var voices: [Int: SpeakerVoice] = [:]
+        var quality: Diarizer.Quality?
         if options.diarize && duration > 5 {
             stage(String(localized: "辨識說話者"))
             let samples = try await AudioDecoder.decode(audio)
             guard shouldContinue() else { return nil }
-            (speakers, voices) = await self.speakers(of: result.segments, in: samples, source: options.audioSource) {
+            (speakers, voices, quality) = await self.speakers(of: result.segments, in: samples, source: options.audioSource) {
                 report(share + $0 * (1 - share))
             }
         }
         guard shouldContinue() else { return nil }
         return TranscriptionResult(segments: result.segments, speakers: speakers, channels: result.segments.map { _ in nil },
-                                   duration: duration, voices: voices, seams: result.seams.map { Double($0) / AudioDecoder.sampleRate })
+                                   duration: duration, voices: voices, seams: result.seams.map { Double($0) / AudioDecoder.sampleRate },
+                                   diarizationQuality: quality)
     }
 
     // MARK: 分聲道（design §17.3）
@@ -175,7 +184,7 @@ struct TranscriptionPipeline {
             var voices: [Int: SpeakerVoice] = [:]
             if diarize && !segments.isEmpty {
                 stage(String(localized: "辨識說話者"))
-                (speakers, voices) = await self.speakers(of: segments, in: samples, source: channel == 0 ? "mic" : "system") {
+                (speakers, voices, _) = await self.speakers(of: segments, in: samples, source: channel == 0 ? "mic" : "system") {
                     report(base + width * (share + $0 * (1 - share)))
                 }
             }
@@ -297,20 +306,26 @@ struct TranscriptionPipeline {
     /// 說話者辨識；失敗不影響逐字稿，回傳全部沒有說話者
     /// 每段的說話者，以及每位說話者的聲紋（換成逐字稿上的編號）
     private func speakers(of segments: [TranscribedSegment], in samples: [Float], source: String,
-                          onProgress: @escaping @Sendable (Double) -> Void) async -> ([Int?], [Int: SpeakerVoice]) {
+                          onProgress: @escaping @Sendable (Double) -> Void) async -> ([Int?], [Int: SpeakerVoice], Diarizer.Quality?) {
         do {
-            let output = try await Diarizer.diarize(samples: samples, onProgress: onProgress)
-            let (speakers, numbering) = Diarizer.assignNumbering(output.turns, to: segments)
+            let output = try await Diarizer.diarize(samples: samples, minSpeakers: options.minSpeakers, onProgress: onProgress)
+            var (speakers, numbering) = Diarizer.assignNumbering(output.turns, to: segments)
+            // 短句再跟每位說話者比一次（R34、design §6.3.2）；模型下載不了或算不出來就照說話者辨識的結果
+            do {
+                speakers = try await SpeakerRecheck.refine(segments, speakers: speakers, samples: samples)
+            } catch {
+                log.error("speaker recheck failed: \(error.localizedDescription, privacy: .public)")
+            }
             var voices: [Int: SpeakerVoice] = [:]
             for (raw, number) in numbering {
                 if let embedding = output.voiceprints[raw] {
                     voices[number] = SpeakerVoice(embedding: embedding, seconds: output.speechSeconds[raw] ?? 0, source: source)
                 }
             }
-            return (speakers, voices)
+            return (speakers, voices, output.quality)
         } catch {
             log.error("diarization failed: \(error.localizedDescription, privacy: .public)")
-            return (segments.map { _ in nil }, [:])
+            return (segments.map { _ in nil }, [:], nil)
         }
     }
 }

@@ -39,8 +39,16 @@ struct Meeting: SnakeCaseRecord, Identifiable, Hashable {
     // v7（design §21.1）：1 是用即時逐字稿整理的草稿，2 是使用者改過的草稿；轉錄引擎（breeze / japanese / system）
     var notesDraft: Int = 0
     var transcribedWith: String = ""
+    // v8（design §23.2）：說話者辨識至少分出幾個人，nil 是自動判斷
+    var minSpeakers: Int?
+    // v9（design §24.1）：說話者辨識的自我檢查分數（越大越可能把不同的人併在一起），nil 是沒算過；使用者按了「不用了」
+    var speakerCheck: Double?
+    var speakerHintDismissed: Bool = false
 
     var meetingLanguage: MeetingLanguage { MeetingLanguage(rawValue: language) ?? .zh }
+
+    /// 說話者辨識的自我檢查覺得可能把不同的人併在一起（design §24.5）
+    var mayHaveMergedSpeakers: Bool { (speakerCheck ?? 0) >= Diarizer.Quality.hintThreshold }
 
     mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
 
@@ -75,6 +83,7 @@ struct Segment: SnakeCaseRecord, Identifiable, Hashable {
     var speaker: Int?
     var kind: String = "final"           // live（即時預覽）/ final
     var channel: Int? = nil              // 分聲道轉錄時：0 麥克風、1 電腦聲音（design §17.3）
+    var speakerManual: Bool = false      // v9：使用者改過這句的說話者（design §24.2）
 
     mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
 }
@@ -92,6 +101,7 @@ extension Segment {
         speaker = row["speaker"]
         kind = row["kind"]
         channel = row["channel"]
+        speakerManual = row["speaker_manual"]
     }
 }
 
@@ -202,18 +212,19 @@ enum JobKind: String, Codable, CaseIterable {
     case transcribe, summarize, revise, compress
     case correct   // 逐字稿校正（design §17.4）
     case nameSpeakers   // 猜說話者（design §21.5）
+    case rediarize   // 只重新辨識說話者（design §23）
 
     /// 轉錄線、整理線、輔助線（design §21.2）：校正、猜說話者在輔助線，跟整理同時跑
     var lane: JobLane {
         switch self {
-        case .transcribe, .compress: return .transcribe
+        case .transcribe, .compress, .rediarize: return .transcribe
         case .summarize, .revise: return .llm
         case .correct, .nameSpeakers: return .assist
         }
     }
 
-    /// 背景的輔助工作：不發通知、失敗只記 log
-    var isAuxiliary: Bool { self == .compress || self == .correct || self == .nameSpeakers }
+    /// 背景的輔助工作：不發通知、不改會議的狀態
+    var isAuxiliary: Bool { self == .compress || self == .correct || self == .nameSpeakers || self == .rediarize }
 }
 
 enum JobLane: String, CaseIterable { case transcribe, llm, assist }

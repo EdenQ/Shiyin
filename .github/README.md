@@ -1,6 +1,6 @@
-<img src="docs/images/icon.png" width="96" alt="Shiyin icon">
+<img src="../docs/images/icon.png" width="96" alt="Shiyin icon">
 
-[繁體中文](README.md) | **English** | Website: [shiyin.weibuilds.com](https://shiyin.weibuilds.com/en/)
+[繁體中文](../README.md) | **English** | Website: [shiyin.weibuilds.com](https://shiyin.weibuilds.com/en/)
 
 # Shiyin 拾音
 
@@ -11,7 +11,7 @@ A meeting-notes app for macOS. Record a meeting (in person or online) and watch 
 - Interface in English and Traditional Chinese (follows your macOS language); meetings can be in English, Chinese or Japanese
 - Requires Apple Silicon and macOS 26
 
-![Meeting notes](docs/images/en/summary.png)
+![Meeting notes](../docs/images/en/summary.png)
 
 ## How it works
 
@@ -26,6 +26,8 @@ A meeting-notes app for macOS. Record a meeting (in person or online) and watch 
 - **Recording**
   - Sources: microphone only, microphone + computer audio (online meetings), or computer audio only. The other side of Zoom, Meet or Teams is recorded too
   - Live transcript and per-source level meters while recording; pause, bookmark and take notes
+  - Sound check: the recording screen tells you when the microphone isn’t picking up any sound, the sound is too quiet, or the room is too noisy
+  - In a crowded or noisy room, pick roughly how many people there are while recording or when importing, so speakers are told apart better
   - Recording continues with the main window closed; pause or stop from the menu bar, or press ⌃⌥⌘R in any app to start or stop
   - Plugging in or unplugging headphones, or switching output devices, while recording reconnects automatically and keeps recording
   - When Zoom, Teams, Google Meet or another online meeting starts using the microphone, Shiyin asks whether to record, and reminds you to stop when the meeting seems to be over. It only asks; it never records on its own
@@ -41,6 +43,9 @@ A meeting-notes app for macOS. Record a meeting (in person or online) and watch 
 - **Speaker identification**: every transcript segment is labeled with a speaker, each in its own color; rename speakers or show one speaker only
   - Voiceprints: once you name a speaker, Shiyin remembers that person’s voice and fills in the name in later meetings (marked “Auto”, easy to correct). Voiceprints stay on this Mac; view, delete or turn them off in Settings
   - The summarizer guesses speaker names from the conversation (“thanks for the update, Anna”) and lists them as suggestions; nothing changes until you click Apply, and renaming a speaker also updates the notes
+  - Too few speakers found in a crowded, noisy or phone-across-the-table recording? Choose More → Identify Speakers Again… and pick roughly how many people there are; only who is speaking is worked out again, the transcript text stays the same
+  - Easy to fix: if one person was split into two, click the speaker’s name and choose Merge Into…; if a few lines went to the wrong person, right-click the transcript and choose Who Said This Line? or Who Said These Lines?. Undo from More → Undo Speaker Changes; your fixes are kept when speakers are identified again
+  - When Shiyin suspects different people were treated as one (crowded or noisy rooms), a note above the transcript suggests identifying speakers again
 - **Meeting notes**
   - Templates: General meeting, One-on-one, Interview, Lecture / talk, Brainstorm, or your own
   - Summarizers: Claude Code, Codex CLI, Anthropic API, OpenAI API, Gemini API, an OpenAI-compatible API (Groq, OpenRouter, or Ollama and LM Studio on your Mac), or “Don’t summarize” for transcripts only
@@ -50,7 +55,7 @@ A meeting-notes app for macOS. Record a meeting (in person or online) and watch 
 
   | What | Formats |
   |---|---|
-  | Meeting notes | Markdown, PDF, Word; or copy as rich text, Markdown or plain text |
+  | Meeting notes | Markdown, PDF, Word; or copy as formatted text (for Word, Notion, email), Markdown or plain text |
   | Transcript | txt, Markdown, srt, vtt, Word (with or without timestamps and speakers) |
   | Recording | m4a, wav |
   | Whole meeting | .shiyin package (recording, transcript, speakers, notes, your notes, bookmarks); double-click to import |
@@ -60,11 +65,11 @@ A meeting-notes app for macOS. Record a meeting (in person or online) and watch 
 - **Organize**: folders (by project or client), full-text search across all meetings, Trash (restore within 30 days)
 - **Also**: playback at 0.75×–2×, Fix Wording (corrects a term in the transcript and the notes at once), recordings compressed to m4a after transcription, notifications when a meeting is done or fails, in-app updates, Help → Report a Problem… (includes the version and setup, never meeting content)
 
-![Transcript and speakers](docs/images/en/transcript.png)
+![Transcript and speakers](../docs/images/en/transcript.png)
 
 <sub>The demo meetings in these screenshots are excerpts from the [AMI Meeting Corpus](https://groups.inf.ed.ac.uk/ami/corpus/) (ES2004a, CC BY 4.0).</sub>
 
-![Recording](docs/images/en/recording.png)
+![Recording](../docs/images/en/recording.png)
 
 ## System requirements
 
@@ -99,6 +104,37 @@ scripts/build-app.sh --install         # build the release app and install it to
 
 Without `make-signing-cert.sh --trust` the build still works with an ad-hoc signature, but macOS may ask for permissions again after each rebuild.
 
+## Windows
+
+The Windows version lives in [`windows/`](windows/) (C#, .NET 10, WinUI 3) and has the same features as Mac 4.0. Download it from the [website](https://shiyin.weibuilds.com/en/windows/) or this repo's Releases (tagged `win-vX.Y.Z`).
+
+| Item | Requirement |
+|---|---|
+| System | Windows 11 (x64 or ARM64). N editions need the Media Feature Pack first |
+| Memory | 8 GB or more |
+| Disk space | Downloaded on first use: about 240 MB for fast recognition, 45 MB for speaker identification, 1.7 GB for the transcription model; plus 574 MB for Japanese meetings |
+| Graphics | Not required. On x64 PCs with an NVIDIA graphics card, Shiyin downloads GPU acceleration automatically (about 685 MB) and full transcription runs on the GPU (a 40-minute meeting took about 8 minutes on an RTX 3060, about 30 minutes on the CPU alone) |
+| Performance | Fastest with an NVIDIA card: 4 GB of video memory or more recommended, driver 527 or later. On the CPU alone it's slower, and on a laptop it may take longer than the meeting itself; transcription uses up to 8 threads. In a hurry, set Settings → Recording → Transcription to Quick recognition (much faster, less accurate). The live transcript while recording uses about a third of one CPU core |
+| Summarizer | Same as on the Mac |
+
+What’s different from the Mac version:
+
+- **Installing**: run `Shiyin-<version>-win-x64-Setup.exe` (or the `win-arm64` one on ARM PCs). No administrator rights needed; it installs to `%LOCALAPPDATA%\ShiyinApp`. The installer isn’t code-signed: if “Windows protected your PC” appears, click “More info” → “Run anyway”. With Smart App Control on, it’s blocked outright; turn it off first in Windows Security → App & browser control. When a new version is out, Shiyin asks you in the app whether to update.
+- **The notification area** replaces the menu bar: closing the main window keeps Shiyin in the notification area, and recording and transcription carry on. Windows 11 tucks new icons under the “^” on the taskbar by default.
+- **Shortcuts**: ⌘ becomes Ctrl. From any other app, Ctrl+Alt+Shift+R starts or stops recording and Ctrl+Alt+Shift+B adds a bookmark.
+- **Recognition**: the live transcript and “fast recognition” (which stands in for macOS built-in recognition until the transcription model is downloaded) use SenseVoice; speaker identification uses sherpa-onnx, so voiceprints don’t carry over from the Mac. .shiyin packages import on either side.
+- **Data and privacy**: data is stored in `%LOCALAPPDATA%\Shiyin` (readable only by your Windows user), with settings in `settings.json` inside it; API keys are kept in Windows Credential Manager, never in files or logs. Uninstalling doesn’t delete your recordings or database. Everything else is as described in Data and privacy above.
+- **Licenses**: it also uses sherpa-onnx, ONNX Runtime, SenseVoice, pyannote, 3D-Speaker, NAudio, Velopack, WinUIEx, the Windows App SDK and more. The full list and license texts are in About Shiyin and in `Third-Party Licenses.txt` in the install folder (generated by `scripts/windows/make-third-party-licenses.py`; rerun it after updating packages).
+
+Building from source has to happen on Windows, with the .NET 10 SDK, Visual Studio Build Tools (C++) and CMake:
+
+```powershell
+pwsh scripts/windows/build-whisper.ps1 -Arch x64 -Out build\whisper-x64
+pwsh scripts/windows/pack.ps1 -Version 4.0.0 -Arch x64 -Whisper build\whisper-x64   # installer goes to dist\win-x64
+```
+
+The code that doesn’t touch the UI (database, prompts, note-writing tools, transcription pipeline) can be tested on a Mac too: `cd windows && dotnet test --project tests/Shiyin.Tests`.
+
 ## Releasing
 
 ### With GitHub Actions (recommended)
@@ -111,7 +147,7 @@ Without `make-signing-cert.sh --trust` the build still works with an ad-hoc sign
    git push origin v3.1.1
    ```
 
-3. [`.github/workflows/release.yml`](.github/workflows/release.yml) builds the DMG on a `macos-26` runner, creates a GitHub Release and uploads the DMG and `shiyin-update.json`. It fails if the tag doesn’t match the version.
+3. [`.github/workflows/release.yml`](workflows/release.yml) builds the DMG on a `macos-26` runner, creates a GitHub Release and uploads the DMG and `shiyin-update.json`. It fails if the tag doesn’t match the version.
 
 You can also run the workflow by hand from the Actions page: it only builds, and the DMG is attached to that run as an artifact.
 
@@ -121,6 +157,7 @@ Settings (Settings → Secrets and variables → Actions, all optional):
 |---|---|---|
 | `SHIYIN_SIGNING_P12`, `SHIYIN_SIGNING_P12_PASSWORD` | Secret | Self-signed certificate. Set them from your Mac with `scripts/export-signing-cert.sh --to-github <owner/repo>` so CI signs the app the same way your Mac does; without them the app is signed ad hoc |
 | `SHIYIN_UPDATE_URL` | Variable | Update URL built into the app |
+| `SHIYIN_USAGE_URL` | Variable | Anonymous usage statistics URL built into the app (optional; no statistics are sent without it) |
 | `SHIYIN_RELEASES_REPO`, `SHIYIN_RELEASES_TOKEN` | Variable, Secret | Also publish to a separate public repo (for keeping the code private while updates still work) |
 
 ### From your Mac
@@ -155,8 +192,9 @@ The app checks that a new version is signed the same way as the running app. Aft
 | Summarizing, revising, asking, guessing speaker names | The transcript text, your notes, the glossary and the meeting details go to the service you chose (Anthropic, OpenAI, Google, or the URL you entered for an OpenAI-compatible API). Asking all meetings only sends the relevant excerpts. Recordings are never sent |
 | Voiceprints | Speakers’ voice features (a list of numbers, not audio) are kept only in the local database: never uploaded, never included in exported .shiyin packages. Delete them or turn them off in Settings → Speakers |
 | Report a Problem | Only opens GitHub in your browser when you click “Report on GitHub”; you see the text and submit it yourself. It contains the version, your setup and the kinds of errors, never meeting content, file names or API keys |
+| Anonymous usage statistics | Once a day, Shiyin sends its developer an anonymous summary: version, system, minutes recorded and transcribed, which features were used, and how many tasks failed, with a random anonymous ID. It never includes meeting titles, transcripts, notes, names, voiceprints or files. You can turn it off in Settings → Advanced |
 | API keys | Stored in the macOS Keychain, never in files or logs |
-| “Don’t summarize” | Fully offline |
+| “Don’t summarize” with usage statistics turned off | Fully offline |
 | OpenAI-compatible API on your Mac (Ollama, LM Studio) | Summarizing happens on this Mac too; nothing leaves your computer |
 
 ## Settings (⌘,)
@@ -177,10 +215,10 @@ The project follows spec-driven development: requirements, design and tasks come
 
 | Document | Contents |
 |---|---|
-| [`docs/requirements.md`](docs/requirements.md) | Requirements and acceptance results |
-| [`docs/design.md`](docs/design.md) | Architecture, data model, prompts, interface, decision log |
-| [`docs/tasks.md`](docs/tasks.md) | Tasks still to do |
-| [`CLAUDE.md`](CLAUDE.md) | Things to watch out for when developing and verifying |
+| [`docs/requirements.md`](../docs/requirements.md) | Requirements |
+| [`docs/design.md`](../docs/design.md) | Architecture, data model, prompts, interface, decision log |
+| [`docs/tasks.md`](../docs/tasks.md) | Tasks still to do |
+| [`CLAUDE.md`](../CLAUDE.md) | Things to watch out for when developing and verifying |
 
 ### Project layout
 
@@ -245,6 +283,12 @@ Interface strings are written in Traditional Chinese in the code and looked up i
 
 The transcription and speaker identification models aren’t in this repo; they are downloaded on first use. The app and the DMG include the full license terms of these packages: see the About Shiyin window, or `Third-Party Licenses.txt` in the DMG (generated by `scripts/dev/make-third-party-licenses.sh`; rerun it after updating dependencies).
 
+## Support
+
+Shiyin is a free, personal open-source project. If you find it useful, you can buy me a coffee on Ko-fi.
+
+[![Buy me a coffee on Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/weiwei_chang)
+
 ## License
 
-[MIT](LICENSE). The open-source projects and models above are under their own licenses.
+[MIT](../LICENSE). The open-source projects and models above are under their own licenses.

@@ -222,10 +222,31 @@ final class AppDatabase: @unchecked Sendable {
                 );
                 """)
         }
-        // 錄音中標記的說話者（design §24.1、R23）
+        // 說話者辨識至少分出幾個人（design §23.2、R22.3）
         migrator.registerMigration("v8") { db in
+            try db.execute(sql: "ALTER TABLE meetings ADD COLUMN min_speakers INTEGER")
+        }
+        // 說話者的修正、分不準的提示（design §24.1）
+        migrator.registerMigration("v9") { db in
             try db.execute(sql: """
-                CREATE TABLE speaker_tags (
+                ALTER TABLE segments ADD COLUMN speaker_manual INTEGER NOT NULL DEFAULT 0;
+                ALTER TABLE meetings ADD COLUMN speaker_check REAL;
+                ALTER TABLE meetings ADD COLUMN speaker_hint_dismissed INTEGER NOT NULL DEFAULT 0;
+                CREATE TABLE speaker_undo (
+                  meeting_id INTEGER PRIMARY KEY REFERENCES meetings(id) ON DELETE CASCADE,
+                  snapshot   TEXT NOT NULL,
+                  label      TEXT NOT NULL,
+                  created_at TEXT NOT NULL
+                );
+                """)
+        }
+        // Fork 舊版 v8 是 speaker_tags，上游 v8 是 min_speakers；兩種資料庫都要補齊（design §F2.1）。
+        migrator.registerMigration("ma_speaker_tags_v1") { db in
+            if try !db.columns(in: "meetings").contains(where: { $0.name == "min_speakers" }) {
+                try db.execute(sql: "ALTER TABLE meetings ADD COLUMN min_speakers INTEGER")
+            }
+            try db.execute(sql: """
+                CREATE TABLE IF NOT EXISTS speaker_tags (
                   id         INTEGER PRIMARY KEY AUTOINCREMENT,
                   meeting_id INTEGER NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
                   start      REAL NOT NULL,
@@ -234,7 +255,7 @@ final class AppDatabase: @unchecked Sendable {
                   kind       TEXT NOT NULL,
                   created_at TEXT NOT NULL
                 );
-                CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
+                CREATE INDEX IF NOT EXISTS speaker_tags_meeting ON speaker_tags(meeting_id);
                 """)
         }
         return migrator
@@ -247,11 +268,17 @@ final class AppDatabase: @unchecked Sendable {
             let meetings = try Meeting
                 .filter(trash ? Column("deleted_at") != nil : Column("deleted_at") == nil)
                 .order(sql: "meeting_date DESC, id DESC").fetchAll(db)
-            // 背景的輔助工作（壓縮、逐字稿校正、猜說話者）不算會議的狀態（design §21.2）
-            let latest = try Job.fetchAll(db, sql: "SELECT * FROM jobs WHERE id IN (SELECT MAX(id) FROM jobs WHERE kind NOT IN ('compress', 'correct', 'nameSpeakers') GROUP BY meeting_id)")
+            // 背景的輔助工作（壓縮、逐字稿校正、猜說話者、重新辨識說話者）不算會議的狀態（design §21.2、§23.3）
+            let auxiliary = JobKind.allCases.filter(\.isAuxiliary).map { "'\($0.rawValue)'" }.joined(separator: ", ")
+            let latest = try Job.fetchAll(db, sql: "SELECT * FROM jobs WHERE id IN (SELECT MAX(id) FROM jobs WHERE kind NOT IN (\(auxiliary)) GROUP BY meeting_id)")
             let byMeeting = Dictionary(uniqueKeysWithValues: latest.map { ($0.meetingId, $0) })
+            // 待確認的題數也算說話者的建議（R33.3）
+            let speakerQuestions = Dictionary(uniqueKeysWithValues: try Row.fetchAll(db, sql: """
+                SELECT meeting_id, COUNT(*) AS n FROM speakers WHERE name_source = 'default' AND suggested_name IS NOT NULL GROUP BY meeting_id
+                """).map { (Int64($0["meeting_id"] as Int64), Int($0["n"] as Int64)) })
             return meetings.map { m in
-                MeetingRow(meeting: m, latestJob: byMeeting[m.id ?? 0], reviewCount: m.decodedNotes?.reviewItems.count ?? 0)
+                MeetingRow(meeting: m, latestJob: byMeeting[m.id ?? 0],
+                           reviewCount: (m.decodedNotes?.reviewItems.count ?? 0) + (speakerQuestions[m.id ?? 0] ?? 0))
             }
         }
     }
@@ -393,6 +420,8 @@ final class AppDatabase: @unchecked Sendable {
         try pool.write { db in
             try Self.unindexSegments(db, meetingId: meetingId)
             try Segment.filter(Column("meeting_id") == meetingId).deleteAll(db)
+            // 逐字稿換掉了，說話者的復原資料對不上（design §24.2）
+            try db.execute(sql: "DELETE FROM speaker_undo WHERE meeting_id = ?", arguments: [meetingId])
             for var s in segments {
                 try s.insert(db)
                 try Self.indexSegment(db, meetingId: meetingId, id: s.id!, text: s.text)
@@ -559,6 +588,8 @@ final class AppDatabase: @unchecked Sendable {
                 INSERT INTO speakers (meeting_id, idx, name, name_source) VALUES (?, ?, ?, ?)
                 ON CONFLICT (meeting_id, idx) DO UPDATE SET name = excluded.name, name_source = excluded.name_source
                 """, arguments: [meetingId, idx, name, Self.isDefaultSpeakerName(name) ? "default" : "manual"])
+            // 改名之後不能再復原合併、改句子（復原會把名字一起換回去，跟會議紀錄對不上，design §24.4）
+            try db.execute(sql: "DELETE FROM speaker_undo WHERE meeting_id = ?", arguments: [meetingId])
         }
     }
 
@@ -697,7 +728,7 @@ final class AppDatabase: @unchecked Sendable {
     }
 
     @discardableResult
-    private static func saveNotes(_ db: Database, _ meetingId: Int64, notes: MeetingNotes, by provider: String?, reason: String,
+    static func saveNotes(_ db: Database, _ meetingId: Int64, notes: MeetingNotes, by provider: String?, reason: String,
                                   source: NotesSource = .edit) throws -> Bool {
         guard var m = try Meeting.fetchOne(db, key: meetingId) else { return false }
         let wasDraft = m.notesDraft
@@ -732,19 +763,21 @@ final class AppDatabase: @unchecked Sendable {
 
     /// 復原上一版：成功回傳 true
     func undoNotes(_ meetingId: Int64) throws -> Bool {
-        try pool.write { db in
-            guard let version = try NotesVersion.filter(Column("meeting_id") == meetingId).order(Column("id").desc).fetchOne(db),
-                  var m = try Meeting.fetchOne(db, key: meetingId) else { return false }
-            m.notes = version.notes
-            m.notesDraft = 0   // 復原的是之前的某一版，不再當草稿自動更新
-            if !m.titleLocked, let title = m.decodedNotes?.title, !title.isEmpty { m.title = title }
-            m.updatedAt = Clock.now()
-            try m.update(db)
-            _ = try version.delete(db)
-            try Self.index(db, meetingId: meetingId, kind: .notes, ref: 0, text: m.decodedNotes?.plainText ?? "")
-            try Self.index(db, meetingId: meetingId, kind: .title, ref: 0, text: m.displayTitle)
-            return true
-        }
+        try pool.write { db in try Self.undoNotes(db, meetingId) }
+    }
+
+    static func undoNotes(_ db: Database, _ meetingId: Int64) throws -> Bool {
+        guard let version = try NotesVersion.filter(Column("meeting_id") == meetingId).order(Column("id").desc).fetchOne(db),
+              var m = try Meeting.fetchOne(db, key: meetingId) else { return false }
+        m.notes = version.notes
+        m.notesDraft = 0   // 復原的是之前的某一版，不再當草稿自動更新
+        if !m.titleLocked, let title = m.decodedNotes?.title, !title.isEmpty { m.title = title }
+        m.updatedAt = Clock.now()
+        try m.update(db)
+        _ = try version.delete(db)
+        try index(db, meetingId: meetingId, kind: .notes, ref: 0, text: m.decodedNotes?.plainText ?? "")
+        try index(db, meetingId: meetingId, kind: .title, ref: 0, text: m.displayTitle)
+        return true
     }
 
     /// 全文取代：逐字稿＋會議紀錄（沿用第二版）
@@ -968,6 +1001,14 @@ final class AppDatabase: @unchecked Sendable {
                 WHERE meeting_id = ? AND status IN ('queued', 'running')
                 """, arguments: [Clock.now(), meetingId])
             return running
+        }
+    }
+
+    /// 這場會議有沒有排隊中或執行中的某種工作
+    func hasActiveJob(_ meetingId: Int64, kind: JobKind) throws -> Bool {
+        try pool.read { db in
+            try Job.filter(Column("meeting_id") == meetingId && Column("kind") == kind.rawValue
+                           && [JobStatus.queued.rawValue, JobStatus.running.rawValue].contains(Column("status"))).fetchCount(db) > 0
         }
     }
 

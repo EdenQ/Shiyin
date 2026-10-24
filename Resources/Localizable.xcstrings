@@ -256,6 +256,29 @@
     "%lld": {
       "extractionState": "manual"
     },
+    "%lld 人": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld person"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld people"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld 份聲音特徵": {
       "extractionState": "manual",
       "localizations": {
@@ -860,13 +883,13 @@
         }
       }
     },
-    "「待確認」列出整理時沒把握的人名、專有名詞、負責人和期限。在「你的回答」欄位直接回答，按「送出」，會議紀錄就會依你的答案修正；看不懂或不重要的勾「略過」。也可以在「摘要」按「編輯」直接改。改錯了可以從「更多」選「復原上一版會議紀錄」。": {
+    "「待確認」列出整理時沒把握的人名、專有名詞、負責人和期限。能用是或否回答的直接按「是」「不是」，其他的在「你的回答」欄位回答，按「送出」，會議紀錄就會依你的答案修正；看不懂或不重要的勾「略過」。也可以在「摘要」按「編輯」直接改。改錯了可以從「更多」選「復原上一版會議紀錄」。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "“To confirm” lists names, terms, owners and deadlines the summarizer wasn't sure about. Type in “Your answer” and click “Submit”, and the notes are revised from your answers; check “Skip” for anything unclear or unimportant. You can also click “Edit” in “Summary” to change things directly. To undo a mistake, choose “Revert to previous notes” from “More”."
+            "value": "“To confirm” lists names, terms, owners and deadlines the summarizer wasn't sure about. Click “Yes” or “No” for yes-or-no questions and type in “Your answer” for the others, then click “Submit”, and the notes are revised from your answers; check “Skip” for anything unclear or unimportant. You can also click “Edit” in “Summary” to change things directly. To undo a mistake, choose “Revert to previous notes” from “More”."
           }
         }
       }
@@ -1135,6 +1158,17 @@
         }
       }
     },
+    "不是": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No"
+          }
+        }
+      }
+    },
     "不是 WAV 檔": {
       "extractionState": "manual",
       "localizations": {
@@ -1146,13 +1180,13 @@
         }
       }
     },
-    "不是%@": {
+    "不是%@（不知道是誰）": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Not %@"
+            "value": "Not %@ (don't know who)"
           }
         }
       }
@@ -1179,6 +1213,17 @@
         }
       }
     },
+    "不用了": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No Thanks"
+          }
+        }
+      }
+    },
     "不要再提醒這個 app": {
       "extractionState": "manual",
       "localizations": {
@@ -1197,6 +1242,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Nothing else to install. To summarize meetings, install and sign in to claude or codex, or have an Anthropic or OpenAI API key"
+          }
+        }
+      }
+    },
+    "之後再設定（先不整理）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set up later (don't summarize for now)"
           }
         }
       }
@@ -1274,6 +1330,39 @@
           "stringUnit": {
             "state": "translated",
             "value": "Item"
+          }
+        }
+      }
+    },
+    "人多、吵雜或手機放在桌上錄音時，先告訴會議助手大約幾個人，說話者會分得比較準": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "With many people, noise, or a phone on the table, telling Meeting Assistant roughly how many people there are helps it tell speakers apart"
+          }
+        }
+      }
+    },
+    "人數：自動判斷": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "People: Detect Automatically"
+          }
+        }
+      }
+    },
+    "以下是整理時不確定的地方。按「是」「不是」或直接回答就好；看不懂或不重要的可以略過。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "These are the points the summarizer wasn't sure about. Click “Yes” or “No”, or just answer them; skip anything unclear or unimportant."
           }
         }
       }
@@ -1407,6 +1496,17 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "保留格式（貼到 Word、Notion、郵件）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Formatted text (for Word, Notion, email)"
           }
         }
       }
@@ -1653,6 +1753,17 @@
         }
       }
     },
+    "其他人…（到逐字稿改名）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Someone Else… (Rename in Transcript)"
+          }
+        }
+      }
+    },
     "其他名字…": {
       "extractionState": "manual",
       "localizations": {
@@ -1682,6 +1793,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Share…"
+          }
+        }
+      }
+    },
+    "分享匿名使用統計": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Share anonymous usage statistics"
           }
         }
       }
@@ -1858,17 +1980,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Download it in “Models & Storage”, or set transcription to macOS in “Recording”"
-          }
-        }
-      }
-    },
-    "到逐字稿改名": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rename in Transcript"
           }
         }
       }
@@ -2083,6 +2194,17 @@
         }
       }
     },
+    "匿名使用統計": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anonymous Usage Statistics"
+          }
+        }
+      }
+    },
     "即時逐字稿、正式轉錄、說話者辨識都在本機進行，不需要網路。": {
       "extractionState": "manual",
       "localizations": {
@@ -2138,6 +2260,17 @@
         }
       }
     },
+    "原本取過的名字會盡量保留，其他說話者會用聲紋比對、再用整理工具猜名字。會議紀錄不會自動更新。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Names you've given are kept where possible; other speakers are matched by voiceprint, then the summarizer guesses their names. The meeting notes aren't updated automatically."
+          }
+        }
+      }
+    },
     "參加者": {
       "extractionState": "manual",
       "localizations": {
@@ -2179,6 +2312,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Replace “%@” → “%@”"
+          }
+        }
+      }
+    },
+    "取得 API key": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Get an API key"
           }
         }
       }
@@ -2227,6 +2371,28 @@
         }
       }
     },
+    "只重新分辨誰在說話，逐字稿的文字不會變": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only works out again who is speaking; the transcript text stays the same"
+          }
+        }
+      }
+    },
+    "只重新分辨誰在說話，逐字稿的文字不會變。人多、吵雜或手機遠距收音時，告訴會議助手大約幾個人會分得比較準。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only works out again who is speaking; the transcript text doesn't change. With many people, a noisy room or a phone recording from across the table, telling Meeting Assistant roughly how many people there are helps."
+          }
+        }
+      }
+    },
     "只錄電腦聲音": {
       "extractionState": "manual",
       "localizations": {
@@ -2267,6 +2433,39 @@
           "stringUnit": {
             "state": "translated",
             "value": "Works (%lld s)"
+          }
+        }
+      }
+    },
+    "合併到…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Merge Into…"
+          }
+        }
+      }
+    },
+    "合併說話者": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Merge speakers"
+          }
+        }
+      }
+    },
+    "同一個人被分成兩位時，把這位說的話全部算到另一位": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "If one person was split into two, move everything this speaker said to the other one"
           }
         }
       }
@@ -2458,6 +2657,17 @@
         }
       }
     },
+    "回答": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Answer"
+          }
+        }
+      }
+    },
     "回答待確認、修改": {
       "extractionState": "manual",
       "localizations": {
@@ -2602,6 +2812,51 @@
         }
       }
     },
+    "大約 %lld 人": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "About %lld Person"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "About %lld People"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "大約幾個人": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Roughly how many people"
+          }
+        }
+      }
+    },
+    "大約幾個人：人多、吵雜或手機放在桌上錄音時，先告訴會議助手大約幾個人，說話者會分得比較準": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Roughly how many people: with many people, noise, or a phone on the table, telling Meeting Assistant ahead of time helps it tell speakers apart"
+          }
+        }
+      }
+    },
     "套用": {
       "extractionState": "manual",
       "localizations": {
@@ -2697,17 +2952,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "You can close this window when you’re done."
-          }
-        }
-      }
-    },
-    "富文字（貼到 Word、Notion、郵件）": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rich text (for Word, Notion, email)"
           }
         }
       }
@@ -2899,6 +3143,28 @@
         }
       }
     },
+    "已復原：%@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Undone: %@"
+          }
+        }
+      }
+    },
+    "已把「%@」合併到「%@」。要復原的話，從「更多 → 復原說話者的調整」。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Merged “%1$@” into “%2$@”. To undo, choose More → Undo Speaker Changes."
+          }
+        }
+      }
+    },
     "已改成「%@」（原本是「%@」）": {
       "extractionState": "manual",
       "localizations": {
@@ -3042,6 +3308,17 @@
         }
       }
     },
+    "已經在重新辨識說話者了": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speakers are already being identified again"
+          }
+        }
+      }
+    },
     "已經帶入的名字會留著，之後的會議不會再自動帶入。": {
       "extractionState": "manual",
       "localizations": {
@@ -3071,6 +3348,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "Meeting notes copied"
+          }
+        }
+      }
+    },
+    "已重新辨識說話者：分出 %lld 位。名字請再確認一下；會議紀錄要更新的話，請重新整理會議紀錄。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Speakers identified again: %lld speaker. Please check the name; to update the meeting notes, summarize them again."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Speakers identified again: %lld speakers. Please check the names; to update the meeting notes, summarize them again."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "已重設匿名 ID": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anonymous ID reset"
           }
         }
       }
@@ -3230,29 +3541,6 @@
         }
       }
     },
-    "從對話內容猜到 %lld 位說話者的名字": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "variations": {
-            "plural": {
-              "one": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "Guessed the name of %lld speaker from the conversation"
-                }
-              },
-              "other": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "Guessed the names of %lld speakers from the conversation"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "從左邊選一場會議": {
       "extractionState": "manual",
       "localizations": {
@@ -3304,6 +3592,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Recovered recording.wav"
+          }
+        }
+      }
+    },
+    "復原說話者的調整": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Undo Speaker Changes"
           }
         }
       }
@@ -3451,17 +3750,6 @@
         }
       }
     },
-    "找不到 %@ 指令，請先安裝並登入，或到設定 → 整理工具改用 API key": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Can't find the %@ command. Install it and sign in, or switch to an API key in Settings → Summarizer."
-          }
-        }
-      }
-    },
     "找不到「%@」": {
       "extractionState": "manual",
       "localizations": {
@@ -3517,17 +3805,6 @@
         }
       }
     },
-    "找不到，請先安裝並登入": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Not found. Install it and sign in first."
-          }
-        }
-      }
-    },
     "找到上次沒有正常結束的錄音，已經復原並開始轉錄。": {
       "extractionState": "manual",
       "localizations": {
@@ -3546,6 +3823,51 @@
           "stringUnit": {
             "state": "translated",
             "value": "Find meetings and play"
+          }
+        }
+      }
+    },
+    "把 %lld 句改成「%@」說的": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Changed %lld line to “%@”"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Changed %lld lines to “%@”"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "把「%@」合併到「%@」": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Merge “%1$@” into “%2$@”"
+          }
+        }
+      }
+    },
+    "把一句改成「%@」說的": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Changed a line to “%@”"
           }
         }
       }
@@ -4388,6 +4710,17 @@
         }
       }
     },
+    "新的說話者": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New Speaker"
+          }
+        }
+      }
+    },
     "新的錄音和匯入預設用這個語言轉錄、整理會議紀錄；錄音選單、匯入時和會議頁都可以改。": {
       "extractionState": "manual",
       "localizations": {
@@ -4461,6 +4794,50 @@
           "stringUnit": {
             "state": "translated",
             "value": "Japanese transcription model Whisper large-v3-turbo (q5_0)"
+          }
+        }
+      }
+    },
+    "是": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yes"
+          }
+        }
+      }
+    },
+    "是…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "It's…"
+          }
+        }
+      }
+    },
+    "是別人：": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "It's someone else:"
+          }
+        }
+      }
+    },
+    "是誰？（可以不填）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Who is it? (optional)"
           }
         }
       }
@@ -5534,6 +5911,17 @@
         }
       }
     },
+    "正在處理這場會議，完成後才能改說話者": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This meeting is being processed. You can change speakers when it’s done"
+          }
+        }
+      }
+    },
     "正在處理這場會議，完成後才能編輯": {
       "extractionState": "manual",
       "localizations": {
@@ -5574,6 +5962,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "A transcription is running. You can delete the model when it's done"
+          }
+        }
+      }
+    },
+    "正在重新辨識說話者…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Identifying speakers again…"
           }
         }
       }
@@ -5644,6 +6043,17 @@
         }
       }
     },
+    "正確的是…（可以不填）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What's correct… (optional)"
+          }
+        }
+      }
+    },
     "段落內容": {
       "extractionState": "manual",
       "localizations": {
@@ -5662,6 +6072,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "Section name"
+          }
+        }
+      }
+    },
+    "每天送一份匿名的使用統計給會議助手的開發者：版本、系統、錄音和轉錄了幾分鐘、用了哪些功能、失敗幾次。不會送會議標題、逐字稿、會議紀錄、人名、聲紋或任何檔案。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Once a day, Meeting Assistant sends its developer an anonymous summary: version, system, minutes recorded and transcribed, which features were used, and how many tasks failed. It never sends meeting titles, transcripts, notes, names, voiceprints or any files."
+          }
+        }
+      }
+    },
+    "每天送一份匿名的使用統計（版本、系統、錄音和轉錄的分鐘數、用了哪些功能、失敗次數），不含任何會議內容。在設定 → 進階可以關掉。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Once a day, Meeting Assistant sends an anonymous usage summary (version, system, minutes recorded and transcribed, which features were used, and how many tasks failed) that never includes meeting content. You can turn it off in Settings → Advanced."
           }
         }
       }
@@ -5750,6 +6182,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Not downloaded; transcription uses macOS speech recognition"
+          }
+        }
+      }
+    },
+    "沒有可以復原的說話者調整（改名、重新辨識說話者之後就不能復原之前的調整）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No speaker changes to undo (earlier changes can’t be undone after renaming or identifying speakers again)"
           }
         }
       }
@@ -6051,6 +6494,29 @@
         }
       }
     },
+    "猜到 %lld 位說話者的名字": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Guessed the name of %lld speaker"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Guessed the names of %lld speakers"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "猜到的說話者名字": {
       "extractionState": "manual",
       "localizations": {
@@ -6334,6 +6800,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Read the meeting notes"
+          }
+        }
+      }
+    },
+    "知道了": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Got It"
           }
         }
       }
@@ -6834,6 +7311,17 @@
         }
       }
     },
+    "聲音有點小：手機或筆電放近說話的人一點。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The sound is a bit quiet: move the phone or laptop closer to the people speaking."
+          }
+        }
+      }
+    },
     "聽起來是%@，即時逐字稿和會議語言已經改成%@": {
       "extractionState": "manual",
       "localizations": {
@@ -6841,6 +7329,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "This sounds like %@. The live transcript and meeting language are now %@"
+          }
+        }
+      }
+    },
+    "背景有點吵，說話者可能分不準。錄完可以用「重新辨識說話者」告訴會議助手大約幾個人。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "It’s a bit noisy, so speakers may get mixed up. After recording, use “Identify Speakers Again” to tell Meeting Assistant roughly how many people there were."
           }
         }
       }
@@ -6874,6 +7373,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Used to detect the meeting language, 60 MB."
+          }
+        }
+      }
+    },
+    "自動判斷": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Detect automatically"
           }
         }
       }
@@ -6977,13 +7487,13 @@
         }
       }
     },
-    "複製會議紀錄（富文字）": {
+    "複製會議紀錄（保留格式）": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Copy Meeting Notes (Rich Text)"
+            "value": "Copy Meeting Notes (Formatted)"
           }
         }
       }
@@ -7065,6 +7575,17 @@
         }
       }
     },
+    "設定整理工具": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set Up Summarizer"
+          }
+        }
+      }
+    },
     "設定（⌘,）": {
       "extractionState": "manual",
       "localizations": {
@@ -7105,6 +7626,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Details"
+          }
+        }
+      }
+    },
+    "詳細…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Details…"
           }
         }
       }
@@ -7164,6 +7696,39 @@
         }
       }
     },
+    "說話者分得太少（人多、吵雜、手機放在桌上遠距收音）時，從「更多」選「重新辨識說話者…」，告訴會議助手大約幾個人。只會重新分辨誰在說話，逐字稿的文字不會變。錄音中（會議標題右邊的「人數」）或匯入時也可以先選。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "If too few speakers were found (many people, noise, or a phone on the table), choose “Identify Speakers Again…” from More and tell Meeting Assistant roughly how many people there were. Only who is speaking is worked out again; the transcript text stays the same. You can also pick the number while recording (“People” next to the meeting title) or when importing."
+          }
+        }
+      }
+    },
+    "說話者分錯了：同一個人被分成兩位，點說話者的名字選「合併到…」；某幾句分錯人，在逐字稿按右鍵選「這句是誰說的」。改錯了可以從「更多」選「復原說話者的調整」。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speakers mixed up? If one person was split into two, click the speaker’s name and choose “Merge Into…”. If a few lines went to the wrong person, right-click the transcript and choose “Who Said This Line?”. To undo, choose “Undo Speaker Changes” from More."
+          }
+        }
+      }
+    },
+    "說話者可能分得不夠：有些不同的人可能被當成同一位。人多、吵雜或手機放在桌上錄音時常發生，告訴會議助手大約幾個人會分得比較準。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Some speakers may be missing: different people may have been treated as one. This often happens with many people, noise, or a phone on the table. Telling Meeting Assistant roughly how many people there were helps."
+          }
+        }
+      }
+    },
     "說話者名字": {
       "extractionState": "manual",
       "localizations": {
@@ -7182,6 +7747,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Speaker renamed"
+          }
+        }
+      }
+    },
+    "說話者的題目不會送給整理工具，送出後直接換名字。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speaker questions aren't sent to the summarizer; the names change as soon as you submit."
           }
         }
       }
@@ -7859,6 +8435,83 @@
         }
       }
     },
+    "這句是誰說的": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Who Said This Line?"
+          }
+        }
+      }
+    },
+    "這台 Mac 找不到 claude。沒有在用 Claude Code 的話，請到設定 → 整理工具改用 API（填 API key）或選「不整理」": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "claude isn't installed on this Mac. If you don't use Claude Code, go to Settings → Summarizer and choose an API (with an API key) or “Don't summarize”."
+          }
+        }
+      }
+    },
+    "這台 Mac 找不到 codex。沒有在用 Codex 的話，請到設定 → 整理工具改用 API（填 API key）或選「不整理」": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "codex isn't installed on this Mac. If you don't use Codex, go to Settings → Summarizer and choose an API (with an API key) or “Don't summarize”."
+          }
+        }
+      }
+    },
+    "這台 Mac 沒有 Claude Code 或 Codex。要用 AI 整理會議紀錄，選一個 API 並貼上 API key（有取得 key 的連結）；也可以之後再設定，錄音和逐字稿照常能用。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This Mac doesn't have Claude Code or Codex. To have AI write your meeting notes, choose an API and paste an API key (there's a link to get one). You can also set this up later; recording and transcripts work either way."
+          }
+        }
+      }
+    },
+    "這台 Mac 沒有安裝 claude：沒有在用 Claude Code 的話，請改選 API": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "claude isn't installed on this Mac. If you don't use Claude Code, choose an API instead"
+          }
+        }
+      }
+    },
+    "這台 Mac 沒有安裝 codex：沒有在用 Codex 的話，請改選 API": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "codex isn't installed on this Mac. If you don't use Codex, choose an API instead"
+          }
+        }
+      }
+    },
+    "這場會議不再提示": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Don’t show this again for this meeting"
+          }
+        }
+      }
+    },
     "這場會議在垃圾桶裡，30 天後會永久刪除": {
       "extractionState": "manual",
       "localizations": {
@@ -7899,6 +8552,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "The folder this meeting is in"
+          }
+        }
+      }
+    },
+    "這場會議是分聲道轉錄的，請用「重新轉錄」": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This meeting was transcribed per channel; use Transcribe Again instead"
           }
         }
       }
@@ -7969,6 +8633,17 @@
         }
       }
     },
+    "這場會議沒有錄音，沒辦法重新辨識說話者": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This meeting has no recording, so speakers can't be identified again"
+          }
+        }
+      }
+    },
     "這場會議還在處理中，完成後再試一次": {
       "extractionState": "manual",
       "localizations": {
@@ -8024,6 +8699,17 @@
         }
       }
     },
+    "這場錄音不再提示這件事": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Don’t mention this again during this recording"
+          }
+        }
+      }
+    },
     "這次不用": {
       "extractionState": "manual",
       "localizations": {
@@ -8053,6 +8739,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "Who said this? After recording, the name is applied to their speaker"
+          }
+        }
+      }
+    },
+    "這段連續的話是誰說的（%lld 句）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Who Said These Lines? (%lld line)"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Who Said These Lines? (%lld lines)"
+                }
+              }
+            }
           }
         }
       }
@@ -8299,6 +9008,17 @@
         }
       }
     },
+    "還沒有正式逐字稿，轉錄完成後再試一次": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "There's no full transcript yet. Try again after transcription finishes"
+          }
+        }
+      }
+    },
     "還沒有設定更新網址": {
       "extractionState": "manual",
       "localizations": {
@@ -8372,6 +9092,72 @@
           "stringUnit": {
             "state": "translated",
             "value": "There's no transcript yet. Transcribe the recording first."
+          }
+        }
+      }
+    },
+    "還沒設定整理工具。選好之後，就能把逐字稿整理成摘要、決議和待辦；之後的會議轉錄完會自動整理。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No summarizer is set up yet. Once you choose one, transcripts can be turned into a summary, decisions and action items, and future meetings are summarized automatically after transcription."
+          }
+        }
+      }
+    },
+    "還沒設定整理工具，沒辦法依回答修正。請先到設定選擇 Claude、Codex 或 API": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No summarizer is set up yet, so the notes can't be revised from your answers. Choose Claude, Codex or an API in Settings first."
+          }
+        }
+      }
+    },
+    "還沒設定整理工具，沒辦法提問；請到設定選擇 Claude、Codex 或 API": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No summarizer is set up yet, so you can't ask questions. Choose Claude, Codex or an API in Settings."
+          }
+        }
+      }
+    },
+    "還沒設定整理工具，請先到設定選擇 Claude、Codex 或 API": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No summarizer is set up yet. Choose Claude, Codex or an API in Settings first."
+          }
+        }
+      }
+    },
+    "還沒設定整理工具，請到設定選擇 Claude、Codex 或 API": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No summarizer is set up yet. Choose Claude, Codex or an API in Settings."
+          }
+        }
+      }
+    },
+    "還沒設定整理工具：錄音、轉錄、逐字稿全部留在這台 Mac。選好整理工具之後，才會整理成會議紀錄。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No summarizer is set up yet: recordings, transcription and transcripts all stay on this Mac. Meeting notes are created once you choose a summarizer."
           }
         }
       }
@@ -8519,6 +9305,39 @@
         }
       }
     },
+    "重新辨識說話者": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Identify Speakers Again"
+          }
+        }
+      }
+    },
+    "重新辨識說話者…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Identify Speakers Again…"
+          }
+        }
+      }
+    },
+    "重新辨識說話者失敗：%@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't identify speakers again: %@"
+          }
+        }
+      }
+    },
     "重新顯示首次使用引導": {
       "extractionState": "manual",
       "localizations": {
@@ -8526,6 +9345,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Show Welcome Guide Again"
+          }
+        }
+      }
+    },
+    "重設匿名 ID": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reset Anonymous ID"
           }
         }
       }
@@ -8927,6 +9757,17 @@
         }
       }
     },
+    "開始": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start"
+          }
+        }
+      }
+    },
     "開始使用": {
       "extractionState": "manual",
       "localizations": {
@@ -9180,6 +10021,17 @@
         }
       }
     },
+    "麥克風沒有收到聲音：可能被靜音、被其他 app 佔用，或選錯了麥克風。可以在設定的「錄音」換一個。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The microphone isn’t picking up any sound. It may be muted, in use by another app, or the wrong microphone. You can choose another one in Settings → Recording."
+          }
+        }
+      }
+    },
     "麥克風沒有送出聲音，正在重新連接…": {
       "extractionState": "manual",
       "localizations": {
@@ -9357,13 +10209,24 @@
         }
       }
     },
-    "：找不到": {
+    "：沒有安裝（給已經在用 Claude Code 的人）": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": ": not found"
+            "value": ": not installed (for people who already use Claude Code)"
+          }
+        }
+      }
+    },
+    "：沒有安裝（給已經在用 Codex 的人）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ": not installed (for people who already use Codex)"
           }
         }
       }

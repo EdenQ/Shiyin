@@ -64,9 +64,9 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>3.5.0</string>
+	<string>4.0.0</string>
 	<key>CFBundleVersion</key>
-	<string>10</string>
+	<string>13</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.productivity</string>
 	<key>LSHasLocalizedDisplayName</key>
@@ -91,6 +91,8 @@
 	<key>ShiyinIssuesURL</key>
 	<string></string>
 	<key>ShiyinUpdateURL</key>
+	<string></string>
+	<key>ShiyinUsageURL</key>
 	<string></string>
 	<key>UTExportedTypeDeclarations</key>
 	<array>

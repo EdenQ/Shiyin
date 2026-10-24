@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-拾音 Shiyin 是 macOS 原生的會議紀錄 app（SwiftUI，macOS 26）。目前是 3.5.0（第三版加上英文版、開源準備、轉錄準確度、日文、更多整理工具、穩定性修正；3.5 加上草稿紀錄、聲紋、猜說話者、對會議提問、偵測會議）：
+拾音 Shiyin 是 macOS 原生的會議紀錄 app（SwiftUI，macOS 26）。目前是 4.0.0（第三版加上英文版、開源準備、轉錄準確度、日文、更多整理工具、穩定性修正；3.5 加上草稿紀錄、聲紋、猜說話者、對會議提問、偵測會議；3.6 加上重新辨識說話者、合併和改句子的說話者、分不準的提醒、收音提醒，修正錄音中畫面卡住；4.0 加上 Windows 版、待確認的是非題、聲紋沒把握時先問、短句的說話者、沒有 claude／codex 時先不整理）：
 
 - 錄音：AVAudioEngine 收麥克風、Core Audio process tap 收電腦聲音，寫成雙聲道 WAV（`Sources/Shiyin/Capture/`）
 - 即時逐字稿：系統的 SpeechAnalyzer（zh_TW、en_US 或 ja_JP，依會議語言）
@@ -12,18 +12,21 @@
 
 不需要 Python、Homebrew、ffmpeg。選型的理由在 design.md 的決策紀錄（D#）。已經刪掉的舊文件（第二版的規格 `docs/archive/v2/`、選型實驗 `docs/spikes/`、3.4.0 以前完整的 `docs/tasks.md`）用 `git show b621ed6:<路徑>` 看。
 
+**Windows 版**（2026-10-20 起開發，4.0.0 跟 Mac 一起發布）：C# .NET 10＋WinUI 3，程式放 `windows/`，功能對齊 Mac 4.0.0；需求在 requirements 第 22 節（R26～R28），設計在 `docs/design-windows.md`，任務在 tasks.md 的「Windows 版」。見下面的「Windows 版」一節。
+
 ## 開發流程：SDD（規格驅動）
 
 本專案先寫規格再寫程式，規格放在 `docs/`：
 
 | 文件 | 內容 |
 |---|---|
-| `docs/requirements.md` | 要做什麼：需求編號 R#、N#，第 8 節是驗收結果 |
+| `docs/requirements.md` | 要做什麼：需求編號 R#、N#（已發布版本的驗收結果不留在文件裡，在 git 歷史） |
 | `docs/design.md` | 怎麼做：架構、資料模型、提示詞、介面、決策紀錄 D# |
+| `docs/design-windows.md` | Windows 版怎麼做：跟 Mac 不同的地方、標準答案、驗證環境、決策紀錄 D42 起 |
 | `docs/tasks.md` | 還沒完成的任務，每項都有驗證方式；做完就刪掉 |
 
 開發時的規則：
-- 開工前先讀這三份文件，從 `tasks.md` 的任務接著做。
+- 開工前先讀 requirements、design、tasks（做 Windows 版時加上 design-windows），從 `tasks.md` 的任務接著做。
 - 每完成一項任務，照它的「驗證」實際跑過一次，從 `tasks.md` 刪掉，跑了什麼、結果如何寫在 commit 訊息。`[~]` 表示程式完成，但有部分驗證要等使用者（權限、真實錄音、API key），只寫還差什麼。
 - docs 只留還用得到的：做完的任務、用不到的文件直接刪掉，不另外留紀錄檔（都在 git 歷史裡）。
 - 程式要偏離 `design.md` 時，先改 `design.md`（重要的取捨寫進決策紀錄 D#），再改程式，commit 訊息寫原因。
@@ -62,6 +65,29 @@ sqlite3 ~/Library/Application\ Support/Shiyin/shiyin.sqlite # 看資料
 - log 不寫逐字稿和會議紀錄的內容。
 - 從 Finder 開的 app 拿不到使用者 shell 的 PATH。要執行 claude、codex 時，用固定路徑，或在子程序的環境變數裡補上 PATH。
 - 回覆和文件一律用繁體中文（台灣用語）。
+
+## Windows 版
+
+- Mac 版的行為不能因為 Windows 版改變；為了比對兩邊而加的 Mac 程式只能在 DEBUG 版（R26.5）。
+- 兩邊一致靠標準答案（design-windows §4）：Mac 改了提示詞、範本、匯出、資料庫 migration、轉錄流程的規則，要重跑 Mac DEBUG 版的 `dump-golden`、commit `shared/golden/`，Windows 的程式跟著改到測試通過。
+- 錄音、資料庫、模型放 `SHIYIN_HOME`（Windows 預設 `%LOCALAPPDATA%\Shiyin`）；設定是裡面的 `settings.json`；API key 只能存在認證管理員（`com.weiwei.shiyin.apikey/<帳號>`）。安裝位置（`%LOCALAPPDATA%\ShiyinApp`）跟資料分開。
+- 外部程式一律用 `ProcessStartInfo.ArgumentList`，**不能經過 cmd.exe**（npm 的 `.cmd`）：參數會被截斷、改寫。
+- 建置輸出放到 repo 外（`Directory.Build.props` 的 ArtifactsPath），不要放進專案。
+- 虛擬機（UTM，Windows 11 ARM64，design-windows §15.2）：工具在 `scripts/windows/vm/`（`sync.sh` 同步原始碼到 `C:\src`、`ssh.sh`／`run.sh` 建置和測試、`ctl.sh` 控制通道、`insession.sh`／`uia.sh` 在桌面開 app 和按按鈕、`shot.sh` 截圖），金鑰、IP 在 `~/Library/Caches/ShiyinBuild-win/vm`。使用者在用拾音錄會議時（Mac 的 `audio/recording/` 有檔案）不開、不跑重的工作；`diskguard.sh` 在背景跑（Mac 剩不到 10 GB 就停掉虛擬機），虛擬機裡刪了大檔案後跑 `Optimize-Volume -DriveLetter C -ReTrim` 才會還空間給 Mac。從 SSH 開的 app 不會出現在桌面，要用 `insession.sh`（§15.4）。虛擬機沒有音效裝置，錄音用 `record-sim`。
+- 有中文的 `.ps1` 存成有 BOM 的 UTF-8：Windows 內建的 PowerShell 5.1 會把沒有 BOM 的檔案當成 Big5，整個腳本解析失敗。
+- PowerShell 傳給外部程式的 `-D名稱=$變數`、`--名稱=$變數` 要整串加雙引號（`"-DFOO=$x"`）：「-」開頭的參數裡的變數不會展開，程式拿到的是 `$x` 這串字（2026-10-22 CI 建 whisper 時，x64 因此去找 Vulkan）。
+- 測安裝檔（design-windows §14）：`pack.ps1` 打包、`Setup.exe --silent` 安裝、`%LOCALAPPDATA%\ShiyinApp\Update.exe --uninstall --silent` 移除；移除後等 20 秒再重裝（Velopack 會延後刪安裝資料夾，會把剛裝好的刪掉）。測 app 內更新用 `pack.ps1 -UpdateTest`（§14.2）。安裝版跟 DEBUG 版共用通知的 AppUserModelID，移除安裝版會把通知中心裡 DEBUG 版的通知一起清掉。
+- 官網的 Windows 版截圖：docs/website.md §16.4（虛擬機調成 150%、示範資料 `C:\ShiyinDemo`、`C:\ShiyinDemoEN`、`scripts/windows/vm/ps` 的 snapwin、clickname、dpi、display、setnotes），截完改回 100%、1024×768。截圖程式要宣告支援高 DPI，不然座標會被換算；PowerShell 的變數不分大小寫（`$h` 會蓋掉 `$H`）。
+- Windows 的 release 用 `win-vX.Y.Z` tag，一律不設成 latest（Mac 的更新網址用 latest）；第一個 Windows release 之前官網要先改好（design-windows §14.3、§14.4）。
+- .NET 10 SDK 裝在 `~/.dotnet`（使用者的資料夾，沒有加進 PATH）。在 `windows/` 下跑：`~/.dotnet/dotnet test --project tests/Shiyin.Tests`（標準答案、資料庫、整理工具，Mac 上就能跑；建置輸出在 `~/Library/Caches/ShiyinBuild-win`）。
+- 重新產生標準答案：建 Mac 的 DEBUG 版，用暫存的 `SHIYIN_HOME` 啟動（`open -g -n --env SHIYIN_HOME=… … --args -ApplePersistenceIgnoreState YES -llmProvider none`），`shiyinctl dump-golden "$PWD/shared/golden/fixtures.json" <資料夾>`，等 `<資料夾>/result.json` 出現（`"ok": true`），刪掉 result.json 後換掉 `shared/golden/expected/`。跑兩次比對要完全相同。
+- Mac 上只能編譯檢查 app（`dotnet build Shiyin.Windows.slnx`，App、Platform 用 `EnableWindowsTargeting`，不自帶 Windows App SDK、不產生 .pri，建出來的東西不能用）；真的建置、打包在 Windows：`scripts/windows/build-whisper.ps1 -Arch x64|arm64`（whisper.cpp 固定在 d1be6fde）、`scripts/windows/pack.ps1 -Version … -Arch … -Whisper …`（自帶 .NET 和 Windows App SDK、vpk pack、安裝檔改成 `Shiyin-<版本>-win-<架構>-Setup.exe`、簽更新說明）。
+- 第三方授權：更新 Windows 的套件、whisper.cpp 之後跑 `DOTNET=~/.dotnet/dotnet python3 scripts/windows/make-third-party-licenses.py`，commit 產生的 `windows/src/Shiyin.App/ThirdPartyLicenses.txt`（app 用到沒列過的套件時會停下來，要在腳本裡加上授權從哪裡來）。
+- 更新金鑰：`~/.dotnet/dotnet run scripts/windows/update-key.cs -- keygen|manifest|sign|verify`；私鑰放 GitHub secrets 的 `SHIYIN_UPDATE_KEY` 要使用者同意，公鑰貼進 `AppHost.cs` 的 `UpdateKey.Public`（空的時候不檢查更新）。
+- 介面文字：改過 C# 的介面文字一定要跑 `python3 scripts/dev/l10n.py windows-check`，缺的英文用 `windows-apply <翻譯.json>` 寫進 `windows/src/Shiyin.App/Strings/Windows.xcstrings`（Mac 的翻譯表不動）。不會顯示在介面上的中文行尾加 `// l10n-skip`。
+- 評估（Mac 上）：`SHIYIN_NATIVE_DIR=~/Library/Caches/ShiyinBuild-win/whisper-build-mac ~/.dotnet/dotnet ~/Library/Caches/ShiyinBuild-win/bin/Shiyin.Eval/debug/shiyin-eval.dll transcribe-eval|detect-eval|diarize-eval|fast-eval|live-eval …`；說話者辨識的模型放 `~/Library/Caches/ShiyinBuild-win/models`（`SHIYIN_DIARIZATION_MODELS`、`SHIYIN_SPEECH_MODELS`），`diarize-eval` 的逐字稿給 `-` 時只看分出幾個人和每人的聲紋（AMI 9 場的聲紋比對用 `scripts/dev/voiceprint-eval.py`）；設定加 `embedSegments` 輸出每句的聲紋、加 `recheck` 照 app 的規則做短句再確認（R34，design-windows §9）。
+- 測試在 Mac 上不能碰使用者的資料：`ShiyinPaths.FromEnvironment()` 在 Windows 以外一定要有 `SHIYIN_HOME`（.NET 在 Mac 的 LocalApplicationData 就是 Mac 版拾音的資料夾）；測試一律用暫存資料夾（`TempHome`）。
+- DEBUG 版的控制通道是 named pipe `shiyin-debug`，用 `shiyinctl.exe`（`windows/src/Shiyin.Ctl`）送指令：`state`、`select`、`tab`、`record-sim <檔案> <倍速> <1=雙聲道>`、`recordstop`、`llmprovider`、`llmkey`（只放記憶體，DEBUG 預設不讀真的認證管理員）、`llmurl`、`modelurl`、`hotkey`、`meetingapp <app> on|off`、`open settings|guide|report|ask|onboarding`（不是 `settings`；`closewindow` 只能關 main，其他視窗用 `uia.sh close`）…（`Shiyin.App/Debug/ControlPipe.cs`）。測 NVIDIA 顯示卡加速（design-windows §8）：x64 DEBUG 版要 `--self-contained` 建（虛擬機只有 ARM64 的 .NET），加 `--set debugNvidia=YES` 啟動，用全新的 `SHIYIN_HOME`。
 
 ## 介面文字（3.1 起）
 
@@ -104,7 +130,8 @@ Shiyin 3.3.0: Japanese meetings and automatic language detection
 - 測試資料會寫進使用者真正的資料庫。測完用 `shiyinctl purge <id>` 刪掉自己建立的會議，改過的設定用 `defaults delete com.weiwei.shiyin <key>` 還原。
 - 要用使用者的真實資料測（例如 migration）時，另外建一個 `SHIYIN_HOME`：資料庫用 `sqlite3 <正式資料庫> ".backup <複本>"` 複製（app 開著也安全）；`audio/recording/`（錄音中的暫存檔）不要複製，複本裡錄音中的會議（`source='recording'`、`audio_file=''`）刪掉；DEBUG 版加 `-llmProvider none -autoSummarize NO -correctTranscript NO` 啟動。2026-10-19 曾經複製到使用者正在錄的會議，DEBUG 版把它當成當掉的錄音復原、轉錄，還用使用者的 Claude 整理了一次。
 - 設定（UserDefaults `com.weiwei.shiyin`）跟使用者正式安裝的 app 共用，換 `SHIYIN_HOME` 也一樣。測完要 `defaults read com.weiwei.shiyin` 檢查有沒有留下測試改的值（曾經把 `defaultMeetingLanguage` 留成 en，使用者升級後新會議會預設英文）。
-- 說話者辨識不能用 `say` 合成的聲音測（會判成同一人），要用真人錄音，例如 AMI 會議語料（`~/FluidAudioDatasets`）。
+- 說話者辨識不能用 `say` 合成的聲音測（會判成同一人），要用真人錄音，例如 AMI 會議語料（`~/Library/Caches/ShiyinSpike/eval32/ami-vp/`；標註在 `~/Library/Caches/ShiyinSpike/Datasets/ami_public_1.6.2`，AISHELL-4 在 `~/Library/Caches/ShiyinSpike/aishell4/`）。
+- 說話者分不出人（3.5.1）：`shiyinctl voiceprint-eval` 的設定每一項可以加 `threshold`、`minSpeakers`、`numSpeakers`（字串），同一段錄音換設定比較分出幾個人；`shiyinctl rediarize <id> <人數|auto>` 只重新辨識說話者。
 - 轉錄的記憶體、分段（3.5）：`shiyinctl transcribe-eval` 的輸出有各階段的記憶體峰值（`memory`）和分段位置（`seams`）；設定 JSON 加 `"chunkSeconds": 0` 不分段。量記憶體要每次重開 app（同一個 app 連續跑，前一次留下的記憶體會算進去）。
 - 模擬錄音（`shiyinctl record-sim <檔案> <倍速> <1=雙聲道>`）的雙聲道是同一個讀檔迴圈同時送兩個聲道。不要改成兩個獨立的音源：高倍速時兩邊速度不同，寫檔時會補靜音，檔案變長，那是測試工具的假象。
 - 只想確認能不能編譯時，用 `swift build -c debug --arch arm64 --disable-keychain --scratch-path ~/Library/Caches/ShiyinBuild`，不會動到正在跑的 app；`build-app.sh` 會先結束 app（有長時間測試在跑時不要執行）。
@@ -123,6 +150,8 @@ Shiyin 3.3.0: Japanese meetings and automatic language detection
 - 要跟舊版比對（例如匯出格式）時，用 `git worktree` 建置舊版的 DEBUG 版。3.4.0 以前的 DEBUG 版啟動時就讀真的鑰匙圈，會在使用者畫面上一直跳出存取確認、app 卡住（2026-10-19），建置前先把 worktree 裡的 `Keychain.get` 改成直接 `return nil`；啟動後確認 log 有「debug control installed」。`shiyinctl` 會廣播給所有 DEBUG 版，同時只能開一個，3.4.0 的 `quit` 不會結束 app，要 `kill` 並確認程序真的不在了（曾經因為舊版沒結束，兩個版本同時寫同一個匯出檔）。
 - 螢幕上鎖時 AX 列不出視窗。筆記輸入框可以用 `shiyinctl notestype`、`notesvalue` 直接操作背後的 NSTextView。
 - SwiftUI 的 `Menu` 在畫面上只畫標題的文字（標籤裡的背景、膠囊標記會被拿掉），`shiyinctl snapshot` 卻畫得出來；HStack 裡的 Text 加 `.fixedSize(horizontal: false, vertical: true)`，量最小高度時會用很窄的寬度，整個視窗的內容被往上推（3.5 驗收時都是在真的畫面上才發現）。ScrollView、popover 裡的 Text 才可以用 fixedSize。
+- 錄音中的效能（3.5.1）：SwiftUI 裡任何一個 view 變了，整個視窗都要重新排版、重算最小尺寸，所以一直在變的東西（音量條）不要用 SwiftUI 觀察的屬性（改用 AppKit 的 `LevelMeter` 自己定時讀），`@Observable` 的屬性只在值真的變了才設。量 CPU：用使用者的錄音 `record-sim` 1 倍速，暖機 30 秒後取 `ps -o time` 的差；`metrics` 的 `maxMainGapMs` 是主執行緒最長卡住多久、`volatileUpdate` 是即時文字更新幾次；`livescroll <0～1>` 捲即時逐字稿（等於拖捲軸）。視窗不在目前的桌面時，程式內的輔助使用元件樹是空的，`press` 找不到按鈕。
+- 說話者的修正（3.6）：`mergespeaker`、`reassign`、`undospeaker`、`speakerhint <id> dismiss`；`voiceprint-eval` 的設定加 `dump` 會倒出每個片段的聲紋，用 numpy 離線試判斷方法（分群時同一個片段的說話者會被強制分開，所以碰撞率只在分出 1 群時有用）。收音提醒（3.7）：state 的 `recorder.levelCheck`；用 afconvert 轉成 16 kHz、numpy 照同樣的算法先離線算，再用 `record-sim` 驗證。視窗在別的桌面時 AX 列不出它的元件（小視窗、popover、右鍵選單都按不到），`shiyinctl summon` 把視窗移到目前的桌面（會出現在使用者的畫面上，先確認使用者不在電腦前）。
 - 用 AX 操作的小技巧：設定頁要捲動時，設垂直捲軸的 `AXValue`（0～1）；選單的「設定⋯」用的是 ⋯（U+22EF）；只想按某個視窗裡的按鈕時，從那個視窗（`AXWindows` 裡標題相符的）往下找，不然會按到別的視窗裡同名的按鈕。
 - 設定頁、引導在背景打不開又不想搶前景時，用 `shiyinctl preview <settings|onboarding [步驟]>` 開在桌面層（被所有視窗蓋住），再 `screencapture -l` 截。設定頁打開時可能把欄位寫回共用設定，測完 `defaults read` 比對。
 - 使用者可能直接把 `~/Library/Caches/ShiyinBuild/app` 裡的 app 當正式版在用，甚至正在錄音（先看 `audio/recording/` 有沒有檔案）：`build-app.sh` 會先結束從那個路徑啟動的 app。要測 DEBUG 版時，把建置腳本複製一份、`APP` 改到別的資料夾（例如 `app-debug`），用 `SHIYIN_HOME=… open --env SHIYIN_HOME=… -g -n` 啟動，啟動後用 `lsof -p <pid>` 確認開的是測試資料庫。加 `-debugQuietPrompts YES`：通知權限還沒決定時，測試版轉錄完會在使用者的畫面上跳出系統的詢問。

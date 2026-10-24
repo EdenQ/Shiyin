@@ -39,11 +39,30 @@ enum AppSettings {
     nonisolated(unsafe) static var debugModel: String?
     #endif
 
+    /// 使用者選過的整理工具；沒選過（或不是認得的值）是 nil（R35）
+    static var chosenProvider: LLMProvider? { LLMProvider(rawValue: d.string(forKey: providerKey) ?? "") }
+
+    /// 沒選過時自動用這台 Mac 上有的 CLI（先 claude 再 codex），都沒有就先不整理（R35.1、design §19.6）。
+    /// 每次都重新找：之後裝了 CLI 就自動用上
+    static var detectedProvider: LLMProvider {
+        if Paths.findTool("claude") != nil { return .claude }
+        if Paths.findTool("codex") != nil { return .codex }
+        return .none
+    }
+
     static var provider: LLMProvider {
         #if DEBUG
         if let debugProvider { return debugProvider }
         #endif
-        return LLMProvider(rawValue: d.string(forKey: providerKey) ?? "") ?? .claude
+        return chosenProvider ?? detectedProvider
+    }
+
+    /// 還沒選過整理工具、也找不到 CLI：介面說「還沒設定整理工具」，不說「不整理」（R35.2）
+    static var needsProviderSetup: Bool {
+        #if DEBUG
+        if debugProvider != nil { return false }
+        #endif
+        return chosenProvider == nil && provider == .none
     }
     static var model: String {
         #if DEBUG
@@ -114,6 +133,8 @@ final class JobRunner {
     @ObservationIgnored var onAudioReplaced: ((Int64) -> Void)?
     /// 正式版取代了使用者改過的草稿（design §21.3）
     @ObservationIgnored var onEditedDraftReplaced: ((Int64) -> Void)?
+    /// 重新辨識說話者做完（分出幾位）或失敗（design §23.3）
+    @ObservationIgnored var onRediarized: ((Int64, Result<Int, Error>) -> Void)?
 
     init(db: AppDatabase) {
         self.db = db
@@ -202,6 +223,7 @@ final class JobRunner {
             case .compress: try await compress(job)
             case .correct: await correct(job, lane: lane)
             case .nameSpeakers: await nameSpeakers(job, lane: lane)
+            case .rediarize: try await rediarize(job, lane: lane)
             }
         } catch {
             failure = error
@@ -219,6 +241,7 @@ final class JobRunner {
                     try db.finish(jobId, status: .done)
                     log.info("job \(jobId) done")
                 }
+                countUsage(job.kind, failed: failure != nil)
             } catch {
                 log.error("finish failed: \(error.localizedDescription)")
             }
@@ -229,6 +252,18 @@ final class JobRunner {
     }
 
     private func isStillRunning(_ job: Job) -> Bool { (try? db.jobStatus(job.id!)) == .running }
+
+    /// 匿名使用統計（design §30.1）：只算真的跑完的工作（取消的不算）；轉錄成功在 transcribe 裡算（要用到長度）
+    private func countUsage(_ kind: JobKind, failed: Bool) {
+        switch (kind, failed) {
+        case (.transcribe, true): UsageStats.shared.failed(.transcribe)
+        case (.rediarize, false): UsageStats.shared.rediarized()
+        case (.rediarize, true): UsageStats.shared.failed(.diarize)
+        case (.summarize, false), (.revise, false): UsageStats.shared.summarized(with: AppSettings.provider)
+        case (.summarize, true), (.revise, true): UsageStats.shared.failed(.summarize)
+        default: break
+        }
+    }
 
     /// 呼叫整理工具，按「取消」時 CLI 結束子程序、API 取消請求（design §21.14、R20.5）
     private func callLLM<T>(_ lane: JobLane, _ work: @escaping @MainActor (_ onStart: @escaping (Subprocess) -> Void) async throws -> T) async throws -> T {
@@ -242,9 +277,10 @@ final class JobRunner {
 
     private func transcribe(_ job: Job, lane: JobLane) async throws {
         guard let meeting = try db.meeting(job.meetingId) else { return }
+        let startedAt = Date()
         var pipeline = TranscriptionPipeline(options: .current(language: meeting.meetingLanguage,
                                                                 glossary: try db.glossary().map(\.term),
-                                                                channels: meeting.channels))
+                                                                channels: meeting.channels, minSpeakers: meeting.minSpeakers))
         pipeline.stage = { [weak self] in self?.running[lane]?.stage = $0 }
         pipeline.progress = { [weak self] value in Task { @MainActor in self?.running[lane]?.progress = value } }
         pipeline.setCancel = { [weak self] in self?.running[lane]?.cancelAction = $0 }
@@ -263,6 +299,12 @@ final class JobRunner {
                               transcribedWith: pipeline.options.transcribedWith)
         // 套用失敗不影響逐字稿和之後的整理，只記 log
         do { try applySpeakerTags(job.meetingId) } catch { log.error("apply speaker tags failed: \(error.logSummary, privacy: .public)") }
+        // 匿名使用統計（design §30.1）：語音長度、實際花的時間、引擎；說話者辨識跟 pipeline 的條件一樣
+        UsageStats.shared.transcribed(seconds: duration, wallSeconds: Date().timeIntervalSince(startedAt),
+                                      engine: pipeline.options.transcribedWith, language: meeting.meetingLanguage,
+                                      imported: meeting.source == "import", diarized: pipeline.options.diarize && duration > 5)
+        // 說話者辨識的碰撞率（design §24.3）：可能把人併在一起時，逐字稿分頁會提示
+        try db.setSpeakerCheck(job.meetingId, result.diarizationQuality?.mergeRisk)
         // 聲紋比對（design §21.4）：在整理之前，會議紀錄裡就會是名字
         if AppSettings.voiceprints {
             let matched = try db.matchVoiceprints(job.meetingId)
@@ -285,7 +327,7 @@ final class JobRunner {
         wake()
     }
 
-    /// 錄音中標記的說話者（design §24.3、R23）：在聲紋比對之前套用，使用者自己標的優先；跟手動改名一樣記住聲紋
+    /// 錄音中標記的說話者（design §F2.3、F2）：在聲紋比對之前套用，使用者自己標的優先；跟手動改名一樣記住聲紋
     func applySpeakerTags(_ meetingId: Int64) throws {
         let tagged = try db.applySpeakerTags(meetingId)
         guard !tagged.isEmpty else { return }
@@ -293,6 +335,114 @@ final class JobRunner {
         if AppSettings.voiceprints {
             for (idx, name) in tagged { try db.learnVoiceprint(meetingId, idx: idx, name: name, source: "tag") }
         }
+    }
+
+    // MARK: 重新辨識說話者（design §23.3、R22）
+
+    /// 只重跑說話者辨識，用這場記住的人數；逐字稿文字、校正、重點、會議紀錄都不動
+    private func rediarize(_ job: Job, lane: JobLane) async throws {
+        guard let meeting = try db.meeting(job.meetingId) else { return }
+        do {
+            running[lane]?.stage = String(localized: "重新辨識說話者")
+            let samples = try await AudioDecoder.decode(meeting.audioURL)
+            guard isStillRunning(job) else { return }
+            let report: @Sendable (Double) -> Void = { [weak self] value in Task { @MainActor in self?.running[lane]?.progress = value } }
+            let minSpeakers = meeting.minSpeakers
+            let task = Task { try await Diarizer.diarize(samples: samples, minSpeakers: minSpeakers, onProgress: report) }
+            running[lane]?.cancelAction = { task.cancel() }
+            let output = try await task.value
+            guard isStillRunning(job) else { return }
+
+            let segments = try db.segments(job.meetingId)
+            let transcribed = segments.map { TranscribedSegment(start: $0.start, end: $0.end, text: $0.text, lowConfidence: $0.lowConfidence) }
+            var (speakers, numbering) = Diarizer.assignNumbering(output.turns, to: transcribed)
+            // 短句再跟每位說話者比一次（R34、design §6.3.2）；使用者改過的句子下面另外處理，不用查
+            let locked = Set(segments.indices.filter { segments[$0].speakerManual })
+            if let refined = try? await SpeakerRecheck.refine(transcribed, speakers: speakers, samples: samples, locked: locked) { speakers = refined }
+            let source = meeting.channels == "both" ? "mix" : meeting.channels
+            var voices: [Int: SpeakerVoice] = [:]
+            for (raw, number) in numbering {
+                if let embedding = output.voiceprints[raw] {
+                    voices[number] = SpeakerVoice(embedding: embedding, seconds: output.speechSeconds[raw] ?? 0, source: source)
+                }
+            }
+            let old = try db.speakers(job.meetingId)
+            // 使用者改過說話者的句子（design §24.2）不照新的結果，跟著原本那位說話者對應到的新說話者
+            var assigned = speakers
+            var inherited = Self.inheritNames(old: old, segments: segments.filter { !$0.speakerManual },
+                                              newSpeakers: zip(segments, speakers).filter { !$0.0.speakerManual }.map(\.1))
+            let mapping = Self.oldToNew(segments: segments, newSpeakers: speakers)
+            var extra: [Int: Int] = [:]
+            var next = (speakers.compactMap { $0 }.max() ?? 0) + 1
+            for (i, segment) in segments.enumerated() where segment.speakerManual {
+                guard let o = segment.speaker else { continue }
+                if let n = mapping[o] {
+                    assigned[i] = n
+                } else {
+                    if extra[o] == nil {
+                        extra[o] = next
+                        // 預設名稱不沿用（編號變了，用新編號的預設名稱）
+                        if let speaker = old.first(where: { $0.idx == o }), speaker.nameSource != "default" {
+                            inherited[next] = (speaker.name, speaker.nameSource, speaker.personId)
+                        }
+                        next += 1
+                    }
+                    assigned[i] = extra[o]
+                }
+            }
+            try db.reassignSpeakers(job.meetingId, segmentSpeakers: zip(segments, assigned).compactMap { s, n in s.id.map { ($0, n) } },
+                                    voices: voices, inherited: inherited)
+            try db.setSpeakerCheck(job.meetingId, output.quality?.mergeRisk)
+            // 沿用使用者取的名字：用新的、比較乾淨的分群重新學聲紋（自動帶入的名字本來就不學）
+            for (idx, item) in inherited where item.source != "voiceprint" {
+                try db.learnVoiceprint(job.meetingId, idx: idx, name: item.name, source: item.source)
+            }
+            if AppSettings.voiceprints { try db.matchVoiceprints(job.meetingId) }
+            if AppSettings.provider != .none, try db.speakers(job.meetingId).contains(where: { $0.nameSource == "default" }) {
+                try db.enqueue(job.meetingId, kind: .nameSpeakers)
+            }
+            let count = Set(assigned.compactMap { $0 }).count
+            log.info("rediarized meeting \(job.meetingId): \(count) speakers, \(inherited.count) names kept")
+            onRediarized?(job.meetingId, .success(count))
+            wake()
+        } catch {
+            onRediarized?(job.meetingId, .failure(error))
+            throw error
+        }
+    }
+
+    /// 舊的說話者 → 新的說話者：舊的那位（沒被使用者改過的）段落分到最多的新說話者（design §24.2）
+    nonisolated static func oldToNew(segments: [Segment], newSpeakers: [Int?]) -> [Int: Int] {
+        var byOld: [Int: [Int: Double]] = [:]
+        for (segment, new) in zip(segments, newSpeakers) where !segment.speakerManual {
+            guard let new, let o = segment.speaker else { continue }
+            byOld[o, default: [:]][new, default: 0] += max(0, segment.end - segment.start)
+        }
+        return byOld.compactMapValues { $0.max(by: { $0.value < $1.value })?.key }
+    }
+
+    /// 名字沿用（design §23.3）：新的說話者 n 的段落（依秒數）有 60% 以上原本是同一位取過名字的 o，
+    /// 而且 o 原本的段落分到 n 最多，n 就沿用 o 的名字、名字來源、連到的人
+    nonisolated static func inheritNames(old: [SpeakerName], segments: [Segment], newSpeakers: [Int?])
+        -> [Int: (name: String, source: String, personId: Int64?)] {
+        let named = Dictionary(old.filter { $0.nameSource != "default" }.map { ($0.idx, $0) }, uniquingKeysWith: { a, _ in a })
+        var byNew: [Int: [Int: Double]] = [:]   // 新 → 舊 → 秒數
+        var byOld: [Int: [Int: Double]] = [:]   // 舊 → 新 → 秒數
+        for (segment, new) in zip(segments, newSpeakers) {
+            guard let new, let oldSpeaker = segment.speaker else { continue }
+            let seconds = max(0, segment.end - segment.start)
+            byNew[new, default: [:]][oldSpeaker, default: 0] += seconds
+            byOld[oldSpeaker, default: [:]][new, default: 0] += seconds
+        }
+        var result: [Int: (name: String, source: String, personId: Int64?)] = [:]
+        for (new, shares) in byNew {
+            let total = shares.values.reduce(0, +)
+            guard total > 0, let top = shares.max(by: { $0.value < $1.value }), top.value / total >= 0.6,
+                  let speaker = named[top.key],
+                  byOld[top.key]?.max(by: { $0.value < $1.value })?.key == new else { continue }
+            result[new] = (speaker.name, speaker.nameSource, speaker.personId)
+        }
+        return result
     }
 
     // MARK: 猜說話者（design §21.5、R19.2）
@@ -387,7 +537,11 @@ final class JobRunner {
         // 草稿（design §21.3）：正式逐字稿已經好了就不做（短的會議轉錄比較快）
         if try draft && !db.segments(job.meetingId).isEmpty { return false }
         let provider = AppSettings.provider
-        guard provider != .none else { throw LLMError.failed(String(localized: "整理工具設定為「不整理」，請到設定改成 Claude、Codex 或 API")) }
+        guard provider != .none else {
+            throw LLMError.failed(AppSettings.needsProviderSetup
+                ? String(localized: "還沒設定整理工具，請到設定選擇 Claude、Codex 或 API")
+                : String(localized: "整理工具設定為「不整理」，請到設定改成 Claude、Codex 或 API"))
+        }
         running[lane]?.provider = provider
         running[lane]?.stage = draft ? String(localized: "整理草稿") : answers == nil ? String(localized: "整理") : String(localized: "校稿")
         let segments = try db.segments(job.meetingId, kind: draft ? "live" : "final")
