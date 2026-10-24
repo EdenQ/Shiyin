@@ -4,7 +4,7 @@
 
 - 錄音：AVAudioEngine 收麥克風、Core Audio process tap 收電腦聲音，寫成雙聲道 WAV（`Sources/Shiyin/Capture/`）
 - 即時逐字稿：系統的 SpeechAnalyzer（zh_TW、en_US 或 ja_JP，依會議語言）
-- 正式轉錄（4.1 起，design §32）：中文、英文預設 Qwen3-ASR 1.7B（llama.cpp 官方 XCFramework，經 C 薄層 `Sources/QwenShim/` 進 Swift；輸出簡體，`ChineseScript` 用 `Resources/opencc/` 的 OpenCC 字表轉台灣繁體；先辨識說話者再分段，每段 ≤ 15 秒，`Transcribe/QwenEngine.swift`）；可以選 whisper.cpp + Breeze ASR 25 GGML q8_0（流程跟 4.0 一樣）或 macOS 內建（SpeechAnalyzer 讀檔），模型還沒下載好時先用已有的 Breeze、再不然用內建；日文會議用 Whisper large-v3-turbo q5_0；whisper 從檔案依序讀、每 10 分鐘一段（design §21.16）；說話者辨識：FluidAudio（`Sources/Shiyin/Transcribe/`），聲紋比對在 `Store/Voiceprints.swift`
+- 正式轉錄：預設 whisper.cpp（官方 XCFramework）+ Breeze ASR 25 GGML q8_0（聯發科），可以改用 macOS 內建（SpeechAnalyzer 讀檔），模型還沒下載好時也先用內建；4.1 起設定裡可選 Qwen3-ASR 1.7B（阿里巴巴開源；llama.cpp 官方 XCFramework，經 C 薄層 `Sources/QwenShim/` 進 Swift；輸出簡體，`ChineseScript` 用 `Resources/opencc/` 的 OpenCC 字表轉台灣繁體；先辨識說話者再分段，每段 ≤ 15 秒，`Transcribe/QwenEngine.swift`；design §32，使用者決定預設維持 Breeze）；日文會議用 Whisper large-v3-turbo q5_0；whisper 從檔案依序讀、每 10 分鐘一段（design §21.16）；說話者辨識：FluidAudio（`Sources/Shiyin/Transcribe/`），聲紋比對在 `Store/Voiceprints.swift`
 - 整理：claude CLI、codex CLI、Anthropic API、OpenAI API、Gemini API、OpenAI 相容 API，共同介面 `LLMBackend`（`Sources/Shiyin/Notes/`，各家在 `Notes/Backends/`，design §19）
 - 資料庫：GRDB（SQLite、FTS5 全文搜尋）
 - 多語言：介面繁中、英文（跟著 macOS 語言）；每場會議另外有會議語言（中文／英文／日文），決定轉錄、整理、匯出用哪個語言（design §16、§18）；錄音開始後用 Whisper base 自動偵測（§18.8）
