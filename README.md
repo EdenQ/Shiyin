@@ -204,7 +204,7 @@ docs/             規格與實驗紀錄
 ### 常用指令
 
 ```bash
-scripts/build-app.sh               # release 建置，產出 build/Shiyin.app（實際位置在 ~/Library/Caches/ShiyinBuild）
+scripts/build-app.sh               # release 建置，產出 build/Meeting Assistant.app（實際位置在 ~/Library/Caches/ShiyinBuild）
 scripts/build-app.sh --debug       # DEBUG 建置，含驗證用的控制通道
 scripts/make-dmg.sh                # release 建置並產生 DMG 和 shiyin-update.json
 swift scripts/make-icon.swift Resources/AppIcon.icns   # 重新產生圖示
@@ -215,7 +215,7 @@ swiftc scripts/dev/shiyinctl.swift -o ~/Library/Caches/ShiyinBuild/shiyinctl
 ~/Library/Caches/ShiyinBuild/shiyinctl snapshot /tmp/summary.png dark detail
 
 scripts/dev/l10n.py check         # 改過介面文字後：抽出字串、列出缺英文翻譯和沒查表的中文
-~/Library/Caches/ShiyinBuild/app/Shiyin.app/Contents/MacOS/Shiyin -AppleLanguages "(en)"   # 用英文介面開啟
+"$HOME/Library/Caches/ShiyinBuild/app/Meeting Assistant.app/Contents/MacOS/Shiyin" -AppleLanguages "(en)"   # 用英文介面開啟
 
 /usr/bin/log stream --predicate 'subsystem == "com.weiwei.shiyin"'      # 看 log
 sqlite3 ~/Library/Application\ Support/Shiyin/shiyin.sqlite             # 看資料

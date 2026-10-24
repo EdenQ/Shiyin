@@ -424,7 +424,7 @@ private struct AutoSpeakerName: View {
                 .padding(.vertical, 1)
                 .background(Color.secondary.opacity(0.15), in: Capsule())
         }
-        .help("拾音認出這個人的聲音，自動帶入名字。不對的話點名字")
+        .help("會議助手認出這個人的聲音，自動帶入名字。不對的話點名字")
     }
 }
 

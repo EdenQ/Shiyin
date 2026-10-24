@@ -12,11 +12,11 @@ struct GuideView: View {
 
     private let steps: [Step] = [
         Step(symbol: "record.circle", title: String(localized: "錄音或匯入"),
-             body: String(localized: "按工具列的「錄音」（⌘R）開始錄；點按鈕旁的箭頭可以選錄音來源，線上會議請選「麥克風＋電腦聲音（線上會議）」，對方的聲音也會錄進來。已經有錄音檔的話，拖進視窗、按「匯入」（⌘O），或拖到 Dock 上的拾音圖示都可以。")),
+             body: String(localized: "按工具列的「錄音」（⌘R）開始錄；點按鈕旁的箭頭可以選錄音來源，線上會議請選「麥克風＋電腦聲音（線上會議）」，對方的聲音也會錄進來。已經有錄音檔的話，拖進視窗、按「匯入」（⌘O），或拖到 Dock 上的會議助手圖示都可以。")),
         Step(symbol: "text.bubble", title: String(localized: "邊錄邊看、邊記"),
              body: String(localized: "錄音中畫面左邊是即時逐字稿，講完幾秒內就會出現；右邊「我的筆記」每換一行會自動記下當時的錄音時間。重要的地方按「標記重點」（⌘B），在其他 app 裡也可以按 ⌃⌥⌘B。需要中斷時按「暫停」（⇧⌘P），暫停的時間不會錄進去。")),
         Step(symbol: "waveform", title: String(localized: "正式轉錄、分辨說話者"),
-             body: String(localized: "按「停止並轉錄」後，拾音會在這台 Mac 上重新轉錄（中文、英文用 Breeze ASR 25，日文用 Whisper large-v3-turbo），並分辨不同的說話者。等待的時候，會議紀錄會先用即時逐字稿整理一份草稿，正式版好了會自動換掉。逐字稿上點「說話者 1」可以改成人名，整場都會跟著改；拾音會記住這個人的聲音，之後的會議自動帶入名字（標「自動」，認錯了點一下就能改）。")),
+             body: String(localized: "按「停止並轉錄」後，會議助手會在這台 Mac 上重新轉錄（中文、英文用 Breeze ASR 25，日文用 Whisper large-v3-turbo），並分辨不同的說話者。等待的時候，會議紀錄會先用即時逐字稿整理一份草稿，正式版好了會自動換掉。逐字稿上點「說話者 1」可以改成人名，整場都會跟著改；會議助手會記住這個人的聲音，之後的會議自動帶入名字（標「自動」，認錯了點一下就能改）。")),
         Step(symbol: "doc.text", title: String(localized: "看會議紀錄"),
              body: String(localized: "轉錄完會自動整理。「摘要」有重點、決議、待辦和未決問題；「詳細」依議題分段；每一條後面的時間點點一下，就從錄音那裡開始播放。右上角的範本選單可以換成一對一、訪談、課堂／演講、腦力激盪等格式，換完從「更多」選「重新整理會議紀錄」。想找某件事，可以在「提問」分頁直接問，例如「預算最後決定多少？」，回答會附上時間點；工具列的「提問」可以一次問所有會議。")),
         Step(symbol: "questionmark.bubble", title: String(localized: "回答待確認、修改"),
@@ -36,8 +36,8 @@ struct GuideView: View {
     private var content: some View {
         VStack(alignment: .leading, spacing: 30) {
             VStack(alignment: .leading, spacing: 8) {
-                Text("拾音使用說明").font(.songti(30))
-                Text("拾音把會議變成逐字稿和會議紀錄。錄音、轉錄、說話者辨識都在這台 Mac 上完成。")
+                Text("會議助手使用說明").font(.songti(30))
+                Text("會議助手把會議變成逐字稿和會議紀錄。錄音、轉錄、說話者辨識都在這台 Mac 上完成。")
                     .foregroundStyle(.secondary)
             }
 
@@ -69,7 +69,7 @@ struct GuideView: View {
                 GuideBullet(String(localized: "逐字稿裡琥珀色的段落辨識信心比較低，值得回頭聽；時間軸上的三角形是待確認題目、圓點是你標的重點。"))
                 GuideBullet(String(localized: "會議可以分資料夾：在會議上按右鍵（或「更多」）選「移到資料夾」→「新資料夾…」。側欄上方的「資料夾」可以切換只看某個資料夾；正在看某個資料夾時，新錄的和匯入的會議都會放進去。資料夾按右鍵可以重新命名或刪除（會議會保留）。"))
                 GuideBullet(String(localized: "刪除的會議會先放進側欄最下面的「垃圾桶」，30 天內都可以還原。"))
-                GuideBullet(String(localized: "開 Zoom、Teams、Google Meet 等線上會議時，拾音會提醒你開始錄音；會議好像結束時提醒停止。不想被某個 app 提醒，在提醒上按「不要再提醒」。"))
+                GuideBullet(String(localized: "開 Zoom、Teams、Google Meet 等線上會議時，會議助手會提醒你開始錄音；會議好像結束時提醒停止。不想被某個 app 提醒，在提醒上按「不要再提醒」。"))
                 GuideBullet(String(localized: "遇到問題，可以從「輔助說明」選單選「回報問題…」，會附上版本和環境（不含會議內容）。"))
             }
 
@@ -77,10 +77,10 @@ struct GuideView: View {
                 GuideBullet(String(localized: "「整理工具」：選 Claude、Codex（需要先安裝並登入對應的 CLI），或填 Anthropic、OpenAI 的 API key。覺得整理太慢，可以在「模型」填比較快的模型，例如 sonnet。"))
                 GuideBullet(String(localized: "「範本」：內建五種範本；也可以複製一份來改，或自己新增段落與指示。"))
                 GuideBullet(String(localized: "「詞彙表」：加入系統名、產品名、人名的正確寫法。這對專有名詞的正確率影響很大。"))
-                GuideBullet(String(localized: "「說話者」：拾音認識的人和他們的聲紋，可以改名、刪除，或關掉記住聲音的功能。"))
+                GuideBullet(String(localized: "「說話者」：會議助手認識的人和他們的聲紋，可以改名、刪除，或關掉記住聲音的功能。"))
                 GuideBullet(String(localized: "「錄音」：選錄音來源、麥克風，以及要不要即時逐字稿和說話者辨識。「正式轉錄」可以選 Breeze ASR 25（建議，會參考詞彙表）或 macOS 內建（不用下載模型、速度快，但英文專有名詞比較容易錯）。"))
                 GuideBullet(String(localized: "「模型與儲存空間」：下載或刪除模型、看錄音佔用的空間。"))
-                GuideBullet(String(localized: "「進階」：填更新網址、檢查更新；有新版時拾音會詢問，同意後自動下載、驗證並重新打開。也可以從「拾音」選單選「檢查更新…」。"))
+                GuideBullet(String(localized: "「進階」：填更新網址、檢查更新；有新版時會議助手會詢問，同意後自動下載、驗證並重新打開。也可以從「MA」選單選「檢查更新…」。"))
             }
 
             GuideSection(title: String(localized: "資料與隱私")) {
@@ -119,7 +119,7 @@ struct GuideView: View {
                 }
             }
 
-            Text("之後隨時可以從「輔助說明」選單（⌘?）或選單列的拾音圖示，再打開這份說明。")
+            Text("之後隨時可以從「輔助說明」選單（⌘?）或選單列的會議助手圖示，再打開這份說明。")
                 .font(.callout)
                 .foregroundStyle(.secondary)
         }

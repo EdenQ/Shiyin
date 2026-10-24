@@ -462,7 +462,7 @@ struct SpeakerSettings: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Toggle("記住說話者的聲音，之後的會議自動帶入名字", isOn: $voiceprints)
-            Text("替說話者取名時，拾音會記下這個人的聲音特徵。之後的會議認出同一個人，就自動帶入名字並標「自動」，不對可以改。聲音特徵只存在這台 Mac 的資料庫，不會上傳，也不會放進匯出的 .shiyin 封包。")
+            Text("替說話者取名時，會議助手會記下這個人的聲音特徵。之後的會議認出同一個人，就自動帶入名字並標「自動」，不對可以改。聲音特徵只存在這台 Mac 的資料庫，不會上傳，也不會放進匯出的 .shiyin 封包。")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             HStack {
                 Text("認識的人").font(.headline)
@@ -494,7 +494,7 @@ struct SpeakerSettings: View {
             .frame(minHeight: 160)
             .overlay {
                 if model.people.isEmpty {
-                    Text("還沒有認識的人。在逐字稿點「說話者 1」改成名字，拾音就會記住這個人。")
+                    Text("還沒有認識的人。在逐字稿點「說話者 1」改成名字，會議助手就會記住這個人。")
                         .font(.callout).foregroundStyle(.secondary).padding().multilineTextAlignment(.center)
                 }
             }
@@ -660,7 +660,7 @@ struct RecordingSettings: View {
                 }
             // 偵測線上會議（design §21.7、R19.4）
             Toggle("偵測到線上會議時提醒錄音", isOn: $meetingDetection)
-            Text("Zoom、Teams、Webex、Google Meet（瀏覽器）等開始用麥克風、拾音沒在錄音時提醒你；會議結束時提醒停止。只提醒，不會自動錄音。")
+            Text("Zoom、Teams、Webex、Google Meet（瀏覽器）等開始用麥克風、會議助手沒在錄音時提醒你；會議結束時提醒停止。只提醒，不會自動錄音。")
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             ForEach(mutedApps, id: \.self) { bundle in
                 HStack {
@@ -815,7 +815,7 @@ struct AdvancedSettings: View {
                 LabeledContent("目前版本", value: Updater.currentVersion)
                 TextField("更新網址", text: $updateURL,
                           prompt: Text(Bundle.main.object(forInfoDictionaryKey: "ShiyinUpdateURL") as? String ?? "https://…/shiyin-update.json"))
-                Text("發布拾音的人會給你這個網址（shiyin-update.json）。留空就用安裝版本內建的網址；都沒有的話不會檢查更新。")
+                Text("發布會議助手的人會給你這個網址（shiyin-update.json）。留空就用安裝版本內建的網址；都沒有的話不會檢查更新。")
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 HStack {
                     Button("檢查更新") { Task { await model.updater.check(userInitiated: true) } }

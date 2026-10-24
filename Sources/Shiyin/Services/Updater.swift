@@ -42,8 +42,8 @@ final class Updater {
             case .http(let code): return String(localized: "更新網址回傳 HTTP \(code)")
             case .badManifest: return String(localized: "更新資訊的格式不對")
             case .checksum: return String(localized: "下載的檔案驗證失敗（SHA-256 不符），已刪除")
-            case .noApp: return String(localized: "更新檔裡找不到拾音")
-            case .signature(let reason): return String(localized: "新版的簽章跟目前的拾音不符，拒絕安裝（\(reason)）")
+            case .noApp: return String(localized: "更新檔裡找不到會議助手")
+            case .signature(let reason): return String(localized: "新版的簽章跟目前的會議助手不符，拒絕安裝（\(reason)）")
             case .notNewer: return String(localized: "更新檔的版本沒有比較新")
             case .busy: return String(localized: "錄音或轉錄、整理進行中，完成後再更新")
             }
@@ -161,7 +161,7 @@ final class Updater {
             guard FileManager.default.isWritableFile(atPath: target.deletingLastPathComponent().path) else {
                 // 一般使用者帳號不能改 /Applications：打開 DMG 讓使用者自己拖
                 NSWorkspace.shared.open(dmg)
-                state = .failed(String(localized: "沒有權限替換「\(target.deletingLastPathComponent().path)」裡的拾音，已經打開下載好的 DMG，請把拾音拖進「應用程式」取代舊版"))
+                state = .failed(String(localized: "沒有權限替換「\(target.deletingLastPathComponent().path)」裡的會議助手，已經打開下載好的 DMG，請把會議助手拖進「應用程式」取代舊版"))
                 return
             }
             // 下載期間可能開始了錄音或轉錄：結束 app 時會跳確認，取消的話更新就停在一半，所以先擋下來

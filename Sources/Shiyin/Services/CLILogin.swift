@@ -41,7 +41,7 @@ enum CLILogin {
         let tool = provider == .codex ? "codex" : "claude"
         guard let exe = Paths.findTool(tool) else { return }
         let arguments = provider == .codex ? "login" : "auth login"
-        let intro = String(localized: "拾音：正在打開瀏覽器登入 \(provider.shortLabel)。登入完成後，回到拾音按「重試」或「測試整理工具」。")
+        let intro = String(localized: "會議助手：正在打開瀏覽器登入 \(provider.shortLabel)。登入完成後，回到會議助手按「重試」或「測試整理工具」。")
         let done = String(localized: "完成後可以關掉這個視窗。")
         let script = """
             #!/bin/zsh

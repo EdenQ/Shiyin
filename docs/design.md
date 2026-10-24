@@ -875,6 +875,14 @@ CREATE TABLE drafts (meeting_id INTEGER NOT NULL REFERENCES meetings(id) ON DELE
 - 錄音中側邊欄的工具列是「● 經過時間」、停止、提問、側邊欄開關；放不下時錄音中拿掉提問（跟原本拿掉匯入一樣）。
 - 驗證：DEBUG 版、視窗 960 和 1180 寬、沒在錄音和模擬錄音中，截圖確認工具列沒有「>>」，會議頁的「更多」看得到。
 
+## 23. Fork 名稱（R22）
+
+- `CFBundleName`（含繁中在地化）設為 `MA`，提供應用程式選單的短名稱；`CFBundleDisplayName` 英文為 `Meeting Assistant`，繁中為「會議助手」。
+- App 檔名使用 `Meeting Assistant.app`，對應未在地化的 `CFBundleDisplayName`，讓 Finder 能套用繁中顯示名稱；建置、安裝、DMG 和 CI 同步調整並引用含空白的路徑。
+- SwiftUI 取代 `.appInfo` 群組的預設按鈕，呼叫 `orderFrontStandardAboutPanel(options:)`，只指定 `.applicationName` 為 `MA — Meeting Assistant`，版本、圖示和 `Credits.html` 沿用系統行為。
+- 介面文字使用「會議助手」／`Meeting Assistant`，提到左上角的應用程式選單時使用 `MA`。內部 Swift target、執行檔、Bundle Identifier、資料和設定位置維持原值（R22.4）。
+- 驗證：Swift 建置、字串抽取與中英翻譯檢查、plist 檢查、打包腳本語法檢查；檢查中英文 bundle 讀取的短名稱和顯示名稱。
+
 ## 24. 錄音中標記說話者（R23，D37）
 
 錄音中不辨識說話者，只記下使用者的標記（時間範圍、名字）；正式轉錄分出說話者後，依時間把名字套到說話者。

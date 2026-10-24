@@ -209,11 +209,11 @@ final class AppModel {
             // 遷移在交易裡進行，失敗時原本的資料不會被改到（N3）；說明清楚後結束，不要直接閃退
             let alert = NSAlert()
             alert.alertStyle = .critical
-            alert.messageText = String(localized: "拾音沒辦法開啟資料庫")
+            alert.messageText = String(localized: "會議助手沒辦法開啟資料庫")
             let reason = (error as? DatabaseError)?.message ?? error.localizedDescription
             log.error("open database failed: \(reason, privacy: .public)")
-            alert.informativeText = String(localized: "原因：\(reason)\n\n你的資料沒有被改動。升級前的備份在：\(Paths.backupsDir.path)\n請把這個訊息截圖給維護拾音的人。")
-            alert.addButton(withTitle: String(localized: "結束拾音"))
+            alert.informativeText = String(localized: "原因：\(reason)\n\n你的資料沒有被改動。升級前的備份在：\(Paths.backupsDir.path)\n請把這個訊息截圖給維護會議助手的人。")
+            alert.addButton(withTitle: String(localized: "結束會議助手"))
             alert.runModal()
             exit(1)
         }

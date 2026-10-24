@@ -1,7 +1,7 @@
 #!/bin/bash
-# 建置拾音：swift build → 組成 build/Shiyin.app → ad-hoc 簽章。
+# 建置會議助手：swift build → 組成 build/Meeting Assistant.app → ad-hoc 簽章。
 # 用法：scripts/build-app.sh [--install | --debug]
-#   --install  先結束執行中的拾音，再裝到 ~/Applications
+#   --install  先結束執行中的會議助手，再裝到 ~/Applications
 #   --debug    建置 DEBUG 版（含驗證用控制通道，見 scripts/dev/shiyinctl.swift），不能和 --install 一起用
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -10,7 +10,7 @@ BUNDLE_ID="com.weiwei.shiyin"
 # 建置暫存和 .app 都不放專案資料夾：桌面有 iCloud 同步，除了會上傳幾百 MB，
 # iCloud 加在檔案上的延伸屬性也會讓 codesign 失敗。專案裡的 build 是指過去的捷徑。
 SCRATCH="$HOME/Library/Caches/ShiyinBuild"
-APP="$SCRATCH/app/Shiyin.app"
+APP="$SCRATCH/app/Meeting Assistant.app"
 CONFIG="release"
 [ "${1:-}" = "--debug" ] && CONFIG="debug"
 
@@ -18,7 +18,7 @@ CONFIG="release"
 swift build -c "$CONFIG" --arch arm64 --disable-keychain --scratch-path "$SCRATCH"
 BIN_DIR="$(swift build -c "$CONFIG" --arch arm64 --disable-keychain --scratch-path "$SCRATCH" --show-bin-path)"
 
-# 重建前先結束從這個路徑啟動的拾音：不然 LaunchServices 會把重建後的 bundle 當成另一個 app，
+# 重建前先結束從這個路徑啟動的會議助手：不然 LaunchServices 會把重建後的 bundle 當成另一個 app，
 # 兩個程序共用同一個資料庫、同時跑工作。10 秒內沒結束（例如卡在結束確認）就強制結束：
 # 錄音下次開啟會自動復原，工作會重新排隊。不影響 ~/Applications 裡安裝的那一份。
 if pgrep -f "$APP/Contents/MacOS/Shiyin" >/dev/null; then
@@ -52,7 +52,7 @@ xcrun actool Resources/Assets.xcassets --compile "$APP/Contents/Resources" --pla
 xcrun xcstringstool compile Resources/Localizable.xcstrings --output-directory "$APP/Contents/Resources" >/dev/null
 for lproj in Resources/*.lproj; do ditto "$lproj" "$APP/Contents/Resources/$(basename "$lproj")"; done
 mkdir -p "$APP/Contents/Resources/en.lproj"
-# 第三方授權（design §12.1、R13.1）：原文放一份；另外包成 Credits.html，系統的「關於拾音」視窗會顯示
+# 第三方授權（design §12.1、R13.1）：原文放一份；另外包成 Credits.html，系統的「關於 MA」視窗會顯示
 cp Resources/ThirdPartyLicenses.txt "$APP/Contents/Resources/ThirdPartyLicenses.txt"
 /usr/bin/python3 -c 'import html, sys
 text = open(sys.argv[1], encoding="utf-8").read()
@@ -96,17 +96,17 @@ else
   echo "簽章：ad-hoc（還沒有信任的自簽憑證；執行 scripts/make-signing-cert.sh --trust 後重建，權限才確定能在更新後保留）"
 fi
 codesign --verify --strict --deep "$APP"
-echo "已建置（${CONFIG}）：${APP}（專案裡的 build/Shiyin.app 指向這裡）"
+echo "已建置（${CONFIG}）：${APP}（專案裡的 build/Meeting Assistant.app 指向這裡）"
 
 if [ "${1:-}" = "--install" ]; then
   if pgrep -xq Shiyin; then
-    echo "結束執行中的拾音…"
+    echo "結束執行中的會議助手…"
     osascript -e "tell application id \"$BUNDLE_ID\" to quit" || true
     for _ in $(seq 1 60); do pgrep -xq Shiyin || break; sleep 0.5; done
-    pgrep -xq Shiyin && { echo "拾音沒有結束（可能在錄音或工作中，請手動結束後再試）"; exit 1; }
+    pgrep -xq Shiyin && { echo "會議助手沒有結束（可能在錄音或工作中，請手動結束後再試）"; exit 1; }
   fi
   mkdir -p "$HOME/Applications"
-  rm -rf "$HOME/Applications/Shiyin.app"
-  cp -R "$APP" "$HOME/Applications/Shiyin.app"
-  echo "已安裝：$HOME/Applications/Shiyin.app"
+  rm -rf "$HOME/Applications/Meeting Assistant.app"
+  cp -R "$APP" "$HOME/Applications/Meeting Assistant.app"
+  echo "已安裝：$HOME/Applications/Meeting Assistant.app"
 fi

@@ -5,12 +5,12 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>Shiyin</string>
+	<string>Meeting Assistant</string>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>
 			<key>CFBundleTypeName</key>
-			<string>Shiyin Meeting</string>
+			<string>Meeting Assistant Meeting</string>
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>LSHandlerRank</key>
@@ -60,7 +60,7 @@
 		<string>zh-Hant</string>
 	</array>
 	<key>CFBundleName</key>
-	<string>Shiyin</string>
+	<string>MA</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -81,13 +81,13 @@
 		<true/>
 	</dict>
 	<key>NSAudioCaptureUsageDescription</key>
-	<string>To record online meetings (Zoom, Meet, Teams), Shiyin records the other side from your computer's audio. Recordings stay on this Mac.</string>
+	<string>To record online meetings (Zoom, Meet, Teams), Meeting Assistant records the other side from your computer's audio. Recordings stay on this Mac.</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Shiyin uses the microphone to record meetings. Recordings stay on this Mac.</string>
+	<string>Meeting Assistant uses the microphone to record meetings. Recordings stay on this Mac.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Shiyin creates a live transcript on this Mac while recording. Nothing is uploaded.</string>
+	<string>Meeting Assistant creates a live transcript on this Mac while recording. Nothing is uploaded.</string>
 	<key>ShiyinIssuesURL</key>
 	<string></string>
 	<key>ShiyinUpdateURL</key>
@@ -101,7 +101,7 @@
 				<string>public.archive</string>
 			</array>
 			<key>UTTypeDescription</key>
-			<string>Shiyin Meeting</string>
+			<string>Meeting Assistant Meeting</string>
 			<key>UTTypeIdentifier</key>
 			<string>com.weiwei.shiyin.meeting</string>
 			<key>UTTypeTagSpecification</key>

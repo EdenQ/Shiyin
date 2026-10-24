@@ -39,8 +39,8 @@ enum MeetingPackage {
         case invalid(String), tooNew(Int)
         var errorDescription: String? {
             switch self {
-            case .invalid(let reason): return String(localized: "這不是有效的拾音封包：\(reason)")
-            case .tooNew(let v): return String(localized: "這個封包是新版拾音匯出的（格式 \(v)），請先更新拾音再匯入")
+            case .invalid(let reason): return String(localized: "這不是有效的會議助手封包：\(reason)")
+            case .tooNew(let v): return String(localized: "這個封包是新版會議助手匯出的（格式 \(v)），請先更新會議助手再匯入")
             }
         }
     }

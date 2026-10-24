@@ -470,12 +470,12 @@ struct RenameSpeakerForm: View {
                 .textFieldStyle(.roundedBorder)
                 .onSubmit(onSave)
             if automatic {
-                Text("這個名字是拾音認出聲音後自動帶入的。不對的話直接改名，或按「不是他」。")
+                Text("這個名字是會議助手認出聲音後自動帶入的。不對的話直接改名，或按「不是他」。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Text("整場逐字稿和之後的會議紀錄都會用這個名字；拾音也會記住這個人的聲音，之後的會議自動帶入。")
+            Text("整場逐字稿和之後的會議紀錄都會用這個名字；會議助手也會記住這個人的聲音，之後的會議自動帶入。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

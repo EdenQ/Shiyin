@@ -18,9 +18,9 @@ enum Keychain {
         var errorDescription: String? {
             switch self {
             case .denied:
-                return String(localized: "macOS 沒有讓拾音讀取鑰匙圈裡的 API key。再試一次時，系統詢問就輸入這台 Mac 的登入密碼（不是 API key），按「永遠允許」；或到設定 → 整理工具重新貼上 key。")
+                return String(localized: "macOS 沒有讓會議助手讀取鑰匙圈裡的 API key。再試一次時，系統詢問就輸入這台 Mac 的登入密碼（不是 API key），按「永遠允許」；或到設定 → 整理工具重新貼上 key。")
             case .duplicate(let account):
-                return String(localized: "鑰匙圈裡已經有舊的 key，macOS 沒有讓拾音取代它。請打開「鑰匙圈存取」，刪除「拾音 API key（\(account)）」後再存一次。")
+                return String(localized: "鑰匙圈裡已經有舊的 key，macOS 沒有讓會議助手取代它。請打開「鑰匙圈存取」，刪除「拾音 API key（\(account)）」後再存一次。")
             case .readFailed(let status):
                 return String(localized: "讀取鑰匙圈裡的 API key 失敗（錯誤 \(Int(status))）")
             case .writeFailed(let status):

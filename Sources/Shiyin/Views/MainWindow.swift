@@ -33,12 +33,12 @@ struct RootView: View {
             } message: {
                 Text(model.errorMessage ?? "")
             }
-            .alert("拾音沒有麥克風權限", isPresented: Binding(get: { model.recorder.permissionDenied },
+            .alert("會議助手沒有麥克風權限", isPresented: Binding(get: { model.recorder.permissionDenied },
                                                        set: { model.recorder.permissionDenied = $0 })) {
                 Button("打開系統設定") { Recorder.openPrivacySettings() }
                 Button("取消", role: .cancel) {}
             } message: {
-                Text("請到「系統設定 → 隱私權與安全性 → 麥克風」打開「拾音」，再重新開始錄音。")
+                Text("請到「系統設定 → 隱私權與安全性 → 麥克風」打開「會議助手」，再重新開始錄音。")
             }
             .alert("錄音的提醒", isPresented: Binding(get: { model.recorder.failureMessage != nil },
                                                  set: { if !$0 { model.recorder.failureMessage = nil } })) {
@@ -110,18 +110,18 @@ struct MainView: View {
         }
         .modifier(FolderPromptModifier())
         // 有新版時詢問（R10.6）
-        .alert(String(localized: "拾音 \(model.updater.prompt?.version ?? "") 可以更新了"), isPresented: Binding(
+        .alert(String(localized: "會議助手 \(model.updater.prompt?.version ?? "") 可以更新了"), isPresented: Binding(
             get: { model.updater.prompt != nil }, set: { if !$0 { model.updater.prompt = nil } })) {
             Button("稍後", role: .cancel) { model.updater.prompt = nil }
             Button("下載並更新") {
                 if let manifest = model.updater.prompt {
                     model.updater.prompt = nil
-                    model.noticeMessage = String(localized: "正在下載更新，完成後拾音會自動重新打開")
+                    model.noticeMessage = String(localized: "正在下載更新，完成後會議助手會自動重新打開")
                     Task { await model.updater.install(manifest, model: model) }
                 }
             }
         } message: {
-            Text([model.updater.prompt?.notes ?? "", String(localized: "目前是 \(Updater.currentVersion)。更新時拾音會結束並重新打開，會議資料都會保留。")]
+            Text([model.updater.prompt?.notes ?? "", String(localized: "目前是 \(Updater.currentVersion)。更新時會議助手會結束並重新打開，會議資料都會保留。")]
                 .filter { !$0.isEmpty }.joined(separator: "\n\n"))
         }
         .confirmationDialog("永久刪除這場會議？", isPresented: Binding(get: { model.confirmPurge != nil }, set: { if !$0 { model.confirmPurge = nil } })) {

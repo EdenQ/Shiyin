@@ -26,7 +26,7 @@ enum ProblemReport {
         lines.append(String(localized: "（請寫發生了什麼事、怎麼重現。不要貼會議內容）"))
         lines.append("")
         lines.append(String(localized: "## 環境"))
-        lines.append(String(localized: "- 拾音 \(version)（build \(build)）"))
+        lines.append(String(localized: "- 會議助手 \(version)（build \(build)）"))
         let osVersion = "\(os.majorVersion).\(os.minorVersion).\(os.patchVersion)"
         lines.append(String(localized: "- macOS \(osVersion)（\(sysctl("kern.osversion") ?? "?")）"))
         lines.append(String(localized: "- \(sysctl("machdep.cpu.brand_string") ?? "Apple Silicon")，記憶體 \(memory)"))

@@ -127,7 +127,7 @@ final class SystemAudioSource: AudioSource {
 
         guard let outputUID = AudioDevices.defaultOutputUID() else { throw CaptureError.noOutputDevice }
         let aggregate: [String: Any] = [
-            kAudioAggregateDeviceNameKey: String(localized: "拾音系統聲音"),
+            kAudioAggregateDeviceNameKey: String(localized: "會議助手系統聲音"),
             kAudioAggregateDeviceUIDKey: UUID().uuidString,
             kAudioAggregateDeviceMainSubDeviceKey: outputUID,
             kAudioAggregateDeviceIsPrivateKey: true,
@@ -272,7 +272,7 @@ enum CaptureError: LocalizedError {
         case .noInput: return String(localized: "找不到可以用的麥克風")
         case .noOutputDevice: return String(localized: "找不到輸出裝置，沒辦法擷取系統聲音")
         case .unsupportedFormat: return String(localized: "不支援這個音訊格式")
-        case .coreAudio(let step, let status): return String(localized: "\(step)失敗（錯誤代碼 \(status)）。請確認已允許拾音「錄製系統音訊」")
+        case .coreAudio(let step, let status): return String(localized: "\(step)失敗（錯誤代碼 \(status)）。請確認已允許會議助手「錄製系統音訊」")
         }
     }
 }

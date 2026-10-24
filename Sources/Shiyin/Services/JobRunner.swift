@@ -185,7 +185,7 @@ final class JobRunner {
     private func execute(_ job: Job, lane: JobLane) async {
         running[lane] = Running(job: job)
         let activity = ProcessInfo.processInfo.beginActivity(
-            options: [.idleSystemSleepDisabled, .userInitiated], reason: String(localized: "拾音正在轉錄或整理會議紀錄"))
+            options: [.idleSystemSleepDisabled, .userInitiated], reason: String(localized: "會議助手正在轉錄或整理會議紀錄"))
         onChange?()
         log.info("job \(job.id ?? 0) \(job.kind.rawValue) started")
         var failure: Error?

@@ -1,5 +1,12 @@
 # 拾音 Shiyin 3.0：需求規格
 
+## Fork 名稱（2026-10-21，R22）
+
+- R22.1 macOS 左上角的應用程式選單使用短名稱 `MA`，保留其他標準選單。
+- R22.2 Finder、Dock 與介面顯示「會議助手」（英文 `Meeting Assistant`）。
+- R22.3 「關於 MA」使用系統標準關於視窗，名稱顯示 `MA — Meeting Assistant`，保留版本、圖示與第三方授權。
+- R22.4 沿用既有 Bundle Identifier、設定、鑰匙圈 service、資料目錄與 `.shiyin` 格式，既有會議可繼續使用。
+
 > 狀態：已確認（2026-10-15，第三版；使用者以「全部做好再找我」授權開工）
 > 第二版（只有自己用、依賴 Python）的規格用 `git show b621ed6:docs/archive/v2/requirements.md` 看。驗收結果裡的任務編號（T-…）的紀錄用 `git show b621ed6:docs/tasks.md` 看，選型實驗用 `git show b621ed6:docs/spikes/<檔名>` 看。
 > 本文件定義「要做什麼」。怎麼做寫在 `design.md`，實作順序寫在 `tasks.md`。

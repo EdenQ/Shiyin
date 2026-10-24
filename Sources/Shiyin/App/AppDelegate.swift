@@ -49,9 +49,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         #endif
 
         let alert = NSAlert()
-        alert.messageText = recording ? String(localized: "正在錄音，要結束拾音嗎？") : String(localized: "還有工作在進行，要結束拾音嗎？")
+        alert.messageText = recording ? String(localized: "正在錄音，要結束會議助手嗎？") : String(localized: "還有工作在進行，要結束會議助手嗎？")
         var info: [String] = []
-        if recording { info.append(String(localized: "錄音會先存好，下次開啟拾音時開始轉錄。")) }
+        if recording { info.append(String(localized: "錄音會先存好，下次開啟會議助手時開始轉錄。")) }
         if busy { info.append(String(localized: "進行中的轉錄或整理會中斷，下次開啟時從頭重跑。")) }
         alert.informativeText = info.joined(separator: "\n")
         alert.addButton(withTitle: String(localized: "結束"))

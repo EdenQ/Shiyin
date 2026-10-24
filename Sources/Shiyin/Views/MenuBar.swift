@@ -32,12 +32,12 @@ struct MenuBarContent: View {
             jobs
             Divider()
             VStack(alignment: .leading, spacing: 6) {
-                Button("打開拾音") { model.openMainWindow?() }
+                Button("打開會議助手") { model.openMainWindow?() }
                 Button("使用說明") {
                     openWindow(id: "guide")
                     NSApp.activate()
                 }
-                Button("結束拾音") { NSApp.terminate(nil) }
+                Button("結束會議助手") { NSApp.terminate(nil) }
             }
             .buttonStyle(.plain)
         }

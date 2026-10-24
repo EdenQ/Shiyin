@@ -15,7 +15,7 @@ DMG="$OUT_DIR/Shiyin-${VERSION}.dmg"
 scripts/build-app.sh
 rm -rf "$STAGE"
 mkdir -p "$STAGE" "$OUT_DIR"
-ditto "$SCRATCH/app/Shiyin.app" "$STAGE/Shiyin.app"   # Finder 會依在地化設定顯示成「拾音」
+ditto "$SCRATCH/app/Meeting Assistant.app" "$STAGE/Meeting Assistant.app"   # Finder 會依在地化設定顯示成「會議助手」
 # 中英文共用一個 DMG：捷徑和磁碟名稱用不分語言的英文
 ln -s /Applications "$STAGE/Applications"
 # 安裝說明：HTML 用系統的文字排版轉成 PDF
@@ -26,7 +26,7 @@ cp Resources/ThirdPartyLicenses.txt "$STAGE/Third-Party Licenses.txt"   # 第三
 rm -f "$DMG"
 # CI 上 hdiutil 偶爾會回「資源忙碌」，最多試三次
 for attempt in 1 2 3; do
-  hdiutil create -volname "Shiyin ${VERSION}" -srcfolder "$STAGE" -fs HFS+ -format UDZO -ov "$DMG" >/dev/null && break
+  hdiutil create -volname "Meeting Assistant ${VERSION}" -srcfolder "$STAGE" -fs HFS+ -format UDZO -ov "$DMG" >/dev/null && break
   [ "$attempt" = 3 ] && exit 1
   echo "hdiutil 失敗，5 秒後重試（第 ${attempt} 次）"
   sleep 5

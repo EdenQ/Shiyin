@@ -192,7 +192,7 @@ struct AskAllView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 18) {
                         if model.allQuestions.isEmpty && model.asking != .all {
-                            Text("例如：「上個月跟客戶談過哪些價格？」「寄信的機制最後怎麼決定的？」拾音會先找出相關的會議片段，再請整理工具回答，回答附上是哪一場會議、哪個時間點。")
+                            Text("例如：「上個月跟客戶談過哪些價格？」「寄信的機制最後怎麼決定的？」會議助手會先找出相關的會議片段，再請整理工具回答，回答附上是哪一場會議、哪個時間點。")
                                 .foregroundStyle(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }

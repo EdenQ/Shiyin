@@ -1,5 +1,5 @@
 #!/bin/zsh
-# 驗證 app 內更新用（tasks T-F6）：用 build/Shiyin.app（先跑 scripts/build-app.sh）做出測試用的更新檔。
+# 驗證 app 內更新用（tasks T-F6）：用 build/Meeting Assistant.app（先跑 scripts/build-app.sh）做出測試用的更新檔。
 # 用法：scripts/dev/make-update-fixtures.sh <輸出資料夾>
 # 然後在輸出資料夾跑 `python3 -m http.server 18765 --bind 127.0.0.1`，用 shiyinctl setupdateurl 指到下面的 JSON：
 #   good.json    正常的新版（目前版本的修訂號加 1，同樣的簽法）
@@ -8,7 +8,7 @@
 #   same.json    版本跟目前一樣
 set -euo pipefail
 OUT="${1:?要給輸出資料夾}"
-SRC="$HOME/Library/Caches/ShiyinBuild/app/Shiyin.app"
+SRC="$HOME/Library/Caches/ShiyinBuild/app/Meeting Assistant.app"
 rm -rf "$OUT"; mkdir -p "$OUT/good" "$OUT/other"
 mkdmg() { hdiutil create -volname "Shiyin Test" -srcfolder "$1" -fs HFS+ -format UDZO -ov "$2" >/dev/null; }
 # 版本號跟著建置出來的 app 走：3.1.0 → 新版 3.1.1

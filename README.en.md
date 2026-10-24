@@ -204,7 +204,7 @@ docs/             specs and experiment logs
 ### Common commands
 
 ```bash
-scripts/build-app.sh               # release build, produces build/Shiyin.app (actually in ~/Library/Caches/ShiyinBuild)
+scripts/build-app.sh               # release build, produces build/Meeting Assistant.app (actually in ~/Library/Caches/ShiyinBuild)
 scripts/build-app.sh --debug       # DEBUG build with the control channel used for verification
 scripts/make-dmg.sh                # release build plus DMG and shiyin-update.json
 swift scripts/make-icon.swift Resources/AppIcon.icns   # regenerate the icon
@@ -215,7 +215,7 @@ swiftc scripts/dev/shiyinctl.swift -o ~/Library/Caches/ShiyinBuild/shiyinctl
 ~/Library/Caches/ShiyinBuild/shiyinctl snapshot /tmp/summary.png dark detail
 
 scripts/dev/l10n.py check         # after changing UI text: extract strings, list missing English and untranslated Chinese
-~/Library/Caches/ShiyinBuild/app/Shiyin.app/Contents/MacOS/Shiyin -AppleLanguages "(en)"   # launch with the English interface
+"$HOME/Library/Caches/ShiyinBuild/app/Meeting Assistant.app/Contents/MacOS/Shiyin" -AppleLanguages "(en)"   # launch with the English interface
 
 /usr/bin/log stream --predicate 'subsystem == "com.weiwei.shiyin"'      # logs
 sqlite3 ~/Library/Application\ Support/Shiyin/shiyin.sqlite             # data

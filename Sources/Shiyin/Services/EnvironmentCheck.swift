@@ -38,7 +38,7 @@ struct EnvironmentStatus: Equatable {
                  detail: models.diarizerState == .installed ? String(localized: "已下載") : String(localized: "還沒下載"), fix: String(localized: "到「模型與儲存空間」下載"), required: false),
             Item(name: String(localized: "麥克風權限"), ok: mic == .authorized,
                  detail: mic == .authorized ? String(localized: "已允許") : mic == .notDetermined ? String(localized: "還沒詢問") : String(localized: "被拒絕"),
-                 fix: String(localized: "第一次錄音時會詢問；被拒絕的話到「系統設定 → 隱私權與安全性 → 麥克風」打開拾音"), required: false),
+                 fix: String(localized: "第一次錄音時會詢問；被拒絕的話到「系統設定 → 隱私權與安全性 → 麥克風」打開會議助手"), required: false),
             Item(name: "claude CLI", ok: claude != nil, detail: claude?.path ?? String(localized: "找不到"),
                  fix: String(localized: "整理工具選 Claude 時需要：安裝 Claude Code 並在終端機執行 claude 登入"), required: false),
             Item(name: "codex CLI", ok: codex != nil, detail: codex?.path ?? String(localized: "找不到"),

@@ -216,7 +216,7 @@ final class Recorder {
             isPaused = false
             isRecording = true
             activity = ProcessInfo.processInfo.beginActivity(options: [.idleSystemSleepDisabled, .userInitiated],
-                                                             reason: String(localized: "拾音正在錄音"))
+                                                             reason: String(localized: "會議助手正在錄音"))
             let timer = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in
                 MainActor.assumeIsolated { self?.tick() }
             }

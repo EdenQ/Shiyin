@@ -946,7 +946,7 @@ final class AppDatabase: @unchecked Sendable {
         try pool.write { db in
             try db.execute(sql: "UPDATE jobs SET crashes = crashes + 1 WHERE status = 'running'")
             try db.execute(sql: "UPDATE jobs SET status = 'failed', error = ?, finished_at = ? WHERE status = 'running' AND crashes >= 2",
-                           arguments: [String(localized: "執行這個工作時拾音意外結束了 2 次，已經停止自動重試。可以按「重試」再試一次。"), Clock.now()])
+                           arguments: [String(localized: "執行這個工作時會議助手意外結束了 2 次，已經停止自動重試。可以按「重試」再試一次。"), Clock.now()])
             try db.execute(sql: "UPDATE jobs SET status = 'queued', started_at = NULL WHERE status = 'running'")
         }
     }
