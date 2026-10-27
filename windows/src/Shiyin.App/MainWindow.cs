@@ -35,6 +35,10 @@ public sealed class MainWindow : Window
     readonly DispatcherTimer progressTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     bool wasBusy;
     readonly DetailView detailView;
+    /// <summary>待確認的回答（M§31.2）：DEBUG 的控制通道用</summary>
+    public Views.ReviewDraft ReviewDraft => detailView.ReviewDraft;
+    /// <summary>主視窗目前是前景（Activated 事件）</summary>
+    public bool IsForeground { get; private set; }
     bool updatingSelection;
 
     public MainWindow(AppHost host)
@@ -55,6 +59,19 @@ public sealed class MainWindow : Window
         };
         State.Changed += Refresh;
         State.RecorderChanged += () => { BuildToolbar(); detailView.UpdateRecording(); };
+        // 主視窗是不是前景（R42.1：在前景時收音提醒不送通知，只有畫面和系統匣的提示）
+        Activated += (_, e) =>
+        {
+            IsForeground = e.WindowActivationState != WindowActivationState.Deactivated;
+            // 回到前景時更新 claude、codex 的登入狀態（使用者可能剛在終端機登入，M§34.1）
+            if (IsForeground) _ = CliLogin.RefreshIfStale();
+        };
+        // 整理工具準備好了沒變了（登入狀態、key、暫停、設定）：會議頁的提示和失敗橫幅跟著變（M§34.2）
+        host.Settings.SummarizerChanged += () => host.Post(Refresh);
+        host.Settings.Changed += key =>
+        {
+            if (key is AppSettings.ProviderKey or AppSettings.CompatibleBaseUrlKey || key.EndsWith("Model", StringComparison.Ordinal)) host.Post(Refresh);
+        };
         // 工作進度不發事件：轉錄、整理中每秒更新一次列表的狀態和會議頁的進度
         progressTimer.Tick += (_, _) => Ui.Guard(() =>
         {
@@ -132,9 +149,9 @@ public sealed class MainWindow : Window
         });
         Accelerator(VirtualKey.E, VirtualKeyModifiers.Control, () => { if (State.Detail is { } d) _ = Dialogs.Export(this, d.Meeting.Id!.Value); });
         Accelerator(VirtualKey.F, VirtualKeyModifiers.Control, () => detailView.FocusSearch());
-        for (var i = 0; i < 6; i++)
+        foreach (var tab in Enum.GetValues<DetailTab>())
         {
-            var tab = (DetailTab)i;
+            var i = (int)tab;
             Accelerator(VirtualKey.Number1 + i, VirtualKeyModifiers.Control, () => { if (State.Detail is not null) State.SetTab(tab); });
         }
         Accelerator(VirtualKey.Delete, VirtualKeyModifiers.Control, () => { if (State.Detail is { } d && !State.ShowTrash) _ = ConfirmTrash(d.Meeting.Id!.Value); });
@@ -482,7 +499,7 @@ public sealed class MainWindow : Window
                 State.SetTab(DetailTab.Transcript);
                 detailView.Flash(hit.Ref, seek: true);
                 break;
-            case SearchKind.UserNotes: State.SetTab(DetailTab.Notes); break;
+            case SearchKind.UserNotes: State.OpenTab(DetailTab.Transcript, expandNotes: true); break;
             default: State.SetTab(DetailTab.Summary); break;
         }
     }

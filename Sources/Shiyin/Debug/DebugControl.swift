@@ -29,7 +29,12 @@ enum DebugControl {
         let id = args.count > 1 ? Int64(args[1]) : nil
         switch name {
         case "select": model.showTrash = false; model.selection = id
-        case "tab": model.tab = DetailTab(rawValue: args[1]) ?? .summary
+        case "tab":   // tab <summary|transcript|ask>；舊名稱 topics、review、notes 當別名（review 順便展開待確認、notes 展開我的筆記，design §33.1）
+            if let r = DetailTab.resolve(args[1]) {
+                model.tab = r.tab
+                if r.expandReview { model.reviewExpanded = true }
+                if r.expandNotes { model.userNotesExpanded = true }
+            }
         case "cancel": model.selection = id; model.cancelJobs()
         case "retry": model.selection = id; model.retry()
         case "retranscribe": model.selection = id; model.retranscribe()
@@ -39,6 +44,42 @@ enum DebugControl {
         case "restore": if let id { model.restore(id) }
         case "purge": if let id { model.deletePermanently(id) }
         case "confirmpurge": model.confirmPurge = id   // 等於在垃圾桶按右鍵「永久刪除…」
+        case "reviewexpand":
+            // reviewexpand <會議 id> <summary|decisions|actionItems|openQuestions|topic|custom> <位置> [第二個位置]：
+            // 等於點那一條紀錄旁的待確認標記（R41.2）；位置給 - 就收合。視窗不在目前的桌面時 press 按不到標記，用這個
+            model.selection = id
+            let a = Int(args.count > 3 ? args[3] : "") ?? 0, b = Int(args.count > 4 ? args[4] : "") ?? 0
+            let ref: NoteItemRef? = switch args[2] {
+            case "summary": .summary(a)
+            case "decisions": .decisions(a)
+            case "actionItems": .actionItems(a)
+            case "openQuestions": .openQuestions(a)
+            case "topic": .topicPoint(a, b)
+            case "custom": .custom(a, b)
+            default: nil
+            }
+            model.reviewDraft?.expanded = ref
+        case "reviewsubmit":   // reviewsubmit <會議 id> [段落 位置 [第二個位置]]：等於按待確認分頁的「送出」；給了段落就是按那一條卡片的「送出」（只送那幾題）
+            model.selection = id
+            if args.count > 3 {
+                let a = Int(args[3]) ?? 0, b = Int(args.count > 4 ? args[4] : "") ?? 0
+                let ref: NoteItemRef? = switch args[2] {
+                case "summary": .summary(a)
+                case "decisions": .decisions(a)
+                case "actionItems": .actionItems(a)
+                case "openQuestions": .openQuestions(a)
+                case "topic": .topicPoint(a, b)
+                case "custom": .custom(a, b)
+                default: nil
+                }
+                model.submitReviewDraft(only: Set(ref.flatMap { model.detail?.reviewLinks[$0] } ?? []))
+            } else {
+                model.submitReviewDraft()
+            }
+        case "reviewskipall":   // reviewskipall <會議 id>：等於按待確認分頁的「全部略過」（R41.5）
+            model.selection = id
+            model.reviewDraft?.skipAllUnanswered(questionCount: model.detail?.notes?.reviewItems.count ?? 0,
+                                                 speakers: model.detail.map { Array($0.speakerSuggestions.keys) } ?? [])
         case "review":
             // review <id> <答案 JSON：{"0":"答案"}> <略過的題號，逗號分隔>
             model.selection = id
@@ -241,6 +282,11 @@ enum DebugControl {
                     write(["done": results.count, "total": config.count, "results": results], to: output)
                 }
             }
+        case "windowsize":   // windowsize <寬> <高>：把主視窗的內容區設成這個大小（點）。官網截圖用（website.md §16）：視窗在別的桌面時 AX 改不了大小，screencapture -l 照樣截得到
+            if let w = Double(args[1]), let h = Double(args[2]),
+               let window = NSApp.windows.first(where: { $0.isVisible && $0.identifier?.rawValue == "main" }) ?? NSApp.windows.first(where: { $0.isVisible && $0.frame.width > 400 }) {
+                window.setContentSize(NSSize(width: w, height: h))
+            }
         case "summon":   // summon：把拾音的視窗移到目前的桌面、放到最前面（真的畫面上用輔助使用測試時，視窗在別的桌面會按不到）
             for window in NSApp.windows where window.isVisible && window.frame.width > 400 {
                 window.collectionBehavior.insert(.moveToActiveSpace)
@@ -359,9 +405,16 @@ enum DebugControl {
         case "copy": model.copyNotes(args.count > 1 && args[1] == "plain" ? .plain : args.count > 1 && args[1] == "md" ? .markdown : .rich)
         case "search": model.searchQuery = args.count > 1 ? args[1] : ""
         case "openhit": if let index = Int(args[1]), model.searchResults.indices.contains(index) { model.openSearchHit(model.searchResults[index]) }
-        case "model":   // model start|pause|delete [breeze|japanese|languageDetection]
+        case "model":   // model start|pause|delete [breeze|japanese|languageDetection|qwen]（qwen 是兩個檔一起）
             let which = ModelStore.Model(rawValue: args.count > 2 ? args[2] : "") ?? .breeze
-            args[1] == "start" ? model.models.start(which) : args[1] == "pause" ? model.models.pause(which) : model.models.delete(which)
+            args[1] == "start" ? model.models.startAll(which) : args[1] == "pause" ? model.models.pauseAll(which) : model.models.deleteAll(which)
+        case "qwenchunks":   // qwenchunks <錄音> <輸出.json> [最長秒數] [any] [mixed]：先辨識說話者再照 §32.4 分段，倒出片段、切點、能量中位數（驗證分段規則）
+            qwenChunks(audio: args[1], output: args[2], maxSeconds: args.count > 3 ? Double(args[3]) ?? QwenEngine.maxChunkSeconds : QwenEngine.maxChunkSeconds,
+                       anyChange: args.contains("any"), splitMixed: args.contains("mixed"))
+        case "s2tw":    // s2tw <輸入.txt> <輸出.txt>：簡體轉台灣繁體（design §32.5），驗證跟原型工具的結果相同
+            if let text = try? String(contentsOfFile: args[1], encoding: .utf8) {
+                try? ChineseScript.toTaiwan(text).write(toFile: args[2], atomically: true, encoding: .utf8)
+            }
         case "diarizer": model.models.prepareDiarizer()
         case "modelurl":   // modelurl <模型> <網址>：改從別的網址下載；網址給 - 就改回原本的
             if let which = ModelStore.Model(rawValue: args[1]) { model.models.debugURLs[which] = args[2] == "-" ? nil : URL(string: args[2]) }
@@ -370,6 +423,8 @@ enum DebugControl {
         case "llmkey":   // llmkey <account> <key>：只放記憶體
             Keychain.debugKeys[args[1]] = args[2] == "-" ? nil : args[2]
             Keychain.debugForget(args[1])
+            Keychain.generation += 1   // 等於存了新的 key：解除暫停（design §34.4）
+            model.refreshSummarizerProblem()
         case "keychainsim":   // keychainsim <account> denied|duplicate|-：模擬鑰匙圈回「拒絕」「已經有舊的」（design §22.1）
             Keychain.debugSimulated[args[1]] = args[2] == "-" ? nil : args[2]
             Keychain.debugForget(args[1])
@@ -377,6 +432,22 @@ enum DebugControl {
         case "llmprovider":   // llmprovider <整理工具> [模型]：只放記憶體，不改共用的設定；給 - 改回設定
             AppSettings.debugProvider = args[1] == "-" ? nil : LLMProvider(rawValue: args[1])
             AppSettings.debugModel = args.count > 2 ? args[2] : nil
+            model.refreshSummarizerProblem()
+        case "summarizer":   // summarizer <輸出.json>：整理工具準備好了沒、登入快取、暫停（design §34.6）
+            let problem = AppSettings.summarizerProblem
+            write(["provider": AppSettings.provider.rawValue,
+                   "ready": problem == nil,
+                   "problem": problem.map { String(describing: $0) } ?? "",
+                   "message": problem?.message ?? "",
+                   "action": problem?.actionTitle ?? "",
+                   "shown": model.summarizerProblem.map { String(describing: $0) } ?? "",
+                   "loggedIn": ["claude": CLILoginCache.loggedIn(.claude).map { $0 ? "yes" : "no" } ?? "unknown",
+                                "codex": CLILoginCache.loggedIn(.codex).map { $0 ? "yes" : "no" } ?? "unknown"]], to: args[1])
+        case "loginrefresh":   // loginrefresh：重新查 claude、codex 的登入狀態
+            Task {
+                await CLILogin.refresh(.claude)
+                await CLILogin.refresh(.codex)
+            }
         case "listmodels":  // listmodels <整理工具> <結果.json>：設定頁「選擇」用的模型清單
             if let provider = LLMProvider(rawValue: args[1]) {
                 Task { write(["models": await LLMClient.listModels(provider)], to: args[2]) }
@@ -456,17 +527,21 @@ enum DebugControl {
         case "setkey": try? Keychain.set(args[1], args[2])          // setkey anthropic|openai <key>
         case "delkey": Keychain.delete(args[1])
         case "settings": NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-        case "preview":   // preview <settings|onboarding [步驟]|import|rename>（import：匯入對話框；rename：說話者的改名小視窗，design §26.2、§24.2）
+        case "preview":   // preview <settings|onboarding [步驟]|import|rename> [front]（import：匯入對話框；rename：說話者的改名小視窗，design §26.2、§24.2）
             // 設定視窗要 app 在前景才打得開；這裡把畫面放進桌面層的無邊框視窗（被所有視窗蓋住；
             // 螢幕外的視窗截不到），不搶前景，再用 screencapture -l 截（closewindow <settings|onboarding>-preview 關掉）。
             // preview detail：目前選取的會議頁（量長會議的效能用，design §21.12：不在畫面上的視窗 SwiftUI 不更新）
             let onboarding = args.count > 1 && args[1] == "onboarding"
             let detailPage = args.count > 1 && args[1] == "detail"
+            // preview settings <分頁編號>：預覽視窗一開始停在那個分頁（0 整理工具 … 4 錄音、5 模型與儲存空間）
+            SettingsView.previewTab = args.count > 2 && args[1] == "settings" ? Int(args[2]) ?? 0 : 0
             let size = detailPage ? NSSize(width: 1100, height: 760) : NSSize(width: 640, height: 560)
             let window = NSWindow(contentRect: NSRect(origin: .zero, size: size), styleMask: [.borderless],
                                   backing: .buffered, defer: false)
-            window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopWindow)))
-            window.collectionBehavior = [.canJoinAllSpaces, .stationary]
+            // 加 front：放在一般視窗層（會出現在使用者畫面上），輔助使用才看得到、按得到裡面的按鈕
+            let front = args.contains("front")
+            window.level = front ? .normal : NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopWindow)))
+            window.collectionBehavior = front ? [.canJoinAllSpaces] : [.canJoinAllSpaces, .stationary]
             window.identifier = NSUserInterfaceItemIdentifier(onboarding ? "onboarding-preview" : detailPage ? "detail-preview" : "settings-preview")
             window.title = window.identifier!.rawValue
             window.isReleasedWhenClosed = false
@@ -500,7 +575,7 @@ enum DebugControl {
         let model = AppModel.shared
         var out: [String: Any] = [
             "selection": model.selection ?? -1,
-            "tab": model.tab.rawValue,
+            "tab": model.tab.rawValue, "reviewExpanded": model.reviewExpanded, "userNotesExpanded": model.userNotesExpanded,
             // 選中的會議：說話者的名字、來源、建議、最像的幾位認識的人（R33，「自動」名字的選單）
             "speakers": (model.detail?.speakers ?? [:]).keys.sorted().map { idx -> [String: Any] in
                 ["idx": idx, "name": model.detail?.speakers[idx] ?? "", "source": model.detail?.speakerSources[idx] ?? "",
@@ -534,6 +609,7 @@ enum DebugControl {
             "languages": ["defaultMeeting": AppSettings.defaultMeetingLanguage.rawValue, "interface": MeetingLanguage.interface.rawValue,
                           "preferred": Locale.preferredLanguages.first ?? ""],
             "models": ["breeze": "\(model.models.state)", "japanese": "\(model.models.state(.japanese))",
+                       "qwen": "\(model.models.combinedState(.qwen))",
                        "languageDetection": "\(model.models.state(.languageDetection))", "diarizer": "\(model.models.diarizerState)"],
             "exportMeeting": model.exportMeetingId as Any,
             "search": ["query": model.searchQuery, "results": model.searchResults.map { ["meeting": $0.meetingId, "kind": $0.kind.rawValue, "ref": $0.ref, "snippet": $0.snippet] }],
@@ -746,6 +822,7 @@ enum DebugControl {
             do {
                 let options = try JSONDecoder().decode(TranscriptionOptions.self, from: Data(contentsOf: URL(fileURLWithPath: options)))
                 result["options"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(options))
+                result["whisperDefaults"] = WhisperEngine.defaultParameters()   // whisper.cpp 的預設值（實驗時對照用，design §17.1）
                 var pipeline = TranscriptionPipeline(options: options)
                 pipeline.stage = { meter.set(stage: $0) }
                 if let run = try await pipeline.run(URL(fileURLWithPath: audio)) {
@@ -765,6 +842,24 @@ enum DebugControl {
             write(result, to: output + ".tmp")
             try? FileManager.default.removeItem(atPath: output)
             try? FileManager.default.moveItem(atPath: output + ".tmp", toPath: output)
+        }
+    }
+
+    private static func qwenChunks(audio: String, output: String, maxSeconds: Double, anyChange: Bool, splitMixed: Bool) {
+        Task { @MainActor in
+            var result: [String: Any] = ["audio": audio, "maxSeconds": maxSeconds]
+            do {
+                let samples = try await AudioDecoder.decode(URL(fileURLWithPath: audio))
+                let diarization = try await Diarizer.diarize(samples: samples, minSpeakers: nil) { _ in }
+                let chunks = QwenEngine.chunks(samples, turns: diarization.turns, maxSeconds: maxSeconds, anyChange: anyChange, splitMixed: splitMixed)
+                let rate = AudioDecoder.sampleRate
+                result["turns"] = diarization.turns.map { ["speaker": $0.speaker, "start": $0.start, "end": $0.end] }
+                result["chunks"] = chunks.map { ["start": Double($0.range.lowerBound) / rate, "end": Double($0.range.upperBound) / rate] }
+                result["median"] = samples.withUnsafeBufferPointer { QwenEngine.medianFrameEnergy($0) }
+            } catch {
+                result["error"] = error.localizedDescription
+            }
+            write(result, to: output)
         }
     }
 
@@ -883,11 +978,8 @@ private struct SnapshotView: View {
             Divider()
             Group {
                 switch tab {
-                case .summary: SummaryTab(detail: detail)
-                case .topics: TopicsTab(detail: detail)
+                case .summary: NotesPage(detail: detail)
                 case .transcript: TranscriptTab(detail: detail, speakerFilter: speakerFilter)
-                case .review: ReviewTab(detail: detail)
-                case .notes: UserNotesTab(detail: detail)
                 case .ask: AskTab(detail: detail)
                 }
             }

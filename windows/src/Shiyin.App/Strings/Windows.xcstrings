@@ -67,6 +67,39 @@
         }
       }
     },
+    "Breeze ASR 25（建議）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Breeze ASR 25 (recommended)"
+          }
+        }
+      }
+    },
+    "Claude Code（這台電腦已經裝了 claude CLI）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude Code (the claude CLI is installed on this PC)"
+          }
+        }
+      }
+    },
+    "Codex（這台電腦已經裝了 codex CLI）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Codex (the codex CLI is installed on this PC)"
+          }
+        }
+      }
+    },
     "NVIDIA 顯示卡加速下載好了，重新開啟拾音後，轉錄就會用顯示卡": {
       "extractionState": "manual",
       "localizations": {
@@ -107,6 +140,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "PDF and docx use a serif font for section headings; Markdown is good for pasting into Notion or GitHub."
+          }
+        }
+      }
+    },
+    "Qwen3-ASR 的 NVIDIA 顯示卡加速（CUDA）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NVIDIA GPU acceleration for Qwen3-ASR (CUDA)"
+          }
+        }
+      }
+    },
+    "Qwen3-ASR 的轉錄程式（llama-server）出錯，請再試一次；一直失敗的話到設定改回 Breeze": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The Qwen3-ASR transcription program (llama-server) failed. Try again; if it keeps failing, switch back to Breeze in Settings."
           }
         }
       }
@@ -188,6 +243,17 @@
         }
       }
     },
+    "「待確認」列出整理時沒把握的人名、專有名詞、負責人和期限。紀錄裡有疑問的那一條旁邊會有「？」，點了就能當場回答；也可以到「待確認」分頁一次看完。能用是或否回答的直接按「是」「不是」（按「是」不用等整理工具），其他的在「你的回答」欄位回答，按「送出」，會議紀錄就會依你的答案修正；看不懂或不重要的按「略過」，或一次「全部略過」。也可以在「摘要」按「編輯」直接改。改錯了可以從「更多」選「復原上一版會議紀錄」。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“To confirm” lists the names, terms, owners and deadlines the summarizer wasn’t sure about. The note in question gets a “?” next to it: click it to answer right there, or open the “To confirm” tab to go through them all. Questions that take yes or no have “Yes” and “No” buttons (“Yes” confirms on the spot, no waiting for the summarizer); answer the others in “Your answer”, then click “Submit” and the notes are revised to match. Click “Skip” on anything unclear or unimportant, or “Skip all”. You can also edit the notes directly with “Edit” on the Summary tab. If something goes wrong, choose “Restore previous notes” from “More”."
+          }
+        }
+      }
+    },
     "「說話者」：拾音認識的人和他們的聲紋，可以改名、刪除，或關掉記住聲音的功能。": {
       "extractionState": "manual",
       "localizations": {
@@ -199,6 +265,17 @@
         }
       }
     },
+    "「說話者與詞彙」：拾音認識的人和他們的聲紋，可以改名、刪除，或關掉記住聲音的功能；詞彙表加入系統名、產品名、人名的正確寫法，這對專有名詞的正確率影響很大。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speakers & Glossary: the people Shiyin recognizes and their voiceprints, which you can rename or delete, or turn off remembering voices; the glossary holds the correct spelling of system names, product names and people's names, which greatly improves proper-noun accuracy."
+          }
+        }
+      }
+    },
     "「進階」：填更新網址、檢查更新；有新版時拾音會詢問，同意後自動下載、驗證並重新打開。也可以從「拾音」選單選「檢查更新…」。": {
       "extractionState": "manual",
       "localizations": {
@@ -206,6 +283,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "“Advanced”: enter the update URL and check for updates. When a new version is available, Shiyin asks, then downloads, verifies and reopens. You can also choose “Check for Updates…” from the Shiyin menu."
+          }
+        }
+      }
+    },
+    "「進階」：檢查更新（有新版時拾音會詢問，同意後自動下載、驗證並重新打開；也可以從「拾音」選單選「檢查更新…」）、環境檢查、錄音和模型佔用的空間。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Advanced: check for updates (when a new version is available Shiyin asks, then downloads, verifies and relaunches; also available from the Shiyin menu → Check for Updates…), environment check, and the space used by recordings and models."
           }
         }
       }
@@ -294,6 +382,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Not %@"
+          }
+        }
+      }
+    },
+    "中文、英文可選的引擎（阿里巴巴開源），約 2.5 GB，含 llama.cpp 的執行檔；「正式轉錄」選了它才會用。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Optional engine for Chinese and English (open-sourced by Alibaba), about 2.5 GB including the llama.cpp program; used only when selected under Final transcription."
           }
         }
       }
@@ -404,6 +503,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Other"
+          }
+        }
+      }
+    },
+    "切換紀錄、逐字稿、提問": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switch between Notes, Transcript, and Ask"
           }
         }
       }
@@ -772,6 +882,17 @@
         }
       }
     },
+    "拾音會常駐在工作列右下角的系統匣，關掉視窗也會繼續錄音和整理。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shiyin stays in the system tray at the bottom right of the taskbar; recording and processing continue after you close the window."
+          }
+        }
+      }
+    },
     "拾音會議封包": {
       "extractionState": "manual",
       "localizations": {
@@ -893,13 +1014,24 @@
         }
       }
     },
+    "拾音：錄音中 %@，%@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shiyin: recording %@, %@"
+          }
+        }
+      }
+    },
     "按「停止並轉錄」後，拾音會在這台 Mac 上重新轉錄（中文、英文用 Breeze ASR 25，日文用 Whisper large-v3-turbo），並分辨不同的說話者。等待的時候，會議紀錄會先用即時逐字稿整理一份草稿，正式版好了會自動換掉。逐字稿上點「說話者 1」可以改成人名，整場都會跟著改；拾音會記住這個人的聲音，之後的會議自動帶入名字（標「自動」，認錯了點一下就能改）。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "After you click “Stop & Transcribe”, Shiyin transcribes the recording again on this Mac (Breeze ASR 25 for Chinese and English, Whisper large-v3-turbo for Japanese) and identifies the different speakers. While you wait, draft notes are written from the live transcript and replaced automatically when the final version is ready. Click “Speaker 1” in the transcript to change it to a name; the whole meeting updates, and Shiyin remembers the voice and fills in the name in later meetings (marked “Auto”; if it's wrong, one click fixes it)."
+            "value": "After you press Stop & Transcribe, Shiyin re-transcribes the recording on this Mac (Breeze ASR 25 for Chinese and English, Whisper large-v3-turbo for Japanese) and tells the speakers apart. While you wait, the notes are drafted from the live transcript and replaced automatically once the final version is ready. Click \"Speaker 1\" in the transcript to give them a name and it changes throughout the meeting; Shiyin remembers their voice and fills in the name in later meetings (marked \"auto\"; one click fixes a wrong guess)."
           }
         }
       }
@@ -1047,6 +1179,28 @@
         }
       }
     },
+    "會參考詞彙表，中英夾雜、專有名詞比較準；需要下載約 1.7 GB 的模型。日文會議改用 Whisper large-v3-turbo（574 MB）。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uses your glossary and handles mixed Chinese and English and proper nouns better; downloads a model of about 1.7 GB. Japanese meetings use Whisper large-v3-turbo (574 MB) instead."
+          }
+        }
+      }
+    },
+    "會參考詞彙表，多人會議的漏字和同音字比 Breeze 少；阿里巴巴開源的模型，全程在這台電腦上跑、不連網，輸出會轉成台灣繁體；需要下載約 2.5 GB 的模型和 llama.cpp 的執行檔。日文會議改用 Whisper large-v3-turbo（574 MB）。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uses your glossary; fewer dropped words and homophone errors than Breeze in multi-speaker meetings. An open-source model from Alibaba that runs entirely on this PC without network access; output is converted to Taiwanese Traditional Chinese. Downloads about 2.5 GB of model files plus the llama.cpp program. Japanese meetings use Whisper large-v3-turbo (574 MB) instead."
+          }
+        }
+      }
+    },
     "會議可以分資料夾：在會議上按右鍵（或「更多」）選「移到資料夾」→「新資料夾…」。正在看某個資料夾時，新錄的和匯入的會議都會放進去。": {
       "extractionState": "manual",
       "localizations": {
@@ -1065,6 +1219,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Meeting date: from each file's name or modification date"
+          }
+        }
+      }
+    },
+    "有 NVIDIA 顯示卡、選了 Qwen3-ASR 時自動下載，Qwen 的轉錄會快很多。272 MB，解開約 610 MB（llama.cpp 官方的 CUDA 版，要先有上面的 NVIDIA 顯示卡加速）。刪除後不會再自動下載。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Downloaded automatically when you have an NVIDIA GPU and choose Qwen3-ASR; makes Qwen transcription much faster. 272 MB, about 610 MB unpacked (the official llama.cpp CUDA build; requires the NVIDIA GPU acceleration above). It is not downloaded again after you delete it."
           }
         }
       }
@@ -1153,6 +1318,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Once a day, Shiyin sends its developer an anonymous summary: version, system, minutes recorded and transcribed, which features were used, and how many tasks failed. It never sends meeting titles, transcripts, notes, names, voiceprints or any files."
+          }
+        }
+      }
+    },
+    "每天送一份匿名的使用統計給拾音的開發者：版本、系統、錄音和轉錄了幾分鐘、用了哪些功能、失敗幾次和哪一種失敗。不會送會議標題、逐字稿、會議紀錄、人名、聲紋或任何檔案。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Once a day, Shiyin sends its developer an anonymous summary: version, system, minutes recorded and transcribed, which features were used, and how many tasks failed and of what kind. It never sends meeting titles, transcripts, notes, names, voiceprints or any files."
           }
         }
       }
@@ -1344,6 +1520,28 @@
         }
       }
     },
+    "說話者分得太少（人多、吵雜、手機放在桌上遠距收音）時，從「更多 → 重新處理」選「重新辨識說話者…」，告訴拾音大約幾個人。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "If too few speakers were found (many people, noisy room, a phone on the table far from the speakers), choose More → Reprocess → Re-identify Speakers… and tell Shiyin roughly how many people there were."
+          }
+        }
+      }
+    },
+    "說話者分得太少（人多、吵雜、手機放在桌上遠距收音）時，從「更多 → 重新處理」選「重新辨識說話者…」，告訴拾音大約幾個人。只會重新分辨誰在說話，逐字稿的文字不會變。錄音中（會議標題右邊的「人數」）或匯入時也可以先選。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Too few speakers detected (many people, noise, or a phone on the table far from everyone)? Choose More → Reprocess → Re-identify speakers… and tell Shiyin roughly how many people there were. Only the speaker labels change; the transcript text stays. You can also set the count while recording (the People control next to the meeting title) or when importing."
+          }
+        }
+      }
+    },
     "說話者分得太少（人多、吵雜、手機放在桌上遠距收音）時，從「更多」選「重新辨識說話者…」，告訴拾音大約幾個人。": {
       "extractionState": "manual",
       "localizations": {
@@ -1487,6 +1685,17 @@
         }
       }
     },
+    "轉成逐字稿：在這台電腦上轉錄、分辨說話者，不會上傳。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transcribe: transcription and speaker identification run on this PC; nothing is uploaded."
+          }
+        }
+      }
+    },
     "轉錄完成、會議紀錄整理好時通知你。已允許。": {
       "extractionState": "manual",
       "localizations": {
@@ -1527,6 +1736,39 @@
           "stringUnit": {
             "state": "translated",
             "value": "Notes are written automatically after transcription. Summary has key points, decisions, action items and open questions; Details is split by topic; click the time after any item to play the recording from there. The template menu switches to formats like one-on-one, interview, lecture or brainstorm — then choose More → Regenerate meeting notes. To find something, ask in the Ask tab and the answer comes with timestamps; the Ask button at the top of the sidebar asks all meetings at once."
+          }
+        }
+      }
+    },
+    "轉錄完會自動整理。「紀錄」分頁由上而下是摘要、決議、待辦、未決問題和依議題分段的討論；每一條後面的時間點點一下，就從錄音那裡開始播放。範本選單可以換成一對一、訪談、課堂／演講、腦力激盪等格式，換完從「更多 → 重新處理」選「重新整理會議紀錄」。想找某件事，可以在「提問」分頁直接問，回答會附上時間點；側欄上方的提問按鈕可以一次問所有會議。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notes are generated automatically after transcription. The Notes tab shows, from top to bottom, the summary, decisions, action items, open questions, and the discussion by topic; click the timestamp after any item to play the recording from there. The template menu switches to formats such as one-on-one, interview, lecture, or brainstorming; afterwards choose More → Reprocess → Regenerate Notes. To find something, ask in the Ask tab and the answer comes with timestamps; the Ask button above the sidebar asks across all meetings."
+          }
+        }
+      }
+    },
+    "轉錄模型下載中 %lld%%，下載好之前先用快速辨識轉錄。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transcription model %lld%% downloaded; fast recognition is used until it finishes."
+          }
+        }
+      }
+    },
+    "轉錄模型還沒下載好，會先用快速辨識轉錄；可以到「設定 → 錄音與轉錄」下載，用模型轉錄比較準。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The transcription model is not downloaded yet, so fast recognition is used for now. You can download it in Settings → Recording & Transcription; the model is more accurate."
           }
         }
       }
@@ -1835,6 +2077,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "While recording, the live transcript is on the left and appears a few seconds after each sentence; each new line in My notes on the right gets the recording time. Click Mark highlight (Ctrl+B) for important moments, or press Ctrl+Alt+Shift+B in any app. Click Pause (Ctrl+Shift+P) to stop for a while; paused time isn't recorded."
+          }
+        }
+      }
+    },
+    "錄音中畫面左邊是即時逐字稿，講完幾秒內就會出現；右邊「我的筆記」每換一行會自動記下當時的錄音時間（錄完在逐字稿分頁頂部的「我的筆記」還能改）。重要的地方按「標記重點」（Ctrl+B），在其他 app 裡也可以按 Ctrl+Alt+Shift+B。需要中斷時按「暫停」（Ctrl+Shift+P），暫停的時間不會錄進去。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "While recording, the live transcript appears on the left within seconds of each sentence; My Notes on the right stamps the recording time whenever you start a new line (after recording you can still edit them under My Notes at the top of the Transcript tab). Press Bookmark (Ctrl+B) at important moments, or Ctrl+Alt+Shift+B from any other app. Press Pause (Ctrl+Shift+P) when you need a break; paused time is not recorded."
           }
         }
       }

@@ -87,7 +87,7 @@ public sealed class AppController
             else if (error is not null and not OperationCanceledException) Error?.Invoke(L.F("重新辨識說話者失敗：%@", error.Message));
         };
         runner.EditedDraftReplaced += _ =>
-            Notice?.Invoke(L.T("正式版的會議紀錄好了；你改過的草稿留在版本紀錄裡，可以從「更多 → 復原上一版會議紀錄」找回"));
+            Notice?.Invoke(L.T("正式版的會議紀錄好了；你改過的草稿留在版本紀錄裡，按紀錄分頁「編輯」旁的「復原上一版」可以找回"));
         runner.Changed += () => Changed?.Invoke(null);
     }
 
@@ -399,7 +399,7 @@ public sealed class AppController
     /// </summary>
     void EnqueueDraftNotes(long meetingId, double duration)
     {
-        if (duration < DraftMinimumSeconds || !Settings.AutoSummarize || Settings.Provider == LLMProvider.None) return;
+        if (duration < DraftMinimumSeconds || !Settings.AutoSummarize || !Settings.SummarizerReady) return;
         if (Db.Meeting(meetingId) is not { } meeting || !Paths.HasAudio(meeting) || meeting.Notes is not null) return;
         if (Db.Segments(meetingId, "live").Sum(s => Shiyin.Text.SwiftText.Count(s.Text)) < 100) return;
         try
@@ -493,7 +493,7 @@ public sealed class AppController
             return;
         }
         Perform(id, () => Db.SetLanguage(id, language));
-        Notice?.Invoke(L.F("會議語言改成 %@，要重新轉錄或整理的話，從「更多」選", language.Name()));
+        Notice?.Invoke(L.F("會議語言改成 %@，要重新轉錄或整理的話，從「更多 → 重新處理」選", language.Name()));
     }
 
     /// <summary>錄音中選「大約幾個人」（M§26.2）：錄完轉錄時用</summary>
@@ -548,6 +548,8 @@ public sealed class AppController
     public void Retry(long id)
     {
         if (Db.LatestJob(id) is not { Status: JobStatus.Failed or JobStatus.Cancelled } job) return;
+        // 整理工具還沒準備好時重試也一樣會失敗（R46.2）：說原因
+        if (job.Kind.UsesSummarizer() && Settings.SummarizerProblem is { } problem) { Error?.Invoke(problem.Message); return; }
         Perform(id, () => Db.Enqueue(id, job.Kind, job.Payload));
         Runner.Wake();
     }
@@ -577,7 +579,7 @@ public sealed class AppController
         Runner.Wake();
     }
 
-    /// <summary>「更多 → 重新辨識說話者…」（M§23.4）：能做的話回傳 true，畫面打開選人數的視窗（R22.4）</summary>
+    /// <summary>「更多 → 重新處理 → 重新辨識說話者…」（M§23.4）：能做的話回傳 true，畫面打開選人數的視窗（R22.4）</summary>
     public bool RequestRediarize(long id)
     {
         if (!ReadyForAction(id)) return false;
@@ -638,7 +640,7 @@ public sealed class AppController
             if (Db.MergeSpeakers(id, from, into, L.F("把「%@」合併到「%@」", fromName, intoName)) is null) return;
             // 使用者取的名字：用合併後的聲紋重新學（自動帶入的名字不學，M§21.4）
             if (Settings.Voiceprints && source is "manual" or "suggestion") Db.LearnVoiceprint(id, into, intoName, source);
-            Notice?.Invoke(L.F("已把「%@」合併到「%@」。要復原的話，從「更多 → 復原說話者的調整」。", fromName, intoName));
+            Notice?.Invoke(L.F("已把「%@」合併到「%@」。要復原的話，點說話者的名字選「復原」。", fromName, intoName));
         });
     }
 
@@ -652,7 +654,7 @@ public sealed class AppController
         Perform(id, () => Db.ReassignSegments(id, ids, to, label));
     }
 
-    /// <summary>「更多 → 復原說話者的調整」：只復原最近一次合併或改句子</summary>
+    /// <summary>說話者改名視窗、右鍵選單的「復原：…」（R44.4）：只復原最近一次合併或改句子</summary>
     public void UndoSpeakerEdit(long id)
     {
         if (MeetingDetail.Load(Db, id) is not { } detail) return;
@@ -750,6 +752,8 @@ public sealed class AppController
                 : L.T("整理工具設定為「不整理」，請先到設定改成 Claude、Codex 或 API"));
             return;
         }
+        // 沒登入、沒有 key…：不排，說原因（R45.4、M§34.2）
+        if (Settings.SummarizerProblem is { } problem) { Error?.Invoke(problem.Message); return; }
         Perform(id, () => Db.Enqueue(id, JobKind.Summarize));
         Runner.Wake();
     }
@@ -765,7 +769,7 @@ public sealed class AppController
     {
         if (MeetingNotes.Same(draft, baseline)) return;
         if (baseline is not null && Db.Meeting(meetingId)?.DecodedNotes is { } current && !MeetingNotes.Same(current, baseline))
-            Notice?.Invoke(L.T("編輯期間會議紀錄有更新，已用你改的版本存檔；從「更多 → 復原上一版會議紀錄」可以找回更新的內容"));
+            Notice?.Invoke(L.T("編輯期間會議紀錄有更新，已用你改的版本存檔；按「編輯」旁的「復原上一版」可以找回更新的內容"));
         else if (automatically)
             Notice?.Invoke(L.T("已儲存剛才編輯的會議紀錄"));
         SaveEditedNotes(draft, meetingId);
@@ -781,10 +785,23 @@ public sealed class AppController
     /// <summary>回傳是否送出成功；失敗時畫面上的回答要留著</summary>
     public bool SubmitReview(long id, IReadOnlyDictionary<int, string> answers, IReadOnlySet<int> dismissed)
     {
-        if (Db.Meeting(id)?.DecodedNotes is not { } notes || !ReadyForAction(id)) return false;
-        var answered = answers.Select(p => (Index: p.Key, Text: p.Value.Trim()))
-            .Where(a => a.Text.Length > 0 && !dismissed.Contains(a.Index) && a.Index >= 0 && a.Index < notes.ReviewItems.Count)
-            .OrderBy(a => a.Index)
+        if (Db.Meeting(id) is not { DecodedNotes: { } notes } meeting || !ReadyForAction(id)) return false;
+        // 回答分三類（M§31.3）：確認（是非題回答「是」、沒填答案）和略過直接從紀錄移除，不送整理工具（R41.4、D103）；
+        // 只有要改內容的回答（打字的、「不是」）才送整理工具依回答修正
+        var confirmed = new HashSet<int>();
+        var dismissedAll = dismissed.ToHashSet();
+        var modified = new List<(int Index, string Text)>();
+        foreach (var (index, raw) in answers)
+        {
+            var text = raw.Trim();
+            if (text.Length == 0 || dismissed.Contains(index) || index < 0 || index >= notes.ReviewItems.Count) continue;
+            var choice = YesNoAnswer.Parse(text, meeting.MeetingLanguage);
+            if (choice is { IsYes: true, Correction.Length: 0 }) confirmed.Add(index);
+            else if (choice is { IsYes: false, Correction.Length: 0 }) dismissedAll.Add(index);   // 「不是」沒填答案：跟略過一樣（R41.4）
+            else modified.Add((index, text));
+        }
+        dismissed = dismissedAll;
+        var answered = modified.OrderBy(a => a.Index)
             .Select(a => new ReviewAnswerJson(notes.ReviewItems[a.Index].Time, notes.ReviewItems[a.Index].Question, a.Text)).ToList();
         if (answered.Count > 0 && Settings.Provider == LLMProvider.None)
         {
@@ -792,12 +809,19 @@ public sealed class AppController
                 : L.T("整理工具設定為「不整理」，沒辦法依回答修正。請先到設定改成 Claude、Codex 或 API"));
             return false;
         }
+        if (answered.Count > 0 && Settings.SummarizerProblem is { } problem)
+        {
+            Error?.Invoke(problem.Message);
+            return false;
+        }
+        var skipped = dismissed.Count(i => i >= 0 && i < notes.ReviewItems.Count);
         Perform(id, () =>
         {
-            if (dismissed.Count > 0) Db.DismissReviewItems(id, dismissed);
+            if (confirmed.Count > 0 || dismissed.Count > 0) Db.ResolveReviewItems(id, confirmed, dismissed);
             if (answered.Count > 0) Db.Enqueue(id, JobKind.Revise, JobRunner.Encode(new RevisePayload(answered)));
         });
         Runner.Wake();
+        Usage?.Reviewed(answered.Count, confirmed.Count, skipped);   // 匿名統計（R41.7）：只記題數
         return true;
     }
 
@@ -805,7 +829,7 @@ public sealed class AppController
 
     // MARK: 逐字稿校正（M§17.4）
 
-    /// <summary>手動檢查可能聽錯的字（「更多」選單）</summary>
+    /// <summary>手動檢查可能聽錯的字（「更多 → 重新處理」）</summary>
     public void CheckTranscript(long id)
     {
         if (!ReadyForAction(id)) return;
@@ -816,6 +840,7 @@ public sealed class AppController
                 : L.T("整理工具設定為「不整理」，請先到設定改成 Claude、Codex 或 API"));
             return;
         }
+        if (Settings.SummarizerProblem is { } problem) { Error?.Invoke(problem.Message); return; }
         Perform(id, () => Db.Enqueue(id, JobKind.Correct));
         Runner.Wake();
     }

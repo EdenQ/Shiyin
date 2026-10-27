@@ -7,10 +7,21 @@
 > - 新任務照 SDD：先寫進 `requirements.md`、改 `design.md`，再加到這裡
 > - 需求見 `requirements.md`，設計見 `design.md`（以下簡稱 §）
 
-## Mac 的小問題（2026-10-22 做 Windows 版時發現）
+## 減法：三個分頁、五個動作、四頁設定、三步引導（R44，design §33；2026-10-24 使用者決定先做減法）
 
-- [ ] **逐字稿的時間點跳到段落真正的開始**：逐字稿每一段的時間按鈕照顯示的時間跳（`TimeButton(time: TimeFormat.string(segment.start))`），24.4 秒的段落顯示 00:24、跳到 24.0 秒，播放位置的高亮會落在上一段。改成跳到 `segment.start`（Windows 版已經改了，design-windows §11.2.1）
-  - 驗證：開始時間有小數的段落，點時間後高亮的是那一段
+M1～M6、M8（官網截圖）已完成（2026-10-25，Mac 和 Windows）。剩 M7 iPhone 之後。
+
+- [ ] **M7 iPhone 接 R44**（`ios` 分支，之後）：待確認的條、設定分組
+
+## Qwen3-ASR 轉錄引擎（R43，design §32；2026-10-24 使用者要求打磨辨識準確度）
+
+Q1～Q7 已完成（2026-10-25；Windows 用 llama-server 子程序，design-windows §8.4、D95）。評估資料在 `~/Library/Caches/ShiyinSpike/eval32/`（`datasets.json` 已加 `tw-taimecs`、`tw-ntuml`），原型工具在 `~/Library/Caches/ShiyinSpike/qwen3asr/`（`qwen-eval.py`、`linktest/` 的 C 薄層、`llama/llama-b11840/llama-server` 是 Mac 上跑 Windows 評估工具用的）。
+
+## 待確認就地回答、收音提醒送通知（R41、R42，design §31；2026-10-23 使用者決定先做使用者體驗）
+
+V1～V8 已完成（2026-10-25 使用者跑了後台的 migration 和 deploy）；剩 V9 iPhone 之後。驗證用示範資料：把 `~/Library/Caches/ShiyinDemo/home` 複製到暫存的 `SHIYIN_HOME`，DEBUG 版加 `-ApplePersistenceIgnoreState YES -autoSummarize NO -correctTranscript NO` 啟動。
+
+- [ ] **V9 iPhone 接 R41、R42**（`ios` 分支，之後）：標記與就地回答共用 Mac 的 view；收音提醒走即時動態
 
 ## 還沒設定整理工具（R35，design §19.6；2026-10-22 使用者回饋）
 

@@ -51,6 +51,9 @@ struct TranscriptTab: View {
             PlaybackFollower(detail: detail, current: $currentSegmentId)
             searchBar
             Divider()
+            // 我的筆記收在逐字稿頂部（R44.3，design §33.1）
+            UserNotesDisclosure(detail: detail)
+            Divider()
             if model.canUpgradeTranscript(detail.meeting) && model.detailStatus?.isActive != true {
                 upgradeBar
                 Divider()
@@ -337,7 +340,7 @@ struct TranscriptTab: View {
         let isCurrent = segment.id == currentSegmentId
         let isHighlighted = segment.id == model.highlightSegment
         HStack(alignment: .firstTextBaseline, spacing: 14) {
-            TimeButton(time: TimeFormat.string(segment.start))
+            TimeButton(time: TimeFormat.string(segment.start), seek: segment.start)
                 .frame(width: 58, alignment: .trailing)
             if let idx = segment.speaker {
                 Button(detail.speakerName(idx) ?? "") {
@@ -358,7 +361,9 @@ struct TranscriptTab: View {
                                       onMerge: { into in
                                           renaming = nil
                                           model.mergeSpeaker(idx, into: into)
-                                      }) {
+                                      },
+                                      undoLabel: detail.speakerUndoLabel,
+                                      onUndo: { renaming = nil; model.undoSpeakerEdit() }) {
                         model.renameSpeaker(idx, to: renameText)
                         renaming = nil
                     }
@@ -416,6 +421,10 @@ struct TranscriptTab: View {
                 let run = detail.speakerRun(around: id)
                 if run.count > 1 {
                     Menu("這段連續的話是誰說的（\(run.count) 句）") { speakerChoices(for: run, current: segment.speaker) }
+                }
+                // 復原最近一次說話者的調整（R44.4，原本在「更多」）：有東西可復原才出現
+                if let label = detail.speakerUndoLabel {
+                    Button("復原：\(label)") { model.undoSpeakerEdit() }
                 }
             }
         }
@@ -520,6 +529,9 @@ struct RenameSpeakerForm: View {
     /// 「合併到…」（design §24.2）：其他說話者
     var mergeTargets: [(idx: Int, name: String)] = []
     var onMerge: ((Int) -> Void)? = nil
+    /// 可以復原的說話者調整（R44.4）：有才顯示「復原」
+    var undoLabel: String? = nil
+    var onUndo: (() -> Void)? = nil
     let onSave: () -> Void
 
     var body: some View {
@@ -551,6 +563,12 @@ struct RenameSpeakerForm: View {
                 }
                 Spacer()
                 Button("儲存", action: onSave).keyboardShortcut(.defaultAction)
+            }
+            if let undoLabel, let onUndo {
+                Button("復原：\(undoLabel)", systemImage: "arrow.uturn.backward", action: onUndo)
+                    .buttonStyle(.borderless)
+                    .font(.caption)
+                    .help("復原最近一次合併或改句子的說話者")
             }
         }
         .padding(14)
@@ -616,7 +634,7 @@ struct ReplaceSheet: View {
         if r.segmentsChanged == 0 && !r.notesChanged { return String(localized: "沒有找到「\(find)」。") }
         var parts: [String] = []
         if r.segmentsChanged > 0 { parts.append(String(localized: "逐字稿改了 \(r.segmentsChanged) 段")) }
-        if r.notesChanged { parts.append(String(localized: "會議紀錄也一起改了（可以從「更多」復原上一版）")) }
+        if r.notesChanged { parts.append(String(localized: "會議紀錄也一起改了（按「編輯」旁的「復原上一版」可以還原）")) }
         return parts.joined(separator: String(localized: "，")) + String(localized: "。")
     }
 }

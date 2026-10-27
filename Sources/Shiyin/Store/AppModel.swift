@@ -37,17 +37,25 @@ enum MeetingStatus: Equatable {
     }
 }
 
+/// 會議頁的三個分頁（R44.1，design §33.1）：紀錄（摘要、決議、待辦、未決問題、議題、自訂段落，頂部一條待確認）、逐字稿（頂部可收合的我的筆記）、提問
 enum DetailTab: String, CaseIterable, Identifiable {
-    case summary, topics, transcript, review, notes, ask
+    case summary, transcript, ask
     var id: String { rawValue }
     var label: String {
         switch self {
-        case .summary: return String(localized: "摘要")
-        case .topics: return String(localized: "詳細")
+        case .summary: return String(localized: "紀錄")
         case .transcript: return String(localized: "逐字稿")
-        case .review: return String(localized: "待確認")
-        case .notes: return String(localized: "筆記")
         case .ask: return String(localized: "提問")
+        }
+    }
+
+    /// 4.0 以前的分頁名稱（topics、review、notes）當別名：DEBUG 的 tab 指令、舊腳本。回傳分頁，和要不要順便展開待確認、我的筆記
+    static func resolve(_ name: String) -> (tab: DetailTab, expandReview: Bool, expandNotes: Bool)? {
+        switch name {
+        case "topics": return (.summary, false, false)
+        case "review": return (.summary, true, false)
+        case "notes": return (.transcript, false, true)
+        default: return DetailTab(rawValue: name).map { ($0, false, false) }
         }
     }
 }
@@ -81,6 +89,19 @@ struct MeetingDetail: Equatable {
     var speakerCandidates: [Int: [String]] = [:]
     /// 待確認的題數：會議紀錄的待確認＋說話者的建議（R33.3）
     var reviewCount: Int { (notes?.reviewItems.count ?? 0) + speakerSuggestions.count }
+    /// 可以復原的說話者調整（合併、改句子）的說明，沒有就是 nil；顯示在改名小視窗和逐字稿右鍵選單（R44.4）
+    var speakerUndoLabel: String? = nil
+    /// 有上一版會議紀錄可以復原（R44.4）：紀錄分頁的編輯列才顯示「復原上一版」
+    var canUndoNotes: Bool { versionCount > 0 }
+    /// 待確認的題目對應到哪一條紀錄（R41.1，design §31.1）：載入時算一次，會議紀錄換了就重算（`linkReviewItems`）
+    var reviewLinks: [NoteItemRef: [Int]] = [:]
+
+    /// 這一條紀錄對到幾題待確認
+    func reviewCount(_ ref: NoteItemRef) -> Int { reviewLinks[ref]?.count ?? 0 }
+
+    mutating func linkReviewItems() {
+        reviewLinks = notes?.reviewLinks() ?? [:]
+    }
 
     mutating func loadSpeakers(_ rows: [SpeakerName]) {
         speakers = Dictionary(uniqueKeysWithValues: rows.map { ($0.idx, $0.name) })
@@ -182,12 +203,28 @@ final class AppModel {
     let updater = Updater()
 
     var environment: EnvironmentStatus
+    /// 整理工具準備好了沒（design §34.1）：會議頁的提示、失敗橫幅跟著變。只在值真的變了才設（重排整個視窗很貴，§21.12）
+    private(set) var summarizerProblem: SummarizerProblem?
+    @ObservationIgnored private var summarizerObservers: [NSObjectProtocol] = []
     var meetings: [MeetingRow] = []
     var trash: [MeetingRow] = []
     var showTrash = false
-    var selection: Int64? { didSet { if oldValue != selection { reloadDetail() } } }
+    var selection: Int64? {
+        didSet {
+            if oldValue != selection {
+                reviewExpanded = false
+                userNotesExpanded = false
+                reloadDetail()
+            }
+        }
+    }
     var detail: MeetingDetail?
+    /// 待確認的回答（design §31.2）：待確認分頁和紀錄旁的就地回答共用；換會議就換一份（`syncReviewDraft`）
+    var reviewDraft: ReviewDraft?
     var tab: DetailTab = .summary
+    /// 紀錄頂部「還有 N 題待確認」、逐字稿頂部「我的筆記」展開了沒（design §33.1）：只記這次選取期間，換會議就收起
+    var reviewExpanded = false
+    var userNotesExpanded = false
     var filter = ""
     /// 側欄目前只看的資料夾；nil 是所有會議（R9.2）
     var folderFilter: String?
@@ -258,7 +295,7 @@ final class AppModel {
         }
         runner.onEditedDraftReplaced = { [weak self] id in
             guard let self, self.selection == id else { return }
-            self.noticeMessage = String(localized: "正式版的會議紀錄好了；你改過的草稿留在版本紀錄裡，可以從「更多 → 復原上一版會議紀錄」找回")
+            self.noticeMessage = String(localized: "正式版的會議紀錄好了；你改過的草稿留在版本紀錄裡，按紀錄分頁「編輯」旁的「復原上一版」可以找回")
         }
         runner.onAudioReplaced = { [weak self] id in
             guard let self, self.selection == id else { return }
@@ -291,6 +328,15 @@ final class AppModel {
         notifier.onMeetingAction = { [weak self] action, bundle in self?.handleMeetingAction(action, bundle: bundle) }
         meetingDetector.start()
         BuiltinTemplates.seed(db)
+        // claude、codex 的登入狀態（design §34.1）：沒登入時不自動整理
+        Task { await CLILogin.refreshIfStale() }
+        refreshSummarizerProblem()
+        // 設定（整理工具、模型、網址）、key、登入狀態、暫停變了就重算
+        for name in [UserDefaults.didChangeNotification, .summarizerStateChanged] {
+            summarizerObservers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { _ in
+                MainActor.assumeIsolated { AppModel.shared.refreshSummarizerProblem() }
+            })
+        }
         cleanUpPreviousRun()
         purgeExpiredTrash()
         recoverRecordings()
@@ -300,6 +346,7 @@ final class AppModel {
         GlobalHotKey.shared.onPress = { [weak self] in self?.toggleRecording() }
         GlobalHotKey.shared.onBookmark = { [weak self] in self?.bookmarkFromHotKey() }
         recorder.onStarted = { GlobalHotKey.shared.setBookmarkEnabled(AppSettings.bookmarkHotKey) }
+        recorder.onLevelHint = { [weak self] hint in self?.levelHintAppeared(hint) }
         GlobalHotKey.shared.setEnabled(AppSettings.globalHotKey)
         updater.scheduleAutomaticChecks()
         UsageStats.shared.touch()
@@ -333,10 +380,12 @@ final class AppModel {
         reloadDetail()
     }
 
-    /// 這場會議是在模型下載好之前用 macOS 內建辨識轉錄的，現在可以用 Breeze 重新轉錄（design §21.17）
+    /// 這場會議是用 macOS 內建辨識（模型下載好之前）或 Breeze 轉的，現在目前引擎的模型下載好了，可以重新轉錄（design §21.17、§32.6）
     func canUpgradeTranscript(_ meeting: Meeting) -> Bool {
-        meeting.transcribedWith == "system" && !AppSettings.useSystemTranscriber && meeting.hasAudio && meeting.deletedAt == nil
-            && models.isInstalled(ModelStore.transcription(for: meeting.meetingLanguage))
+        guard !AppSettings.useSystemTranscriber, meeting.hasAudio, meeting.deletedAt == nil,
+              models.isInstalled(transcriptionFor: meeting.meetingLanguage) else { return false }
+        let older = ModelStore.transcription(for: meeting.meetingLanguage) == .qwen ? ["system", "breeze"] : ["system"]
+        return older.contains(meeting.transcribedWith)
     }
 
     // MARK: 更新（R10.6）
@@ -395,6 +444,7 @@ final class AppModel {
         #endif
         guard let id = selection, let meeting = try? db.meeting(id) else {
             detail = nil
+            syncReviewDraft()
             player.unload()
             return
         }
@@ -408,8 +458,11 @@ final class AppModel {
         loaded.loadSpeakers(speakerRows)
         loaded.speakerTags = (try? db.speakerTags(id)) ?? []
         loaded.speakerCandidates = (try? db.voiceprintCandidates(id)) ?? [:]
+        loaded.speakerUndoLabel = try? db.speakerUndoLabel(id)
         loaded.buildIndexes()
+        loaded.linkReviewItems()
         detail = loaded
+        syncReviewDraft()
         if forceAudio || previous?.id != meeting.id || previous?.audioFile != meeting.audioFile {
             if meeting.hasAudio { player.load(meeting.audioURL) } else { player.unload() }
         }
@@ -465,9 +518,19 @@ final class AppModel {
 
     var menuBarSymbol: String {
         if bookmarkFlash { return "star.circle.fill" }
-        if recorder.isRecording { return "record.circle.fill" }
+        // 收音提醒還在時換成警示的樣子（R42.2），按「知道了」或提示消失就換回來
+        if recorder.isRecording { return recorder.levelHint != nil ? "mic.badge.exclamationmark" : "record.circle.fill" }
         if runner.isBusy || queuedCount > 0 { return "waveform.circle.fill" }
         return "waveform"
+    }
+
+    /// 收音提醒第一次出現（R42.1、design §31.5）：拾音不是最前面的 app、或主視窗沒開時送通知，點了打開錄音中的會議。
+    /// 每場每種最多一次由 Recorder 管；拾音在前面時只有錄音畫面和選單列的提示
+    private func levelHintAppeared(_ hint: Recorder.LevelHint) {
+        guard let id = recorder.meetingId else { return }
+        let mainVisible = NSApp.windows.contains { $0.isVisible && $0.identifier?.rawValue.hasPrefix("main") == true }
+        guard !(NSApp.isActive && mainVisible) else { return }
+        notifier.levelHint(hint, meetingId: id)
     }
 
     func refreshEnvironment() {
@@ -639,7 +702,7 @@ final class AppModel {
     /// 草稿紀錄（design §21.3、R19.1）：即時辨識收尾後，錄音夠長、即時逐字稿夠多、會自動整理時，
     /// 轉錄的同時先用即時逐字稿整理一份草稿
     private func enqueueDraftNotes(meetingId: Int64, duration: Double) {
-        guard duration >= Self.draftMinimumSeconds, AppSettings.autoSummarize, AppSettings.provider != .none,
+        guard duration >= Self.draftMinimumSeconds, AppSettings.autoSummarize, AppSettings.summarizerReady,
               let meeting = try? db.meeting(meetingId), meeting.hasAudio, meeting.notes == nil,
               let live = try? db.segments(meetingId, kind: "live"),
               live.reduce(0, { $0 + $1.text.count }) >= 100 else { return }
@@ -733,7 +796,7 @@ final class AppModel {
             return
         }
         perform { try db.setLanguage(id, language) }
-        noticeMessage = String(localized: "會議語言改成 \(language.name)，要重新轉錄或整理的話，從「更多」選")
+        noticeMessage = String(localized: "會議語言改成 \(language.name)，要重新轉錄或整理的話，從「更多 → 重新處理」選")
     }
 
     /// 錄音中選「大約幾個人」（design §26.2）：錄完轉錄時用
@@ -798,6 +861,8 @@ final class AppModel {
 
     func retry() {
         guard let id = selection, let job = detail?.latestJob, job.status == .failed || job.status == .cancelled else { return }
+        // 整理工具還沒準備好時重試也一樣會失敗（R46.2）：說原因
+        if job.kind.usesSummarizer, let problem = AppSettings.summarizerProblem { errorMessage = problem.message; return }
         perform { try db.enqueue(id, kind: job.kind, payload: job.payload) }
         runner.wake()
     }
@@ -883,7 +948,7 @@ final class AppModel {
             if AppSettings.voiceprints, source == "manual" || source == "suggestion" {
                 try db.learnVoiceprint(id, idx: into, name: intoName, source: source ?? "manual")
             }
-            noticeMessage = String(localized: "已把「\(fromName)」合併到「\(intoName)」。要復原的話，從「更多 → 復原說話者的調整」。")
+            noticeMessage = String(localized: "已把「\(fromName)」合併到「\(intoName)」。要復原的話，點說話者的名字選「復原」。")
         }
     }
 
@@ -902,7 +967,7 @@ final class AppModel {
         }
     }
 
-    /// 「更多 → 復原說話者的調整」：只復原最近一次合併或改句子
+    /// 「復原說話者的調整」（改名小視窗、逐字稿右鍵選單）：只復原最近一次合併或改句子
     func undoSpeakerEdit() {
         guard let id = selection else { return }
         if let problem = speakerEditProblem(id) {
@@ -936,6 +1001,8 @@ final class AppModel {
                 : String(localized: "整理工具設定為「不整理」，請先到設定改成 Claude、Codex 或 API")
             return
         }
+        // 沒登入、沒有 key…：不排，說原因（R45.4、design §34.2）
+        if let problem = AppSettings.summarizerProblem { errorMessage = problem.message; return }
         perform { try db.enqueue(id, kind: .summarize) }
         runner.wake()
     }
@@ -952,7 +1019,7 @@ final class AppModel {
     func finishNotesEdit(_ draft: MeetingNotes, base: MeetingNotes?, meetingId: Int64, automatically: Bool = false) {
         guard draft != base else { return }
         if let base, let current = try? db.meeting(meetingId)?.decodedNotes, current != base {
-            noticeMessage = String(localized: "編輯期間會議紀錄有更新，已用你改的版本存檔；從「更多 → 復原上一版會議紀錄」可以找回更新的內容")
+            noticeMessage = String(localized: "編輯期間會議紀錄有更新，已用你改的版本存檔；按「編輯」旁的「復原上一版」可以找回更新的內容")
         } else if automatically {
             noticeMessage = String(localized: "已儲存剛才編輯的會議紀錄")
         }
@@ -968,27 +1035,47 @@ final class AppModel {
     /// 回傳是否送出成功；失敗時畫面上的回答要留著
     @discardableResult
     func submitReview(answers: [Int: String], dismissed: Set<Int>) -> Bool {
-        guard let id = selection, let notes = detail?.notes, readyForAction(id) else { return false }
-        let answered = answers.compactMap { index, text -> (Int, ReviewAnswer)? in
+        guard let id = selection, let detail, let notes = detail.notes, readyForAction(id) else { return false }
+        let language = detail.meeting.meetingLanguage
+        // 回答分三類（design §31.3）：確認（是非題回答「是」、沒填答案）和略過直接從紀錄移除，不送整理工具（R41.4、D103）；
+        // 只有要改內容的回答（打字的、「不是」）才送整理工具依回答修正
+        var confirmed: Set<Int> = []
+        var dismissed = dismissed
+        var modified: [(Int, ReviewAnswer)] = []
+        for (index, text) in answers {
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty, !dismissed.contains(index), notes.reviewItems.indices.contains(index) else { return nil }
+            guard !trimmed.isEmpty, !dismissed.contains(index), notes.reviewItems.indices.contains(index) else { continue }
             let item = notes.reviewItems[index]
-            return (index, ReviewAnswer(time: item.time, question: item.question, answer: trimmed))
-        }.sorted { $0.0 < $1.0 }.map(\.1)
+            if let choice = YesNoAnswer(trimmed, language: language), choice.isYes == true {
+                confirmed.insert(index)
+            } else if let choice = YesNoAnswer(trimmed, language: language), choice.isYes == false, choice.correction.isEmpty {
+                dismissed.insert(index)   // 「不是」沒填答案：有問題但不知道對的是什麼，跟略過一樣（R41.4）
+            } else {
+                modified.append((index, ReviewAnswer(time: item.time, question: item.question, answer: trimmed)))
+            }
+        }
+        let answered = modified.sorted { $0.0 < $1.0 }.map(\.1)
         if !answered.isEmpty && AppSettings.provider == .none {
             errorMessage = AppSettings.needsProviderSetup
                 ? String(localized: "還沒設定整理工具，沒辦法依回答修正。請先到設定選擇 Claude、Codex 或 API")
                 : String(localized: "整理工具設定為「不整理」，沒辦法依回答修正。請先到設定改成 Claude、Codex 或 API")
             return false
         }
+        if !answered.isEmpty, let problem = AppSettings.summarizerProblem {
+            errorMessage = problem.message
+            return false
+        }
         perform {
-            if !dismissed.isEmpty { try db.dismissReviewItems(id, indexes: dismissed) }
+            if !confirmed.isEmpty || !dismissed.isEmpty { try db.resolveReviewItems(id, confirmed: confirmed, dismissed: dismissed) }
             if !answered.isEmpty {
                 let payload = String(decoding: try JSONEncoder().encode(RevisePayload(answers: answered)), as: UTF8.self)
                 try db.enqueue(id, kind: .revise, payload: payload)
             }
         }
         runner.wake()
+        // 匿名統計（R41.7）：只記題數
+        UsageStats.shared.reviewed(answered: answered.count, confirmed: confirmed.count,
+                                   skipped: dismissed.filter { notes.reviewItems.indices.contains($0) }.count)
         return true
     }
 
@@ -1011,6 +1098,7 @@ final class AppModel {
                 : String(localized: "整理工具設定為「不整理」，請先到設定改成 Claude、Codex 或 API")
             return
         }
+        if let problem = AppSettings.summarizerProblem { errorMessage = problem.message; return }
         perform { try db.enqueue(id, kind: .correct) }
         runner.wake()
     }
@@ -1380,7 +1468,7 @@ final class AppModel {
             try db.saveTranscript(id, segments: parsed.segments.enumerated().map { i, s in
                 Segment(meetingId: id, seq: i, start: s.start, end: s.end, text: s.text, lowConfidence: false, speaker: nil, kind: "final")
             }, duration: Int(parsed.segments.last?.end ?? 0), speakerCount: 0)
-            if AppSettings.autoSummarize && AppSettings.provider != .none { try db.enqueue(id, kind: .summarize) }
+            if AppSettings.autoSummarize && AppSettings.summarizerReady { try db.enqueue(id, kind: .summarize) }
             runner.wake()
             reload()
             showTrash = false
@@ -1399,14 +1487,16 @@ final class AppModel {
             if let id = selection, let meeting = try? db.meeting(id) {
                 let merged = meeting.userNotes.isEmpty ? text : meeting.userNotes + "\n\n" + text
                 perform { try db.updateUserNotes(id, merged) }
-                tab = .notes
+                tab = .transcript
+                userNotesExpanded = true
             } else if let meeting = try? db.insertMeeting(Meeting(
                 meetingDate: DateText.string(Date()), sourceFilename: url.lastPathComponent, userNotes: text, source: "transcript",
                 folder: currentFolder, language: AppSettings.defaultMeetingLanguage.rawValue),
                 audioExtension: nil) {
                 perform { try db.updateUserNotes(meeting.id!, text) }
                 selection = meeting.id
-                tab = .notes
+                tab = .transcript
+                userNotesExpanded = true
             }
         }
     }
@@ -1507,7 +1597,7 @@ final class AppModel {
             flashSegment(hit.ref)
             if let segment = detail?.segments.first(where: { $0.id == hit.ref }) { player.seek(to: segment.start, play: false) }
         case .notes, .title: tab = .summary
-        case .userNotes: tab = .notes
+        case .userNotes: tab = .transcript; userNotesExpanded = true
         }
     }
 
@@ -1575,6 +1665,7 @@ final class AppModel {
         if parts.contains(.speakers) {
             updated.loadSpeakers((try? db.speakers(id)) ?? [])
             updated.speakerCandidates = (try? db.voiceprintCandidates(id)) ?? [:]
+            updated.speakerUndoLabel = try? db.speakerUndoLabel(id)
         }
         if parts.contains(.bookmarks) { updated.bookmarks = (try? db.bookmarks(id)) ?? [] }
         if parts.contains(.segments) { updated.segments = (try? db.segments(id)) ?? [] }
@@ -1584,9 +1675,44 @@ final class AppModel {
             updated.meeting = meeting
             updated.notes = meeting.decodedNotes
             updated.versionCount = (try? db.versionCount(id)) ?? 0
+            updated.linkReviewItems()
         }
         if !parts.isDisjoint(with: [.segments, .corrections, .speakerTags]) || !segmentIds.isEmpty { updated.buildIndexes() }
         detail = updated
+        syncReviewDraft()
+    }
+
+    /// 待確認的回答跟著目前的會議（design §31.2）：換會議就換一份（舊的先存），題目或說話者的建議變了就同步
+    private func syncReviewDraft() {
+        guard let detail, let id = detail.meeting.id else {
+            reviewDraft?.flush()
+            reviewDraft = nil
+            return
+        }
+        if reviewDraft?.meetingId != id {
+            reviewDraft?.flush()
+            reviewDraft = ReviewDraft(meetingId: id, model: self)
+        }
+        reviewDraft?.sync(items: detail.notes?.reviewItems ?? [], suggestions: detail.speakerSuggestions)
+    }
+
+    /// 送出待確認的回答（待確認分頁和就地回答共用，R41.2）：先送整理工具要處理的題目（題目文字可能有說話者的名字，
+    /// 改名後會變），失敗時全部留著；再處理說話者的題目（design §27）
+    func submitReviewDraft(only indexes: Set<Int>? = nil) {
+        guard let draft = reviewDraft, detail?.meeting.id == draft.meetingId else { return }
+        if let indexes {
+            // 卡片只送這一條對到的題目（R41.2），說話者題目不算，其他題目的回答留著
+            let answers = draft.answers.filter { indexes.contains($0.key) }
+            let dismissed = draft.dismissed.intersection(indexes)
+            guard !answers.isEmpty || !dismissed.isEmpty, submitReview(answers: answers, dismissed: dismissed) else { return }
+            draft.clear(indexes: indexes)
+            return
+        }
+        if draft.answeredCount > 0 || !draft.dismissed.isEmpty {
+            guard submitReview(answers: draft.answers, dismissed: draft.dismissed) else { return }
+        }
+        answerSpeakerQuestions(draft.speakerAnswers, skipped: draft.speakerSkipped)
+        draft.clear()
     }
 
     private func jobFinished(_ job: Job, error: Error?) {
@@ -1595,7 +1721,16 @@ final class AppModel {
     }
 }
 
+extension AppModel {
+    func refreshSummarizerProblem() {
+        let problem = AppSettings.summarizerProblem
+        if problem != summarizerProblem { summarizerProblem = problem }
+    }
+}
+
 extension Notification.Name {
     /// 拾音要結束了：畫面上還開著的編輯器馬上存草稿（design §21.15）
     static let flushDrafts = Notification.Name("com.weiwei.shiyin.flushDrafts")
+    /// 整理工具的登入狀態、key、暫停變了（design §34.1）
+    static let summarizerStateChanged = Notification.Name("com.weiwei.shiyin.summarizerStateChanged")
 }

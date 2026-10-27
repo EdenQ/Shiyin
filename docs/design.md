@@ -339,7 +339,7 @@ CREATE VIRTUAL TABLE search USING fts5(meeting_id UNINDEXED, kind UNINDEXED, ref
   - 更新資訊是一個 JSON 檔（`shiyin-update.json`）：`{"version": "3.0.1", "url": "Shiyin-3.0.1.dmg", "sha256": "…", "notes": "…"}`，`url` 可以是相對於這個 JSON 的路徑。`make-dmg.sh` 會跟 DMG 一起產生，發布時兩個檔案放在同一個位置
   - 更新網址：建置時用環境變數 `SHIYIN_UPDATE_URL` 寫進 Info.plist 的 `ShiyinUpdateURL`；設定 →「進階」可以改。只接受 https（`localhost`、`127.0.0.1` 例外，給測試用）
   - 檢查：有設定網址時，啟動 30 秒後檢查一次，之後每 24 小時一次；設定裡和「拾音」選單的「檢查更新…」可以手動檢查。版本號依數字逐段比較
-  - 有新版時跳出對話框（版本、更新內容），使用者按「下載並更新」才開始
+  - 有新版時跳出對話框（版本、更新內容），使用者按「下載並更新」才開始。更新內容只列前幾項（`ReleaseNotes.brief`，4.1 起）：tag 的說明是「中文一段、空一行、英文一段」，取介面語言那一段（英文找「Shiyin」開頭的段，中文找「拾音」開頭的）裡「- 」開頭的條目，最多 4 項，其餘寫「……還有 N 項，完整說明在官網。」；沒有條目的說明就列標題以外的行。Windows 同一套（標準答案 `util/release-notes.json`）
   - 安裝流程：錄音中或有工作在跑時拒絕 → 下載 DMG 到 `tmp/` → 驗證 SHA-256 → `hdiutil attach` 唯讀掛載 → 把 Shiyin.app 複製出來 → 卸載 → 用 Security framework 檢查新 app 的簽章有效，而且符合目前這個 app 的 designated requirement（自簽憑證時等於鎖定同一張憑證）→ 寫一個固定內容的小腳本，用參數傳入 PID 和路徑：等 app 結束後把舊 app 改名備份、放進新 app、成功就刪掉備份、失敗就還原，最後重新開啟 → app 結束
   - app 所在的資料夾不能寫入時（一般使用者帳號裝在 /Applications），改成打開下載好的 DMG，請使用者手動拖進去
   - 從網路下載的檔案不會被加上 quarantine（app 沒有開 `LSFileQuarantineEnabled`），所以替換後打開不會再被 Gatekeeper 擋
@@ -1067,6 +1067,7 @@ FluidAudio 的離線辨識把錄音切成 10 秒的片段（每 2 秒一個）�
 | `summarizer.claudeCode`／`codex`／`api`／`local` | 整理（含草稿、回答待確認後的修正）成功；Anthropic、OpenAI、Gemini、遠端的 OpenAI 相容 API 算 `api`，網址是 localhost、127.0.0.1 的 OpenAI 相容 API 算 `local` | `JobRunner.execute` |
 | `questionsAsked` | 提問（單場或所有會議）得到回答 | `Asking` |
 | `errors.recording`／`transcribe`／`diarize`／`summarize` | 錄音結束時有錯誤；轉錄、重新辨識、整理（含修正）的工作失敗 | `AppModel`、`JobRunner.execute` |
+| `review.answered`／`confirmed`／`skipped` | 待確認送出成功（R41.7，§31.3）：打字或「不是」的題數、「是」的題數、略過的題數 | `AppModel.submitReview` |
 
 校正、猜說話者、壓縮不算（是整理和轉錄的輔助工作）。
 
@@ -1111,16 +1112,19 @@ User-Agent: Shiyin/<版本>
     "meetingLanguages": { "zh": 2, "en": 1, "ja": 0 },
     "diarizationRuns": 3,
     "summarizer": { "claudeCode": 3, "codex": 0, "api": 0, "local": 0 },
-    "questionsAsked": 2
+    "questionsAsked": 2,
+    "review": { "answered": 1, "confirmed": 3, "skipped": 1 }
   },
   "errors": { "recording": 0, "transcribe": 0, "diarize": 0, "summarize": 1 }
 }
 ```
 
+- 2026-10-25 起多一個上層的 `errorDetail`（整理失敗的種類、整理工具、草稿，§34.5、R47），`schema` 仍是 1。
 - 秒數都是整數；沒有發生的欄位是 0（欄位一定都在）。`app` 是**送出當下**的環境（不是那一天的），一天之內換版本不另外分。
 - `platform` 是 `mac` 或 `windows`（2026-10-22 加，分平台看報表用，不用從 `os` 字串猜）。`os` 用 `ProcessInfo.operatingSystemVersion`（例如 `macOS 26.1`）；`chip` 用 `sysctl machdep.cpu.brand_string`；`uiLanguage` 是 app 實際用的介面語言（`Bundle.main.preferredLocalizations.first`）。
 - 後台收到回 `204`（或任何 2xx）。用 `installId` + `date` 去重：同一筆重送（例如回應在路上掉了）要覆蓋，不要重複算。
 - 後台不要存 IP（或只用來擋濫用、不跟 `installId` 一起存）。`schema` 以後改格式時加 1，後台可以依版本解析。
+- `review`（2026-10-23 加，R41.7）：待確認的回答、確認、略過的題數。只加字典不改 `schema`：後台對不認得的字典忽略、少的鍵當 0，所以舊 app 和舊後台互相都能收。
 
 ### 30.5 設定頁、使用說明
 
@@ -1178,15 +1182,258 @@ Windows 版做一樣的功能（R40.7，跟 4.0.0 一起發）：同樣的格式
     lang_zh INTEGER, lang_en INTEGER, lang_ja INTEGER, diarization_runs INTEGER,
     summarizer_claude_code INTEGER, summarizer_codex INTEGER, summarizer_api INTEGER, summarizer_local INTEGER,
     questions_asked INTEGER,
+    review_answered INTEGER, review_confirmed INTEGER, review_skipped INTEGER,   -- 2026-10-23 加（R41.7）
     errors_recording INTEGER, errors_transcribe INTEGER, errors_diarize INTEGER, errors_summarize INTEGER,
     received_at TEXT NOT NULL,
     PRIMARY KEY (install_id, date)
   );
   ```
 
+  已經建好的資料庫要加欄位時，另外放一個 `migrate-<名稱>.sql`（`ALTER TABLE … ADD COLUMN … NOT NULL DEFAULT 0`）用 `d1 execute --remote` 跑一次；`schema.sql` 同時改，新建的資料庫才一致。
+
   欄位攤平成一欄一個數字，用 SQL 直接加總。例如每日活躍 `SELECT date, COUNT(*) FROM usage_daily GROUP BY date`；總轉錄時數 `SELECT SUM(transcribed_seconds) / 3600.0 FROM usage_daily`。
 - 部署：`npx wrangler@4 d1 create shiyin-usage`、`d1 execute --remote --file schema.sql`、`deploy`。token 要有 Workers Scripts、D1 的編輯權限，自訂網域另外要 weibuilds.com 的 Workers Routes、DNS 編輯權限；token 只在部署時用環境變數帶，不寫進任何檔案。
 - 本機測試：`npx wrangler@4 dev --local`（本機的 D1，`--persist-to` 放暫存資料夾），DEBUG 版用 `shiyinctl usageurl http://127.0.0.1:8787/v1/usage` 指過去。
+
+## 31. 待確認就地回答、收音提醒送通知（R41、R42，D102～D104）
+
+### 31.1 題目對應到紀錄（R41.1，D102）
+
+- 載入會議時算一次（跟 `MeetingDetail.speakerCandidates` 一樣，不在畫面更新時重算）：`MeetingDetail.reviewLinks: [NoteItemRef: [Int]]`。`NoteItemRef` 指一條紀錄：段落（summary、decisions、actionItems、openQuestions、某個 topic 的 point、某個 custom 段落的 item）加位置。值是題號（`reviewItems` 的 index，也就是畫面上的順序）。
+- 規則：題目的 `time` 和條目的 `time` 都用 `TimeFormat.seconds` 轉成秒，空的或轉不出來的不對應。先找同一秒的條目，有幾條標幾條（同一個時間點的條目通常在講同一件事，例如摘要和決議各一條）；沒有的話找時間差最小、差距 ≤ 10 秒的一條（2026-10-24 從 20 秒收緊：示範和標準答案裡對得對的都在 5 秒內，差 4 秒就已經有對錯的例子，再遠只會更不準）。議題的標題（`topics[].start`）不算條目，只有要點算。
+- 一條可以對到多題。對不到的題目只在待確認分頁。
+- 題目的 index 在送出、重新整理、復原後都會變（§21.15 說過），`reviewLinks` 跟著 `MeetingDetail` 重新載入就重算。
+
+### 31.2 畫面（R41.2、R41.3）
+
+- `ItemList`、`ActionItemsTable`、`TopicsTab` 的每一條，在時間點之後加 `ReviewMarker`：圓形琥珀色（`Color.signal`，跟側欄的「待確認 N 題」同色）的「？」，對到多題時顯示「？2」。`.help` 寫「整理時有 N 題不確定的地方，點了就能回答」。
+- 點了在那一條下面展開 `InlineReviewCard`：列出對應的題目，每題用 `ReviewQuestionRow`（從 `ReviewTab.reviewRow` 抽出來，兩邊共用：題號、時間點、題目、是非或輸入框、略過），右下「送出」（文字同待確認分頁的 `submitTitle`）和「收合」。同時只展開一條，點別條就收合前一條。
+- 回答的狀態從 `ReviewTab` 的 `@State` 搬到 `ReviewDraft`（`@Observable`，掛在 `AppModel` 上，換會議就換一份）：`answers`、`dismissed`、`speakerAnswers`、`speakerSkipped`、存草稿的 debounce 都在這裡。`ReviewTab` 和 `InlineReviewCard` 觀察同一份，兩邊看到的回答一致（R41.2），存草稿的 key 不變（§21.15）。
+- 題目換了（送出一部分、依回答修正、重新整理、復原上一版）時，不再整份清掉：草稿本來就是照題目文字存的，還在的題目把回答照文字接回來，不在的題目刪掉草稿（2026-10-24 改，配合卡片只送一部分）。
+- 送出：待確認分頁的「送出」送全部；卡片的「送出」只送這一條對到的題目（`submitReviewDraft(only:)`，說話者題目不算），按鈕的題數也只算這幾題。送出後題目從紀錄移除，`MeetingDetail` 重新載入，標記跟著消失，其他題目的回答留著。
+- 編輯模式（`NotesEditor`）、匯出（`Exporters`）不畫標記；DEBUG 的 snapshot 要畫（驗證排版用）。草稿紀錄（`notesDraft`）照樣標；垃圾桶裡的會議不標。
+
+### 31.3 「是」不送整理工具（R41.4，D103）
+
+- `submitReview` 把回答分三類：**確認**（`YesNoAnswer` 認出 `isYes == true` 而且沒有 correction）、**略過**（dismissed，加上「不是」沒填答案的：有問題但不知道對的是什麼，模型拿到也只能刪掉或留著，2026-10-24 加）、**修改**（其他）。確認和略過一起從 `reviewItems` 移除：`dismissReviewItems` 擴充成 `resolveReviewItems(id, confirmed:, dismissed:)`，版本原因分別寫「確認待確認」「略過待確認」，兩種都有時一個版本、原因「確認、略過待確認」。只有修改的題目進 `revise` 工作，payload 格式不變。
+- 校稿的提示詞不變，送出去的 answers 不再包含「是」。以前「是」也會送去校稿，校稿收到「是」只會原樣保留，結果相同。
+- 整理工具是 `.none` 或還沒設定時，只擋修改類（現在的 guard 改成看修改的題數）；確認和略過照樣能送。
+- 統計（R41.7）：`UsageStats.Counters` 加 `review = ["answered": 0, "confirmed": 0, "skipped": 0]`，`submitReview` 成功後依三類加。§30.1、§30.4 跟著補。後台（§30.10）`usage_daily` 加 `review_answered`、`review_confirmed`、`review_skipped` 三欄（`ALTER TABLE … ADD COLUMN … NOT NULL DEFAULT 0`），worker 的 `USAGE_DICTS` 加 `review`；舊的 worker 遇到不認得的字典會忽略（§30.4「多的鍵忽略」），`schema` 維持 1。
+
+### 31.4 待確認分頁（R41.5）
+
+- 「略過」改成 `.borderless` 的按鈕；按了那題收成一行（灰字、劃掉，題號和時間點留著）加「取消略過」。
+- 頁首說明的右邊加「全部略過」：把沒有回答的題目（含說話者題目）都標成略過，已經有回答的不動；送出鈕的文字變成「略過 N 題」。
+- 送出鈕本來就固定在底部（`ReadingColumn` 是 ScrollView，footer 在它外面），不用改。
+
+### 31.5 收音提醒送通知（R42，D104）
+
+- `Recorder.levelHint` 從 nil 變成某個值時（§26.1 的規則不變），`AppModel` 觀察到就：
+  - `NSApp.isActive == false` 或主視窗沒開時，`Notifier.levelHint(hint, meetingId:)` 送通知：標題「收音提醒」，內文同 `RecordingView.levelHintText`，類別 `LEVEL_HINT`，點了 `reveal(meetingId)`。`Recorder` 記 `notifiedLevelHints: Set<LevelHint>`，每場每種一次，錄音開始時清掉。
+  - 不管前景與否，`AppModel.menuBarSymbol` 在 `levelHint != nil` 時用 `mic.badge.exclamationmark`，提示消失就換回錄音中的圖示。`MenuBarContent` 在錄音控制下面顯示同一句提示（琥珀色）和「知道了」（`dismissLevelHint`）。
+- 通知權限沒給時只有選單列的變化（跟其他通知一樣，R11.2）。
+- Windows：design-windows §11.5。
+
+## 32. Qwen3-ASR 轉錄引擎（R43，D105～D108）
+
+### 32.1 為什麼換模型（評估，2026-10-24）
+
+- 先量 Breeze 的錯誤是哪一種（`asr-score.swift --confusions`）：AISHELL-4 漏掉的字裡 35% 在多人同時說話處、另一大塊是語助詞和兒化（Whisper 會「整理」口語）；真正的替換多是同音字。解碼參數掃描（`transcribe-eval` 的 `tuning`：no_context、不降溫重試、beam 8、自然句提示詞）差距都在 1% 內，不降溫重試還讓日文變差（12.6% vs 9.0%）。瓶頸在模型本身。
+- 候選：Qwen3-ASR 1.7B（AuT 音訊編碼器＋Qwen3 解碼器，Apache-2.0，llama.cpp b8769 起支援，`ggml-org/Qwen3-ASR-1.7B-GGUF`）、台灣微調版 TEA-ASR 1.1（MIT，tokenizer 烙上繁體對應）。評估用 `~/Library/Caches/ShiyinSpike/qwen3asr/qwen-eval.py`（llama-server 的 chat completions，system＝詞彙表、user＝音訊、assistant 先填「language Chinese<asr_text>」），結果：
+
+  | 去語助詞錯誤率 | 合成中英夾雜 | TaiMECS | 台大課程 | AISHELL-4 | AMI 英文 | 日文聽證 | 倍速 |
+  |---|---|---|---|---|---|---|---|
+  | Breeze ASR 25 q8_0（4.0.0；說話者標對 97.2%／96.1%） | 5.2 | 2.0 | 3.8 | 25.7 | 32.6 | 9.0（turbo） | 9 |
+  | Qwen3-ASR 1.7B q8_0，30 秒一段 | 2.0 | 1.8 | | 16.2 | 31.6 | 17.1 | 17 |
+  | TEA-ASR 1.1 q8_0，30 秒一段＋重試 | 2.8 | 2.4 | 3.4 | 34.8 | 36.3 | 22.2 | 15 |
+  | Qwen3-ASR 0.6B q8_0，30 秒一段 | 2.0 | 2.5 | 6.7 | 17.0 | 32.4 | | 36 |
+  | Qwen3-ASR 1.7B，換人處切＋最長 15 秒 | | | | 17.7 | 40.0 | | |
+  | 同上＋幻覺防線（§32.4 第 4 步） | | | | 17.7 | 32.7 | | |
+  | **app 的實作**（`transcribe-eval` engine qwen，真的說話者辨識；說話者標對 92.6%／89.1%） | 2.0 | 1.8 | 6.6 | 16.7 | 31.3 | | 12 |
+  | 換人處一律在最安靜點切（理想辨識；說話者 97.7%／94.4%） | | | | 17.9 | 33.1 | | |
+  | 混到第二個人的段照片段再切（理想辨識；說話者 98.2%／97.5%） | | | | 18.0 | 33.7 | | |
+  | **app 的實作＋混合段再切（預設）**（真的說話者辨識；說話者 96.3%／93.8%） | 2.0 | 1.8 | 6.6 | 17.5 | 31.3 | | 12 |
+
+  台大課程 Breeze 比較好（3.8% vs 6.6%）：那是 Breeze 的訓練資料（NTUML2021），而 Qwen 的「錯」多半是向量名稱的寫法（標準答案 a1、a4，Qwen 寫 a one、a 四；替換 136 裡約 40 個、多出的 90 個字裡 44 個是 a、b），不是聽錯；會議的評估以 AISHELL、AMI、TaiMECS 為準。
+
+  照標準答案的說話者片段分段（模擬先辨識說話者再逐段轉錄）：TEA 的 AISHELL 從 34.8% 進步到 23.3%，但 Qwen 原版反而退步（AISHELL 22.2%、AMI 45.9%：重疊處的話被切掉）。固定長度：10／15／30／60 秒一段的 AISHELL 是 17.1／16.3／16.2／15.7%，AMI 15 秒掉到 39.6%（30 秒 31.6%）。在換人處的安靜點切（§32.4）、最長 15 秒：AISHELL 17.7%、說話者標對 95.5%（理想的說話者辨識），但 AMI 40.0%，多出的 228 個字是短而吵的段落編出來的整段話（天氣預報、影評）；加上幻覺防線後 AMI 32.7%（多出 18 個字），跟 Breeze 的 32.6% 一樣；最長 30 秒時 17.3%／32.6%、說話者標對率低 1～2 點，所以取 15 秒。
+    TEA 乾淨錄音更好、原生繁體，但吵雜多人錄音會跳針（「那那那…」到截斷）和整段漏，日文會把漢字改成繁體（国→國）；Q4_K_M 量化整段漏字（TaiMECS 31%）。Qwen3-ASR 原版完全沒跳針，但輸出簡體、用 context 也導不成繁體。
+- 新增的台灣語料（`eval32/datasets.json` 的 `tw-*`）：TaiMECS（100 句台灣國語中英夾雜，20 句真人、80 句聲音複製，CC BY 4.0）、台大機器學習 2021 課程前 15 分鐘（Breeze 和 TEA 都訓練過）；Formosa Speech 的文字跟音訊對不齊，不用。
+- 決定（D105）：加 Qwen3-ASR 1.7B 原版 + app 自己轉台灣繁體。繁簡也算錯時 TaiMECS 2.0%、合成會議 2.0%，仍優於 TEA（2.8%、3.2%）。
+- 預設不換（使用者 2026-10-24 決定）：Breeze（聯發科）仍是預設，Qwen 在設定裡可選，介面標明是阿里巴巴開源的模型、全程本機不連網。台灣的公司會顧慮中國的模型，這是產品定位，不是準確度問題。
+
+### 32.2 連結 llama.cpp（D106）
+
+- `Package.swift` 加第二個 binaryTarget `llama`：llama.cpp 官方的 `llama-b11840-xcframework.zip`（含 llama、ggml、mtmd；checksum 寫在 manifest），跟 whisper 一樣版本固定。
+- whisper 和 llama 兩個 XCFramework 都把 `ggml.h` 放在 umbrella header，版本不同（`ggml_op` 102 vs 103 個），Swift 同時 import 會編譯失敗。所以 Swift 不直接 import llama：加一個 C 的 target `QwenShim`（`Sources/QwenShim/`，依賴 `llama`），只對 Swift 露出自己的標頭：
+  - `qwen_load(model, mmproj, n_ctx, n_threads, use_gpu)`／`qwen_free`
+  - `qwen_transcribe(engine, samples, n, params, abort_cb, user, out, out_len, &n_tokens)`：params 有 context（system 訊息）、language（"Chinese"／"English"）、repeat_penalty、repeat_last_n、temperature、seed、max_tokens；回傳 0 成功、1 到達 max_tokens、-1 取消
+  - 內部：ChatML 提示詞（GGUF 裡的樣板）`<|im_start|>system\n{context}<|im_end|>\n<|im_start|>user\n<__media__><|im_end|>\n<|im_start|>assistant\nlanguage {Language}<asr_text>`，`mtmd_bitmap_init_from_audio` → `mtmd_tokenize` → `mtmd_helper_eval_chunks` → greedy（或 temperature＋penalties）逐 token 取樣到 EOG；每段開始前 `llama_memory_clear`。
+  - 跟 Windows 的 shim（D56）同一個思路；兩邊的 shim 行為一致，用標準答案比對。
+- `build-app.sh` 把 `llama.framework` 一併放進 `Contents/Frameworks` 並簽章；`make-third-party-licenses.sh` 加 llama.cpp（MIT）、Qwen3-ASR（Apache-2.0）、OpenCC 字表（Apache-2.0）。
+- 記憶體：模型 q8_0 2.2 GB＋音訊編碼器 0.36 GB，n_ctx 4096 時全部約 2.6 GB；轉錄工作結束就 `qwen_free`（R43.8）。whisper 的 context 也只在轉錄時存在，兩者不會同時載入（日文用 whisper、中英用 Qwen）。
+
+### 32.3 模型（§7 的清單加兩項）
+
+| 模型 | 來源 | 大小 | 驗證 |
+|---|---|---|---|
+| Qwen3-ASR 1.7B q8_0 | HF `ggml-org/Qwen3-ASR-1.7B-GGUF`，commit `36a67868` | 2,165,034,944 | SHA-256 `58e22d05…1fc57` |
+| Qwen3-ASR 音訊編碼器 q8_0（mmproj） | 同上 | 355,709,344 | SHA-256 `46c1d533…164c0d` |
+
+- `ModelStore.Model` 加 `qwen`、`qwenEncoder`；`transcription(for:)` 中文、英文依設定回 `.breeze`（預設）或 `.qwen`，`hasTranscriptionModel` 要兩個檔都在。設定頁的模型列把兩個檔合成一列「Qwen3-ASR 1.7B（2.5 GB）」，一起開始、暫停、刪除；引導只在選了 Qwen（重新顯示引導）時列它。
+- 選了 Qwen 的人：排到中文、英文的轉錄工作而模型還沒下載時 `autoStart`（同日文模型），這一場先用已經有的 Breeze，兩個都沒有才用 macOS 內建（D35）。沒選的人：跟 4.0.0 一樣，不會下載。
+
+### 32.4 轉錄流程（`QwenEngine`，D107）
+
+- 順序跟 whisper 相反：先解碼整段、先辨識說話者（有開且超過 5 秒），再依說話者片段分段轉錄。原因：Qwen3-ASR 不輸出時間點，段落的時間和說話者只能來自 app 自己的分段（R43.6）。
+- 分段規則：
+  - 同一個說話者連續的片段（間隔 < 1 秒）併成一段，到 30 秒為止；超過 30 秒的在預定位置前後 5 秒內最安靜的 0.5 秒切開（跟 §21.16 的 `quietestCut` 同一套）。
+  - 片段之間的空白併進後一段（每一段從上一段結束的地方開始，不漏音）；重疊的片段後一段從前一段結束處開始，同一段音訊不轉錄兩次。
+  - 短於 0.5 秒的併進前一段（模型的最短輸入是 0.5 秒）。
+  - 混到第二個人的段再切（說話者才標得準）：一段裡第二多的說話者 ≥ 1.5 秒而且 ≥ 這段的 25% 時，照說話者片段的起點再切一次（太短的併進前一段）。評估（理想的說話者辨識）：AISHELL 說話者標對 95.5% → 98.2%、AMI 92.4% → 97.5%（跟 whisper 的段落一樣準），錯誤率 17.7 → 18.0%、32.7 → 33.7%。真的說話者辨識（FluidAudio）的片段比標準答案粗（AISHELL 38 分鐘只有 88 次換人），所以換人處的安靜點很少切到，主要靠這一步。
+  - 沒有說話者辨識（關掉、太短、模型沒下載、失敗）時：從頭每 30 秒在最安靜處切，段落沒有說話者。
+- 每一段：`qwen_transcribe`，context＝詞彙表（「、」隔開，中文 150 字、英文 400 字元以內，跟 whisper 的提示詞同樣的上限）、language 依會議語言、max_tokens＝秒數×12＋64、greedy。
+- 跳針的對策（R43.5）：結果符合任一項就算壞掉：到達 max_tokens、壓縮比 > 2.4（§6.2 同一個算法）、同一個 1～6 字的片段連續出現 5 次以上。壞掉就：
+  1. 同一段加 repeat_penalty 1.3（last_n 128）、temperature 0.2、seed 1 重試；
+  2. 還是壞、而且這段 ≥ 6 秒：在最安靜處切成兩半各自再來（最多三層）；
+  3. 還是壞：留壓縮比較低的那次，連續重複的片段縮成 3 次，段落標成低信心。
+  4. 幻覺防線（沒跳針也要過）：這一段「有聲音的秒數」（能量超過整段中位數一半的 0.1 秒格數）能講的字數有上限（英文 5 字／秒＋3、中日文 8 字／秒＋4），輸出超過就是短而吵的段落在編話（評估時 AMI 一段 19 秒冒出一整段天氣預報）。超過就用 temperature 0.3、seed 7 再解一次：兩次相似度（difflib 的 ratio）< 0.6 就是編的，這段不留；差不多就留短的那次，標成低信心。
+- 輸出：每段一個 `TranscribedSegment`（start、end＝分段的時間，text＝轉繁體後的文字，lowConfidence＝經過第 3 步），說話者＝那一段的說話者；空字串的段落不留。接著照舊：短句再確認（R34）、聲紋、合併。
+- 取消：abort callback 每個 token 檢查；進度依已處理的秒數。
+- 英文會議的空白、標點照模型輸出；中文會議的文字過 §32.5 轉繁體。模型常把縮寫一個字母一個字母拆開（「A P P」「O T P」，使用者的週會裡就有），兩個以上單獨的大寫字母用空白隔開時併成一個字（`QwenEngine.joinSpelledAcronyms`；英文的「plan A B」這種極少見的寫法也會被併，接受）。
+
+### 32.5 簡轉繁（D108）
+
+- OpenCC 的 s2tw 做法，不帶 OpenCC 程式庫：字表 `Resources/opencc/`（`STPhrases.tsv` 49,238 條、`STCharacters.tsv` 4,012 條、`TWVariants.tsv` 40 條；只留每個鍵的第一個候選、去掉註解，共約 1 MB，Apache-2.0）。鍵和值相同的詞組（「公里」「皇后」）要保留：它們擋住逐字轉換（沒有它們「公里」會變「公裡」）。Windows 的 `Shiyin.Core` 把同一份檔案當內嵌資源（csproj 指到 `Resources/opencc`），不另外複製。
+- 演算法 `ChineseScript.toTaiwan(_:)`：從左到右，先在詞組表找最長的匹配（最長鍵 16 字），沒有就查單字表，查不到原樣保留；全部轉完套 `TWVariants`（着→著、裏→裡、麪→麵…），最後「臺」寫成「台」（台灣日常用法，app 的文字和評估資料都用「台」）。
+- 只用在中文會議的 Qwen 輸出；英文、數字、標點、詞彙表裡的英文不受影響（字表沒有這些鍵）。TWPhrases（軟件→軟體這類用語替換）不用：辨識結果寫的是說話者說出口的詞，不需要改詞。
+- 標準答案（design-windows §4）加 `s2tw` 這個 op：fixtures 放幾段簡體（含「頭發／頭髮」「後面／皇后」「台灣」這類一對多的字），Windows 的實作要逐字相同。
+
+### 32.6 設定、引導、環境檢查
+
+- 設定 →「錄音」的「正式轉錄」：「Breeze ASR 25（聯發科，建議）」「Qwen3-ASR 1.7B（阿里巴巴）」「macOS 內建」，存 `transcriptionEngine`（`breeze`／`qwen`／`system`；沒有值＝`breeze`）。選 Qwen 時下面的說明寫：多人會議漏字比 Breeze 少、速度快三成；阿里巴巴開源的模型，全程在這台 Mac 上跑、不連網；要下載約 2.5 GB。預設（Breeze）的流程跟 4.0.0 相同（R43.10）。
+- 引導的「模型」步驟：照目前引擎的模型（預設 Breeze，跟 4.0.0 一樣；選了 Qwen 再重新顯示引導時列 Qwen），日文照舊 large-v3-turbo。
+- 環境檢查的「轉錄模型」列看目前引擎用的模型。
+- 會議列表的「可以用 Breeze 重新轉錄」提示（§21.17）改成看「目前引擎的模型下載好了、而這場是用內建或 Breeze 轉的」。
+
+### 32.7 評估與驗證
+
+- `transcribe-eval` 的 `engine` 加 `qwen`；`tuning` 加 `qwenChunkSeconds`（預設 30）、`qwenRetry`（預設 true）、`qwenTurns`（預設 true：照說話者分段）。R43.4 的門檻用 `scripts/dev/asr-eval.py` 跑 synth、tw-taimecs、aishell、ami-mix；`--keep-script` 看繁簡。
+- 真實會議：拿使用者自己的一場週會（遠距收音、多人）用兩個引擎各轉一次，逐段並列給使用者看（沒有標準答案，由使用者判斷）。
+
+### 32.8 Windows 版
+
+- 2026-10-25 完成（design-windows §8.4、D95）：Windows 不做 shim DLL，改用 llama.cpp 官方 Windows 版自帶的 `llama-server.exe` 當子程序（跟 whisper 同名的 ggml DLL 在同一個程序裡不能並存），HTTP 送同樣結構的提示詞；模型兩個檔同 Mac，執行檔跟模型一起下載（CPU x64／ARM64，NVIDIA 另有 CUDA 版）；分段、重試、防線、簡轉繁照 §32.4、§32.5，合成會議的結果跟 Mac 逐段相同。
+
+## 33. 減法：三個分頁、五個動作、四頁設定、三步引導（R44，D109～D111）
+
+原則：只搬位置、合併、收起，不改任何資料、匯出、提示詞、標準答案；每個開關和動作都還在，只是從「平鋪」變成「在它該在的地方」。
+
+### 33.1 會議頁三個分頁（R44.1～R44.3，D109）
+
+- `DetailTab` 剩 `summary`（標籤「紀錄」）、`transcript`、`ask`。舊的 `topics`、`review`、`notes` 刪掉；DEBUG 的 `tab` 指令接受舊名稱當別名：`topics`、`review` → 紀錄（`review` 同時展開待確認那一條），`notes` → 逐字稿（展開我的筆記）。狀態 JSON 的 `tab` 照新名稱。
+- 紀錄分頁（`NotesPage`，原 `SummaryTab`＋`TopicsTab` 合併）：由上而下 `ReviewBanner`、摘要、決議、待辦、未決問題、議題（每個議題一個小標，要點照舊可以就地回答）、自訂段落、「由 X 整理．範本」一行。`EditBar` 照舊，編輯模式的 `NotesEditor` 把議題也納進去（現在只有 TopicsTab 那一份編輯器有議題，合併後一份編輯器編全部）。
+- `ReviewBanner`：有待確認（`detail.reviewCount > 0`，含說話者的建議）才顯示，一列：「？」圖示、「還有 N 題待確認」、右邊「展開／收起」。展開後直接放 `ReviewTab` 現在的內容（題目、略過、全部略過、固定在底部的送出；R41.5），寬度跟紀錄一樣，不另開視窗。展開狀態只在這次選取期間記著（換會議收起）。就地回答的 `ReviewMarker`／`InlineReviewCard` 不動，草稿共用（`ReviewDraft`）。送出後題目歸零，條消失。
+- 逐字稿分頁頂部 `UserNotesDisclosure`：`DisclosureGroup`，標籤「我的筆記（N 行）」（N 是非空白的行數），沒有筆記時標籤「寫筆記」；內容是現在的 `UserNotesEditor`（換行加播放時間、0.8 秒後存檔的行為不變）。預設收起，展開狀態同上只記這次。`UserNotesTab` 刪掉。錄音中的畫面不變（`RecordingView` 本來就有筆記）。
+- 搜尋結果跳到筆記的位置（R9.1）：原本切到筆記分頁，改成切到逐字稿並展開筆記。
+
+### 33.2 「更多」五項、復原回到原位（R44.4）
+
+- `MoreMenu`：`Menu("重新處理")`｛重新整理會議紀錄、檢查可能聽錯的字、重新轉錄（含說話者辨識）、重新辨識說話者…｝、匯出…、複製會議紀錄（子選單不變）、`FolderMenu`、移到垃圾桶。工具列的選單建立一次就不更新的限制不變（§24.2 的註解），動作照舊按下時才檢查。
+- 「復原上一版會議紀錄」：`EditBar` 右邊多一顆 `arrow.uturn.backward` 的按鈕，`detail.canUndoNotes`（`notes_versions` 這場有超過一筆）才顯示；按了同 `AppModel.undoNotes()`。
+- 「復原說話者的調整」：改名小視窗（`SpeakerRenamePopover`）底部和逐字稿右鍵選單各加一項，文字用 `db.speakerUndoLabel(id)`（例如「復原：把說話者 2 併進怡君」），nil 就不顯示；按了同 `AppModel.undoSpeakerEdit()`。`MeetingDetail` 加 `speakerUndoLabel: String?`、`canUndoNotes: Bool`，載入會議時一起查。
+
+### 33.3 設定四個分頁（R44.5，D110）
+
+| 分頁 | 內容（全部是現有的 view 或區塊搬過去） |
+|---|---|
+| 整理工具 | `ProviderSettings` 照舊；最下面加 `Section("範本")` 放 `TemplateSettings` 的內容 |
+| 錄音與轉錄 | `RecordingTranscriptionSettings`，四個 `Section`：**錄音來源**（錄音來源、麥克風、權限設定的兩顆按鈕、線上會議的那段說明）、**語言**（預設會議語言、自動偵測）、**轉錄**（正式轉錄引擎、轉錄時辨識說話者、錄音中顯示即時逐字稿，接著 `StorageSettings` 的「轉錄模型」清單和說話者辨識模型）、**提醒與快捷鍵**（偵測線上會議、不提醒的 app、兩個快捷鍵） |
+| 說話者與詞彙 | `NamesSettings`，兩個 `Section`：說話者（`SpeakerSettings` 的內容）、詞彙表（`GlossarySettings` 的內容） |
+| 進階 | `AdvancedSettings` 照舊（更新、環境檢查、重新顯示引導、重建索引、匿名統計），加 `Section("儲存空間")`（錄音大小、模型大小、壓縮開關、資料位置）和「第二版留下的檔案」 |
+
+- 存的鍵、說明文字、DEBUG 的 `preview settings <分頁>` 編號改成 0 整理工具、1 錄音與轉錄、2 說話者與詞彙、3 進階；AX 的 toolbar 按鈕名稱跟著變（CLAUDE.md 要改）。
+- 視窗維持 640×520，每頁可捲動。
+
+### 33.4 引導三步（R44.6，D111）
+
+- `titles` 剩「權限」「整理工具」「開始」。
+- 權限：頂部先放原歡迎頁的三行重點（錄下來、轉成逐字稿、整理成紀錄；每一行一句），接著麥克風、通知；「錄製系統音訊」改成一行說明「第一次選『麥克風＋電腦聲音』錄音時 macOS 會詢問，按允許就好」，不放按鈕（§畫面檢視 O-2）。引導打開時就 `autoStartTranscription(for: 預設語言)`（引擎不是 macOS 內建時）和語言偵測、說話者辨識模型，不再有「下載模型」這一步。
+- 整理工具：兩段式。第一段 `Picker`「你平常用哪個 AI？」：Claude、ChatGPT、Gemini、其他、先不用。第二段依答案列選項（radio），每個一行費用說明：
+  - Claude → Claude Code（這台 Mac 有裝 claude CLI 時；「用你的訂閱，不另外收費」）、Anthropic API（「要 API key，依用量計費，一小時的會議通常不到台幣 10 元（2026-10 估）」）
+  - ChatGPT → Codex（有裝 codex CLI 時；同上）、OpenAI API（同上）
+  - Gemini → Gemini API（同上）
+  - 其他 → OpenAI 相容 API（「Groq、OpenRouter、Ollama、LM Studio；網址和 key 到設定填」）
+  - 先不用 → 不整理，只要逐字稿（「隨時可以到設定選」）
+  選了 API 的，API key 欄位照舊在這一步。存的仍是 `providerKey`，第一段的答案不存。費用的估法寫在 D111。
+- 開始：「按『開始使用』後會打開使用說明…」照舊；下面一行模型狀態（「轉錄模型下載中 35%，下載好之前先用 macOS 內建辨識」或「轉錄模型已經就緒」），用 `combinedState`；匿名統計那一句不加（R40.4 的決定不變）。
+- `hasCompletedOnboarding`、`hasSeenGuide` 不變；DEBUG 的 `preview onboarding <步驟>` 編號變成 0～2。
+
+### 33.5 Windows、iPhone、文件
+
+- Windows（design-windows §11.6）：`DetailView` 的分頁、`ReviewTab` 變成紀錄頂部的條、筆記收合、`MoreMenu` 分組、設定頁四頁、引導三步，照同一份規則；標準答案不變。
+- iPhone：`ios` 分支之後接，手機版本來就只有三個分頁，主要是待確認的條和設定的分組。
+- 使用說明（`GuideView`）、README、官網示範（`site/src/demo-content.mjs` 的 `tabs`、`reviewTab`，demo.js 的待確認章節）、CLAUDE.md 的 AX 名稱和 `preview` 編號跟著改。
+
+## 34. 整理工具設定好才用、失敗說清楚怎麼修（R45～R47，D112～D114）
+
+### 34.1 準備好了沒（R45.1、D112）
+
+- `SummarizerProblem`（`Services/SummarizerReadiness.swift`）：`notChosen`（R35 的還沒設定）、`off`（設定為不整理）、`notInstalled(provider)`、`notLoggedIn(provider)`、`missingKey(provider)`、`incomplete`（OpenAI 相容 API 沒填網址或模型）、`paused(provider, kind)`（§34.4）。`AppSettings.summarizerProblem` 同步算出來，`nil` 就是準備好；`summarizerReady` = 沒有問題。每個問題有 `message`（原因和怎麼修，一句）和 `action`（`openSettings` 或 `login(provider)`）。
+- 判斷都不花額度、不讀鑰匙圈：CLI 用 `Paths.findTool`；登入用 `CLILogin` 的快取（`CLILogin.cached[provider]`，`claude auth status --json`、`codex login status` 的結果）；key 用 `Keychain.exists`；OpenAI 相容 API 看 `OpenAICompatibleAPI.normalized(baseURL)` 和模型。
+- 登入狀態的快取：app 啟動、app 回到前景（`NSApplication.didBecomeActiveNotification`，距離上次超過 60 秒才查）、設定頁打開和按「重新檢查」、引導選了 CLI 時更新。查不到（找不到指令、看不懂輸出）是 `nil`，當作準備好（D112：寧可讓它試，不要誤擋）。只有明確 `loggedIn: false` 才算沒登入。
+
+### 34.2 用到的地方（R45.4）
+
+- 自動排程原本判斷 `provider != .none` 的地方改成 `summarizerReady`：轉錄完的逐字稿校正、自動整理（`JobRunner` 的 finishTranscribe）、猜說話者（rediarize 之後）、草稿紀錄（`AppModel.scheduleDraft`）、匯入文字逐字稿後的整理。
+- 手動的整理（`resummarize`）、依回答修正（`submitReview`、就地回答）、提問（`Asking`）：有問題就不排，`errorMessage` 用 `summarizerProblem.message`（`notChosen`、`off` 照 R35.2 原本的兩句）。
+- 會議頁放紀錄的地方（`NotesPlaceholder`）：`notChosen` 照舊；`off` 照舊；其他問題顯示「整理工具還沒設定好：\(message)」和按鈕（「打開設定」或「登入 Claude Code／Codex」）。
+- 已經在排隊的工作照常執行（快取可能過期，讓它真的試）；`summarize` 遇到 `provider == .none` 丟 `LLMError.notConfigured`。
+
+### 34.3 引導和設定頁（R45.2、R45.3）
+
+- 引導的整理工具這一步（§33.4）：第二段改成綁 `@State pending: LLMProvider?`，不直接綁 `providerKey`。第一段改 `usual` 時 `pending` 設成第一個選項，不寫設定（4.1 的 `pick` 直接寫 `storedProvider`，拿掉）。`pending` 變了就 `evaluate()`：
+  - `.none`（先不用）：直接寫「不整理」
+  - CLI：`CLILogin.status`；`loggedIn == false` 顯示「還沒登入」、「登入 \(name)」（`CLILogin.openLogin`）、「重新檢查」；不是 false 就 `commit()`
+  - API：`Keychain.exists` 才 `commit()`；沒有時在 key 欄位下面寫「貼上 API key 並按『儲存』後才會用 \(name) 整理；沒有 key 的話可以選『先不用』」。按「儲存」存好就 `commit()`
+  - OpenAI 相容 API：網址和模型都有才 `commit()`；沒有時照舊提示到設定填，並寫「填好之前不會整理」
+- `commit()`：記下原本的 `providerKey`，寫入 `pending`，接著跑一次測試（設定頁 `test()` 的同一段，抽成 `SummarizerTest.run(provider:model:)`），顯示「測試中…」→「可以使用（N 秒）」或失敗原因。失敗是設定問題（§34.5 的 `isSetupProblem`）就把 `providerKey` 改回原本的值、顯示原因；其他失敗保留設定，顯示原因和「之後可以在設定重新測試」。測試中按「下一步」不取消測試，結果照樣決定要不要改回。
+- 設定頁（`ProviderSettings`）：
+  - 選單裡沒安裝的 CLI：`.selectionDisabled(true)`、文字加「（沒有安裝）」；目前選的就是它時照樣顯示（不能選的是「換成它」）
+  - 選單下面：`summarizerProblem` 是這個工具的問題時，紅字 `message` 加「設定好之前不會自動整理」
+  - 存好 key 之後、按「重新檢查」得到已登入之後（從沒登入變成已登入，或使用者自己按的）自動 `test()`；打開設定頁時的自動檢查不測試（不要每次打開都花額度）
+
+### 34.4 設定問題的失敗：換按鈕、暫停（R46，D113）
+
+- `LLMError` 多四種：`rejected`（key 錯誤或沒權限：HTTP 401、403、Gemini 的「API key not valid」400）、`limited`（HTTP 429；claude、codex 的輸出有「usage limit」「rate limit」「limit reached」）、`unreachable`（連不到，`APIRequest.fetch` 的網路錯誤）、`notConfigured`（OpenAI 相容 API 沒填網址或模型、網址不對；provider 是 none）。說明文字跟原本一樣（從 `failed(...)` 搬過來），`logSummary` 加這四個名字。
+- `isSetupProblem(errorKind)`：`notInstalled`、`notLoggedIn`、`missingKey`、`rejected`、`notConfigured`。用 `jobs.error_kind`（`logSummary`）判斷，`MeetingStatus.failed` 多帶 `errorKind`。
+- 失敗橫幅：`kind != .transcribe` 而且 `isSetupProblem` 而且現在 `summarizerProblem != nil`：按鈕是 `problem.action`（「打開設定」或「登入 …」），不放「重試」；準備好了就是「重試」。其他失敗照舊（登入問題的「重新登入」保留）。通知內容不變（原因本來就在裡面）。
+- 暫停：`JobRunner` 遇到設定問題的失敗（summarize、revise，草稿也算），在記憶體記 `AppSettings.pause = (provider, kind, signature)`；`signature` 是整理工具設定的指紋：provider、模型、OpenAI 相容 API 的網址、`Keychain.generation`（存或刪 key 時加一，只在記憶體）。`summarizerProblem` 在 `pause.provider == provider && pause.signature == 現在的指紋` 時回傳 `.paused`，`message` 用那次失敗的說明。解除：指紋變了（換工具、改模型或網址、存或刪 key）、`CLILogin` 查到已登入、測試成功、任何一次整理成功、重新打開拾音。
+
+### 34.5 統計的失敗種類（R47，D114）
+
+- `UsageStats.Counters` 多三個欄位（舊檔案沒有就當 0，同 review 的寫法）：
+  - `summarizeErrors`：`notInstalled`、`notLoggedIn`、`missingKey`、`notConfigured`、`keyRejected`、`limited`、`timeout`、`unreachable`、`badOutput`、`other`
+  - `summarizeErrorProviders`：`claudeCode`、`codex`、`api`、`local`（同 `summarizer` 的分法；provider 是 none 時不記）
+  - `summarizeDraftErrors`：其中幾次是草稿
+- 種類的對應（`summarizeFailureKind(error)`）：`LLMError` 的同名種類（`rejected` → `keyRejected`、`failed` → `other`）；`SubprocessError.timeout`、`URLError.timedOut` → `timeout`；其他 → `other`。`failed(.summarize)` 照舊加一（R47.2），同時記種類、整理工具、草稿。
+- 送出的格式（§30.4）多一個上層的鍵，`schema` 仍是 1（舊後台忽略多的鍵）：
+
+  ```
+  "errorDetail": {
+    "summarize": { "notInstalled": 0, "notLoggedIn": 0, "missingKey": 0, "notConfigured": 0, "keyRejected": 0,
+                   "limited": 0, "timeout": 0, "unreachable": 0, "badOutput": 0, "other": 0 },
+    "summarizeProvider": { "claudeCode": 0, "codex": 0, "api": 0, "local": 0 },
+    "summarizeDraft": 0
+  }
+  ```
+- 後台（§30.10）：`worker.js` 的 `ERROR_DETAIL` 對應 15 個新欄位（`summarize_err_not_installed`…`summarize_err_other`、`summarize_err_claude_code`…`summarize_err_local`、`summarize_err_draft`），沒有 `errorDetail` 時都是 0；`schema.sql` 加欄位，已經建好的資料庫跑 `migrate-summarize-errors.sql`（使用者自己跑 migration 和 deploy）。
+
+### 34.6 Windows、驗證
+
+- Windows（design-windows §10.1）照同一份規則：`Settings.SummarizerProblem`、引導、設定視窗、`JobRunner` 的暫停、`LLMError` 的四種、統計的 `errorDetail`。
+- DEBUG：`shiyinctl summarizer <state.json>` 寫出 `summarizerProblem`、`pause`、登入快取；`-debugNoCLI YES` 和 `llmprovider`、`llmkey`（只在記憶體）組合出各種沒準備好的狀態；`-debugCLILogin no` 讓登入快取當成沒登入。
+- 驗證：沒選過、沒裝 CLI、選了 API 沒存 key、OpenAI 相容沒填模型、CLI 沒登入（`-debugCLILogin no`）、假伺服器回 401 各匯入一場，都不出現「整理失敗」或只失敗一次後暫停；引導和設定頁在真的畫面上用 AX 按過（CLAUDE.md：對話框的按鈕要真的按）；統計用 `shiyinctl usage` 看 `errorDetail`，後台用 `wrangler dev --local` 收一份。
 
 ## F1. Fork 名稱（F1）
 
@@ -1331,6 +1578,19 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 | D95 | 沒選過整理工具時自動用找得到的 CLI，都沒有就先不整理、提示去設定（取代「預設 claude CLI」，§19.6） | 照舊預設 claude CLI、只把錯誤訊息寫清楚：沒有 CLI 的人每場會議都「整理失敗」。預設改成某個 API：還是要先申請 key，沒填之前一樣失敗。第一次使用時一定要選：多一個擋路的步驟，只要逐字稿的人也得選。取捨：沒設定的人要看到引導或會議頁的提示才會去設定 |
 | D100 | 匿名使用統計：每天一份匯總、預設開啟（告知＋可以關；2026-10-22 起開關收在設定 → 進階最下面的「詳細…」裡、不顯示送出的 JSON）、送到使用者自己的後台、沒有統計網址就完全不送 | 完全選擇加入：多數人不會去開，數字太少看不出活躍度。預設開啟但不說：違反之前「不收集」的公開承諾，程式開源也藏不住。逐筆事件（每次點擊）：資料多、比較像追蹤，用量的匯總就夠回答「有多少人在用、處理多少語音」。第三方服務（TelemetryDeck、Aptabase）：資料在別人那裡、要多一個套件；使用者想自己做後台。不用安裝 ID：算不出活躍天數和留存。取捨：歐盟的規定要求在裝置上存識別碼前先取得同意，目前是「告知＋可關」的常見做法，歐洲使用者變多時再改成先問；編號跳到 D100，避開 windows 分支正在用的 D42 起 |
 | D101 | 匿名使用統計的後台用 Cloudflare Workers＋D1，網址是自己網域的子網域 | 自己租主機：要顧作業系統更新、備份、停機，一天幾百、幾千筆用不到。Supabase、Firebase：好用，但資料在第三方，隱私說明要多寫一家公司。PostHog 自架：很吃資源。放在官網的網域（Pages Functions）：官網現在是純靜態、CSP 很嚴，統計另外一個 Worker 互不影響，以後換後台只要換網址。取捨：Cloudflare 看得到請求的 IP（我們的資料庫不存）；D1 免費額度（每天 10 萬次寫入）以每台每天一筆來算夠用很久 |
+| D102 | 待確認的題目靠時間點對應到紀錄的條目，不改提示詞（§31.1） | 讓整理工具多輸出「對應到哪一條」：三個平台的 schema、提示詞、標準答案都要重產，模型填的對應也不一定準。app 用文字比對：紀錄是改寫過的文字（D9 同樣的理由）。代價：時間填錯的題目對不到，只在待確認分頁 |
+| D103 | 是非題回答「是」當成確認，跟略過一樣直接移除，不送整理工具（§31.3） | 照舊全部送校稿：校稿收到「是」只會原樣保留，使用者白等一次、多一次費用。由 app 改紀錄：「不是＋答案」要改文字，還是要模型。代價：「是」不再經過模型，模型也不會順便改別的地方（本來就不該改） |
+| D104 | 收音提醒用通知和選單列圖示提醒，不自動停止錄音或換麥克風（§31.5） | 自動換麥克風：R18.2 已經處理裝置消失的情況；靜音、選錯麥克風是使用者的設定，app 猜不準。只在錄音畫面提示（3.7）：R24.3 的那次人在 Zoom 的視窗，沒看到。每次提示都通知：每場每種一次就夠，多了會煩 |
+| D105 | 加 Qwen3-ASR 1.7B 原版當可選引擎，app 自己轉台灣繁體；預設維持 Breeze（§32.1、§32.5） | 預設換成 Qwen：數字最好（AISHELL 17.5% vs 25.7%），但阿里巴巴的模型在台灣的公司有顧慮，使用者 2026-10-24 決定只當選項。只調 Breeze：解碼參數怎麼調都差不到 1%，模型是瓶頸。TEA-ASR 台灣微調版：原生繁體、乾淨錄音最好（TaiMECS 2.4%），但多人吵雜錄音跳針、整段漏（AISHELL 34.8% vs 原版 16.2%），日文漢字被改成繁體，Q4 量化就壞；使用者的會議多半是會議室裡多人收音，不能賭。Qwen3-ASR 0.6B：準確度差一截（見 R43 不做）。macOS 內建：合成會議 9.2%、關鍵詞 1/6 |
+| D106 | llama.cpp 用官方 XCFramework，經 C 薄層 `QwenShim` 進 Swift（§32.2） | 直接 import 兩個框架：ggml.h 版本不同，Swift 編譯失敗。自己建 llama.cpp 讓 ggml 版本一致：每次升級都要同步兩邊，還是會再分叉。換掉 whisper：日文、語言偵測還要 whisper。用 Python／MLX：D2 |
+| D107 | 先辨識說話者，在換人處的安靜點切、每段最長 15 秒、混到第二個人的段照片段再切；跳針用「重試→切半→修剪」、幻覺用「有聲音的秒數限制字數、不一致就丟」處理（§32.4） | 固定 30 秒一段再用重疊量標說話者：一段裡換人就標錯，而 Qwen3-ASR 沒有時間點可以切。整段一次轉（官方最長 20 分鐘）：沒有時間點，說話者標不了；固定 30 秒一段（AISHELL 16.2%、AMI 31.6%）準一點，但一段裡換人就標錯。照說話者片段切：重疊處的話被切掉（AISHELL 22.2%、AMI 45.9%）。短段不加防線：AMI 40%。Qwen3-ForcedAligner 對齊時間：llama.cpp 不支援、要再一個 0.6B 模型。一律加重複懲罰：會傷到真的重複（「對對對」） |
+| D108 | 簡轉繁用 OpenCC 的字表＋自己寫的最長匹配，不帶 OpenCC 程式庫（§32.5） | ICU 的 Hans-Hant：逐字轉，「頭發」「皇後」這類一對多的字會錯。OpenCC 的 C++ 程式庫：還要為 Mac、Windows 各包一次，字表加 100 行程式就夠。TWPhrases 用語替換：辨識結果本來就是說話者的用詞 |
+| D109 | 會議頁六個分頁減成三個：摘要和詳細合成「紀錄」，待確認收成紀錄頂部一條，筆記收進逐字稿（§33.1） | 維持六個：使用者 11 場「筆記」分頁 0 次、「詳細」要切過去才看得到議題，待確認已經能就地回答，獨立分頁變成「要處理的事離內容太遠」。只把筆記拿掉：摘要／詳細分開沒有理由，匯出本來就是一份。待確認改成側邊欄：寬度不夠，而且題目就在它問的紀錄旁邊才對 |
+| D110 | 設定四頁：範本歸整理工具、模型歸轉錄、說話者和詞彙合一頁、儲存空間歸進階（§33.3） | 維持七頁：一般人只會碰整理工具和錄音，七個分頁讓設定看起來很難。減少設定項目：每個開關都有人用（分聲道等本來就沒有開關），只搬不刪。模型清單留在「儲存空間」：使用者找「要不要下載模型」會去找「轉錄」，不會去找「儲存空間」 |
+| D111 | 引導三步，整理工具先問「你平常用哪個 AI？」再列選項，費用寫成一句話（§33.4） | 五步：歡迎頁沒有資訊、下載模型不需要人做決定。七個選項平鋪：一般人不知道 CLI 和 API 的差別、也不知道要不要錢（畫面檢視 O-3）。精確的費用數字：價格會變，寫區間就夠；估法：一小時中文會議約 1.2 萬字≈1.5 萬 token 輸入、3 千 token 輸出，Claude Sonnet（$3／$15 per M）約 US$0.09≈NT$3，Gemini、OpenAI 更低，所以寫「通常不到台幣 10 元（2026-10 估）」 |
+| D112 | 整理工具「準備好了沒」只用不花額度的檢查（找得到 CLI 和登入狀態、鑰匙圈有沒有 key、網址和模型），看不出登入狀態時當作準備好；測試請求只在引導和設定頁設定好的時候送一次（§34.1） | 每次整理前送一個測試請求：多花額度和十幾秒，而且失敗的原因跟真的整理一樣，不如直接整理。不檢查、失敗再說（4.0 的做法）：第一場會議就失敗，統計看到 6 台一次都沒成功。看不出登入狀態時當作沒準備好：舊版 CLI 沒有 `auth status` 的人會被擋住，卻其實能用。引導裡沒設定好就不能按下一步：不想現在設定的人卡住，R35 本來就允許「之後再設定」 |
+| D113 | 設定問題的失敗之後暫停自動整理，只記在記憶體，用整理工具設定的指紋判斷要不要解除（§34.4） | 存進 UserDefaults：設定跟使用者的拾音、DEBUG 版共用，測試會留下殘值；重開 app 才多失敗一次可以接受。每次改設定的地方都呼叫解除：入口太多（設定頁、引導、DEBUG、Windows 的設定檔），漏一個就一直暫停。自動重試：設定問題重試也不會好 |
+| D114 | 統計的失敗種類放新的上層鍵 `errorDetail`，原本的 `errors.summarize` 不動，`schema` 仍是 1（§34.5） | `schema` 改 2：舊後台會回 400，app 收到 4xx 就丟掉那一天。種類塞進 `errors`：`errors` 每一鍵都是「某件事失敗幾次」，混進種類後加總會重複算。記錯誤訊息的前幾個字：可能帶到 stderr 或模型回傳的會議內容（R40.2） |
 
 | DF1 | 錄音中只記使用者的標記，錄完依時間套到離線辨識分出的說話者；對不上或有矛盾就不套用 | 錄音中即時分辨說話者（FluidAudio 的 Sortformer、LS-EEND）：AMI 上錯誤率 26～34%，錄完的離線辨識是 12%，Sortformer 最多 4 人，錄音中的編號跟錄完的結果還要再對一次，也要多下載模型。標記直接當成一段一段的說話者（不經過說話者辨識）：只有標過的幾段有名字。對不上也取最接近的說話者：標錯或說話者辨識把兩個人併成一位時會套錯名字，還會學到錯的聲紋（D29：寧可少、不能錯）。代價：錄音中只有標過的那幾行看得到名字 |
 

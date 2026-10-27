@@ -19,7 +19,7 @@ enum AppSettings {
     static let inputDeviceKey = "inputDeviceUID"
     static let defaultTemplateKey = "defaultTemplate"
     static let globalHotKeyKey = "globalHotKey"
-    static let transcriptionEngineKey = "transcriptionEngine"   // breeze / system
+    static let transcriptionEngineKey = "transcriptionEngine"   // breeze / qwen / system（沒有值 = breeze，design §32.6）
     static let defaultMeetingLanguageKey = "defaultMeetingLanguage"   // zh / en / ja
     static let voiceprintsKey = "voiceprints"
     static let meetingDetectionKey = "meetingDetection"
@@ -90,6 +90,11 @@ enum AppSettings {
     static var bookmarkHotKey: Bool { flag(bookmarkHotKeyKey, default: true) }
     /// 正式轉錄用 macOS 內建辨識（design §6.2.1）
     static var useSystemTranscriber: Bool { d.string(forKey: transcriptionEngineKey) == "system" }
+    /// 正式轉錄引擎（design §32.6）：breeze（預設，聯發科）、qwen（阿里巴巴，可選）、system；不認得的值當 breeze
+    static var transcriptionEngine: String {
+        let value = d.string(forKey: transcriptionEngineKey) ?? ""
+        return ["breeze", "qwen", "system"].contains(value) ? value : "breeze"
+    }
     /// 新會議的會議語言（design §16.3）；沒設定時跟著介面語言
     static var defaultMeetingLanguage: MeetingLanguage {
         MeetingLanguage(rawValue: d.string(forKey: defaultMeetingLanguageKey) ?? "") ?? .systemDefault
@@ -185,7 +190,7 @@ final class JobRunner {
             if lane == .transcribe && !AppSettings.useSystemTranscriber {
                 for language in MeetingLanguage.allCases where !ModelStore.hasTranscriptionModel(for: language)
                     && (try? db.hasQueuedTranscribe(language: language)) == true {
-                    AppModel.shared.models.autoStart(ModelStore.transcription(for: language))
+                    AppModel.shared.models.autoStartTranscription(for: language)
                 }
             }
             do { job = try db.claimNext(lane: lane) } catch {
@@ -237,11 +242,18 @@ final class JobRunner {
                 if let failure {
                     try db.finish(jobId, status: .failed, error: failure.localizedDescription, errorKind: failure.logSummary)
                     log.error("job \(jobId) failed: \(failure.logSummary, privacy: .public)")
+                    // 設定問題（沒登入、key 錯誤…）：暫停自動整理，設定改了、登入了、測試成功才再排（R46.3、design §34.4）
+                    if job.kind == .summarize || job.kind == .revise, (failure as? LLMError)?.isSetupProblem == true,
+                       AppSettings.provider != .none {
+                        SummarizerPause.pause(AppSettings.provider, message: failure.localizedDescription)
+                        log.info("summarizer paused after setup problem")
+                    }
                 } else {
                     try db.finish(jobId, status: .done)
                     log.info("job \(jobId) done")
+                    if job.kind == .summarize || job.kind == .revise { SummarizerPause.clear() }
                 }
-                countUsage(job.kind, failed: failure != nil)
+                countUsage(job, failure: failure)
             } catch {
                 log.error("finish failed: \(error.localizedDescription)")
             }
@@ -254,13 +266,17 @@ final class JobRunner {
     private func isStillRunning(_ job: Job) -> Bool { (try? db.jobStatus(job.id!)) == .running }
 
     /// 匿名使用統計（design §30.1）：只算真的跑完的工作（取消的不算）；轉錄成功在 transcribe 裡算（要用到長度）
-    private func countUsage(_ kind: JobKind, failed: Bool) {
-        switch (kind, failed) {
-        case (.transcribe, true): UsageStats.shared.failed(.transcribe)
-        case (.rediarize, false): UsageStats.shared.rediarized()
-        case (.rediarize, true): UsageStats.shared.failed(.diarize)
-        case (.summarize, false), (.revise, false): UsageStats.shared.summarized(with: AppSettings.provider)
-        case (.summarize, true), (.revise, true): UsageStats.shared.failed(.summarize)
+    private func countUsage(_ job: Job, failure: Error?) {
+        switch (job.kind, failure) {
+        case (.transcribe, .some): UsageStats.shared.failed(.transcribe)
+        case (.rediarize, .none): UsageStats.shared.rediarized()
+        case (.rediarize, .some): UsageStats.shared.failed(.diarize)
+        case (.summarize, .none), (.revise, .none): UsageStats.shared.summarized(with: AppSettings.provider)
+        case (.summarize, .some(let error)), (.revise, .some(let error)):
+            // 種類、整理工具、是不是草稿另外記（R47、design §34.5）
+            let draft = job.kind == .summarize
+                && ((try? JSONDecoder().decode(SummarizePayload.self, from: Data((job.payload ?? "{}").utf8)))?.draft ?? false)
+            UsageStats.shared.summarizeFailed(error, provider: AppSettings.provider, draft: draft)
         default: break
         }
     }
@@ -313,11 +329,14 @@ final class JobRunner {
         if AppSettings.compressAudio && meeting.audioURL.pathExtension.lowercased() == "wav" {
             try db.enqueue(job.meetingId, kind: .compress)
         }
-        // 校正在輔助線、整理在整理線，兩個同時開始（design §21.2、R20.1）
-        if AppSettings.correctTranscript && AppSettings.provider != .none {
+        // 校正在輔助線、整理在整理線，兩個同時開始（design §21.2、R20.1）。
+        // 整理工具還沒準備好（沒登入、沒有 key…）就都不排，不會「整理失敗」（R45.4、§34.2）
+        let summarizerReady = AppSettings.summarizerReady
+        if !summarizerReady { log.info("summarizer not ready, skip auto jobs") }
+        if AppSettings.correctTranscript && summarizerReady {
             try db.enqueue(job.meetingId, kind: .correct)
         }
-        if AppSettings.autoSummarize && AppSettings.provider != .none {
+        if AppSettings.autoSummarize && summarizerReady {
             try db.enqueue(job.meetingId, kind: .summarize)
             // 還有預設名稱的說話者就猜名字（design §21.5）：在輔助線、校正後面，不擋整理
             if try db.speakers(job.meetingId).contains(where: { $0.nameSource == "default" }) {
@@ -398,7 +417,7 @@ final class JobRunner {
                 try db.learnVoiceprint(job.meetingId, idx: idx, name: item.name, source: item.source)
             }
             if AppSettings.voiceprints { try db.matchVoiceprints(job.meetingId) }
-            if AppSettings.provider != .none, try db.speakers(job.meetingId).contains(where: { $0.nameSource == "default" }) {
+            if AppSettings.summarizerReady, try db.speakers(job.meetingId).contains(where: { $0.nameSource == "default" }) {
                 try db.enqueue(job.meetingId, kind: .nameSpeakers)
             }
             let count = Set(assigned.compactMap { $0 }).count
@@ -538,7 +557,7 @@ final class JobRunner {
         if try draft && !db.segments(job.meetingId).isEmpty { return false }
         let provider = AppSettings.provider
         guard provider != .none else {
-            throw LLMError.failed(AppSettings.needsProviderSetup
+            throw LLMError.notConfigured(AppSettings.needsProviderSetup
                 ? String(localized: "還沒設定整理工具，請到設定選擇 Claude、Codex 或 API")
                 : String(localized: "整理工具設定為「不整理」，請到設定改成 Claude、Codex 或 API"))
         }

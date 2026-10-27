@@ -32,6 +32,8 @@ public sealed class AppSettings
     public const string BookmarkHotKeyKey = "bookmarkHotKey";
     /// <summary>NVIDIA 顯示卡加速已經自動下載過（R27 R4.6）：只自動一次，使用者刪掉後不再下載</summary>
     public const string GpuPackOfferedKey = "gpuPackOffered";
+    /// <summary>Qwen3-ASR 的 CUDA 版已經自動下載過（design-windows §8.4）</summary>
+    public const string QwenCudaOfferedKey = "qwenCudaOffered";
     public const string CompatibleBaseUrlKey = "openaiCompatibleBaseURL";
     public const string OnboardingKey = "hasCompletedOnboarding";
     public const string GuideKey = "hasSeenGuide";
@@ -191,6 +193,83 @@ public sealed class AppSettings
     /// <summary>還沒選過整理工具、也找不到 CLI：介面說「還沒設定整理工具」，不說「不整理」（R35.2）</summary>
     public bool NeedsProviderSetup => DebugProvider is null && ChosenProvider is null && Provider == LLMProvider.None;
     public string Model => DebugModel ?? String(Provider.ModelKey()) ?? "";
+
+    // MARK: 整理工具準備好了沒（R45、R46、M§34）
+
+    /// <summary>這台電腦有沒有這個 CLI（App 用 WindowsToolLocator 給，有快取）；沒給（測試、評估工具）當作有：看不出來時當作準備好（D112）</summary>
+    public Func<string, bool> HasTool { get; set; } = _ => true;
+    /// <summary>認證管理員有沒有這個 key（只看有沒有，不讀出來）；沒給當作有</summary>
+    public Func<string, bool> HasKey { get; set; } = _ => true;
+    /// <summary>claude、codex 的登入狀態快取（App 的 CliLogin 給）；null 是還沒查或看不出來，當作準備好</summary>
+    public Func<LLMProvider, bool?> CliLoggedIn { get; set; } = _ => null;
+    /// <summary>存或刪 key 的次數（只在記憶體）：整理工具設定的指紋，換了 key 就解除暫停</summary>
+    public int KeyGeneration { get; private set; }
+    /// <summary>登入狀態、key、暫停變了（設定的值變了走 Changed）</summary>
+    public event Action? SummarizerChanged;
+
+    sealed record PauseState(LLMProvider Provider, string Message, string Signature);
+    PauseState? pause;
+
+    public void NotifyKeysChanged()
+    {
+        lock (gate) KeyGeneration++;
+        SummarizerChanged?.Invoke();
+    }
+
+    public void NotifySummarizerChanged() => SummarizerChanged?.Invoke();
+
+    /// <summary>設定問題的失敗之後暫停自動整理（R46.3、M§34.4、D113）：只在記憶體，指紋變了就不算</summary>
+    public void PauseSummarizer(LLMProvider provider, string message)
+    {
+        lock (gate) pause = new PauseState(provider, message, Signature(provider));
+        SummarizerChanged?.Invoke();
+    }
+
+    public void ClearSummarizerPause()
+    {
+        lock (gate)
+        {
+            if (pause is null) return;
+            pause = null;
+        }
+        SummarizerChanged?.Invoke();
+    }
+
+    /// <summary>整理工具設定的指紋：換工具、改模型或網址、存或刪 key 都會變</summary>
+    string Signature(LLMProvider provider) =>
+        string.Join("|", provider.Code(), Model, provider == LLMProvider.OpenAICompatible ? CompatibleBaseUrl : "", KeyGeneration);
+
+    /// <summary>整理工具準備好了沒；null 是準備好了（M§34.1）</summary>
+    public SummarizerProblem? SummarizerProblem
+    {
+        get
+        {
+            if (NeedsProviderSetup) return new(SummarizerProblemKind.NotChosen, LLMProvider.None);
+            var provider = Provider;
+            switch (provider)
+            {
+                case LLMProvider.None: return new(SummarizerProblemKind.Off, provider);
+                case LLMProvider.Claude or LLMProvider.Codex:
+                    if (!HasTool(provider == LLMProvider.Claude ? "claude" : "codex")) return new(SummarizerProblemKind.NotInstalled, provider);
+                    if (CliLoggedIn(provider) == false) return new(SummarizerProblemKind.NotLoggedIn, provider);
+                    break;
+                case LLMProvider.Anthropic or LLMProvider.OpenAI or LLMProvider.Gemini:
+                    if (!HasKey(provider.KeyAccount())) return new(SummarizerProblemKind.MissingKey, provider);
+                    break;
+                case LLMProvider.OpenAICompatible:
+                    if (OpenAICompatibleApi.Normalized(CompatibleBaseUrl) is null || Model.Length == 0) return new(SummarizerProblemKind.Incomplete, provider);
+                    break;
+            }
+            PauseState? paused;
+            lock (gate) paused = pause;
+            if (paused is not null && paused.Provider == provider && paused.Signature == Signature(provider))
+                return new(SummarizerProblemKind.Paused, provider, paused.Message);
+            return null;
+        }
+    }
+
+    /// <summary>自動排程（整理、校正、猜說話者、草稿）只在準備好時排（R45.4）</summary>
+    public bool SummarizerReady => SummarizerProblem is null;
     public bool AutoSummarize => Flag(AutoSummarizeKey, true);
     public bool CompressAudio => Flag(CompressAudioKey, true);
     public bool Diarize => Flag(DiarizeKey, true);
@@ -200,6 +279,7 @@ public sealed class AppSettings
     public bool LiveTranscription => Flag(LiveTranscriptionKey, true);
     public bool AutoDetectLanguage => Flag(AutoDetectLanguageKey, true);
     public bool GpuPackOffered => Flag(GpuPackOfferedKey, false);
+    public bool QwenCudaOffered => Flag(QwenCudaOfferedKey, false);
     /// <summary>mic / system / both</summary>
     public string RecordSource => String(RecordSourceKey) ?? "mic";
     /// <summary>麥克風的端點 ID；空的是系統預設</summary>
@@ -211,6 +291,9 @@ public sealed class AppSettings
     public bool BookmarkHotKey => Flag(BookmarkHotKeyKey, true);
     /// <summary>正式轉錄用快速辨識（Mac 的「macOS 內建」，D45）：設定值同 Mac 是 system</summary>
     public bool UseFastTranscriber => String(TranscriptionEngineKey) == "system";
+    /// <summary>正式轉錄的引擎：breeze（預設）、qwen、system（同 Mac 的 transcriptionEngine，M§32.3）</summary>
+    public string TranscriptionEngine => String(TranscriptionEngineKey) ?? "breeze";
+    public bool UseQwen => TranscriptionEngine == "qwen";
     public string CompatibleBaseUrl => String(CompatibleBaseUrlKey) ?? "";
 
     /// <summary>新會議的會議語言（M§16.3）；沒設定時跟著介面語言</summary>

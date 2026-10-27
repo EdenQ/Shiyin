@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS usage_daily (
   transcribed_seconds INTEGER NOT NULL DEFAULT 0,
   transcribe_wall_seconds INTEGER NOT NULL DEFAULT 0,
   engine_breeze INTEGER NOT NULL DEFAULT 0,
+  engine_qwen INTEGER NOT NULL DEFAULT 0,
   engine_builtin INTEGER NOT NULL DEFAULT 0,   -- Mac：macOS 內建辨識；Windows：快速辨識（SenseVoice）
   engine_whisper_ja INTEGER NOT NULL DEFAULT 0,
   lang_zh INTEGER NOT NULL DEFAULT 0,
@@ -26,10 +27,29 @@ CREATE TABLE IF NOT EXISTS usage_daily (
   summarizer_api INTEGER NOT NULL DEFAULT 0,
   summarizer_local INTEGER NOT NULL DEFAULT 0,
   questions_asked INTEGER NOT NULL DEFAULT 0,
+  review_answered INTEGER NOT NULL DEFAULT 0,   -- 2026-10-23 加（R41.7）：待確認送出的題數；已經建好的資料庫跑 migrate-review.sql
+  review_confirmed INTEGER NOT NULL DEFAULT 0,
+  review_skipped INTEGER NOT NULL DEFAULT 0,
   errors_recording INTEGER NOT NULL DEFAULT 0,
   errors_transcribe INTEGER NOT NULL DEFAULT 0,
   errors_diarize INTEGER NOT NULL DEFAULT 0,
   errors_summarize INTEGER NOT NULL DEFAULT 0,
+  -- 2026-10-25 加（R47、docs/design.md §34.5）：整理失敗的種類、整理工具、草稿；已經建好的資料庫跑 migrate-summarize-errors.sql
+  summarize_err_not_installed INTEGER NOT NULL DEFAULT 0,
+  summarize_err_not_logged_in INTEGER NOT NULL DEFAULT 0,
+  summarize_err_missing_key INTEGER NOT NULL DEFAULT 0,
+  summarize_err_not_configured INTEGER NOT NULL DEFAULT 0,
+  summarize_err_key_rejected INTEGER NOT NULL DEFAULT 0,
+  summarize_err_limited INTEGER NOT NULL DEFAULT 0,
+  summarize_err_timeout INTEGER NOT NULL DEFAULT 0,
+  summarize_err_unreachable INTEGER NOT NULL DEFAULT 0,
+  summarize_err_bad_output INTEGER NOT NULL DEFAULT 0,
+  summarize_err_other INTEGER NOT NULL DEFAULT 0,
+  summarize_err_claude_code INTEGER NOT NULL DEFAULT 0,
+  summarize_err_codex INTEGER NOT NULL DEFAULT 0,
+  summarize_err_api INTEGER NOT NULL DEFAULT 0,
+  summarize_err_local INTEGER NOT NULL DEFAULT 0,
+  summarize_err_draft INTEGER NOT NULL DEFAULT 0,
   received_at TEXT NOT NULL,
   PRIMARY KEY (install_id, date)
 );

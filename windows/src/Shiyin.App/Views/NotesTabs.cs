@@ -9,21 +9,23 @@ using Shiyin.Services;
 namespace Shiyin.App.Views;
 
 /// <summary>
-/// 摘要、詳細、我的筆記三個分頁（同 Mac 的 NotesTabs）：閱讀的欄位寬度上限約 680；可以切換成編輯模式（R6.6），
-/// 按「完成」存成新的版本，切到別的分頁、別場會議時自動存
+/// 「紀錄」分頁和逐字稿頂部的「我的筆記」（同 Mac 的 NotesPage、ReviewBanner、UserNotesDisclosure，R44.1～R44.3）：
+/// 閱讀的欄位寬度上限約 680；可以切換成編輯模式（R6.6），按「完成」存成新的版本，切到別的分頁、別場會議時自動存
 /// </summary>
 public sealed class NotesTabs
 {
     readonly AppHost host;
     readonly MainWindow window;
+    readonly ReviewDraft draft;
     NotesEditor? editor;
     readonly TextBox userNotes = new() { AcceptsReturn = true, TextWrapping = TextWrapping.Wrap };
     readonly UserNotesBox notesBox;
 
-    public NotesTabs(AppHost host, MainWindow window)
+    public NotesTabs(AppHost host, MainWindow window, ReviewDraft draft)
     {
         this.host = host;
         this.window = window;
+        this.draft = draft;
         notesBox = new UserNotesBox(host, userNotes, () => host.Player.IsPlaying ? host.Player.CurrentTime : null);
     }
 
@@ -48,46 +50,62 @@ public sealed class NotesTabs
     FrameworkElement Section(string title, MeetingLanguage language, UIElement content) =>
         Ui.Column(10, Ui.Heading(title, language), content);
 
-    UIElement Items(IEnumerable<MeetingNotes.Item> items, MeetingLanguage language)
+    /// <summary>時間點後面加待確認的標記（R41.1）：這一條對到題目時顯示，點了在下面展開就地回答（R41.2）</summary>
+    UIElement? Trailing(MeetingDetail detail, NoteItemRef r, string time)
+    {
+        var marker = ReviewRows.Marker(detail, r, draft, window);
+        var clock = time.Length > 0 ? Ui.Time(time, SeekIfLoaded) : null;
+        return marker is null ? clock : clock is null ? marker : Ui.Row(8, clock, marker);
+    }
+
+    FrameworkElement? ExpandedCard(MeetingDetail detail, NoteItemRef r) =>
+        draft.Expanded == r && detail.ReviewLinks.TryGetValue(r, out var indexes) ? ReviewRows.Card(detail, indexes, draft, host, window) : null;
+
+    UIElement Items(IEnumerable<MeetingNotes.Item> items, MeetingLanguage language, MeetingDetail detail, Func<int, NoteItemRef> refOf)
     {
         var panel = new StackPanel { Spacing = 7 };
+        var index = 0;
         foreach (var item in items)
         {
+            var r = refOf(index++);
             var text = Ui.Text(item.Text, 14, select: true);
             text.Language = Ui.ContentLanguage(language);
-            var row = Ui.Split(Ui.Text("•", 14, color: Ui.Secondary), Ui.Inline(text, item.Time.Length > 0 ? Ui.Time(item.Time, SeekIfLoaded) : null));
-            panel.Children.Add(row);
+            var row = Ui.Split(Ui.Text("•", 14, color: Ui.Secondary), Ui.Inline(text, Trailing(detail, r, item.Time)));
+            panel.Children.Add(ExpandedCard(detail, r) is { } card ? Ui.Column(8, row, card) : row);
         }
         return panel;
     }
 
-    UIElement ActionItems(List<MeetingNotes.ActionItem> items, MeetingLanguage language)
+    UIElement ActionItems(List<MeetingNotes.ActionItem> items, MeetingLanguage language, MeetingDetail detail)
     {
         var grid = new Grid { ColumnSpacing = 18, RowSpacing = 9 };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        void Add(FrameworkElement e, int row, int column)
+        var rows = 0;
+        void Add(FrameworkElement e, int row, int column, int span = 1)
         {
+            while (grid.RowDefinitions.Count <= row) grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             Grid.SetRow(e, row);
             Grid.SetColumn(e, column);
+            if (span > 1) Grid.SetColumnSpan(e, span);
             grid.Children.Add(e);
         }
-        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        Add(Ui.Caption(L.T("負責人")), 0, 0);
-        Add(Ui.Caption(L.T("事項")), 0, 1);
-        Add(Ui.Caption(L.T("期限")), 0, 2);
+        Add(Ui.Caption(L.T("負責人")), rows, 0);
+        Add(Ui.Caption(L.T("事項")), rows, 1);
+        Add(Ui.Caption(L.T("期限")), rows++, 2);
         for (var i = 0; i < items.Count; i++)
         {
             var item = items[i];
-            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            var r = NoteItemRef.ActionItems(i);
             var owner = Ui.Text(item.Owner.Length == 0 ? L.T("未指定") : item.Owner, 14, color: item.Owner.Length == 0 ? Ui.Signal : null, wrap: false);
             owner.Language = Ui.ContentLanguage(language);
             var task = Ui.Text(item.Task, 14, select: true);
             task.Language = Ui.ContentLanguage(language);
-            Add(owner, i + 1, 0);
-            Add(Ui.Inline(task, item.Time.Length > 0 ? Ui.Time(item.Time, SeekIfLoaded) : null), i + 1, 1);
-            Add(Ui.Text(item.Due.Length == 0 ? "—" : item.Due, 14, color: item.Due.Length == 0 ? Ui.Secondary : null, wrap: false), i + 1, 2);
+            Add(owner, rows, 0);
+            Add(Ui.Inline(task, Trailing(detail, r, item.Time)), rows, 1);
+            Add(Ui.Text(item.Due.Length == 0 ? "—" : item.Due, 14, color: item.Due.Length == 0 ? Ui.Secondary : null, wrap: false), rows++, 2);
+            if (ExpandedCard(detail, r) is { } card) Add(card, rows++, 0, 3);
         }
         return grid;
     }
@@ -107,6 +125,15 @@ public sealed class NotesTabs
             panel.Children.Add(Ui.Text(L.T("還沒設定整理工具。選好之後，就能把逐字稿整理成摘要、決議和待辦；之後的會議轉錄完會自動整理。"), color: Ui.Secondary));
             panel.Children.Add(Ui.Button(L.T("設定整理工具"), () => App.Current.ShowSettings()));
         }
+        else if (host.Settings.Provider != LLMProvider.None && host.Settings.SummarizerProblem is { } problem)
+        {
+            // 選了整理工具但還沒準備好（沒登入、沒有 key…，R45.4）：說原因，給修的按鈕
+            panel.Children.Add(Ui.Text(L.F("整理工具還沒設定好：%@", problem.Message), color: Ui.Secondary));
+            panel.Children.Add(Ui.Button(problem.ActionTitle, () =>
+            {
+                if (problem.OffersLogin) CliLogin.Open(host, problem.Provider); else App.Current.ShowSettings();
+            }));
+        }
         else
         {
             var none = host.Settings.Provider == LLMProvider.None;
@@ -118,12 +145,21 @@ public sealed class NotesTabs
         return panel;
     }
 
-    FrameworkElement EditBar(MeetingDetail detail, bool topics)
+    /// <summary>右上角的「編輯」；有上一版時旁邊多一顆「復原上一版」（R44.4，原本在「更多」）</summary>
+    FrameworkElement EditBar(MeetingDetail detail)
     {
         var busy = window.State.DetailStatus?.IsActive == true;
-        var button = Ui.Button(L.T("編輯"), () =>
+        var row = Ui.Row(8);
+        row.HorizontalAlignment = HorizontalAlignment.Right;
+        if (detail.CanUndoNotes)
         {
-            editor = new NotesEditor(detail.Notes!, detail.Meeting.Id!.Value, topics, detail.Meeting.MeetingLanguage);
+            var undo = Ui.Button(L.T("復原上一版"), () => host.Controller.UndoNotes(detail.Meeting.Id!.Value), tooltip: L.T("換回上一版會議紀錄（再按一次換回更早的）"));
+            undo.IsEnabled = !busy;
+            row.Children.Add(undo);
+        }
+        var edit = Ui.Button(L.T("編輯"), () =>
+        {
+            editor = new NotesEditor(detail.Notes!, detail.Meeting.Id!.Value, detail.Meeting.MeetingLanguage);
             editor.Finished += save =>
             {
                 var e = editor;
@@ -133,23 +169,42 @@ public sealed class NotesTabs
             };
             window.Refresh();
         }, tooltip: busy ? L.T("正在處理這場會議，完成後才能編輯") : L.T("直接修改會議紀錄，存檔時會留一個版本"));
-        button.IsEnabled = !busy;
-        button.HorizontalAlignment = HorizontalAlignment.Right;
-        return button;
+        edit.IsEnabled = !busy;
+        row.Children.Add(edit);
+        return row;
     }
 
-    public FrameworkElement Summary(MeetingDetail detail)
+    /// <summary>紀錄（R44.1）：摘要、決議、待辦、未決問題、議題、自訂段落由上而下一頁；有待確認時頂部一條可以展開（R44.2）</summary>
+    public FrameworkElement Page(MeetingDetail detail, ReviewTab review)
     {
-        if (editor is { Topics: false } e && e.MeetingId == detail.Meeting.Id) return e.Root;
+        if (editor is { } e && e.MeetingId == detail.Meeting.Id) return e.Root;
         if (detail.Notes is not { IsEmpty: false } notes) return Placeholder(detail);
         var language = detail.Meeting.MeetingLanguage;
         var column = Column();
-        column.Children.Add(EditBar(detail, topics: false));
-        if (notes.Summary.Count > 0) column.Children.Add(Section(L.T("摘要"), language, Items(notes.Summary, language)));
-        if (notes.Decisions.Count > 0) column.Children.Add(Section(L.T("決議"), language, Items(notes.Decisions, language)));
-        if (notes.ActionItems.Count > 0) column.Children.Add(Section(L.T("待辦"), language, ActionItems(notes.ActionItems, language)));
-        if (notes.OpenQuestions.Count > 0) column.Children.Add(Section(L.T("未決問題"), language, Items(notes.OpenQuestions, language)));
-        foreach (var section in notes.Custom.Where(c => c.Items.Count > 0)) column.Children.Add(Section(section.Title, language, Items(section.Items, language)));
+        if (detail.ReviewCount > 0) column.Children.Add(ReviewBanner(detail, review));
+        column.Children.Add(EditBar(detail));
+        if (notes.Summary.Count > 0) column.Children.Add(Section(L.T("摘要"), language, Items(notes.Summary, language, detail, NoteItemRef.Summary)));
+        if (notes.Decisions.Count > 0) column.Children.Add(Section(L.T("決議"), language, Items(notes.Decisions, language, detail, NoteItemRef.Decisions)));
+        if (notes.ActionItems.Count > 0) column.Children.Add(Section(L.T("待辦"), language, ActionItems(notes.ActionItems, language, detail)));
+        if (notes.OpenQuestions.Count > 0) column.Children.Add(Section(L.T("未決問題"), language, Items(notes.OpenQuestions, language, detail, NoteItemRef.OpenQuestions)));
+        if (notes.Topics.Count > 0)
+        {
+            var topics = new StackPanel { Spacing = 22 };
+            for (var t = 0; t < notes.Topics.Count; t++)
+            {
+                var topic = notes.Topics[t];
+                var index = t;
+                topics.Children.Add(Ui.Column(10, Ui.Bar(Ui.Time(topic.Start, SeekIfLoaded) as FrameworkElement, Ui.Heading(topic.Title, language, 16), null, 10),
+                    Items(topic.Points, language, detail, i => NoteItemRef.TopicPoint(index, i))));
+            }
+            column.Children.Add(Section(L.T("議題"), language, topics));
+        }
+        for (var c = 0; c < notes.Custom.Count; c++)
+        {
+            var section = notes.Custom[c];
+            var index = c;
+            if (section.Items.Count > 0) column.Children.Add(Section(section.Title, language, Items(section.Items, language, detail, i => NoteItemRef.Custom(index, i))));
+        }
         if (detail.Meeting.NotesBy is { } by)
         {
             var template = window.State.Templates.FirstOrDefault(t => t.Id == detail.Meeting.TemplateId)?.DisplayName() ?? L.T("一般會議");
@@ -158,57 +213,72 @@ public sealed class NotesTabs
         return Reading(column);
     }
 
-    public FrameworkElement Topics(MeetingDetail detail)
+    /// <summary>紀錄頂部的「還有 N 題待確認」（R44.2，同 Mac 的 ReviewBanner）：點了在下面展開待確認的題目，再點收起；展開的狀態換會議就重設</summary>
+    FrameworkElement ReviewBanner(MeetingDetail detail, ReviewTab review)
     {
-        if (editor is { Topics: true } e && e.MeetingId == detail.Meeting.Id) return e.Root;
-        if (detail.Notes is not { IsEmpty: false } notes) return Placeholder(detail);
-        var language = detail.Meeting.MeetingLanguage;
-        var column = Column();
-        column.Children.Add(EditBar(detail, topics: true));
-        if (notes.Topics.Count == 0) column.Children.Add(Ui.Text(L.T("這場會議沒有分出議題（可能是範本沒有包含「議題詳細」）。"), color: Ui.Secondary));
-        foreach (var topic in notes.Topics)
-            column.Children.Add(Ui.Column(10, Ui.Bar(Ui.Time(topic.Start, SeekIfLoaded) as FrameworkElement, Ui.Heading(topic.Title, language), null, 10), Items(topic.Points, language)));
-        return Reading(column);
+        var state = window.State;
+        var icon = new FontIcon { Glyph = "\uE9CE", FontSize = 14, Foreground = Ui.Signal, VerticalAlignment = VerticalAlignment.Center };
+        var header = Ui.Row(10, icon, Ui.Text(L.F("還有 %lld 題待確認", detail.ReviewCount), 14, bold: true, wrap: false));
+        var expander = new Expander
+        {
+            Header = header, IsExpanded = state.ReviewExpanded,
+            HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Stretch,
+        };
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(expander, L.F("待確認 %lld 題", detail.ReviewCount));
+        if (state.ReviewExpanded) expander.Content = review.Embedded(detail);
+        // 展開時才建內容（題目可能很多）；只記狀態、不整頁重畫，題目裡的按鈕會自己重畫
+        expander.Expanding += (_, _) => { state.ReviewExpanded = true; expander.Content ??= review.Embedded(detail); };
+        expander.Collapsed += (_, _) => state.ReviewExpanded = false;
+        return expander;
     }
 
-    /// <summary>我的筆記（R2.4）：播放錄音時換行，會自動加上當下的播放時間</summary>
-    public FrameworkElement UserNotes(MeetingDetail detail)
+    /// <summary>逐字稿頂部的「我的筆記」（R44.3，同 Mac 的 UserNotesDisclosure）：收起時一行（幾行筆記、重點標記），展開是輸入框；
+    /// 播放錄音時換行，會自動加上當下的播放時間（R2.4）</summary>
+    public FrameworkElement UserNotesDisclosure(MeetingDetail detail)
     {
+        var state = window.State;
         notesBox.Load(detail.Meeting.Id!.Value, detail.Meeting.UserNotes);
         userNotes.Language = Ui.ContentLanguage(detail.Meeting.MeetingLanguage);
-        var title = Ui.Heading(L.T("我的筆記"), MeetingLanguage.Zh);
+        var lines = detail.Meeting.UserNotes.Split('\n').Count(l => l.Trim().Length > 0);
+        var icon = new FontIcon { Glyph = "\uE70B", FontSize = 14, Foreground = Ui.Secondary, VerticalAlignment = VerticalAlignment.Center };
+        var label = lines > 0 ? L.F("我的筆記（%lld 行）", lines) : L.T("寫筆記");
+        var expander = new Expander
+        {
+            Header = Ui.Row(8, icon, Ui.Text(label, 14, wrap: false)), IsExpanded = state.UserNotesExpanded,
+            HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Stretch,
+        };
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(expander, label);
+        FrameworkElement Body()
+        {
+            if (userNotes.Parent is Panel old) old.Children.Remove(userNotes);
+            userNotes.Height = 180;
+            return Ui.Column(8,
+                Ui.Caption(L.T("播放錄音時換行，會自動加上當下的播放時間。整理時 AI 會參考這些筆記；改完之後可以從「更多 → 重新處理」選「重新整理會議紀錄」。")),
+                userNotes);
+        }
+        if (state.UserNotesExpanded) expander.Content = Body();
+        expander.Expanding += (_, _) => { state.UserNotesExpanded = true; expander.Content ??= Body(); };
+        expander.Collapsed += (_, _) => state.UserNotesExpanded = false;
         FrameworkElement? marks = null;
         if (detail.Bookmarks.Count > 0)
         {
             var menu = new MenuFlyout();
             foreach (var b in detail.Bookmarks) menu.Items.Add(Ui.Item($"{TimeFormat.String(b.Time)} {b.Label}", () => Seek(b.Time)));
-            marks = new DropDownButton { Content = L.F("重點標記 %lld", detail.Bookmarks.Count), Flyout = menu };
+            marks = new DropDownButton { Content = L.F("重點標記 %lld", detail.Bookmarks.Count), Flyout = menu, VerticalAlignment = VerticalAlignment.Top };
         }
-        var grid = new Grid { RowSpacing = 10, Padding = new Thickness(32, 20, 32, 20) };
-        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        var head = Ui.Bar(title, null, marks);
-        grid.Children.Add(head);
-        var caption = Ui.Caption(L.T("播放錄音時換行，會自動加上當下的播放時間。整理時 AI 會參考這些筆記；改完之後可以從「更多」選「重新整理會議紀錄」。"));
-        Grid.SetRow(caption, 1);
-        grid.Children.Add(caption);
-        if (userNotes.Parent is Panel old) old.Children.Remove(userNotes);
-        Grid.SetRow(userNotes, 2);
-        grid.Children.Add(userNotes);
-        return new ReadingColumn(grid, 760);
+        var bar = Ui.Bar(null, expander, marks, 8);
+        return new Border { Child = new ReadingColumn(bar, 760), Padding = new Thickness(20, 8, 20, 0) };
     }
 }
 
 /// <summary>
-/// 手動編輯會議紀錄（同 Mac 的 NotesEditor，R6.6）：每一條都是可以改的欄位，可以新增、刪除、上下移動；按「完成」才存成新版本
+/// 手動編輯會議紀錄（同 Mac 的 NotesEditor，R6.6）：每一條都是可以改的欄位，可以新增、刪除、上下移動；議題也在同一份（R44.1）；按「完成」才存成新版本
 /// </summary>
 public sealed class NotesEditor
 {
     public Grid Root { get; } = new();
     public MeetingNotes Base { get; }
     public long MeetingId { get; }
-    public bool Topics { get; }
     readonly MeetingLanguage language;
     readonly StackPanel body = new() { Spacing = 22 };
     MeetingNotes notes;
@@ -216,16 +286,15 @@ public sealed class NotesEditor
 
     public MeetingNotes Notes => notes;
 
-    public NotesEditor(MeetingNotes notes, long meetingId, bool topics, MeetingLanguage language)
+    public NotesEditor(MeetingNotes notes, long meetingId, MeetingLanguage language)
     {
         Base = notes;
         this.notes = Copy(notes);
         MeetingId = meetingId;
-        Topics = topics;
         this.language = language;
         Root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         Root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        var bar = Ui.Bar(Ui.Text(topics ? L.T("編輯議題") : L.T("編輯會議紀錄"), 15, bold: true), null,
+        var bar = Ui.Bar(Ui.Text(L.T("編輯會議紀錄"), 15, bold: true), null,
             Ui.Row(8, Ui.Button(L.T("取消"), () => Finished?.Invoke(false)), Ui.Button(L.T("完成"), () => Finished?.Invoke(true), accent: true)));
         bar.Padding = new Thickness(32, 10, 32, 10);
         Root.Children.Add(bar);
@@ -245,22 +314,6 @@ public sealed class NotesEditor
     void Rebuild()
     {
         body.Children.Clear();
-        if (Topics)
-        {
-            for (var i = 0; i < notes.Topics.Count; i++)
-            {
-                var index = i;
-                var topic = notes.Topics[i];
-                var start = new TextBox { Text = topic.Start, Width = 70, PlaceholderText = L.T("時間") };
-                start.TextChanged += (_, _) => notes.Topics[index] = notes.Topics[index] with { Start = start.Text };
-                var title = new TextBox { Text = topic.Title, PlaceholderText = L.T("議題"), FontFamily = Ui.TitleFont(language) };
-                title.TextChanged += (_, _) => notes.Topics[index] = notes.Topics[index] with { Title = title.Text };
-                var delete = Ui.IconButton(Symbol.Delete, L.T("刪除這個議題"), () => { notes.Topics.RemoveAt(index); Rebuild(); });
-                body.Children.Add(Ui.Column(8, Ui.Bar(start, title, delete), ItemsEditor(notes.Topics[index].Points)));
-            }
-            body.Children.Add(Ui.Button(L.T("新增議題"), () => { notes.Topics.Add(new MeetingNotes.Topic("", "", [])); Rebuild(); }));
-            return;
-        }
         var titleBox = new TextBox { Text = notes.Title, PlaceholderText = L.T("標題"), FontFamily = Ui.TitleFont(language), FontSize = 18 };
         titleBox.TextChanged += (_, _) => notes = notes with { Title = titleBox.Text };
         body.Children.Add(titleBox);
@@ -268,6 +321,7 @@ public sealed class NotesEditor
         body.Children.Add(Section(L.T("決議"), ItemsEditor(notes.Decisions)));
         body.Children.Add(Section(L.T("待辦"), ActionsEditor(notes.ActionItems)));
         body.Children.Add(Section(L.T("未決問題"), ItemsEditor(notes.OpenQuestions)));
+        body.Children.Add(Section(L.T("議題"), TopicsEditor()));
         foreach (var section in notes.Custom) body.Children.Add(Section(section.Title, ItemsEditor(section.Items)));
         if (notes.ReviewItems.Count > 0)
         {
@@ -284,6 +338,25 @@ public sealed class NotesEditor
     }
 
     UIElement Section(string title, UIElement content) => Ui.Column(8, Ui.Heading(title, language, 16), content);
+
+    /// <summary>議題（原本自己一個「詳細」分頁，R44.1）：每個議題有時間、標題和幾條重點</summary>
+    UIElement TopicsEditor()
+    {
+        var panel = Ui.Column(14);
+        for (var i = 0; i < notes.Topics.Count; i++)
+        {
+            var index = i;
+            var topic = notes.Topics[i];
+            var start = new TextBox { Text = topic.Start, Width = 70, PlaceholderText = L.T("時間") };
+            start.TextChanged += (_, _) => notes.Topics[index] = notes.Topics[index] with { Start = start.Text };
+            var title = new TextBox { Text = topic.Title, PlaceholderText = L.T("議題"), FontFamily = Ui.TitleFont(language) };
+            title.TextChanged += (_, _) => notes.Topics[index] = notes.Topics[index] with { Title = title.Text };
+            var delete = Ui.IconButton(Symbol.Delete, L.T("刪除這個議題"), () => { notes.Topics.RemoveAt(index); Rebuild(); });
+            panel.Children.Add(Ui.Column(8, Ui.Bar(start, title, delete), ItemsEditor(notes.Topics[index].Points)));
+        }
+        panel.Children.Add(Ui.Link(L.T("新增議題"), () => { notes.Topics.Add(new MeetingNotes.Topic("", "", [])); Rebuild(); }));
+        return panel;
+    }
 
     UIElement ItemsEditor(List<MeetingNotes.Item> items)
     {
@@ -328,277 +401,6 @@ public sealed class NotesEditor
         var down = Ui.GlyphButton("\uE74B", L.T("往下移"), () => { (items[index + 1], items[index]) = (items[index], items[index + 1]); Rebuild(); });
         down.IsEnabled = index < items.Count - 1;
         return Ui.Row(2, up, down, Ui.IconButton(Symbol.Delete, L.T("刪除"), () => { items.RemoveAt(index); Rebuild(); }));
-    }
-}
-
-/// <summary>待確認分頁（同 Mac 的 ReviewTab，R6）：每題可以回答或略過，送出後由整理工具依回答修正。回答的草稿存在資料庫（M§21.15）。
-/// 是非題給「是」「不是」（R32）；最上面是說話者的題目（聲紋沒把握的、AI 猜的，R33），送出時直接改名字，不經過整理工具（M§27）</summary>
-public sealed class ReviewTab
-{
-    readonly AppHost host;
-    readonly MainWindow window;
-    readonly Dictionary<int, string> answers = [];
-    readonly HashSet<int> dismissed = [];
-    /// <summary>說話者編號 → 回答（YesNoAnswer 的文字：「是」「不是，名字」）</summary>
-    readonly Dictionary<int, string> speakerAnswers = [];
-    readonly HashSet<int> speakerSkipped = [];
-    readonly DispatcherTimer save = new() { Interval = TimeSpan.FromMilliseconds(800) };
-    MeetingDetail? detail;
-    List<string> questions = [];
-
-    public ReviewTab(AppHost host, MainWindow window)
-    {
-        this.host = host;
-        this.window = window;
-        save.Tick += (_, _) => { save.Stop(); Ui.Guard(SaveDrafts); };
-    }
-
-    List<MeetingNotes.ReviewItem> Items => detail?.Notes?.ReviewItems ?? [];
-    List<SpeakerNaming.Suggestion> SpeakerItems => detail?.SpeakerSuggestions.OrderBy(p => p.Key).Select(p => p.Value).ToList() ?? [];
-    MeetingLanguage Language => detail?.Meeting.MeetingLanguage ?? MeetingLanguage.Zh;
-
-    public void FlushDraft()
-    {
-        save.Stop();
-        SaveDrafts();
-    }
-
-    public FrameworkElement Show(MeetingDetail value, bool changed)
-    {
-        var newQuestions = (value.Notes?.ReviewItems ?? []).Select(r => r.Question).ToList();
-        if (changed || detail?.Meeting.Id != value.Meeting.Id)
-        {
-            FlushDraft();
-            detail = value;
-            questions = newQuestions;
-            LoadDrafts();
-        }
-        else if (!questions.SequenceEqual(newQuestions))
-        {
-            // 題目換了（依回答修正、重新整理、復原上一版）：回答是照題號存的，清掉（說話者的題目另外存，不清）
-            host.Controller.DeleteDrafts(value.Meeting.Id!.Value, "review");
-            answers.Clear();
-            dismissed.Clear();
-            detail = value;
-            questions = newQuestions;
-        }
-        else detail = value;
-        // 說話者的建議被套用或清掉（例如從「猜到幾位說話者」那邊）：那位的回答不留
-        foreach (var idx in speakerAnswers.Keys.Where(k => !value.SpeakerSuggestions.ContainsKey(k)).ToList()) speakerAnswers.Remove(idx);
-        speakerSkipped.RemoveWhere(k => !value.SpeakerSuggestions.ContainsKey(k));
-        var speakerItems = SpeakerItems;
-        if (value.Notes is null && speakerItems.Count == 0)
-            return new Border { Padding = new Thickness(32), Child = Ui.Text(L.T("轉錄和整理完成後，會議紀錄會出現在這裡。"), color: Ui.Secondary) };
-        if (Items.Count == 0 && speakerItems.Count == 0)
-            return Ui.Scroll(Ui.Column(8, Ui.Text(L.T("沒有待確認的項目"), 15, color: Ui.Celadon),
-                Ui.Text(L.T("會議紀錄裡推測出來的人名、專有名詞、負責人和期限，都已經確認過了。"), color: Ui.Secondary)), 32);
-        var column = new StackPanel { Spacing = 22 };
-        column.Children.Add(Ui.Text(Items.Any(i => i.YesNo) || speakerItems.Count > 0
-            ? L.T("以下是整理時不確定的地方。按「是」「不是」或直接回答就好；看不懂或不重要的可以略過。")
-            : L.T("以下是整理時不確定的地方。直接回答就好；看不懂或不重要的可以略過。"), color: Ui.Secondary));
-        var submit = Ui.Button("", Submit, accent: true);
-        void UpdateSubmit()
-        {
-            submit.Content = SubmitTitle();
-            submit.IsEnabled = (Answered + SpeakerAnswered > 0 || dismissed.Count + speakerSkipped.Count > 0) && window.State.DetailStatus?.IsActive != true;
-        }
-        foreach (var suggestion in speakerItems) column.Children.Add(SpeakerRow(value, suggestion, UpdateSubmit));
-        for (var i = 0; i < Items.Count; i++)
-        {
-            var index = i;
-            var item = Items[i];
-            var question = Ui.Text(item.Question, 14, select: true);
-            question.Language = Ui.ContentLanguage(value.Meeting.MeetingLanguage);
-            if (dismissed.Contains(index)) { question.Foreground = Ui.Secondary; question.TextDecorations = Windows.UI.Text.TextDecorations.Strikethrough; }
-            var skip = SkipBox(dismissed.Contains(index), on => { if (on) dismissed.Add(index); else dismissed.Remove(index); });
-            // 題目放中間那欄才會換行（放在橫的 StackPanel 裡不會換行，長的題目會被切掉）
-            var lead = Ui.Row(10, Ui.Text($"{index + 1}", 14, bold: true, color: Ui.Signal, wrap: false), Ui.Time(item.Time, host.Player.IsLoaded ? s => host.Player.Seek(s) : null));
-            lead.VerticalAlignment = VerticalAlignment.Top;   // 題號、時間對齊題目的第一行
-            var head = Ui.Bar(lead, question, null, 10);
-            // 是非題（R32、M§27）：「是」「不是」，選了「不是」才要填正確的答案；舊的草稿認不出來時照舊用輸入框
-            if (item.YesNo && YesNoAnswer.Parse(answers.GetValueOrDefault(index) ?? "", Language) is { } choice)
-            {
-                var row = Ui.Bar(YesNoButtons(choice, dismissed.Contains(index), text => answers[index] = text), null, skip, 12);
-                row.Margin = new Thickness(22, 0, 0, 0);
-                var parts = Ui.Column(8, head, row);
-                if (choice.IsYes == false)
-                {
-                    var correction = new TextBox { PlaceholderText = L.T("正確的是…（可以不填）"), Text = choice.Correction, IsEnabled = !dismissed.Contains(index), Margin = new Thickness(22, 0, 0, 0) };
-                    correction.TextChanged += (_, _) => { answers[index] = new YesNoAnswer(false, correction.Text).Text(Language); UpdateSubmit(); save.Stop(); save.Start(); };
-                    parts.Children.Add(correction);
-                }
-                column.Children.Add(parts);
-                continue;
-            }
-            var answer = new TextBox { PlaceholderText = L.T("你的回答"), Text = answers.GetValueOrDefault(index) ?? "", IsEnabled = !dismissed.Contains(index) };
-            answer.TextChanged += (_, _) => { answers[index] = answer.Text; UpdateSubmit(); save.Stop(); save.Start(); };
-            var answerRow = Ui.Bar(null, answer, skip, 12);
-            answerRow.Margin = new Thickness(22, 0, 0, 0);
-            column.Children.Add(Ui.Column(8, head, answerRow));
-        }
-        UpdateSubmit();
-        var footer = Ui.Bar(null, Ui.Text(Footnote(speakerItems.Count > 0), 13, color: Ui.Secondary), submit, 12);
-        footer.Padding = new Thickness(32, 12, 32, 12);
-        var grid = new Grid();
-        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        grid.Children.Add(Ui.Scroll(new ReadingColumn(column, 680), 32));
-        Grid.SetRow(footer, 1);
-        grid.Children.Add(footer);
-        return grid;
-    }
-
-    /// <summary>說話者的題目（R33.2）：「『說話者 3』是 weiwei 嗎？」，下面是原因；選「不是」可以挑最像的人或打名字，也可以不填</summary>
-    FrameworkElement SpeakerRow(MeetingDetail value, SpeakerNaming.Suggestion suggestion, Action updateSubmit)
-    {
-        var idx = suggestion.Speaker;
-        var skipped = speakerSkipped.Contains(idx);
-        var current = value.Speakers.GetValueOrDefault(idx) ?? "";
-        var question = Ui.Text(Language.Text($"「{current}」是{suggestion.Name}嗎？", $"Is “{current}” {suggestion.Name}?", $"「{current}」は{suggestion.Name}ですか？"), 14, select: true);  // l10n-skip：會議語言的題目
-        question.Language = Ui.ContentLanguage(Language);
-        if (skipped) { question.Foreground = Ui.Secondary; question.TextDecorations = Windows.UI.Text.TextDecorations.Strikethrough; }
-        var icon = new FontIcon { Glyph = "\uE77B", FontSize = 14, Foreground = Ui.Speaker(idx), VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 3, 0, 0) };
-        var parts = Ui.Column(8, Ui.Bar(icon, question, null, 10));
-        if (suggestion.Reason.Length > 0 || suggestion.Time.Length > 0)
-        {
-            var reason = Ui.Text(suggestion.Reason, 13, color: Ui.Secondary);
-            reason.Language = Ui.ContentLanguage(Language);
-            var line = Ui.Bar(suggestion.Time.Length > 0 ? (FrameworkElement)Ui.Time(suggestion.Time, host.Player.IsLoaded ? s => host.Player.Seek(s) : null) : null, reason, null, 6);
-            line.Margin = new Thickness(22, 0, 0, 0);
-            parts.Children.Add(line);
-        }
-        var choice = YesNoAnswer.Parse(speakerAnswers.GetValueOrDefault(idx) ?? "", Language) ?? new YesNoAnswer((bool?)null);
-        var skip = SkipBox(skipped, on => { if (on) speakerSkipped.Add(idx); else speakerSkipped.Remove(idx); });
-        var row = Ui.Bar(YesNoButtons(choice, skipped, text => speakerAnswers[idx] = text), null, skip, 12);
-        row.Margin = new Thickness(22, 0, 0, 0);
-        parts.Children.Add(row);
-        if (choice.IsYes == false)
-        {
-            var name = new TextBox { PlaceholderText = L.T("是誰？（可以不填）"), Text = choice.Correction, IsEnabled = !skipped };
-            name.TextChanged += (_, _) => { speakerAnswers[idx] = new YesNoAnswer(false, name.Text).Text(Language); updateSubmit(); save.Stop(); save.Start(); };
-            var others = (value.SpeakerCandidates.GetValueOrDefault(idx) ?? []).Where(n => !string.Equals(n, suggestion.Name, StringComparison.OrdinalIgnoreCase)).ToList();
-            FrameworkElement? pick = null;
-            if (others.Count > 0)
-            {
-                var menu = new MenuFlyout();
-                foreach (var other in others)
-                    menu.Items.Add(Ui.Item(other, () => { speakerAnswers[idx] = new YesNoAnswer(false, other).Text(Language); SaveDrafts(); window.Refresh(); }));
-                pick = new DropDownButton { Content = L.T("是…"), Flyout = menu, IsEnabled = !skipped };
-            }
-            var line = Ui.Bar(pick, name, null, 10);
-            line.Margin = new Thickness(22, 0, 0, 0);
-            parts.Children.Add(line);
-        }
-        return parts;
-    }
-
-    /// <summary>「是」「不是」兩個按鈕（M§27）：選了「是」就清掉填過的答案；按了重畫，「不是」才出現輸入框</summary>
-    FrameworkElement YesNoButtons(YesNoAnswer choice, bool disabled, Action<string> set)
-    {
-        Microsoft.UI.Xaml.Controls.Primitives.ToggleButton Choice(string label, bool yes)
-        {
-            var button = new Microsoft.UI.Xaml.Controls.Primitives.ToggleButton { Content = label, IsChecked = choice.IsYes == yes, IsEnabled = !disabled, MinWidth = 56 };
-            button.Click += (_, _) =>
-            {
-                set(new YesNoAnswer(yes, yes ? "" : choice.Correction).Text(Language));
-                SaveDrafts();
-                window.Refresh();
-            };
-            return button;
-        }
-        return Ui.Row(4, Choice(L.T("是"), true), Choice(L.T("不是"), false));
-    }
-
-    CheckBox SkipBox(bool on, Action<bool> changed)
-    {
-        var skip = new CheckBox { Content = L.T("略過"), IsChecked = on };
-        skip.Click += (_, _) =>
-        {
-            changed(skip.IsChecked == true);
-            save.Stop();
-            SaveDrafts();
-            window.Refresh();
-        };
-        return skip;
-    }
-
-    int Answered => answers.Count(p => !dismissed.Contains(p.Key) && p.Value.Trim().Length > 0);
-    int SpeakerAnswered => speakerAnswers.Count(p => !speakerSkipped.Contains(p.Key) && p.Value.Length > 0);
-
-    string SubmitTitle() => (Answered + SpeakerAnswered, dismissed.Count + speakerSkipped.Count) switch
-    {
-        (0, 0) => L.T("送出"),
-        (0, var d) => L.F("略過 %lld 題", d),
-        (var a, 0) => L.F("送出 %lld 題回答", a),
-        var (a, d) => L.F("送出 %lld 題回答、略過 %lld 題", a, d),
-    };
-
-    string Footnote(bool hasSpeakers)
-    {
-        var speakers = L.T("說話者的題目不會送給整理工具，送出後直接換名字。");
-        if (Items.Count == 0) return speakers;
-        var provider = host.Settings.Provider == LLMProvider.None ? "LLM" : host.Settings.Provider.Label();
-        var notes = L.F("有回答的題目會交給 %@ 依答案修正會議紀錄；略過的題目直接移除。改錯了可以從「更多」復原上一版。", provider);
-        return hasSpeakers ? notes + " " + speakers : notes;
-    }
-
-    /// <summary>送出：先送整理工具要處理的題目（題目文字可能有說話者的名字，改名後會變），失敗時全部留著；再處理說話者的題目</summary>
-    void Submit()
-    {
-        if (detail is null) return;
-        var id = detail.Meeting.Id!.Value;
-        if (Answered > 0 || dismissed.Count > 0)
-        {
-            // 送出失敗（例如整理工具設成不整理）時保留回答
-            if (!host.Controller.SubmitReview(id, answers, dismissed)) return;
-        }
-        host.Controller.AnswerSpeakerQuestions(id, new Dictionary<int, string>(speakerAnswers), new HashSet<int>(speakerSkipped));
-        save.Stop();
-        host.Controller.DeleteDrafts(id, "review");
-        host.Controller.DeleteDrafts(id, "speaker-review");
-        answers.Clear();
-        dismissed.Clear();
-        speakerAnswers.Clear();
-        speakerSkipped.Clear();
-    }
-
-    /// <summary>說話者的草稿 key：建議換了人（重新辨識、重新轉錄）就是新的題目</summary>
-    static string SpeakerKey(SpeakerNaming.Suggestion s) => $"{s.Speaker}:{s.Name}";
-
-    void LoadDrafts()
-    {
-        answers.Clear();
-        dismissed.Clear();
-        speakerAnswers.Clear();
-        speakerSkipped.Clear();
-        if (detail is null) return;
-        var drafts = host.Controller.Drafts(detail.Meeting.Id!.Value);
-        for (var i = 0; i < Items.Count; i++)
-        {
-            if (drafts.TryGetValue("review:" + Items[i].Question, out var answer)) answers[i] = answer;
-            if (drafts.ContainsKey("review-skip:" + Items[i].Question)) dismissed.Add(i);
-        }
-        foreach (var s in SpeakerItems)
-        {
-            if (drafts.TryGetValue("speaker-review:" + SpeakerKey(s), out var answer)) speakerAnswers[s.Speaker] = answer;
-            if (drafts.ContainsKey("speaker-review-skip:" + SpeakerKey(s))) speakerSkipped.Add(s.Speaker);
-        }
-    }
-
-    void SaveDrafts()
-    {
-        if (detail is null) return;
-        var id = detail.Meeting.Id!.Value;
-        for (var i = 0; i < Items.Count; i++)
-        {
-            host.Controller.SaveDraft(id, "review:" + Items[i].Question, answers.GetValueOrDefault(i) ?? "");
-            host.Controller.SaveDraft(id, "review-skip:" + Items[i].Question, dismissed.Contains(i) ? "1" : "");
-        }
-        foreach (var s in SpeakerItems)
-        {
-            host.Controller.SaveDraft(id, "speaker-review:" + SpeakerKey(s), speakerAnswers.GetValueOrDefault(s.Speaker) ?? "");
-            host.Controller.SaveDraft(id, "speaker-review-skip:" + SpeakerKey(s), speakerSkipped.Contains(s.Speaker) ? "1" : "");
-        }
     }
 }
 

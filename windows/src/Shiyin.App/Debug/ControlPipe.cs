@@ -59,7 +59,10 @@ public static class ControlPipe
         {
             case "state": return State(host, main);
             case "select" when args.Length > 1 && long.TryParse(args[1], out var id): main?.Reveal(id); return Ok;
-            case "tab" when args.Length > 1 && Enum.TryParse<DetailTab>(args[1], true, out var tab): main?.State.SetTab(tab); return Ok;
+            // tab <summary|transcript|ask>；舊名稱當別名：topics → 紀錄、review → 紀錄並展開待確認、notes → 逐字稿並展開我的筆記（R44.1）
+            case "tab" when args.Length > 1 && DetailTabs.Resolve(args[1]) is { } resolved:
+                main?.State.OpenTab(resolved.Tab, resolved.ExpandReview, resolved.ExpandNotes);
+                return Ok;
             case "closewindow" when args.Length > 1:
                 if (args[1] == "main") main?.AppWindow.Hide();
                 return Ok;
@@ -75,6 +78,50 @@ public static class ControlPipe
                 }
                 return Ok;
             case "quit": _ = app.Quit(confirmed: true); return Ok;
+            // 待確認就地回答（R41，M§31.2）：reviewexpand <summary|decisions|actionItems|openQuestions|topic|custom> <位置> [第二個位置]（- 收合）；
+            // reviewsubmit（送目前的草稿）；reviewskipall（全部略過）；review <答案 JSON：{"0":"答案"}> <略過的題號，逗號分隔>（直接送 SubmitReview）
+            case "reviewexpand" when args.Length > 1 && main is not null:
+            {
+                var a = args.Length > 2 && int.TryParse(args[2], out var x) ? x : 0;
+                var b = args.Length > 3 && int.TryParse(args[3], out var y) ? y : 0;
+                main.ReviewDraft.Expanded = args[1] switch
+                {
+                    "summary" => NoteItemRef.Summary(a), "decisions" => NoteItemRef.Decisions(a), "actionItems" => NoteItemRef.ActionItems(a),
+                    "openQuestions" => NoteItemRef.OpenQuestions(a), "topic" => NoteItemRef.TopicPoint(a, b), "custom" => NoteItemRef.Custom(a, b), _ => null,
+                };
+                main.Refresh();
+                return Ok;
+            }
+            case "reviewsubmit" when main is not null:   // reviewsubmit [段落 位置 [第二個位置]]：給了段落就是按那一條卡片的「送出」（只送那幾題）
+            {
+                IReadOnlySet<int>? only = null;
+                if (args.Length > 2 && main.State.Detail is { } submitDetail)
+                {
+                    var a = args.Length > 2 && int.TryParse(args[2], out var x) ? x : 0;
+                    var b = args.Length > 3 && int.TryParse(args[3], out var y) ? y : 0;
+                    NoteItemRef? r = args[1] switch
+                    {
+                        "summary" => NoteItemRef.Summary(a), "decisions" => NoteItemRef.Decisions(a), "actionItems" => NoteItemRef.ActionItems(a),
+                        "openQuestions" => NoteItemRef.OpenQuestions(a), "topic" => NoteItemRef.TopicPoint(a, b), "custom" => NoteItemRef.Custom(a, b), _ => null,
+                    };
+                    only = r is { } rr && submitDetail.ReviewLinks.TryGetValue(rr, out var list) ? list.ToHashSet() : new HashSet<int>();
+                }
+                main.ReviewDraft.Submit(only);
+                main.Refresh();
+                return Ok;
+            }
+            case "reviewskipall" when main?.State.Detail is { } skipDetail:
+                main.ReviewDraft.SkipAllUnanswered(skipDetail);
+                main.ReviewDraft.Flush();
+                main.Refresh();
+                return Ok;
+            case "review" when args.Length > 2 && main?.State.Detail is { } reviewDetail:
+            {
+                var answers = (JsonNode.Parse(args[2]) as JsonObject)?.Where(p => int.TryParse(p.Key, out _))
+                    .ToDictionary(p => int.Parse(p.Key), p => p.Value?.GetValue<string>() ?? "") ?? [];
+                var dismissed = (args.Length > 3 ? args[3] : "").Split(',', StringSplitOptions.RemoveEmptyEntries).Select(int.Parse).ToHashSet();
+                return new JsonObject { ["ok"] = host.Controller.SubmitReview(reviewDetail.Meeting.Id!.Value, answers, dismissed) };
+            }
             case "record-sim" when args.Length > 1:
                 var speed = args.Length > 2 && double.TryParse(args[2], out var s) ? s : 1;
                 var both = args.Length > 3 && args[3] == "1";
@@ -130,8 +177,30 @@ public static class ControlPipe
             case "llmprovider" when args.Length > 1:
                 host.Settings.DebugProvider = LLMProviders.Parse(args[1]);
                 host.Settings.DebugModel = args.Length > 2 ? args[2] : null;
+                host.Settings.NotifySummarizerChanged();
                 return Ok;
-            case "llmkey" when args.Length > 2 && host.Keys is MemoryKeyStore memory: memory.Keys[args[1]] = args[2]; return Ok;
+            case "llmkey" when args.Length > 2 && host.Keys is MemoryKeyStore memory:
+                memory.Keys[args[1]] = args[2];
+                host.Settings.NotifyKeysChanged();   // 等於存了新的 key：解除暫停（M§34.4）
+                return Ok;
+            case "summarizer":   // 整理工具準備好了沒、登入快取（M§34.6）
+            {
+                var problem = host.Settings.SummarizerProblem;
+                return new JsonObject
+                {
+                    ["provider"] = host.Settings.Provider.Code(), ["ready"] = problem is null,
+                    ["problem"] = problem is null ? "" : problem.Kind.ToString(), ["message"] = problem?.Message ?? "",
+                    ["action"] = problem?.ActionTitle ?? "",
+                    ["loggedIn"] = new JsonObject
+                    {
+                        ["claude"] = CliLogin.Cached(LLMProvider.Claude) is { } c ? (c ? "yes" : "no") : "unknown",
+                        ["codex"] = CliLogin.Cached(LLMProvider.Codex) is { } x ? (x ? "yes" : "no") : "unknown",
+                    },
+                };
+            }
+            case "loginrefresh":   // 重新查 claude、codex 的登入狀態
+                host.Post(async () => { await CliLogin.Refresh(LLMProvider.Claude); await CliLogin.Refresh(LLMProvider.Codex); });
+                return Ok;
             case "llmurl" when args.Length > 2 && LLMProviders.Parse(args[1]) is { } provider: host.Llm.BaseUrlOverrides[provider] = args[2]; return Ok;
             case "modelurl" when args.Length > 2 && Enum.TryParse<ModelStore.Model>(args[1], true, out var model): host.Models.DebugUrls[model] = args[2]; return Ok;
             case "model" when args.Length > 2 && Enum.TryParse<ModelStore.Model>(args[2], true, out var m):
@@ -178,7 +247,10 @@ public static class ControlPipe
             ["version"] = host.Version,
             ["home"] = host.Paths.Home,
             ["selection"] = main?.State.Selection,
-            ["tab"] = main?.State.Tab.ToString(),
+            ["tab"] = main?.State.Tab.ToString().ToLowerInvariant(),
+            ["reviewExpanded"] = main?.State.ReviewExpanded,
+            ["userNotesExpanded"] = main?.State.UserNotesExpanded,
+            ["reviewInline"] = main?.ReviewDraft.Expanded?.ToString(),
             ["meetings"] = main?.State.Meetings.Count,
             ["running"] = running,
             ["models"] = models,
@@ -191,6 +263,7 @@ public static class ControlPipe
             },
             ["hotKeyError"] = host.HotKeyError,
             ["notifications"] = host.Notifier.Enabled,
+            ["lastToast"] = host.Notifier.LastShown is { } toast ? new JsonObject { ["title"] = toast.Title, ["body"] = toast.Body } : null,
         };
     }
 }

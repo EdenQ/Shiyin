@@ -36,23 +36,99 @@ struct NotesSection<Content: View>: View {
     }
 }
 
-/// 一條紀錄：內容加上時間點（R6.4：點時間點就跳到錄音那裡）
+/// 一條紀錄：內容加上時間點（R6.4：點時間點就跳到錄音那裡）。
+/// `ref` 給每一條在會議紀錄裡的位置（R41.1）：有對到待確認的題目時，時間點後面顯示標記，點了在下面展開題目就地回答
 struct ItemList: View {
+    @Environment(AppModel.self) private var model
     let items: [MeetingNotes.Item]
+    var detail: MeetingDetail? = nil
+    var ref: (Int) -> NoteItemRef? = { _ in nil }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
-            ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text("•").foregroundStyle(.secondary)
-                    (Text(item.text)).meetingText()
-                        .textSelection(.enabled)
-                        .fixedSize(horizontal: false, vertical: true)
-                    if !item.time.isEmpty { TimeButton(time: item.time).font(.caption.monospacedDigit()) }
+            ForEach(Array(items.enumerated()), id: \.offset) { index, item in
+                let ref = ref(index)
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text("•").foregroundStyle(.secondary)
+                        (Text(item.text)).meetingText()
+                            .textSelection(.enabled)
+                            .fixedSize(horizontal: false, vertical: true)
+                        if !item.time.isEmpty { TimeButton(time: item.time).font(.caption.monospacedDigit()) }
+                        if let ref, let detail { ReviewMarker(ref: ref, count: detail.reviewCount(ref)) }
+                    }
+                    if let ref, let detail, model.reviewDraft?.expanded == ref {
+                        InlineReviewCard(detail: detail, indexes: detail.reviewLinks[ref] ?? [])
+                    }
                 }
             }
         }
         .lineSpacing(3)
+    }
+}
+
+/// 待確認的標記（R41.1，design §31.2）：這一條紀錄有幾題整理時不確定的地方，琥珀色跟側欄的「待確認 N 題」一樣。
+/// 點了在那一條下面展開題目（R41.2）；同時只展開一條，再點一次收合
+struct ReviewMarker: View {
+    @Environment(AppModel.self) private var model
+    let ref: NoteItemRef
+    let count: Int
+
+    var body: some View {
+        if count > 0 {
+            Button {
+                if let draft = model.reviewDraft {
+                    draft.expanded = draft.expanded == ref ? nil : ref
+                } else {
+                    model.tab = .summary
+                    model.reviewExpanded = true
+                }
+            } label: {
+                Text(count > 1 ? "\(MeetingLanguage.ui(zh: "？", en: "?"))\(count)" : MeetingLanguage.ui(zh: "？", en: "?"))
+                    .font(.caption2.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(Color.signal)
+                    .padding(.horizontal, count > 1 ? 5 : 0)
+                    .frame(minWidth: 17, minHeight: 17)
+                    .background(Color.signal.opacity(0.16), in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .help(count > 1 ? String(localized: "整理時有 \(count) 題不確定的地方，點了就能回答") : String(localized: "整理時有一題不確定的地方，點了就能回答"))
+            .accessibilityLabel(String(localized: "待確認 \(count) 題"))
+        }
+    }
+}
+
+/// 就地回答（R41.2，design §31.2）：展開在那一條紀錄下面，列出對應的題目；回答跟待確認分頁是同一份草稿，
+/// 「送出」的規則也一樣（送目前所有已回答和略過的題目）
+struct InlineReviewCard: View {
+    @Environment(AppModel.self) private var model
+    let detail: MeetingDetail
+    let indexes: [Int]
+
+    var body: some View {
+        if let draft = model.reviewDraft, draft.meetingId == detail.meeting.id, let items = detail.notes?.reviewItems {
+            let shown = Set(indexes.filter { items.indices.contains($0) })
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(shown.sorted(), id: \.self) { index in
+                    ReviewQuestionRow(index: index, item: items[index], language: detail.meeting.meetingLanguage, draft: draft)
+                }
+                HStack(spacing: 12) {
+                    Text("只送這一條的題目；有回答的交給整理工具依答案修正，略過的直接移除。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer()
+                    Button("收合") { draft.expanded = nil }
+                    // 只送這一條對到的題目（R41.2），題數也只算這幾題
+                    Button(draft.submitTitle(only: shown)) { model.submitReviewDraft(only: shown) }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(!draft.hasSomethingToSubmit(only: shown) || model.detailStatus?.isActive == true)
+                }
+            }
+            .padding(14)
+            .background(Color.signal.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+            .padding(.leading, 14)
+        }
     }
 }
 
@@ -76,6 +152,16 @@ struct NotesPlaceholder: View {
                 Text("還沒設定整理工具。選好之後，就能把逐字稿整理成摘要、決議和待辦；之後的會議轉錄完會自動整理。")
                     .foregroundStyle(.secondary)
                 Button("設定整理工具") { openSettings() }
+            } else if AppSettings.provider != .none, let problem = model.summarizerProblem {
+                // 選了整理工具但還沒準備好（沒登入、沒有 key…，R45.4）：說原因，給修的按鈕
+                Text("整理工具還沒設定好：\(problem.message)")
+                    .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Button(problem.actionTitle) {
+                    switch problem.action {
+                    case .openSettings: openSettings()
+                    case .login(let provider): CLILogin.openLogin(provider)
+                    }
+                }
             } else {
                 Text(AppSettings.provider == .none
                      ? "整理工具目前設定為「不整理」。要產生會議紀錄，請到設定選擇 Claude、Codex 或 API。"
@@ -89,8 +175,9 @@ struct NotesPlaceholder: View {
     }
 }
 
-/// 摘要分頁：摘要、決議、待辦、未決問題、自訂段落（R6.3）。可以切換成編輯模式（R6.6）。
-struct SummaryTab: View {
+/// 紀錄分頁（R44.1，design §33.1）：待確認的條、摘要、決議、待辦、未決問題、議題、自訂段落，一頁捲到底（順序同匯出）。
+/// 可以切換成編輯模式（R6.6），一份編輯器編全部
+struct NotesPage: View {
     @Environment(AppModel.self) private var model
     let detail: MeetingDetail
     @State private var editing: MeetingNotes?
@@ -98,17 +185,45 @@ struct SummaryTab: View {
 
     var body: some View {
         if let current = editing {
-            NotesEditor(notes: Binding(draft: $editing, fallback: current), showTopics: false) { finish($0) }
+            NotesEditor(notes: Binding(draft: $editing, fallback: current)) { finish($0) }
                 .onDisappear { finish(true, automatically: true) }   // 切到別的分頁、別場會議：自動存，不丟掉打的字
         } else if let notes = detail.notes, !notes.isEmpty {
             ReadingColumn {
-                EditBar(disabled: model.detailStatus?.isActive == true) { base = notes; editing = notes }
-                if !notes.summary.isEmpty { NotesSection(title: String(localized: "摘要")) { ItemList(items: notes.summary) } }
-                if !notes.decisions.isEmpty { NotesSection(title: String(localized: "決議")) { ItemList(items: notes.decisions) } }
-                if !notes.actionItems.isEmpty { NotesSection(title: String(localized: "待辦")) { ActionItemsTable(items: notes.actionItems) } }
-                if !notes.openQuestions.isEmpty { NotesSection(title: String(localized: "未決問題")) { ItemList(items: notes.openQuestions) } }
-                ForEach(Array(notes.custom.enumerated()), id: \.offset) { _, section in
-                    if !section.items.isEmpty { NotesSection(title: section.title) { ItemList(items: section.items) } }
+                if detail.reviewCount > 0 { ReviewBanner(detail: detail) }
+                EditBar(disabled: model.detailStatus?.isActive == true, onUndo: detail.canUndoNotes ? { model.undoNotes() } : nil) {
+                    base = notes; editing = notes
+                }
+                if !notes.summary.isEmpty {
+                    NotesSection(title: String(localized: "摘要")) { ItemList(items: notes.summary, detail: detail) { .summary($0) } }
+                }
+                if !notes.decisions.isEmpty {
+                    NotesSection(title: String(localized: "決議")) { ItemList(items: notes.decisions, detail: detail) { .decisions($0) } }
+                }
+                if !notes.actionItems.isEmpty {
+                    NotesSection(title: String(localized: "待辦")) { ActionItemsTable(items: notes.actionItems, detail: detail) { .actionItems($0) } }
+                }
+                if !notes.openQuestions.isEmpty {
+                    NotesSection(title: String(localized: "未決問題")) { ItemList(items: notes.openQuestions, detail: detail) { .openQuestions($0) } }
+                }
+                if !notes.topics.isEmpty {
+                    NotesSection(title: String(localized: "議題")) {
+                        VStack(alignment: .leading, spacing: 22) {
+                            ForEach(Array(notes.topics.enumerated()), id: \.offset) { t, topic in
+                                VStack(alignment: .leading, spacing: 10) {
+                                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                                        TimeButton(time: topic.start)
+                                        Text(topic.title).contentTitleFont(16)
+                                    }
+                                    ItemList(items: topic.points, detail: detail) { .topicPoint(t, $0) }
+                                }
+                            }
+                        }
+                    }
+                }
+                ForEach(Array(notes.custom.enumerated()), id: \.offset) { c, section in
+                    if !section.items.isEmpty {
+                        NotesSection(title: section.title) { ItemList(items: section.items, detail: detail) { .custom(c, $0) } }
+                    }
                 }
                 if let by = detail.meeting.notesBy {
                     Text("由 \(LLMProvider(rawValue: by)?.shortLabel ?? by) 整理．\(templateName)")
@@ -132,15 +247,59 @@ struct SummaryTab: View {
     }
 }
 
-/// 右上角的「編輯」按鈕
+/// 紀錄頂部「還有 N 題待確認」（R44.2，design §33.1）：點了在原地展開待確認的內容（同一份 ReviewTab），回答跟就地回答共用草稿；
+/// 展開狀態只記這次選取期間（AppModel.reviewExpanded，換會議收起）
+struct ReviewBanner: View {
+    @Environment(AppModel.self) private var model
+    let detail: MeetingDetail
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.15)) { model.reviewExpanded.toggle() }
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "questionmark.circle.fill").foregroundStyle(Color.signal)
+                    Text("還有 \(detail.reviewCount) 題待確認").font(.callout.weight(.medium))
+                    Spacer()
+                    Text(model.reviewExpanded ? "收起" : "展開").font(.callout).foregroundStyle(.secondary)
+                    Image(systemName: model.reviewExpanded ? "chevron.up" : "chevron.down").font(.caption).foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(String(localized: "待確認 \(detail.reviewCount) 題"))
+            if model.reviewExpanded {
+                Divider()
+                ReviewTab(detail: detail, embedded: true)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+            }
+        }
+        .background(Color.signal.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+    }
+}
+
+/// 右上角的「編輯」按鈕；有上一版時旁邊多一顆「復原上一版」（R44.4，原本在「更多」）
 struct EditBar: View {
     /// 轉錄或整理中不能編輯：工作完成時會整份寫回，手動改的會被蓋掉
     var disabled = false
+    /// nil：沒有上一版，不顯示
+    var onUndo: (() -> Void)? = nil
     let onEdit: () -> Void
 
     var body: some View {
-        HStack {
+        HStack(spacing: 14) {
             Spacer()
+            if let onUndo {
+                Button("復原上一版", systemImage: "arrow.uturn.backward", action: onUndo)
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(disabled ? Color.secondary : Color.celadon)
+                    .disabled(disabled)
+                    .help("換回上一版會議紀錄（再按一次換回更早的）")
+            }
             Button("編輯", systemImage: "pencil", action: onEdit)
                 .buttonStyle(.borderless)
                 .foregroundStyle(disabled ? Color.secondary : Color.celadon)
@@ -152,7 +311,10 @@ struct EditBar: View {
 }
 
 struct ActionItemsTable: View {
+    @Environment(AppModel.self) private var model
     let items: [MeetingNotes.ActionItem]
+    var detail: MeetingDetail? = nil
+    var ref: (Int) -> NoteItemRef? = { _ in nil }
 
     var body: some View {
         Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 18, verticalSpacing: 9) {
@@ -164,7 +326,8 @@ struct ActionItemsTable: View {
             .font(.caption)
             .foregroundStyle(.secondary)
             Divider().gridCellUnsizedAxes(.horizontal)
-            ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+            ForEach(Array(items.enumerated()), id: \.offset) { index, item in
+                let ref = ref(index)
                 GridRow {
                     Text(item.owner.isEmpty ? String(localized: "未指定") : item.owner).meetingText()
                         .foregroundStyle(item.owner.isEmpty ? Color.signal : Color.primary)
@@ -173,53 +336,21 @@ struct ActionItemsTable: View {
                             .textSelection(.enabled)
                             .fixedSize(horizontal: false, vertical: true)
                         if !item.time.isEmpty { TimeButton(time: item.time).font(.caption.monospacedDigit()) }
+                        if let ref, let detail { ReviewMarker(ref: ref, count: detail.reviewCount(ref)) }
                     }
                     .gridColumnAlignment(.leading)
                     Text(item.due.isEmpty ? "—" : item.due)
                         .monospacedDigit()
                         .foregroundStyle(item.due.isEmpty ? .secondary : .primary)
                 }
-            }
-        }
-    }
-}
-
-/// 詳細分頁：依議題分段（R6.3）
-struct TopicsTab: View {
-    @Environment(AppModel.self) private var model
-    let detail: MeetingDetail
-    @State private var editing: MeetingNotes?
-    @State private var base: MeetingNotes?
-
-    var body: some View {
-        if let current = editing {
-            NotesEditor(notes: Binding(draft: $editing, fallback: current), showTopics: true) { finish($0) }
-                .onDisappear { finish(true, automatically: true) }   // 切到別的分頁、別場會議：自動存，不丟掉打的字
-        } else if let notes = detail.notes, !notes.isEmpty {
-            ReadingColumn {
-                EditBar(disabled: model.detailStatus?.isActive == true) { base = notes; editing = notes }
-                if notes.topics.isEmpty {
-                    Text("這場會議沒有分出議題（可能是範本沒有包含「議題詳細」）。").foregroundStyle(.secondary)
-                }
-                ForEach(Array(notes.topics.enumerated()), id: \.offset) { _, topic in
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack(alignment: .firstTextBaseline, spacing: 10) {
-                            TimeButton(time: topic.start)
-                            Text(topic.title).contentTitleFont(18)
-                        }
-                        ItemList(items: topic.points)
+                if let ref, let detail, model.reviewDraft?.expanded == ref {
+                    GridRow {
+                        InlineReviewCard(detail: detail, indexes: detail.reviewLinks[ref] ?? [])
+                            .gridCellColumns(3)
                     }
                 }
             }
-        } else {
-            NotesPlaceholder(detail: detail)
         }
-    }
-
-    private func finish(_ save: Bool, automatically: Bool = false) {
-        guard let draft = editing, let id = detail.meeting.id else { return }
-        editing = nil
-        if save { model.finishNotesEdit(draft, base: base, meetingId: id, automatically: automatically) }
     }
 }
 
@@ -236,13 +367,12 @@ extension Binding {
 /// 手動編輯會議紀錄（R6.6）：每一條都是可以改的欄位，可以新增、刪除、上下移動；按「完成」才存成新版本
 struct NotesEditor: View {
     @Binding var notes: MeetingNotes
-    let showTopics: Bool
     let onFinish: (Bool) -> Void
 
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text(showTopics ? "編輯議題" : "編輯會議紀錄").font(.headline)
+                Text("編輯會議紀錄").font(.headline)
                 Spacer()
                 Button("取消") { onFinish(false) }
                     .keyboardShortcut(.cancelAction)
@@ -255,7 +385,13 @@ struct NotesEditor: View {
             Divider()
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
-                    if showTopics {
+                    TextField("標題", text: $notes.title).contentTitleFont(18)
+                    EditorSection(title: String(localized: "摘要")) { ItemsEditor(items: $notes.summary) }
+                    EditorSection(title: String(localized: "決議")) { ItemsEditor(items: $notes.decisions) }
+                    EditorSection(title: String(localized: "待辦")) { ActionItemsEditor(items: $notes.actionItems) }
+                    EditorSection(title: String(localized: "未決問題")) { ItemsEditor(items: $notes.openQuestions) }
+                    // 議題（原「詳細」分頁的編輯器，R44.1 合併成一份）
+                    EditorSection(title: String(localized: "議題")) {
                         ForEach(notes.topics.indices, id: \.self) { i in
                             let topic = $notes.topics.safe(i, fallback: .init(title: "", start: "", points: []))
                             VStack(alignment: .leading, spacing: 8) {
@@ -271,26 +407,22 @@ struct NotesEditor: View {
                         Button("新增議題", systemImage: "plus") {
                             notes.topics.append(.init(title: "", start: "", points: []))
                         }
-                    } else {
-                        TextField("標題", text: $notes.title).contentTitleFont(18)
-                        EditorSection(title: String(localized: "摘要")) { ItemsEditor(items: $notes.summary) }
-                        EditorSection(title: String(localized: "決議")) { ItemsEditor(items: $notes.decisions) }
-                        EditorSection(title: String(localized: "待辦")) { ActionItemsEditor(items: $notes.actionItems) }
-                        EditorSection(title: String(localized: "未決問題")) { ItemsEditor(items: $notes.openQuestions) }
-                        ForEach(notes.custom.indices, id: \.self) { i in
-                            let section = $notes.custom.safe(i, fallback: .init(title: "", items: []))
-                            EditorSection(title: section.wrappedValue.title) { ItemsEditor(items: section.items) }
-                        }
-                        if !notes.reviewItems.isEmpty {
-                            EditorSection(title: String(localized: "待確認")) {
-                                ForEach(Array(notes.reviewItems.enumerated()), id: \.offset) { index, item in
-                                    HStack(alignment: .firstTextBaseline) {
-                                        Text(item.time).monospacedDigit().foregroundStyle(.secondary)
-                                        Text(item.question).meetingText()
-                                        Spacer()
-                                        Button { if notes.reviewItems.indices.contains(index) { notes.reviewItems.remove(at: index) } } label: { Image(systemName: "trash") }
-                                            .buttonStyle(.borderless).help("刪除這一題")
-                                    }
+                        .buttonStyle(.borderless)
+                        .font(.callout)
+                    }
+                    ForEach(notes.custom.indices, id: \.self) { i in
+                        let section = $notes.custom.safe(i, fallback: .init(title: "", items: []))
+                        EditorSection(title: section.wrappedValue.title) { ItemsEditor(items: section.items) }
+                    }
+                    if !notes.reviewItems.isEmpty {
+                        EditorSection(title: String(localized: "待確認")) {
+                            ForEach(Array(notes.reviewItems.enumerated()), id: \.offset) { index, item in
+                                HStack(alignment: .firstTextBaseline) {
+                                    Text(item.time).monospacedDigit().foregroundStyle(.secondary)
+                                    Text(item.question).meetingText()
+                                    Spacer()
+                                    Button { if notes.reviewItems.indices.contains(index) { notes.reviewItems.remove(at: index) } } label: { Image(systemName: "trash") }
+                                        .buttonStyle(.borderless).help("刪除這一題")
                                 }
                             }
                         }

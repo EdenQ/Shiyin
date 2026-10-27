@@ -68,13 +68,8 @@ struct RecordingPanel: View {
         .onAppear { model.refreshKnownPeople() }
     }
 
-    static func levelHintText(_ hint: Recorder.LevelHint) -> String {
-        switch hint {
-        case .silent: return String(localized: "麥克風沒有收到聲音：可能被靜音、被其他 app 佔用，或選錯了麥克風。可以在設定的「錄音」換一個。")
-        case .quiet: return String(localized: "聲音有點小：手機或筆電放近說話的人一點。")
-        case .noisy: return String(localized: "背景有點吵，說話者可能分不準。錄完可以用「重新辨識說話者」告訴會議助手大約幾個人。")
-        }
-    }
+    /// 提示的文字在 `Recorder.LevelHint.text`（錄音畫面、選單列、通知共用，R42）
+    static func levelHintText(_ hint: Recorder.LevelHint) -> String { hint.text }
 
     private func controls(_ recorder: Recorder) -> some View {
         HStack(spacing: 14) {
@@ -492,16 +487,32 @@ struct UserNotesEditor: View {
     }
 }
 
-/// 筆記分頁：錄完之後也可以繼續寫或修改筆記
-struct UserNotesTab: View {
+/// 逐字稿頂部的「我的筆記」（R44.3，design §33.1）：預設收起，標籤寫有幾行；展開是錄音中同一個編輯器，播放時換行會加上播放時間。
+/// 展開狀態只記這次選取期間（AppModel.userNotesExpanded，換會議收起）
+struct UserNotesDisclosure: View {
     @Environment(AppModel.self) private var model
     let detail: MeetingDetail
 
+    /// 有字的行數
+    private var lineCount: Int {
+        detail.meeting.userNotes.split(whereSeparator: \.isNewline).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }.count
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("我的筆記").font(.songti(18))
-                Spacer()
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.15)) { model.userNotesExpanded.toggle() }
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "note.text").foregroundStyle(.secondary)
+                        Text(lineCount > 0 ? String(localized: "我的筆記（\(lineCount) 行）") : String(localized: "寫筆記")).font(.callout)
+                        Image(systemName: model.userNotesExpanded ? "chevron.up" : "chevron.down").font(.caption).foregroundStyle(.secondary)
+                        Spacer(minLength: 0)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
                 if !detail.bookmarks.isEmpty {
                     Menu("重點標記 \(detail.bookmarks.count)") {
                         ForEach(detail.bookmarks) { bookmark in
@@ -511,18 +522,25 @@ struct UserNotesTab: View {
                     .fixedSize()
                 }
             }
-            Text("播放錄音時換行，會自動加上當下的播放時間。整理時 AI 會參考這些筆記；改完之後可以從「更多」選「重新整理會議紀錄」。")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            UserNotesEditor(meetingId: detail.meeting.id!, initial: detail.meeting.userNotes) {
-                model.player.isPlaying ? model.player.currentTime : nil
+            .padding(.horizontal, 20)
+            .padding(.vertical, 8)
+            if model.userNotesExpanded {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("播放錄音時換行，會自動加上當下的播放時間。整理時 AI 會參考這些筆記；改完之後可以從「更多 → 重新處理」選「重新整理會議紀錄」。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    UserNotesEditor(meetingId: detail.meeting.id!, initial: detail.meeting.userNotes) {
+                        model.player.isPlaying ? model.player.currentTime : nil
+                    }
+                    .frame(height: 180)
+                    .id(detail.meeting.id)
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 12)
+                .frame(maxWidth: 760, alignment: .leading)
             }
-            .id(detail.meeting.id)
         }
-        .padding(.horizontal, 32)
-        .padding(.vertical, 20)
-        .frame(maxWidth: 760, alignment: .leading)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 }
 

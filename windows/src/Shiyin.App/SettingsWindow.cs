@@ -30,10 +30,10 @@ public sealed class SettingsWindow : Window
         Title = L.T("設定");
         WindowPlacement.Center(this, 760, 640);
         WindowPlacement.MinimumSize(this, 600, 480);
+        // 四頁（R44.5、M§33.3）：範本併進整理工具、模型併進錄音與轉錄、說話者和詞彙表合成一頁、儲存空間併進進階
         (string Id, string Label)[] pages =
         [
-            ("provider", L.T("整理工具")), ("templates", MeetingLanguages.Ui("範本", "Templates")), ("glossary", L.T("詞彙表")),
-            ("speakers", MeetingLanguages.Ui("說話者", "Speakers")), ("recording", L.T("錄音")), ("storage", L.T("模型與儲存空間")), ("advanced", L.T("進階")),
+            ("provider", L.T("整理工具")), ("recording", L.T("錄音與轉錄")), ("names", L.T("說話者與詞彙")), ("advanced", L.T("進階")),
         ];
         foreach (var (id, label) in pages)
         {
@@ -49,26 +49,25 @@ public sealed class SettingsWindow : Window
         Grid.SetRow(page, 1);
         root.Children.Add(page);
         Content = Ui.WindowBackground(root);
-        host.Models.Changed += _ => host.Post(() => { if (current == "storage") Show(); });
+        host.Models.Changed += _ => host.Post(() => { if (current == "recording") Show(); });
         Show();
     }
 
-    /// <summary>DEBUG 的 settings 指令：直接打開某一頁</summary>
+    /// <summary>DEBUG 的 settings 指令：直接打開某一頁；3.x 的頁名當別名（templates → 整理工具、glossary、speakers → 說話者與詞彙、storage → 進階）</summary>
     public void Open(string id)
     {
+        id = id switch { "templates" => "provider", "glossary" or "speakers" => "names", "storage" => "advanced", _ => id };
         foreach (var item in bar.Items) if ((string)item.Tag == id) bar.SelectedItem = item;
     }
 
-    // 每一頁都用卡片分組（同 Mac 設定的 Form）；範本是左右兩欄，不加
+    // 每一頁都用卡片分組（同 Mac 設定的 Form）
     void Show() => page.Child = Ui.Scroll(current switch
     {
-        "templates" => Templates(),
-        "glossary" => Ui.Card(Glossary()),
-        "speakers" => Ui.Card(Speakers()),
-        "recording" => Ui.Card(Recording()),
-        "storage" => Storage(),
+        "recording" => Recording(),
+        "names" => Ui.Column(16, Section(MeetingLanguages.Ui("說話者", "Speakers"), Speakers()), Section(L.T("詞彙表"), Glossary())),
         "advanced" => Advanced(),
-        _ => Ui.Card(Provider()),
+        // 範本是整理的一部分（R44.5、D110）：原本自己一頁
+        _ => Ui.Column(16, Ui.Card(Provider()), Section(MeetingLanguages.Ui("範本", "Templates"), Templates())),
     }, 24);
 
     AppSettings S => host.Settings;
@@ -89,21 +88,26 @@ public sealed class SettingsWindow : Window
         var provider = S.Provider;
         var column = Ui.Column(14);
         // 選單顯示實際用的整理工具；這台電腦沒有 claude、codex 時多「之後再設定」，選它等於清掉設定（R35.3、M§19.6）
-        var options = LLMProviders.All.Select(p => ((LLMProvider?)p, p.Label())).ToList();
+        // 沒安裝的 claude、codex 不能選（R45.3）；目前選的就是它時照樣顯示
+        bool Missing(LLMProvider p) => p is LLMProvider.Claude or LLMProvider.Codex && !S.HasTool(p == LLMProvider.Claude ? "claude" : "codex");
+        var options = LLMProviders.All.Select(p => ((LLMProvider?)p, Missing(p) ? L.F("%@（沒有安裝）", p.Label()) : p.Label())).ToList();
         if (S.DetectedProvider == LLMProvider.None) options.Insert(0, (null, L.T("之後再設定（先不整理）")));
         column.Children.Add(Ui.Combo(options, S.NeedsProviderSetup ? null : provider, p =>
         {
             if (p is { } chosen) S.Set(AppSettings.ProviderKey, chosen.Code());
             else S.Remove(AppSettings.ProviderKey);
             Show();
-        }, L.T("整理工具")));
+        }, L.T("整理工具"), p => p is not { } item || !Missing(item) || item == provider));
+        // 還沒準備好：說原因，設定好之前不會自動整理（R45.3、M§34.3）
+        if (provider != LLMProvider.None && ProblemNotice(S.SummarizerProblem) is { } notice)
+            column.Children.Add(Ui.Text(notice, 12, color: Ui.Danger));
 
         if (provider is LLMProvider.Claude or LLMProvider.Codex)
         {
             var status = Ui.Text(L.T("檢查登入狀態…"), 13, color: Ui.Secondary);
             var login = Ui.Button(L.F("登入 %@", provider.ShortLabel()), () => CliLogin.Open(host, provider));
             login.Visibility = Visibility.Collapsed;
-            async void Check()
+            async void Check(bool userInitiated)
             {
                 if (host.Tools.Find(provider == LLMProvider.Claude ? "claude" : "codex") is null)
                 {
@@ -111,14 +115,16 @@ public sealed class SettingsWindow : Window
                         : L.T("這台電腦沒有安裝 claude：沒有在用 Claude Code 的話，請改選 API");
                     return;
                 }
-                var result = await CliLogin.Check(provider);
+                var result = await CliLogin.Refresh(provider);
                 if (S.Provider != provider) return;   // 查的時候換了整理工具
+                // 使用者按了「重新檢查」、查到已登入就測一次（R45.3）；打開設定頁時的自動檢查不測（不花額度）
+                if (userInitiated && result is { LoggedIn: true }) { autoTest = true; Show(); return; }
                 status.Text = result is null ? L.T("已安裝，看不出登入狀態") : result.LoggedIn ? L.F("已登入 %@", result.Detail) : L.T("沒有登入");
                 status.Foreground = result is null ? Ui.Secondary : result.LoggedIn ? Ui.Celadon : Ui.Danger;
                 login.Visibility = result is { LoggedIn: false } ? Visibility.Visible : Visibility.Collapsed;
             }
-            Check();
-            column.Children.Add(Ui.Row(8, Ui.Text(L.T("狀態"), 13), status, login, Ui.IconButton(Symbol.Refresh, L.T("重新檢查登入狀態"), Check)));
+            Check(false);
+            column.Children.Add(Ui.Row(8, Ui.Text(L.T("狀態"), 13), status, login, Ui.IconButton(Symbol.Refresh, L.T("重新檢查登入狀態"), () => Check(true))));
         }
 
         // OpenAI 相容 API 的網址（M§19.3）
@@ -151,8 +157,8 @@ public sealed class SettingsWindow : Window
                 if (key.Password.Trim().Length == 0) return;
                 try
                 {
-                    if (host.Keys is CredentialStore store) store.Save(provider.KeyAccount(), key.Password.Trim());
-                    else if (host.Keys is MemoryKeyStore memory) memory.Keys[provider.KeyAccount()] = key.Password.Trim();
+                    SummarizerSetup.SaveKey(host, provider.KeyAccount(), key.Password.Trim());
+                    autoTest = S.SummarizerReady;   // 存好 key 就測一次（R45.3）
                     Show();
                 }
                 catch (InvalidOperationException e) { error.Text = e.Message; }
@@ -162,8 +168,7 @@ public sealed class SettingsWindow : Window
                 {
                     try
                     {
-                        if (host.Keys is CredentialStore store) store.Delete(provider.KeyAccount());
-                        else if (host.Keys is MemoryKeyStore memory) memory.Keys.Remove(provider.KeyAccount());
+                        SummarizerSetup.DeleteKey(host, provider.KeyAccount());
                     }
                     catch (InvalidOperationException e) { error.Text = e.Message; }
                     Show();
@@ -203,30 +208,27 @@ public sealed class SettingsWindow : Window
             // 測試：送一個很短的請求，確認登入、key、模型都能用
             var result = Ui.Text("", 13);
             var test = Ui.Button(L.T("測試整理工具"), () => { });
-            test.Click += async (_, _) =>
+            async void RunTest()
             {
                 test.IsEnabled = false;
                 test.Content = L.T("測試中…");
-                var started = DateTime.UtcNow;
-                var language = S.DefaultMeetingLanguage;
-                var prompt = language.Text("這是連線測試。逐字稿：\n[00:00] 說話者 1：大家好，今天只是測試一下。",
-                    "This is a connection test. Transcript:\n[00:00] Speaker 1: Hi everyone, this is just a test.",
-                    "これは接続テストです。文字起こし：\n[00:00] 話者 1：皆さん、今日はテストだけです。");  // l10n-skip
                 try
                 {
-                    await host.Llm.Generate(provider, S.Model, NotesPrompt.System(language), prompt, CancellationToken.None);
-                    result.Text = L.F("可以使用（%lld 秒）", (long)Math.Round((DateTime.UtcNow - started).TotalSeconds));
+                    var seconds = await SummarizerSetup.Test(host, provider, S.Model);
+                    result.Text = L.F("可以使用（%lld 秒）", seconds);
                     result.Foreground = Ui.Celadon;
                 }
-                catch (Exception e) when (e is LLMException or HttpRequestException or IOException or TimeoutException or TaskCanceledException)
+                catch (Exception e) when (SummarizerSetup.IsTestFailure(e))
                 {
                     result.Text = e.Message;
                     result.Foreground = Ui.Danger;
                 }
                 test.IsEnabled = true;
                 test.Content = L.T("測試整理工具");
-            };
+            }
+            test.Click += (_, _) => RunTest();
             column.Children.Add(Ui.Row(10, test, result));
+            if (autoTest) { autoTest = false; RunTest(); }
         }
         var auto = Ui.Toggle(L.T("轉錄完成後自動整理成會議紀錄"), S.AutoSummarize, on => S.Set(AppSettings.AutoSummarizeKey, on));
         auto.IsEnabled = provider != LLMProvider.None;
@@ -238,6 +240,19 @@ public sealed class SettingsWindow : Window
         column.Children.Add(Ui.Card(Ui.Text(Privacy(provider), 13, color: Ui.Secondary)));
         return column;
     }
+
+    /// <summary>存好 key、按「重新檢查」查到已登入之後，重畫時自動測一次（R45.3）</summary>
+    bool autoTest;
+
+    /// <summary>選單下面的紅字（M§34.3）：沒安裝、沒登入在「狀態」那一列已經寫了原因</summary>
+    static string? ProblemNotice(SummarizerProblem? problem) => problem?.Kind switch
+    {
+        null or SummarizerProblemKind.NotChosen or SummarizerProblemKind.Off => null,
+        SummarizerProblemKind.NotInstalled or SummarizerProblemKind.NotLoggedIn => L.T("設定好之前不會自動整理。"),
+        SummarizerProblemKind.MissingKey => L.T("還沒有存 API key：貼上之後按「儲存 key」。設定好之前不會自動整理。"),
+        SummarizerProblemKind.Incomplete => L.T("還沒有填網址或模型。設定好之前不會自動整理。"),
+        _ => L.F("上次整理失敗：%@。改好設定，或按「測試整理工具」成功之後，才會再自動整理。", problem!.Detail.TrimEnd('。', '.', ' ')),
+    };
 
     string Privacy(LLMProvider provider) => provider switch
     {
@@ -430,22 +445,26 @@ public sealed class SettingsWindow : Window
         return column;
     }
 
-    // MARK: 錄音（R1）
+    // MARK: 錄音與轉錄（R1、R4、R44.5）：錄音來源、語言、轉錄（含模型）、提醒與快捷鍵四組
 
     FrameworkElement Recording()
     {
-        var column = Ui.Column(12);
-        column.Children.Add(Ui.Combo(new[] { "mic", "both", "system" }.Select(s => (s, MainWindow.SourceLabel(s))), S.RecordSource,
+        var source = Ui.Column(12);
+        source.Children.Add(Ui.Combo(new[] { "mic", "both", "system" }.Select(s => (s, MainWindow.SourceLabel(s))), S.RecordSource,
             s => { S.Set(AppSettings.RecordSourceKey, s); Show(); }, L.T("錄音來源")));
         List<(string Id, string Name)> microphones;
         try { microphones = WasapiSource.Microphones(); }
         catch (Exception e) when (e is System.Runtime.InteropServices.COMException) { microphones = []; }
         var mic = Ui.Combo(new[] { ("", L.T("系統預設")) }.Concat(microphones), S.InputDevice, id => S.Set(AppSettings.InputDeviceKey, id), L.T("麥克風"));
         mic.IsEnabled = S.RecordSource != "system";
-        column.Children.Add(mic);
-        column.Children.Add(Ui.Combo(MeetingLanguages.All.Select(l => (l, l.Name())), S.DefaultMeetingLanguage, l => S.Set(AppSettings.DefaultMeetingLanguageKey, l.Code()), L.T("預設會議語言")));
-        column.Children.Add(Note(L.T("新的錄音和匯入預設用這個語言轉錄、整理會議紀錄；錄音選單、匯入時和會議頁都可以改。")));
-        column.Children.Add(Ui.Toggle(L.T("自動偵測會議語言"), S.AutoDetectLanguage, on =>
+        source.Children.Add(mic);
+        source.Children.Add(Note(L.T("錄線上會議時選「麥克風＋電腦聲音」：你的聲音和對方的聲音會分別錄在左右聲道。")));
+        source.Children.Add(Ui.Button(L.T("麥克風權限設定"), Shell.OpenMicrophonePrivacy));
+
+        var language = Ui.Column(12);
+        language.Children.Add(Ui.Combo(MeetingLanguages.All.Select(l => (l, l.Name())), S.DefaultMeetingLanguage, l => S.Set(AppSettings.DefaultMeetingLanguageKey, l.Code()), L.T("預設會議語言")));
+        language.Children.Add(Note(L.T("新的錄音和匯入預設用這個語言轉錄、整理會議紀錄；錄音選單、匯入時和會議頁都可以改。")));
+        language.Children.Add(Ui.Toggle(L.T("自動偵測會議語言"), S.AutoDetectLanguage, on =>
         {
             S.Set(AppSettings.AutoDetectLanguageKey, on);
             if (on) host.Models.AutoStart(ModelStore.Model.LanguageDetection);
@@ -454,48 +473,66 @@ public sealed class SettingsWindow : Window
         if (S.AutoDetectLanguage && !host.Models.IsInstalled(ModelStore.Model.LanguageDetection))
         {
             var busy = host.Models.StateOf(ModelStore.Model.LanguageDetection).IsBusy;
-            column.Children.Add(Ui.Bar(null, Ui.Text(busy ? L.T("正在下載語言偵測模型…") : L.T("語言偵測模型還沒下載，下載好之前錄音不會自動偵測"), 12, color: Ui.Signal),
+            language.Children.Add(Ui.Bar(null, Ui.Text(busy ? L.T("正在下載語言偵測模型…") : L.T("語言偵測模型還沒下載，下載好之前錄音不會自動偵測"), 12, color: Ui.Signal),
                 busy ? null : Ui.Button(L.T("下載"), () => host.Models.Start(ModelStore.Model.LanguageDetection))));
         }
-        column.Children.Add(Note(L.T("開始錄音後聽約 10 秒，判斷是中文、英文還是日文；跟會議語言不同而且有把握時會自動切換，錄音畫面可以改回來。需要 60 MB 的語言偵測模型。")));
-        column.Children.Add(Ui.Toggle(L.T("錄音中顯示即時逐字稿"), S.LiveTranscription, on => S.Set(AppSettings.LiveTranscriptionKey, on)));
-        column.Children.Add(Ui.Toggle(L.T("轉錄時辨識說話者"), S.Diarize, on => S.Set(AppSettings.DiarizeKey, on)));
-        column.Children.Add(Ui.Combo(new[] { ("breeze", L.T("Breeze ASR 25（建議）")), ("system", L.T("快速辨識")) }, S.UseFastTranscriber ? "system" : "breeze",
-            e => { S.Set(AppSettings.TranscriptionEngineKey, e); host.Runner.Wake(); Show(); }, L.T("正式轉錄")));
-        column.Children.Add(Note(S.UseFastTranscriber
-            ? L.T("速度快很多，下載也小；但不參考詞彙表，英文專有名詞、人名比較容易錯。")
-            : L.T("會參考詞彙表，中英夾雜、專有名詞比較準；需要下載約 1.7 GB 的模型。日文會議改用 Whisper large-v3-turbo（574 MB）。")));
-        column.Children.Add(Ui.Toggle(L.T("全域快捷鍵 Ctrl+Alt+Shift+R：在其他 app 裡也能開始或停止錄音"), S.GlobalHotKey, on =>
+        language.Children.Add(Note(L.T("開始錄音後聽約 10 秒，判斷是中文、英文還是日文；跟會議語言不同而且有把握時會自動切換，錄音畫面可以改回來。需要 60 MB 的語言偵測模型。")));
+
+        var transcription = Ui.Column(12);
+        // 正式轉錄引擎（R4.1、M§32.3；Qwen3-ASR 見 design-windows §8.4）
+        var engine = S.TranscriptionEngine;
+        transcription.Children.Add(Ui.Combo(new[]
+        {
+            ("breeze", L.T("Breeze ASR 25（聯發科，建議）")), ("qwen", L.T("Qwen3-ASR 1.7B（阿里巴巴）")), ("system", L.T("快速辨識")),
+        }, engine is "qwen" or "system" ? engine : "breeze", e =>
+        {
+            S.Set(AppSettings.TranscriptionEngineKey, e);
+            if (e == "qwen") host.Models.AutoStart(ModelStore.Model.Qwen);
+            host.Gpu.OfferQwenCuda();
+            host.Runner.Wake();
+            Show();
+        }, L.T("正式轉錄")));
+        transcription.Children.Add(Note(engine switch
+        {
+            "system" => L.T("速度快很多，下載也小；但不參考詞彙表，英文專有名詞、人名比較容易錯。"),
+            "qwen" => L.T("會參考詞彙表，多人會議的漏字和同音字比 Breeze 少；阿里巴巴開源的模型，全程在這台電腦上跑、不連網，輸出會轉成台灣繁體；需要下載約 2.5 GB 的模型和 llama.cpp 的執行檔。日文會議改用 Whisper large-v3-turbo（574 MB）。"),
+            _ => L.T("會參考詞彙表，中英夾雜、專有名詞比較準；聯發科開源的台灣模型，需要下載約 1.7 GB。日文會議改用 Whisper large-v3-turbo（574 MB）。"),
+        }));
+        transcription.Children.Add(Ui.Toggle(L.T("轉錄時辨識說話者"), S.Diarize, on => S.Set(AppSettings.DiarizeKey, on)));
+        transcription.Children.Add(Ui.Toggle(L.T("錄音中顯示即時逐字稿"), S.LiveTranscription, on => S.Set(AppSettings.LiveTranscriptionKey, on)));
+        // 模型清單（原「模型與儲存空間」頁，R44.5）
+        transcription.Children.Add(ModelRows());
+
+        var alerts = Ui.Column(12);
+        alerts.Children.Add(Ui.Toggle(L.T("偵測到線上會議時提醒錄音"), S.MeetingDetection, on => S.Set(AppSettings.MeetingDetectionKey, on)));
+        alerts.Children.Add(Note(L.T("Zoom、Teams、Webex、Google Meet（瀏覽器）等開始用麥克風、拾音沒在錄音時提醒你；會議結束時提醒停止。只提醒，不會自動錄音。")));
+        foreach (var app in host.Detector.Muted)
+            alerts.Children.Add(Ui.Bar(null, Ui.Text(L.F("不提醒：%@", MeetingDetector.DisplayName(app)), 13), Ui.Link(L.T("恢復提醒"), () => { host.Detector.Unmute(app); Show(); })));
+        alerts.Children.Add(Ui.Toggle(L.T("全域快捷鍵 Ctrl+Alt+Shift+R：在其他 app 裡也能開始或停止錄音"), S.GlobalHotKey, on =>
         {
             S.Set(AppSettings.GlobalHotKeyKey, on);
             host.HotKeyError = host.HotKeys.SetRecordEnabled(on);
             Show();
         }));
-        if (S.GlobalHotKey && host.HotKeyError is { } error) column.Children.Add(Ui.Text(L.F("沒辦法註冊 Ctrl+Alt+Shift+R：%@", error), 12, color: Ui.Danger));
-        column.Children.Add(Ui.Toggle(L.T("錄音中按 Ctrl+Alt+Shift+B 標記重點（在其他 app 裡也能用）"), S.BookmarkHotKey, on =>
+        if (S.GlobalHotKey && host.HotKeyError is { } error) alerts.Children.Add(Ui.Text(L.F("沒辦法註冊 Ctrl+Alt+Shift+R：%@", error), 12, color: Ui.Danger));
+        alerts.Children.Add(Ui.Toggle(L.T("錄音中按 Ctrl+Alt+Shift+B 標記重點（在其他 app 裡也能用）"), S.BookmarkHotKey, on =>
         {
             S.Set(AppSettings.BookmarkHotKeyKey, on);
             host.HotKeys.SetBookmarkEnabled(on && host.Recorder.IsRecording);
         }));
-        column.Children.Add(Ui.Toggle(L.T("偵測到線上會議時提醒錄音"), S.MeetingDetection, on => S.Set(AppSettings.MeetingDetectionKey, on)));
-        column.Children.Add(Note(L.T("Zoom、Teams、Webex、Google Meet（瀏覽器）等開始用麥克風、拾音沒在錄音時提醒你；會議結束時提醒停止。只提醒，不會自動錄音。")));
-        foreach (var app in host.Detector.Muted)
-            column.Children.Add(Ui.Bar(null, Ui.Text(L.F("不提醒：%@", MeetingDetector.DisplayName(app)), 13), Ui.Link(L.T("恢復提醒"), () => { host.Detector.Unmute(app); Show(); })));
-        column.Children.Add(Ui.Card(Ui.Column(8,
-            Ui.Text(L.T("錄線上會議時選「麥克風＋電腦聲音」：你的聲音和對方的聲音會分別錄在左右聲道。"), 13, color: Ui.Secondary),
-            Ui.Button(L.T("麥克風權限設定"), Shell.OpenMicrophonePrivacy))));
-        return column;
+        return Ui.Column(16, Section(L.T("錄音來源"), source), Section(L.T("語言"), language), Section(L.T("轉錄"), transcription), Section(L.T("提醒與快捷鍵"), alerts));
     }
 
-    // MARK: 模型與儲存空間（R9.4、R10.3）
+    // MARK: 模型（R9.4）：在「錄音與轉錄」的轉錄那一組；儲存空間（R10.3）在「進階」
 
-    FrameworkElement Storage()
+    FrameworkElement ModelRows()
     {
         var transcribing = host.Runner.Running(JobLane.Transcribe) is not null;
         var models = Ui.Column(12);
         foreach (var (model, note) in new[]
                  {
                      (ModelStore.Model.Breeze, ""),
+                     (ModelStore.Model.Qwen, L.T("中文、英文可選的引擎（阿里巴巴開源），約 2.5 GB，含 llama.cpp 的執行檔；「正式轉錄」選了它才會用。")),
                      (ModelStore.Model.Japanese, L.T("日文會議用，574 MB。第一次轉錄日文會議時會自動下載。")),
                      (ModelStore.Model.FastRecognition, L.T("即時逐字稿和快速辨識用，約 240 MB。")),
                      (ModelStore.Model.Diarization, L.T("說話者辨識用，約 46 MB。")),
@@ -504,6 +541,12 @@ public sealed class SettingsWindow : Window
         {
             models.Children.Add(ModelRow(model, model == ModelStore.Model.LanguageDetection ? host.Recorder.IsRecording : transcribing));
             if (note.Length > 0) models.Children.Add(Note(note));
+        }
+        // Qwen 的 CUDA 版（design-windows §8.4）：有 NVIDIA 顯示卡或已經下載過才顯示
+        if (host.Gpu.Applies || host.Models.StateOf(ModelStore.Model.QwenCuda) is not ModelStore.State.Missing)
+        {
+            models.Children.Add(ModelRow(ModelStore.Model.QwenCuda, transcribing));
+            models.Children.Add(Note(L.T("有 NVIDIA 顯示卡、選了 Qwen3-ASR 時自動下載，Qwen 的轉錄會快很多。272 MB，解開約 610 MB（llama.cpp 官方的 CUDA 版，要先有上面的 NVIDIA 顯示卡加速）。刪除後不會再自動下載。")));
         }
         // NVIDIA 顯示卡加速（R27 R4.6）：只在有 NVIDIA 顯示卡的 x64 電腦（或已經下載過）顯示
         if (host.Gpu.Applies || host.Models.StateOf(ModelStore.Model.GpuCuda) is not ModelStore.State.Missing)
@@ -514,15 +557,19 @@ public sealed class SettingsWindow : Window
                 inUse ? L.T("轉錄正在用這個元件，重新開啟拾音後才能刪除") : null));
             models.Children.Add(Note(L.T("有 NVIDIA 顯示卡時自動下載，轉錄會快很多。685 MB，解開約 1.1 GB（whisper.cpp 官方的 CUDA 版）。刪除後不會再自動下載。")));
         }
+        return models;
+    }
+
+    FrameworkElement StorageRows()
+    {
         var audio = Size(host.Paths.Audio);
         var modelBytes = Size(host.Paths.Models);
         var place = Ui.Link(host.Paths.Home, () => Shell.Reveal(host.Paths.Database));
-        var storage = Ui.Column(10,
+        return Ui.Column(10,
             Ui.Bar(Ui.Text(MeetingLanguages.Ui("錄音", "Recordings"), 14), null, Ui.Text(Recorder.ByteCount(audio), 14, color: Ui.Secondary)),
             Ui.Bar(Ui.Text(L.T("模型"), 14), null, Ui.Text(Recorder.ByteCount(modelBytes), 14, color: Ui.Secondary)),
             Ui.Toggle(L.T("轉錄完成後把錄音壓縮成 m4a（約每小時 43 MB）"), S.CompressAudio, on => S.Set(AppSettings.CompressAudioKey, on)),
             Ui.Bar(Ui.Text(L.T("資料位置"), 14), null, place));
-        return Ui.Column(16, Section(L.T("模型"), models), Section(L.T("儲存空間"), storage));
     }
 
     static long Size(string dir)
@@ -603,6 +650,7 @@ public sealed class SettingsWindow : Window
         }
         else update.Children.Add(Note(L.T("這個版本沒有更新金鑰（開發版），不會檢查更新。")));
         column.Children.Add(Section(L.T("更新"), update));
+        column.Children.Add(Section(L.T("儲存空間"), StorageRows()));
         column.Children.Add(Section(L.T("其他"),
             Ui.Button(L.T("重新顯示首次使用引導"), () => { S.Set(AppSettings.OnboardingKey, false); App.Current.ShowOnboarding(); }),
             Ui.Button(L.T("重建搜尋索引"), () => { host.Db.RebuildSearchIndex(); App.Current.Notice(L.T("搜尋索引已重建")); }),
@@ -629,7 +677,7 @@ public sealed class SettingsWindow : Window
         {
             XamlRoot = Content.XamlRoot, Title = Ui.DialogTitle(L.T("匿名使用統計")),
             Content = Ui.Column(12, toggle,
-                Ui.Text(L.T("每天送一份匿名的使用統計給拾音的開發者：版本、系統、錄音和轉錄了幾分鐘、用了哪些功能、失敗幾次。不會送會議標題、逐字稿、會議紀錄、人名、聲紋或任何檔案。"), 13, color: Ui.Secondary),
+                Ui.Text(L.T("每天送一份匿名的使用統計給拾音的開發者：版本、系統、錄音和轉錄了幾分鐘、用了哪些功能、失敗幾次和哪一種失敗。不會送會議標題、逐字稿、會議紀錄、人名、聲紋或任何檔案。"), 13, color: Ui.Secondary),
                 Ui.Row(10, Ui.Button(L.T("重設匿名 ID"), () => { usage.ResetInstallId(); reset.Text = L.T("已重設匿名 ID"); }), reset)),
             CloseButtonText = L.T("完成"), DefaultButton = ContentDialogButton.Close,
         };

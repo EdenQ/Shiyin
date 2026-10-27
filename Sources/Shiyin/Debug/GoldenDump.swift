@@ -532,6 +532,15 @@ enum GoldenDump {
         }
         w.json("pipeline/collector.json", collectors)
 
+        // 簡體轉台灣繁體（design §32.5）：Windows 讀同一份字表、同一套最長匹配，要逐字相同
+        w.json("util/s2tw.json", (f["s2twCases"] as? [String] ?? []).map { ["in": $0, "out": ChineseScript.toTaiwan($0)] as Object })
+
+        // 更新說明的摘要（R10.6、design §12）：詢問更新的視窗只列前幾項，取段落、取條目的規則兩邊相同
+        w.json("util/release-notes.json", (f["releaseNotesCases"] as? [Object] ?? []).map { c -> Object in
+            let r = ReleaseNotes.brief(c["notes"] as? String ?? "", english: c["english"] as? Bool ?? false)
+            return ["notes": c["notes"] as? String ?? "", "english": c["english"] as? Bool ?? false, "items": r.items, "more": r.more] as Object
+        })
+
         w.json("pipeline/similar.json", (f["similarPairs"] as? [[String]] ?? []).map {
             ["a": $0[0], "b": $0[1], "similar": TranscriptionPipeline.similar($0[0], $0[1])] as Object
         })
@@ -677,6 +686,14 @@ enum GoldenDump {
                 w.json(file!, ["undone": try db.undoNotes(id(op))])
             case "dismissReviewItems":
                 try db.dismissReviewItems(id(op), indexes: Set(op["indexes"] as? [Int] ?? []))
+            case "resolveReviewItems":   // 確認（是）和略過一起移除（R41.4，design §31.3）
+                try db.resolveReviewItems(id(op), confirmed: Set(op["confirmed"] as? [Int] ?? []), dismissed: Set(op["dismissed"] as? [Int] ?? []))
+            case "reviewLinks":   // 待確認的題目對應到哪一條紀錄（R41.1，design §31.1）：段落、位置、對到的題號
+                let notes = try db.meeting(id(op))?.decodedNotes ?? MeetingNotes()
+                let links = notes.reviewLinks().map { ref, questions -> (key: (Int, Int, Int), object: Object) in
+                    (ref.sortKey, ["section": ref.sectionName, "index": ref.sortKey.1, "sub": ref.sortKey.2, "questions": questions.sorted()])
+                }.sorted { $0.key < $1.key }.map(\.object)
+                w.json(file!, links)
             case "saveCorrections":
                 let mid = id(op)
                 let items = try (op["items"] as? [Object] ?? []).map {

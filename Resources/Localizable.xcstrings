@@ -40,9 +40,6 @@
     "%@ %@": {
       "extractionState": "manual"
     },
-    "%@ %lld": {
-      "extractionState": "manual"
-    },
     "%@ 回傳 HTTP %lld%@：%@": {
       "extractionState": "manual",
       "localizations": {
@@ -72,6 +69,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "You're in a meeting on %@. Start recording?"
+          }
+        }
+      }
+    },
+    "%@ 還沒登入，登入之後才會用它整理。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ isn’t signed in. Meeting Assistant will use it once you sign in."
           }
         }
       }
@@ -142,6 +150,17 @@
         }
       }
     },
+    "%@（之後可以在設定 → 整理工具重新測試）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (You can test again later in Settings → Summarizer.)"
+          }
+        }
+      }
+    },
     "%@（副本）": {
       "extractionState": "manual",
       "localizations": {
@@ -175,6 +194,17 @@
         }
       }
     },
+    "%@（沒有安裝）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (not installed)"
+          }
+        }
+      }
+    },
     "%@（逐字稿）.%@": {
       "extractionState": "manual",
       "localizations": {
@@ -182,6 +212,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ (transcript).%@"
+          }
+        }
+      }
+    },
+    "%@（還沒改用 %@）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ (Still not using %2$@.)"
           }
         }
       }
@@ -227,28 +268,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@: %@"
-          }
-        }
-      }
-    },
-    "%@：日文會議的正式轉錄，574 MB": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@: transcribes Japanese meetings, 574 MB"
-          }
-        }
-      }
-    },
-    "%@：正式轉錄，1.66 GB": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@: transcription, 1.66 GB"
           }
         }
       }
@@ -497,16 +516,8 @@
         }
       }
     },
-    "Anthropic API（填 API key）": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Anthropic API (enter an API key)"
-          }
-        }
-      }
+    "Anthropic API": {
+      "extractionState": "manual"
     },
     "Apple Silicon（M1 以上）": {
       "extractionState": "manual",
@@ -530,16 +541,22 @@
         }
       }
     },
-    "Breeze ASR 25（建議）": {
+    "Breeze ASR 25（聯發科，建議）": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Breeze ASR 25 (recommended)"
+            "value": "Breeze ASR 25 (MediaTek, recommended)"
           }
         }
       }
+    },
+    "ChatGPT": {
+      "extractionState": "manual"
+    },
+    "Claude": {
+      "extractionState": "manual"
     },
     "Claude Code 還沒登入或登入已過期，請重新登入後再試一次（終端機指令：claude auth login）。": {
       "extractionState": "manual",
@@ -548,6 +565,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "Claude Code isn’t signed in, or its sign-in has expired. Sign in again and try once more (Terminal command: claude auth login)."
+          }
+        }
+      }
+    },
+    "Claude Code 還沒登入，登入之後才能整理（終端機指令：claude auth login）。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude Code isn’t signed in. Sign in to summarize (Terminal command: claude auth login)."
+          }
+        }
+      }
+    },
+    "Claude Code（這台 Mac 已經裝了 claude CLI）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude Code (claude CLI is installed on this Mac)"
           }
         }
       }
@@ -563,17 +602,6 @@
         }
       }
     },
-    "Claude（claude CLI）%@": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Claude (claude CLI)%@"
-          }
-        }
-      }
-    },
     "Codex 還沒登入或登入已過期，請重新登入後再試一次（終端機指令：codex login）。": {
       "extractionState": "manual",
       "localizations": {
@@ -581,6 +609,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Codex isn’t signed in, or its sign-in has expired. Sign in again and try once more (Terminal command: codex login)."
+          }
+        }
+      }
+    },
+    "Codex 還沒登入，登入之後才能整理（終端機指令：codex login）。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Codex isn’t signed in. Sign in to summarize (Terminal command: codex login)."
           }
         }
       }
@@ -596,27 +635,22 @@
         }
       }
     },
-    "Codex（codex CLI）%@": {
+    "Codex（這台 Mac 已經裝了 codex CLI）": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Codex (codex CLI)%@"
+            "value": "Codex (codex CLI is installed on this Mac)"
           }
         }
       }
     },
-    "Gemini API（填 API key）": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Gemini API (enter an API key)"
-          }
-        }
-      }
+    "Gemini": {
+      "extractionState": "manual"
+    },
+    "Gemini API": {
+      "extractionState": "manual"
     },
     "Gemini 沒有完成整理（status：%@）": {
       "extractionState": "manual",
@@ -629,19 +663,22 @@
         }
       }
     },
-    "Markdown": {
-      "extractionState": "manual"
-    },
-    "OpenAI API（填 API key）": {
+    "Groq、OpenRouter、Ollama、LM Studio；網址和 key 到設定填": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "OpenAI API (enter an API key)"
+            "value": "Groq, OpenRouter, Ollama, LM Studio; enter the URL and key in Settings"
           }
         }
       }
+    },
+    "Markdown": {
+      "extractionState": "manual"
+    },
+    "OpenAI API": {
+      "extractionState": "manual"
     },
     "OpenAI 相容 API": {
       "extractionState": "manual",
@@ -665,17 +702,6 @@
         }
       }
     },
-    "OpenAI 相容 API（Groq、OpenRouter、Ollama、LM Studio）": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "OpenAI-compatible API (Groq, OpenRouter, Ollama, LM Studio)"
-          }
-        }
-      }
-    },
     "PDF 和 docx 的段落標題使用宋體；Markdown 適合貼到 Notion、GitHub。": {
       "extractionState": "manual",
       "localizations": {
@@ -694,6 +720,50 @@
           "stringUnit": {
             "state": "translated",
             "value": "Couldn't create the PDF"
+          }
+        }
+      }
+    },
+    "Qwen3-ASR 1.7B（q8_0）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Qwen3-ASR 1.7B (q8_0)"
+          }
+        }
+      }
+    },
+    "Qwen3-ASR 1.7B（q8_0，含音訊編碼器）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Qwen3-ASR 1.7B (q8_0, with audio encoder)"
+          }
+        }
+      }
+    },
+    "Qwen3-ASR 1.7B（阿里巴巴）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Qwen3-ASR 1.7B (Alibaba)"
+          }
+        }
+      }
+    },
+    "Qwen3-ASR 音訊編碼器（q8_0）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Qwen3-ASR audio encoder (q8_0)"
           }
         }
       }
@@ -828,6 +898,17 @@
     "…": {
       "extractionState": "manual"
     },
+    "……還有 %lld 項，完整說明在官網。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "…and %lld more. The full notes are on the website."
+          }
+        }
+      }
+    },
     "⌘1～⌘6": {
       "extractionState": "manual",
       "localizations": {
@@ -883,90 +964,46 @@
         }
       }
     },
-    "「待確認」列出整理時沒把握的人名、專有名詞、負責人和期限。能用是或否回答的直接按「是」「不是」，其他的在「你的回答」欄位回答，按「送出」，會議紀錄就會依你的答案修正；看不懂或不重要的勾「略過」。也可以在「摘要」按「編輯」直接改。改錯了可以從「更多」選「復原上一版會議紀錄」。": {
+    "「整理工具」：選 Claude、Codex（需要先安裝並登入對應的 CLI），或填 Anthropic、OpenAI 的 API key。覺得整理太慢，可以在「模型」填比較快的模型，例如 sonnet。最下面的「範本」內建五種；也可以複製一份來改，或自己新增段落與指示。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "“To confirm” lists names, terms, owners and deadlines the summarizer wasn't sure about. Click “Yes” or “No” for yes-or-no questions and type in “Your answer” for the others, then click “Submit”, and the notes are revised from your answers; check “Skip” for anything unclear or unimportant. You can also click “Edit” in “Summary” to change things directly. To undo a mistake, choose “Revert to previous notes” from “More”."
+            "value": "Summarizer: choose Claude or Codex (install and sign in to the CLI first), or enter an Anthropic or OpenAI API key. If summarizing feels slow, enter a faster model under Model, such as sonnet. Templates are at the bottom: five built in; copy one to customize it, or add your own sections and instructions."
           }
         }
       }
     },
-    "「整理工具」：選 Claude、Codex（需要先安裝並登入對應的 CLI），或填 Anthropic、OpenAI 的 API key。覺得整理太慢，可以在「模型」填比較快的模型，例如 sonnet。": {
+    "「說話者與詞彙」：會議助手認識的人和他們的聲紋，可以改名、刪除，或關掉記住聲音的功能；詞彙表加入系統名、產品名、人名的正確寫法，這對專有名詞的正確率影響很大。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "“Summarizer”: choose Claude or Codex (install and sign in to the CLI first), or enter an Anthropic or OpenAI API key. If summaries are slow, enter a faster model in “Model”, such as sonnet."
+            "value": "Speakers & Glossary: the people Meeting Assistant recognizes and their voiceprints, which you can rename or delete, or turn off remembering voices; the glossary holds the correct spelling of system names, product names and people's names, which greatly improves proper-noun accuracy."
           }
         }
       }
     },
-    "「模型與儲存空間」：下載或刪除模型、看錄音佔用的空間。": {
+    "「進階」：檢查更新（有新版時會議助手會詢問，同意後自動下載、驗證並重新打開；也可以從「MA」選單選「檢查更新…」）、環境檢查、錄音和模型佔用的空間。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "“Models & Storage”: download or delete models and see how much space recordings use."
+            "value": "Advanced: check for updates (when a new version is available Meeting Assistant asks, then downloads, verifies and relaunches; also available from the MA menu → Check for Updates…), environment check, and the space used by recordings and models."
           }
         }
       }
     },
-    "「範本」：內建五種範本；也可以複製一份來改，或自己新增段落與指示。": {
+    "「錄音與轉錄」：錄音來源和麥克風、會議語言、正式轉錄的引擎和模型、要不要即時逐字稿和說話者辨識、線上會議的提醒和快捷鍵。「正式轉錄」可以選 Breeze ASR 25（建議，聯發科的台灣模型，會參考詞彙表）、Qwen3-ASR（阿里巴巴開源，多人會議漏字少，全程本機）或 macOS 內建（不用下載模型、速度快，但英文專有名詞比較容易錯）。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "“Templates”: five built-in templates. You can duplicate one to change it, or add your own sections and instructions."
-          }
-        }
-      }
-    },
-    "「詞彙表」：加入系統名、產品名、人名的正確寫法。這對專有名詞的正確率影響很大。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "“Glossary”: add the correct spelling of system names, product names and people's names. This makes a big difference for proper nouns."
-          }
-        }
-      }
-    },
-    "「說話者」：會議助手認識的人和他們的聲紋，可以改名、刪除，或關掉記住聲音的功能。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "“Speakers”: the people Meeting Assistant knows and their voiceprints. Rename or delete them, or turn off remembering voices."
-          }
-        }
-      }
-    },
-    "「進階」：填更新網址、檢查更新；有新版時會議助手會詢問，同意後自動下載、驗證並重新打開。也可以從「MA」選單選「檢查更新…」。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "“Advanced”: enter the update URL and check for updates. When a new version is available, Meeting Assistant asks, then downloads, verifies and reopens. You can also choose “Check for Updates…” from the MA menu."
-          }
-        }
-      }
-    },
-    "「錄音」：選錄音來源、麥克風，以及要不要即時逐字稿和說話者辨識。「正式轉錄」可以選 Breeze ASR 25（建議，會參考詞彙表）或 macOS 內建（不用下載模型、速度快，但英文專有名詞比較容易錯）。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "“Recording”: choose the source and microphone, and whether to use the live transcript and speaker recognition. For “Transcription”, choose Breeze ASR 25 (recommended; uses the glossary) or macOS (no model download and much faster, but more mistakes with proper nouns)."
+            "value": "Recording & Transcription: audio source and microphone, meeting language, the final-transcription engine and models, live transcript and speaker identification, online-meeting alerts and shortcuts. Final transcription can use Breeze ASR 25 (recommended; MediaTek's Taiwanese model, uses your glossary), Qwen3-ASR (open-sourced by Alibaba; drops fewer words in multi-speaker meetings, runs entirely on this Mac), or the macOS built-in recognizer (no model download and fast, but English terms are more often wrong)."
           }
         }
       }
@@ -989,6 +1026,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Back"
+          }
+        }
+      }
+    },
+    "上次整理失敗：%@。改好設定，或按「測試整理工具」成功之後，才會再自動整理。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The last summary failed: %@. Automatic summaries resume after you fix the settings or “Test Summarizer” succeeds."
           }
         }
       }
@@ -1037,17 +1085,6 @@
         }
       }
     },
-    "下載中…": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Downloading…"
-          }
-        }
-      }
-    },
     "下載中斷：%@。按「繼續下載」會從中斷的地方接著下載": {
       "extractionState": "manual",
       "localizations": {
@@ -1077,17 +1114,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Download failed: the server returned HTTP %lld. Try again later"
-          }
-        }
-      }
-    },
-    "下載模型": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Download Models"
           }
         }
       }
@@ -1246,6 +1272,17 @@
         }
       }
     },
+    "中文、英文會議用，1.66 GB。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "For Chinese and English meetings, 1.66 GB."
+          }
+        }
+      }
+    },
     "之後再設定（先不整理）": {
       "extractionState": "manual",
       "localizations": {
@@ -1374,6 +1411,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "These are the points the summarizer wasn't sure about. Just answer them; skip anything unclear or unimportant."
+          }
+        }
+      }
+    },
+    "你平常用哪個 AI？": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Which AI do you usually use?"
           }
         }
       }
@@ -1643,6 +1691,17 @@
         }
       }
     },
+    "先不用": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not now"
+          }
+        }
+      }
+    },
     "先安裝": {
       "extractionState": "manual",
       "localizations": {
@@ -1749,6 +1808,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "Accept All"
+          }
+        }
+      }
+    },
+    "全部略過": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skip all"
+          }
+        }
+      }
+    },
+    "其他": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Other"
           }
         }
       }
@@ -2238,17 +2319,6 @@
         }
       }
     },
-    "即時逐字稿的語音模型（macOS 內建）": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Speech model for the live transcript (built into macOS)"
-          }
-        }
-      }
-    },
     "原因：%@\n\n你的資料沒有被改動。升級前的備份在：%@\n請把這個訊息截圖給維護會議助手的人。": {
       "extractionState": "manual",
       "localizations": {
@@ -2349,6 +2419,17 @@
         }
       }
     },
+    "取消略過": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Undo skip"
+          }
+        }
+      }
+    },
     "只看某一位說話者的內容": {
       "extractionState": "manual",
       "localizations": {
@@ -2367,6 +2448,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "You can only import audio, video, transcripts (srt, vtt, txt), Markdown or .shiyin files"
+          }
+        }
+      }
+    },
+    "只送這一條的題目；有回答的交給整理工具依答案修正，略過的直接移除。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only the questions for this item are sent; answered ones go to the summarizer to revise the notes, skipped ones are removed."
           }
         }
       }
@@ -2956,6 +3048,17 @@
         }
       }
     },
+    "寫筆記": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Write notes"
+          }
+        }
+      }
+    },
     "封包裡的錄音檔不正確": {
       "extractionState": "manual",
       "localizations": {
@@ -2963,6 +3066,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "The audio file in the package isn't valid"
+          }
+        }
+      }
+    },
+    "展開": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Expand"
           }
         }
       }
@@ -2985,6 +3099,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Downloaded (1.66 GB)"
+          }
+        }
+      }
+    },
+    "已下載（2.5 GB）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Downloaded (2.5 GB)"
           }
         }
       }
@@ -3121,17 +3246,6 @@
         }
       }
     },
-    "已安裝": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Installed"
-          }
-        }
-      }
-    },
     "已安裝，看不出登入狀態": {
       "extractionState": "manual",
       "localizations": {
@@ -3154,13 +3268,13 @@
         }
       }
     },
-    "已把「%@」合併到「%@」。要復原的話，從「更多 → 復原說話者的調整」。": {
+    "已把「%@」合併到「%@」。要復原的話，點說話者的名字選「復原」。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Merged “%1$@” into “%2$@”. To undo, choose More → Undo Speaker Changes."
+            "value": "Merged “%1$@” into “%2$@”. To undo, click the speaker's name and choose Undo."
           }
         }
       }
@@ -3563,6 +3677,17 @@
         }
       }
     },
+    "復原上一版": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restore previous version"
+          }
+        }
+      }
+    },
     "復原上一版會議紀錄": {
       "extractionState": "manual",
       "localizations": {
@@ -3570,6 +3695,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Revert to Previous Notes"
+          }
+        }
+      }
+    },
+    "復原最近一次合併或改句子的說話者": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Undo the most recent speaker merge or reassignment"
           }
         }
       }
@@ -3596,13 +3732,13 @@
         }
       }
     },
-    "復原說話者的調整": {
+    "復原：%@": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Undo Speaker Changes"
+            "value": "Undo: %@"
           }
         }
       }
@@ -3662,6 +3798,29 @@
         }
       }
     },
+    "我的筆記（%lld 行）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "My notes (%lld line)"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "My notes (%lld lines)"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "所有會議": {
       "extractionState": "manual",
       "localizations": {
@@ -3713,6 +3872,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Open System Settings"
+          }
+        }
+      }
+    },
+    "打開設定": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Settings"
           }
         }
       }
@@ -3966,7 +4136,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "After you click “Stop & Transcribe”, Meeting Assistant transcribes the recording again on this Mac (Breeze ASR 25 for Chinese and English, Whisper large-v3-turbo for Japanese) and identifies the different speakers. While you wait, draft notes are written from the live transcript and replaced automatically when the final version is ready. Click “Speaker 1” in the transcript to change it to a name; the whole meeting updates, and Meeting Assistant remembers the voice and fills in the name in later meetings (marked “Auto”; if it's wrong, one click fixes it)."
+            "value": "After you press Stop & Transcribe, Meeting Assistant re-transcribes the recording on this Mac (Breeze ASR 25 for Chinese and English, Whisper large-v3-turbo for Japanese) and tells the speakers apart. While you wait, the notes are drafted from the live transcript and replaced automatically once the final version is ready. Click \"Speaker 1\" in the transcript to give them a name and it changes throughout the meeting; Meeting Assistant remembers their voice and fills in the name in later meetings (marked \"auto\"; one click fixes a wrong guess)."
           }
         }
       }
@@ -4071,17 +4241,6 @@
         }
       }
     },
-    "接下來三個步驟大約 3 分鐘（下載模型的時間另計）。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The next three steps take about 3 minutes (plus the model download)."
-          }
-        }
-      }
-    },
     "接受": {
       "extractionState": "manual",
       "localizations": {
@@ -4123,6 +4282,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ask"
+          }
+        }
+      }
+    },
+    "提醒與快捷鍵": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alerts & Shortcuts"
+          }
+        }
+      }
+    },
+    "換回上一版會議紀錄（再按一次換回更早的）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switch back to the previous version of the notes (press again for earlier ones)"
           }
         }
       }
@@ -4215,13 +4396,13 @@
         }
       }
     },
-    "播放錄音時換行，會自動加上當下的播放時間。整理時 AI 會參考這些筆記；改完之後可以從「更多」選「重新整理會議紀錄」。": {
+    "播放錄音時換行，會自動加上當下的播放時間。整理時 AI 會參考這些筆記；改完之後可以從「更多 → 重新處理」選「重新整理會議紀錄」。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "While the recording plays, each new line gets the current playback time. The AI uses these notes when summarizing; after editing, choose “Summarize Again” from “More”."
+            "value": "When you press Return while the recording is playing, the current playback time is inserted. The AI reads these notes when writing the meeting notes; after editing, choose More → Reprocess → Regenerate Notes."
           }
         }
       }
@@ -4248,6 +4429,17 @@
         }
       }
     },
+    "收合": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Collapse"
+          }
+        }
+      }
+    },
     "收起": {
       "extractionState": "manual",
       "localizations": {
@@ -4255,6 +4447,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Hide"
+          }
+        }
+      }
+    },
+    "收音提醒": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Audio warning"
           }
         }
       }
@@ -4600,6 +4803,17 @@
         }
       }
     },
+    "整理工具還沒設定好：%@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The summarizer isn’t ready: %@"
+          }
+        }
+      }
+    },
     "整理成會議紀錄": {
       "extractionState": "manual",
       "localizations": {
@@ -4611,13 +4825,46 @@
         }
       }
     },
-    "整理會議紀錄時，只會把逐字稿文字送到你選的 AI 服務。": {
+    "整理成紀錄：用你選的 AI 整理成摘要、決議和待辦，只送逐字稿文字。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "When summarizing, only the transcript text is sent to the AI service you choose."
+            "value": "Notes: the AI you choose turns it into a summary, decisions and action items; only the transcript text is sent."
+          }
+        }
+      }
+    },
+    "整理時有 %lld 題不確定的地方，點了就能回答": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld things the summary wasn't sure about; click to answer"
+          }
+        }
+      }
+    },
+    "整理時有一題不確定的地方，點了就能回答": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "One thing the summary wasn't sure about; click to answer"
+          }
+        }
+      }
+    },
+    "整理時沒把握的人名、專有名詞、負責人和期限會列成待確認的題目。紀錄裡有疑問的那一條旁邊會有「？」，點了就能當場回答；紀錄頂部的「還有 N 題待確認」點開可以一次看完。能用是或否回答的直接按「是」「不是」（按「是」不用等整理工具），其他的在「你的回答」欄位回答，按「送出」，會議紀錄就會依你的答案修正；看不懂或不重要的按「略過」，或一次「全部略過」。也可以按「編輯」直接改。改錯了按「編輯」旁的「復原上一版」。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Names, terms, owners and due dates the AI was unsure about become items to confirm. The affected line in the notes shows a “?”; click it to answer right there, or open “N items to confirm” at the top of the notes to go through them all. Yes/no questions have Yes and No buttons (Yes needs no AI call); type other answers in the answer field, then press Submit and the notes are revised accordingly. Skip anything unclear or unimportant, or Skip all at once. You can also press Edit to change the notes directly. If something goes wrong, use Restore previous version next to Edit."
           }
         }
       }
@@ -5051,13 +5298,24 @@
         }
       }
     },
-    "會參考詞彙表，中英夾雜、專有名詞比較準；需要下載約 1.7 GB 的模型。日文會議改用 Whisper large-v3-turbo（574 MB）。": {
+    "會參考詞彙表，中英夾雜、專有名詞比較準；聯發科開源的台灣模型，需要下載約 1.7 GB。日文會議改用 Whisper large-v3-turbo（574 MB）。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Uses the glossary and handles mixed Chinese and English and proper nouns better; needs a model download of about 1.7 GB. Japanese meetings use Whisper large-v3-turbo (574 MB) instead."
+            "value": "Uses your glossary, so mixed Chinese-English and proper nouns come out better; MediaTek's open-source Taiwanese model, about 1.7 GB to download. Japanese meetings use Whisper large-v3-turbo (574 MB) instead."
+          }
+        }
+      }
+    },
+    "會參考詞彙表，多人會議的漏字和同音字比 Breeze 少、速度快三成；阿里巴巴開源的模型，全程在這台 Mac 上跑、不連網，輸出會轉成台灣繁體；需要下載約 2.5 GB 的模型。日文會議改用 Whisper large-v3-turbo（574 MB）。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uses your glossary; drops fewer words in multi-speaker meetings and confuses fewer homophones than Breeze, about 30% faster. An open-source model from Alibaba that runs entirely on this Mac with no network access; Chinese output is converted to Taiwanese Traditional. Requires a 2.5 GB model download. Japanese meetings use Whisper large-v3-turbo (574 MB) instead."
           }
         }
       }
@@ -5113,17 +5371,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Meeting Assistant Guide"
-          }
-        }
-      }
-    },
-    "會議助手幫你把會議變成逐字稿和會議紀錄：錄音時就能看到即時逐字稿，錄完會在這台 Mac 上正式轉錄（中文、英文用 Breeze ASR 25，日文用 Whisper）、分辨說話者，再用 Claude、Codex 或 API 整理成摘要、決議和待辦。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Meeting Assistant turns meetings into transcripts and meeting notes. You see a live transcript while recording; afterwards, Meeting Assistant transcribes on this Mac (Breeze ASR 25 for Chinese and English, Whisper for Japanese), identifies speakers, and uses Claude, Codex or an API to write the summary, decisions and action items."
           }
         }
       }
@@ -5304,13 +5551,13 @@
         }
       }
     },
-    "會議紀錄也一起改了（可以從「更多」復原上一版）": {
+    "會議紀錄也一起改了（按「編輯」旁的「復原上一版」可以還原）": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The meeting notes were changed too (you can revert from “More”)"
+            "value": "The meeting notes were updated too (use Restore previous version next to Edit to undo)"
           }
         }
       }
@@ -5326,13 +5573,13 @@
         }
       }
     },
-    "會議紀錄的範本。換了範本之後，從「更多」選「重新整理會議紀錄」就會照新範本整理": {
+    "會議紀錄的範本。換了範本之後，從「更多 → 重新處理」選「重新整理會議紀錄」就會照新範本整理": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The template for the meeting notes. After changing it, choose “Summarize Again” from “More” to use the new template."
+            "value": "Template for the meeting notes. After changing it, choose More → Reprocess → Regenerate Notes to rewrite the notes with the new template"
           }
         }
       }
@@ -5392,24 +5639,24 @@
         }
       }
     },
-    "會議語言改成 %@，要重新轉錄或整理的話，從「更多」選": {
+    "會議語言改成 %@，要重新轉錄或整理的話，從「更多 → 重新處理」選": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Meeting language changed to %@. To transcribe or summarize again, use “More”."
+            "value": "Meeting language changed to %@. To re-transcribe or regenerate the notes, use More → Reprocess"
           }
         }
       }
     },
-    "會議語言：決定轉錄和會議紀錄用的語言。改了之後，從「更多」重新轉錄或重新整理會議紀錄": {
+    "會議語言：決定轉錄和會議紀錄用的語言。改了之後，從「更多 → 重新處理」重新轉錄或重新整理會議紀錄": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Meeting language: used for transcription and meeting notes. After changing it, transcribe or summarize again from “More”."
+            "value": "Meeting language: the language used for transcription and notes. After changing it, re-transcribe or regenerate the notes from More → Reprocess"
           }
         }
       }
@@ -5448,13 +5695,13 @@
         }
       }
     },
-    "有回答的題目會交給 %@ 依答案修正會議紀錄；略過的題目直接移除。改錯了可以從「更多」復原上一版。": {
+    "有回答的題目會交給 %@ 依答案修正會議紀錄；略過的題目直接移除。改錯了可以按「編輯」旁的「復原上一版」。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Answered questions go to %@ to revise the meeting notes; skipped ones are removed. To undo a mistake, revert to the previous version from “More”."
+            "value": "Answered items are sent to %@ to revise the notes; skipped items are simply removed. If something goes wrong, use Restore previous version next to Edit."
           }
         }
       }
@@ -5624,17 +5871,6 @@
         }
       }
     },
-    "模型與儲存空間": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Models & Storage"
-          }
-        }
-      }
-    },
     "模擬錄音": {
       "extractionState": "manual",
       "localizations": {
@@ -5708,17 +5944,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Checking sign-in…"
-          }
-        }
-      }
-    },
-    "權限": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Permissions"
           }
         }
       }
@@ -5999,13 +6224,13 @@
         }
       }
     },
-    "正式版的會議紀錄好了；你改過的草稿留在版本紀錄裡，可以從「更多 → 復原上一版會議紀錄」找回": {
+    "正式版的會議紀錄好了；你改過的草稿留在版本紀錄裡，按紀錄分頁「編輯」旁的「復原上一版」可以找回": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The final meeting notes are ready. Your edited draft is kept in the version history; use More → Revert to Previous Notes to get it back."
+            "value": "The final meeting notes are ready. The draft you edited is kept in the version history; use Restore previous version next to Edit on the Notes tab to get it back"
           }
         }
       }
@@ -6028,6 +6253,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Transcribe and identify speakers"
+          }
+        }
+      }
+    },
+    "正式轉錄選「Qwen3-ASR」時用，2.5 GB。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Used when final transcription is set to Qwen3-ASR, 2.5 GB."
           }
         }
       }
@@ -6076,24 +6312,24 @@
         }
       }
     },
-    "每天送一份匿名的使用統計給會議助手的開發者：版本、系統、錄音和轉錄了幾分鐘、用了哪些功能、失敗幾次。不會送會議標題、逐字稿、會議紀錄、人名、聲紋或任何檔案。": {
+    "每天送一份匿名的使用統計給會議助手的開發者：版本、系統、錄音和轉錄了幾分鐘、用了哪些功能、失敗幾次和哪一種失敗。不會送會議標題、逐字稿、會議紀錄、人名、聲紋或任何檔案。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Once a day, Meeting Assistant sends its developer an anonymous summary: version, system, minutes recorded and transcribed, which features were used, and how many tasks failed. It never sends meeting titles, transcripts, notes, names, voiceprints or any files."
+            "value": "Once a day, Meeting Assistant sends its developer an anonymous summary: version, system, minutes recorded and transcribed, which features were used, and how many tasks failed and of what kind. It never sends meeting titles, transcripts, notes, names, voiceprints or any files."
           }
         }
       }
     },
-    "每天送一份匿名的使用統計（版本、系統、錄音和轉錄的分鐘數、用了哪些功能、失敗次數），不含任何會議內容。在設定 → 進階可以關掉。": {
+    "每天送一份匿名的使用統計（版本、系統、錄音和轉錄的分鐘數、用了哪些功能、失敗的次數和種類），不含任何會議內容。在設定 → 進階可以關掉。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Once a day, Meeting Assistant sends an anonymous usage summary (version, system, minutes recorded and transcribed, which features were used, and how many tasks failed) that never includes meeting content. You can turn it off in Settings → Advanced."
+            "value": "Once a day, Meeting Assistant sends an anonymous usage summary (version, system, minutes recorded and transcribed, which features were used, and how many tasks failed and of what kind) that never includes meeting content. You can turn it off in Settings → Advanced."
           }
         }
       }
@@ -6572,6 +6808,17 @@
         }
       }
     },
+    "用你的訂閱，不另外收費": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uses your subscription, no extra charge"
+          }
+        }
+      }
+    },
     "用詞修正": {
       "extractionState": "manual",
       "localizations": {
@@ -6815,6 +7062,28 @@
         }
       }
     },
+    "確認、略過待確認": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Confirmed and skipped review items"
+          }
+        }
+      }
+    },
+    "確認待確認": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Confirmed review items"
+          }
+        }
+      }
+    },
     "磁碟只剩 %@，大約只能錄 %lld 分鐘。空間用完時會自動停止錄音，已經錄到的部分會保留。": {
       "extractionState": "manual",
       "localizations": {
@@ -6970,17 +7239,6 @@
         }
       }
     },
-    "筆記": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Notes"
-          }
-        }
-      }
-    },
     "範圍": {
       "extractionState": "manual",
       "localizations": {
@@ -7069,6 +7327,17 @@
         }
       }
     },
+    "紀錄": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notes"
+          }
+        }
+      }
+    },
     "約 1.7 GB 給模型（轉錄 1.66 GB、說話者辨識 21 MB；開日文會議另外 574 MB、自動偵測語言 60 MB），另外加上錄音：轉錄完會壓縮成 m4a，每小時約 10～30 MB": {
       "extractionState": "manual",
       "localizations": {
@@ -7135,13 +7404,13 @@
         }
       }
     },
-    "網址、API key 和模型請在完成引導後，到「設定 → 整理工具」填寫。": {
+    "網址、API key 和模型請在完成引導後，到「設定 → 整理工具」填寫。填好之前不會整理。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "After setup, enter the URL, API key and model in Settings → Summarizer."
+            "value": "Enter the URL, API key and model in Settings → Summarizer after setup. Nothing is summarized until they’re filled in."
           }
         }
       }
@@ -7190,24 +7459,13 @@
         }
       }
     },
-    "編輯期間會議紀錄有更新，已用你改的版本存檔；從「更多 → 復原上一版會議紀錄」可以找回更新的內容": {
+    "編輯期間會議紀錄有更新，已用你改的版本存檔；按「編輯」旁的「復原上一版」可以找回更新的內容": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The meeting notes changed while you were editing. Your version was saved; use More → Revert to Previous Notes to get the other version back"
-          }
-        }
-      }
-    },
-    "編輯議題": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Edit Topics"
+            "value": "The notes were updated while you were editing. Your edited version was saved; use Restore previous version next to Edit to see the update"
           }
         }
       }
@@ -7498,6 +7756,17 @@
         }
       }
     },
+    "要 API key，依用量計費，一小時的會議通常不到台幣 10 元（2026-10 估）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Needs an API key, billed by usage; an hour-long meeting usually costs under NT$10 (estimated 2026-10)"
+          }
+        }
+      }
+    },
     "要停止錄音並轉錄嗎？": {
       "extractionState": "manual",
       "localizations": {
@@ -7575,6 +7844,17 @@
         }
       }
     },
+    "設定好之前不會自動整理。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nothing is summarized automatically until this is set up."
+          }
+        }
+      }
+    },
     "設定整理工具": {
       "extractionState": "manual",
       "localizations": {
@@ -7619,17 +7899,6 @@
         }
       }
     },
-    "詳細": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Details"
-          }
-        }
-      }
-    },
     "詳細…": {
       "extractionState": "manual",
       "localizations": {
@@ -7648,6 +7917,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "People Meeting Assistant Knows"
+          }
+        }
+      }
+    },
+    "語言": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Language"
           }
         }
       }
@@ -7696,24 +7976,24 @@
         }
       }
     },
-    "說話者分得太少（人多、吵雜、手機放在桌上遠距收音）時，從「更多」選「重新辨識說話者…」，告訴會議助手大約幾個人。只會重新分辨誰在說話，逐字稿的文字不會變。錄音中（會議標題右邊的「人數」）或匯入時也可以先選。": {
+    "說話者分得太少（人多、吵雜、手機放在桌上遠距收音）時，從「更多 → 重新處理」選「重新辨識說話者…」，告訴會議助手大約幾個人。只會重新分辨誰在說話，逐字稿的文字不會變。錄音中（會議標題右邊的「人數」）或匯入時也可以先選。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "If too few speakers were found (many people, noise, or a phone on the table), choose “Identify Speakers Again…” from More and tell Meeting Assistant roughly how many people there were. Only who is speaking is worked out again; the transcript text stays the same. You can also pick the number while recording (“People” next to the meeting title) or when importing."
+            "value": "Too few speakers detected (many people, noise, or a phone on the table far from everyone)? Choose More → Reprocess → Re-identify speakers… and tell Meeting Assistant roughly how many people there were. Only the speaker labels change; the transcript text stays. You can also set the count while recording (the People control next to the meeting title) or when importing."
           }
         }
       }
     },
-    "說話者分錯了：同一個人被分成兩位，點說話者的名字選「合併到…」；某幾句分錯人，在逐字稿按右鍵選「這句是誰說的」。改錯了可以從「更多」選「復原說話者的調整」。": {
+    "說話者分錯了：同一個人被分成兩位，點說話者的名字選「合併到…」；某幾句分錯人，在逐字稿按右鍵選「這句是誰說的」。改錯了，點說話者的名字或按右鍵選「復原」。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Speakers mixed up? If one person was split into two, click the speaker’s name and choose “Merge Into…”. If a few lines went to the wrong person, right-click the transcript and choose “Who Said This Line?”. To undo, choose “Undo Speaker Changes” from More."
+            "value": "Speakers mixed up? If one person was split into two, click the speaker's name and choose Merge into…; if a few lines went to the wrong person, right-click them in the transcript and choose Who said this. To undo, click the speaker's name or right-click and choose Undo."
           }
         }
       }
@@ -7762,6 +8042,17 @@
         }
       }
     },
+    "說話者與詞彙": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speakers & Glossary"
+          }
+        }
+      }
+    },
     "說話者辨識模型": {
       "extractionState": "manual",
       "localizations": {
@@ -7780,17 +8071,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Speaker recognition model (FluidAudio)"
-          }
-        }
-      }
-    },
-    "說話者辨識模型：分辨是誰在說話": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Speaker recognition model: tells who is speaking"
           }
         }
       }
@@ -7927,6 +8207,17 @@
         }
       }
     },
+    "貼上 API key 並按「儲存」後才會用 %@ 整理；沒有 key 的話可以選「先不用」。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meeting Assistant uses %@ after you paste an API key and click “Save”. No key? Choose “Not now”."
+          }
+        }
+      }
+    },
     "資料位置": {
       "extractionState": "manual",
       "localizations": {
@@ -8000,6 +8291,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Jump to the first place"
+          }
+        }
+      }
+    },
+    "轉成逐字稿：在這台 Mac 上轉錄、分辨說話者，不會上傳。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transcript: transcribed on this Mac with speakers identified; nothing is uploaded."
           }
         }
       }
@@ -8136,13 +8438,13 @@
         }
       }
     },
-    "轉錄完會自動整理。「摘要」有重點、決議、待辦和未決問題；「詳細」依議題分段；每一條後面的時間點點一下，就從錄音那裡開始播放。右上角的範本選單可以換成一對一、訪談、課堂／演講、腦力激盪等格式，換完從「更多」選「重新整理會議紀錄」。想找某件事，可以在「提問」分頁直接問，例如「預算最後決定多少？」，回答會附上時間點；工具列的「提問」可以一次問所有會議。": {
+    "轉錄完會自動整理。「紀錄」分頁由上而下是摘要、決議、待辦、未決問題和依議題分段的討論；每一條後面的時間點點一下，就從錄音那裡開始播放。右上角的範本選單可以換成一對一、訪談、課堂／演講、腦力激盪等格式，換完從「更多 → 重新處理」選「重新整理會議紀錄」。想找某件事，可以在「提問」分頁直接問，例如「預算最後決定多少？」，回答會附上時間點；工具列的「提問」可以一次問所有會議。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "After transcription, Meeting Assistant summarizes automatically. “Summary” has the key points, decisions, action items and open questions; “Details” is organized by topic. Click the time after any item to play the recording from there. Use the template menu at the top right to switch to One-on-one, Interview, Lecture / talk, Brainstorm and more, then choose “Summarize again” from “More”. Looking for something? Ask in the “Ask” tab, for example “What budget did we settle on?”, and the answer comes with timestamps; “Ask” in the toolbar asks all your meetings at once."
+            "value": "Notes are generated automatically after transcription. The Notes tab runs top to bottom: summary, decisions, action items, open questions, then the discussion by topic; click the timestamp after any line to play the recording from there. The template menu at the top right switches to formats such as one-on-one, interview, lecture or brainstorming; after changing it, choose More → Reprocess → Regenerate Notes. To find something, ask directly on the Ask tab, for example “What was the final budget?”; answers include timestamps. The Ask button in the toolbar searches every meeting at once."
           }
         }
       }
@@ -8158,17 +8460,6 @@
         }
       }
     },
-    "轉錄模型": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Transcription model"
-          }
-        }
-      }
-    },
     "轉錄模型 Breeze ASR 25": {
       "extractionState": "manual",
       "localizations": {
@@ -8180,13 +8471,35 @@
         }
       }
     },
-    "轉錄模型只需要下載一次，之後轉錄都不需要網路。可以先按「下一步」，在背景繼續下載，下載完成前會先用 macOS 內建辨識。不想下載的話，可以到「設定 → 錄音」把正式轉錄改成 macOS 內建（不參考詞彙表）。": {
+    "轉錄模型 Qwen3-ASR 1.7B": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "You only download the transcription model once; after that, transcription doesn't need the internet. You can click “Next” and let it download in the background — until it's done, Meeting Assistant uses macOS built-in recognition. If you'd rather not download it, set transcription to macOS in Settings → Recording (it doesn't use the glossary)."
+            "value": "Transcription model Qwen3-ASR 1.7B"
+          }
+        }
+      }
+    },
+    "轉錄模型下載中 %lld%%，下載好之前先用 macOS 內建辨識轉錄。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transcription model downloading, %lld%%. Until it is ready, the macOS built-in recognizer is used."
+          }
+        }
+      }
+    },
+    "轉錄模型已經就緒。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The transcription model is ready."
           }
         }
       }
@@ -8202,24 +8515,13 @@
         }
       }
     },
-    "轉錄模型還在下載，下載完成前會先用 macOS 內建辨識轉錄。下載好之後，可以在逐字稿分頁重新轉錄。": {
+    "轉錄模型還沒下載好，會先用 macOS 內建辨識轉錄；可以到「設定 → 錄音與轉錄」下載，用模型轉錄比較準。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The transcription model is still downloading. Until it's done, recordings are transcribed with macOS built-in recognition; afterwards you can transcribe them again from the Transcript tab."
-          }
-        }
-      }
-    },
-    "轉錄模型還沒下載，會先用 macOS 內建辨識轉錄。可以到「設定 → 模型與儲存空間」下載，用模型轉錄比較準。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The transcription model isn't downloaded yet, so recordings will be transcribed with macOS built-in recognition. Download it in Settings → Models & Storage for more accurate transcripts."
+            "value": "The transcription model is not downloaded yet, so the macOS built-in recognizer is used for now. Download it in Settings → Recording & Transcription for better accuracy."
           }
         }
       }
@@ -8468,17 +8770,6 @@
         }
       }
     },
-    "這台 Mac 沒有 Claude Code 或 Codex。要用 AI 整理會議紀錄，選一個 API 並貼上 API key（有取得 key 的連結）；也可以之後再設定，錄音和逐字稿照常能用。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This Mac doesn't have Claude Code or Codex. To have AI write your meeting notes, choose an API and paste an API key (there's a link to get one). You can also set this up later; recording and transcripts work either way."
-          }
-        }
-      }
-    },
     "這台 Mac 沒有安裝 claude：沒有在用 Claude Code 的話，請改選 API": {
       "extractionState": "manual",
       "localizations": {
@@ -8585,17 +8876,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "This meeting was transcribed with macOS built-in recognition before the model finished downloading. Transcribing it again with the Japanese transcription model is usually more accurate."
-          }
-        }
-      }
-    },
-    "這場會議沒有分出議題（可能是範本沒有包含「議題詳細」）。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This meeting has no topics (the template may not include “Topics”)."
           }
         }
       }
@@ -8887,6 +9167,29 @@
         }
       }
     },
+    "還有 %lld 題待確認": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld item to confirm"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld items to confirm"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "還有工作在進行，要結束會議助手嗎？": {
       "extractionState": "manual",
       "localizations": {
@@ -8931,13 +9234,13 @@
         }
       }
     },
-    "還沒安裝": {
+    "還沒回答的題目都標成略過，送出後直接移除": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Not installed"
+            "value": "Mark every unanswered question as skipped; they are removed when you submit"
           }
         }
       }
@@ -8975,6 +9278,17 @@
         }
       }
     },
+    "還沒有填 OpenAI 相容 API 的網址或模型，請到設定 → 整理工具填寫": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No URL or model entered for the OpenAI-compatible API. Enter them in Settings → Summarizer."
+          }
+        }
+      }
+    },
     "還沒有填 OpenAI 相容 API 的網址，請到設定 → 整理工具填寫": {
       "extractionState": "manual",
       "localizations": {
@@ -8982,6 +9296,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "No URL entered for the OpenAI-compatible API. Enter it in Settings → Summarizer."
+          }
+        }
+      }
+    },
+    "還沒有填網址或模型。設定好之前不會自動整理。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No URL or model yet. Nothing is summarized automatically until this is set up."
+          }
+        }
+      }
+    },
+    "還沒有存 API key：貼上之後按「儲存 key」。設定好之前不會自動整理。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No API key saved. Paste one and click “Save Key”. Nothing is summarized automatically until this is set up."
           }
         }
       }
@@ -9283,6 +9619,17 @@
         }
       }
     },
+    "重新處理": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reprocess"
+          }
+        }
+      }
+    },
     "重新轉錄": {
       "extractionState": "manual",
       "localizations": {
@@ -9382,6 +9729,17 @@
         }
       }
     },
+    "錄下來：現場會議或線上會議，錄音時就有即時逐字稿。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Record: in-person or online meetings, with a live transcript while recording."
+          }
+        }
+      }
+    },
     "錄現場會議或你自己的聲音。": {
       "extractionState": "manual",
       "localizations": {
@@ -9393,6 +9751,17 @@
         }
       }
     },
+    "錄線上會議對方的聲音用。第一次選「麥克風＋電腦聲音」錄音時 macOS 會詢問，按允許就好。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Captures the other side of online meetings. The first time you record with “Microphone + computer audio”, macOS will ask; just allow it."
+          }
+        }
+      }
+    },
     "錄線上會議時選「麥克風＋電腦聲音」：你的聲音和對方的聲音會分別錄在左右聲道。第一次錄電腦聲音時，macOS 會詢問「錄製系統音訊」的權限。": {
       "extractionState": "manual",
       "localizations": {
@@ -9400,17 +9769,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "For online meetings, choose “Microphone + computer audio”: your voice and the other side are recorded on the left and right channels. The first time you record computer audio, macOS asks for System Audio Recording permission."
-          }
-        }
-      }
-    },
-    "錄線上會議（Zoom、Meet、Teams）對方的聲音。第一次選「麥克風＋電腦聲音」錄音時，macOS 會跳出詢問，請按允許。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Record the other side of online meetings (Zoom, Meet, Teams). The first time you record with “Microphone + computer audio”, macOS will ask; click Allow."
           }
         }
       }
@@ -9503,13 +9861,13 @@
         }
       }
     },
-    "錄音中畫面左邊是即時逐字稿，講完幾秒內就會出現；右邊「我的筆記」每換一行會自動記下當時的錄音時間。重要的地方按「標記重點」（⌘B），在其他 app 裡也可以按 ⌃⌥⌘B。需要中斷時按「暫停」（⇧⌘P），暫停的時間不會錄進去。": {
+    "錄音中畫面左邊是即時逐字稿，講完幾秒內就會出現；右邊「我的筆記」每換一行會自動記下當時的錄音時間（錄完在逐字稿分頁頂部的「我的筆記」還能改）。重要的地方按「標記重點」（⌘B），在其他 app 裡也可以按 ⌃⌥⌘B。需要中斷時按「暫停」（⇧⌘P），暫停的時間不會錄進去。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "While recording, the live transcript appears on the left within a few seconds of speech. In “My notes” on the right, each new line records the current recording time. Click “Bookmark” (⌘B) at important moments, or press ⌃⌥⌘B from any other app. To take a break, click “Pause” (⇧⌘P); the paused time isn't recorded."
+            "value": "While recording, the live transcript appears on the left within seconds of speech; My notes on the right stamps the recording time on every new line (you can still edit them later under My notes at the top of the Transcript tab). Press Bookmark (⌘B) at important moments, or ⌃⌥⌘B from any app. Press Pause (⇧⌘P) to take a break; paused time is not recorded."
           }
         }
       }
@@ -9543,17 +9901,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Recording source"
-          }
-        }
-      }
-    },
-    "錄音和轉錄都只在這台 Mac 上進行，不會上傳。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Recording and transcription happen only on this Mac. Nothing is uploaded."
           }
         }
       }
@@ -9687,6 +10034,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Meeting notes will appear here after recording and transcription."
+          }
+        }
+      }
+    },
+    "錄音與轉錄": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recording & Transcription"
           }
         }
       }
@@ -9874,6 +10232,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Close"
+          }
+        }
+      }
+    },
+    "隨時可以到設定選": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You can choose one in Settings any time"
           }
         }
       }
@@ -10205,28 +10574,6 @@
                 }
               }
             }
-          }
-        }
-      }
-    },
-    "：沒有安裝（給已經在用 Claude Code 的人）": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": ": not installed (for people who already use Claude Code)"
-          }
-        }
-      }
-    },
-    "：沒有安裝（給已經在用 Codex 的人）": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": ": not installed (for people who already use Codex)"
           }
         }
       }

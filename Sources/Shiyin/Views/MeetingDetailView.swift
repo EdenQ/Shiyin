@@ -19,12 +19,9 @@ struct MeetingDetailView: View {
             } else {
                 Group {
                     switch model.tab {
-                    case .summary: SummaryTab(detail: detail)
-                    case .topics: TopicsTab(detail: detail)
+                    case .summary: NotesPage(detail: detail)
                     // 換會議時重新建立：編輯中的狀態、草稿是每場會議自己的（design §21.15）
                     case .transcript: TranscriptTab(detail: detail).id(detail.meeting.id)
-                    case .review: ReviewTab(detail: detail).id(detail.meeting.id)
-                    case .notes: UserNotesTab(detail: detail)
                     case .ask: AskTab(detail: detail).id(detail.meeting.id)
                     }
                 }
@@ -38,17 +35,11 @@ struct MeetingDetailView: View {
             if !isRecordingThis {
                 ToolbarItem(placement: .principal) {
                     Picker("分頁", selection: $model.tab) {
-                        ForEach(DetailTab.allCases) { tab in
-                            if tab == .review, case let count = detail.reviewCount, count > 0 {
-                                Text("\(tab.label) \(count)").tag(tab)
-                            } else {
-                                Text(tab.label).tag(tab)
-                            }
-                        }
+                        ForEach(DetailTab.allCases) { tab in Text(tab.label).tag(tab) }
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
-                    .frame(width: 440)
+                    .frame(width: 300)
                 }
                 // 垃圾桶裡的會議不能操作
                 if !isTrashed {
@@ -140,7 +131,7 @@ struct MeetingHeader: View {
             Label(model.templates.first { $0.id == meeting.templateId }?.displayName ?? String(localized: "一般會議"), systemImage: "doc.text")
         }
         .fixedSize()
-        .help("會議紀錄的範本。換了範本之後，從「更多」選「重新整理會議紀錄」就會照新範本整理")
+        .help("會議紀錄的範本。換了範本之後，從「更多 → 重新處理」選「重新整理會議紀錄」就會照新範本整理")
         // 會議語言（design §16.3）
         Menu {
             ForEach(MeetingLanguage.allCases) { language in
@@ -155,7 +146,7 @@ struct MeetingHeader: View {
             Label(meeting.meetingLanguage.name, systemImage: "globe")
         }
         .fixedSize()
-        .help("會議語言：決定轉錄和會議紀錄用的語言。改了之後，從「更多」重新轉錄或重新整理會議紀錄")
+        .help("會議語言：決定轉錄和會議紀錄用的語言。改了之後，從「更多 → 重新處理」重新轉錄或重新整理會議紀錄")
         // 錄音中先填人數（design §26.2）：錄完轉錄時用
         if model.recorder.isRecording && model.recorder.meetingId == meeting.id {
             Menu {
@@ -250,6 +241,7 @@ struct TrashBanner: View {
 /// 工作進度、失敗原因
 struct StatusBanner: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.openSettings) private var openSettings
     let detail: MeetingDetail
 
     var body: some View {
@@ -328,12 +320,23 @@ struct StatusBanner: View {
         switch status {
         case .queued, .transcribing, .summarizing: Button("取消") { model.cancelJobs() }
         case .failed(let kind, let message):
-            // 登入問題（3.1.2）：先引導重新登入，登入完再按重試
-            if kind != .transcribe, LLMError.isLoginProblem(message),
-               AppSettings.provider == .claude || AppSettings.provider == .codex {
-                Button("重新登入 \(AppSettings.provider.shortLabel)") { CLILogin.openLogin(AppSettings.provider) }
+            // 設定問題（沒登入、key 錯誤…）而且還沒修好（R46.2、design §34.4）：給修的按鈕，不放「重試」（重試也一樣會失敗）
+            if kind != .transcribe, LLMError.isSetupProblem(errorKind: detail.latestJob?.errorKind),
+               let problem = model.summarizerProblem {
+                Button(problem.actionTitle) {
+                    switch problem.action {
+                    case .openSettings: openSettings()
+                    case .login(let provider): CLILogin.openLogin(provider)
+                    }
+                }
+            } else {
+                // 登入問題（3.1.2）：先引導重新登入，登入完再按重試
+                if kind != .transcribe, LLMError.isLoginProblem(message),
+                   AppSettings.provider == .claude || AppSettings.provider == .codex {
+                    Button("重新登入 \(AppSettings.provider.shortLabel)") { CLILogin.openLogin(AppSettings.provider) }
+                }
+                Button("重試") { model.retry() }
             }
-            Button("重試") { model.retry() }
         case .cancelled: Button("重新轉錄") { model.retry() }
         default: EmptyView()
         }
@@ -361,14 +364,14 @@ struct MoreMenu: View {
     // 工具列右上角的選單建立一次就不會更新（換會議、工作開始或結束都一樣，加 .id 也沒用），
     // 所以這裡不預先停用：按下時由 AppModel 檢查目前的會議，不能做就說明原因
     var body: some View {
+        // 五項（R44.4，design §33.2）：重新處理的四個動作收成子選單；兩個「復原」回到紀錄的編輯列和說話者的改名處
         Menu {
-            Button("重新整理會議紀錄", systemImage: "arrow.clockwise") { model.resummarize() }
-            Button("檢查可能聽錯的字", systemImage: "text.magnifyingglass") { model.checkTranscript() }
-            Button("重新轉錄（含說話者辨識）", systemImage: "waveform") { model.retranscribe() }
-            Button("重新辨識說話者…", systemImage: "person.2.wave.2") { model.requestRediarize() }
-            Button("復原說話者的調整", systemImage: "arrow.uturn.backward.circle") { model.undoSpeakerEdit() }
-            Button("復原上一版會議紀錄", systemImage: "arrow.uturn.backward") { model.undoNotes() }
-            Divider()
+            Menu("重新處理", systemImage: "arrow.clockwise") {
+                Button("重新整理會議紀錄", systemImage: "arrow.clockwise") { model.resummarize() }
+                Button("檢查可能聽錯的字", systemImage: "text.magnifyingglass") { model.checkTranscript() }
+                Button("重新轉錄（含說話者辨識）", systemImage: "waveform") { model.retranscribe() }
+                Button("重新辨識說話者…", systemImage: "person.2.wave.2") { model.requestRediarize() }
+            }
             Button("匯出…", systemImage: "square.and.arrow.up") { model.openExportSheet() }
             Menu("複製會議紀錄", systemImage: "doc.on.doc") {
                 Button("保留格式（貼到 Word、Notion、郵件）") { model.copyNotes(.rich) }

@@ -13,6 +13,12 @@ enum CLILogin {
     /// 查登入狀態，不會送出請求、不消耗額度。找不到指令或看不懂輸出時回傳 nil。
     /// 注意：「登入過期、刷新失敗」時這裡可能還是顯示已登入，要實際送出請求才知道（設定裡的「測試整理工具」）
     static func status(_ provider: LLMProvider) async -> Status? {
+        #if DEBUG
+        // -debugCLILogin no：當成沒登入，不執行 CLI（design §34.6）
+        if UserDefaults.standard.string(forKey: "debugCLILogin") == "no", provider == .claude || provider == .codex {
+            return Status(loggedIn: false, detail: "")
+        }
+        #endif
         switch provider {
         case .claude:
             guard let exe = Paths.findTool("claude"),
@@ -34,6 +40,21 @@ enum CLILogin {
         default:
             return nil
         }
+    }
+
+    /// 查登入狀態並記進快取（design §34.1）；看不出來時快取是 nil，當作準備好
+    @discardableResult
+    static func refresh(_ provider: LLMProvider) async -> Status? {
+        let status = await status(provider)
+        CLILoginCache.store(provider, status?.loggedIn)
+        return status
+    }
+
+    /// 目前的整理工具是 claude、codex 時，距離上次查超過 60 秒才再查（app 啟動、回到前景）
+    static func refreshIfStale() async {
+        let provider = AppSettings.provider
+        guard provider == .claude || provider == .codex, CLILoginCache.isStale(provider, after: 60) else { return }
+        await refresh(provider)
     }
 
     /// 打開「終端機」執行登入指令（會開瀏覽器登入頁）。用 .command 檔案打開，不需要自動化權限
