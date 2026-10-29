@@ -34,6 +34,17 @@
         }
       }
     },
+    "- 企業伺服器：%@（伺服器 %@）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "- Enterprise server: %@ (server %@)"
+          }
+        }
+      }
+    },
     "- 拾音 %@（build %@）": {
       "extractionState": "manual",
       "localizations": {
@@ -452,6 +463,39 @@
         }
       }
     },
+    "企業伺服器的憑證不受這台電腦信任，請公司的管理者協助安裝憑證": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This computer doesn't trust the enterprise server's certificate. Ask your company's administrator to install it."
+          }
+        }
+      }
+    },
+    "企業伺服器要求轉到別的網址（HTTP %lld），拾音不會跟著轉。請確認網址，或請公司的管理者檢查伺服器的設定。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The enterprise server asked to redirect to another address (HTTP %lld). Shiyin doesn't follow redirects. Check the URL, or ask your company's administrator to check the server settings."
+          }
+        }
+      }
+    },
+    "企業伺服器辨識說話者": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Identifying speakers on the enterprise server"
+          }
+        }
+      }
+    },
     "例如：「上個月跟客戶談過哪些價格？」「寄信的機制最後怎麼決定的？」拾音會先找出相關的會議片段，再請整理工具回答，回答附上是哪一場會議、哪個時間點。": {
       "extractionState": "manual",
       "localizations": {
@@ -492,6 +536,39 @@
           "stringUnit": {
             "state": "translated",
             "value": "Global shortcut Ctrl+Alt+Shift+R: start or stop recording from any app"
+          }
+        }
+      }
+    },
+    "公司有拾音的企業伺服器時，填入公司給的網址、按「登入」，在打開的網頁用公司帳號登入。登入後錄音交給公司的伺服器轉錄，沒有 NVIDIA 顯示卡的電腦也很快；整理也可以用公司提供的模型。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "If your company runs a Shiyin enterprise server, enter the URL they gave you, click Sign In, and sign in with your company account on the page that opens. Recordings are then transcribed on the company's server — fast even without an NVIDIA graphics card — and summaries can use the company's model."
+          }
+        }
+      }
+    },
+    "公司的伺服器還沒登入或登入已失效，請到設定 → 進階 → 企業伺服器登入": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You're not signed in to the company server, or your sign-in has expired. Sign in under Settings → Advanced → Enterprise Server."
+          }
+        }
+      }
+    },
+    "公司的伺服器還沒登入或登入已失效：到「進階 → 企業伺服器」登入。設定好之前不會自動整理。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You're not signed in to the company server, or your sign-in has expired. Sign in under Advanced → Enterprise Server. Meetings won't be summarized automatically until this is fixed."
           }
         }
       }
@@ -606,6 +683,17 @@
         }
       }
     },
+    "在打開的網頁登入，登入完會回到拾音": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign in on the page that opened; you'll come back to Shiyin afterwards"
+          }
+        }
+      }
+    },
     "執行這個工作時拾音意外結束了 2 次，已經停止自動重試。可以按「重試」再試一次。": {
       "extractionState": "manual",
       "localizations": {
@@ -657,6 +745,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Saved in Credential Manager (type a new one to replace it)"
+          }
+        }
+      }
+    },
+    "已登入企業伺服器": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Signed in to the enterprise server"
           }
         }
       }
@@ -955,6 +1054,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Shiyin can't open its database"
+          }
+        }
+      }
+    },
+    "拾音的版本太舊，請先更新拾音": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This version of Shiyin is too old. Please update Shiyin first."
           }
         }
       }
@@ -1410,6 +1520,17 @@
         }
       }
     },
+    "登入公司的企業伺服器時：錄音會上傳到公司自己的伺服器轉錄和辨識說話者，不經過其他雲端服務，轉完就刪，聲紋不存在伺服器；選「公司」整理時，逐字稿送到公司的伺服器，由公司選的模型整理（公司機房裡的模型，或公司接的 AI 服務）。公司的後台只看得到用量的數字（幾分鐘、幾次），看不到會議內容。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When you’re signed in to your company’s enterprise server: recordings are uploaded to your company’s own server for transcription and speaker identification, without passing through any other cloud service, and deleted once transcribed; voiceprints aren’t kept on the server. With the “Company” summarizer, the transcript goes to your company’s server and is summarized by the model your company chose (one in its own data center, or an AI service it uses). The company’s admin console shows only usage numbers (minutes, counts), never meeting content."
+          }
+        }
+      }
+    },
     "發布拾音的人會給你這個網址（shiyin-update.json）。留空就用安裝版本內建的網址；都沒有的話不會檢查更新。": {
       "extractionState": "manual",
       "localizations": {
@@ -1795,6 +1916,17 @@
         }
       }
     },
+    "轉錄：錄音會送到 %@（公司的伺服器），轉完就刪。說話者辨識也在伺服器上做，聲紋只存在這台電腦；筆記、會議紀錄不會因為轉錄送出。伺服器用的轉錄引擎：%@。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transcription: recordings are sent to %1$@ (your company's server) and deleted after transcription. Speakers are also identified on the server; voiceprints stay on this computer, and notes and meeting notes are not sent for transcription. Transcription engine on the server: %2$@."
+          }
+        }
+      }
+    },
     "這不是有效的拾音封包：%@": {
       "extractionState": "manual",
       "localizations": {
@@ -1846,6 +1978,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "This build has no update key (development build), so it doesn't check for updates."
+          }
+        }
+      }
+    },
+    "這個網址不是拾音的企業伺服器": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This URL is not a Shiyin enterprise server"
+          }
+        }
+      }
+    },
+    "這台電腦已經用 %@ 登入 %@。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This PC is signed in as %@ on %@."
           }
         }
       }
@@ -1960,6 +2114,17 @@
         }
       }
     },
+    "逾時": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "timed out"
+          }
+        }
+      }
+    },
     "遇到問題，可以從設定的「進階」選「回報問題…」，會附上版本和環境（不含會議內容）。": {
       "extractionState": "manual",
       "localizations": {
@@ -2059,6 +2224,17 @@
         }
       }
     },
+    "錄音中很久沒人說話，拾音自動停止了錄音。要轉錄全部的話，用「更多 → 重新處理 → 重新轉錄」。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nobody spoke for a long time, so Shiyin stopped recording. To transcribe everything, use More → Reprocess → Transcribe Again."
+          }
+        }
+      }
+    },
     "錄音中按 Ctrl+Alt+Shift+B 標記重點（在其他 app 裡也能用）": {
       "extractionState": "manual",
       "localizations": {
@@ -2110,6 +2286,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "The recording will be saved and transcribed the next time you open Shiyin."
+          }
+        }
+      }
+    },
+    "錄音會送到 %@（公司的伺服器）轉錄，轉完就刪；說話者辨識也在伺服器上做，聲紋只存在這台電腦。會參考詞彙表。連不上時會等，也可以改在這台電腦轉錄。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recordings are sent to %@ (your company's server) for transcription and deleted afterwards; speakers are identified on the server too, and voiceprints stay on this computer. Uses the glossary. If the server can't be reached, Shiyin waits, or you can transcribe on this computer instead."
           }
         }
       }

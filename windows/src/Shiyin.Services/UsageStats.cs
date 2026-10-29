@@ -35,14 +35,14 @@ public sealed class UsageStats(string file, AppSettings settings, HttpClient htt
          "diarizationRuns", "questionsAsked", "summarizeDraftErrors"];
     static readonly (string Name, string[] Keys)[] Groups =
     [
-        ("engines", ["breeze", "builtin", "whisperJa", "qwen"]),
+        ("engines", ["breeze", "builtin", "whisperJa", "qwen", "server"]),   // server：企業伺服器轉錄（R52.2）
         ("meetingLanguages", ["zh", "en", "ja"]),
-        ("summarizer", ["claudeCode", "codex", "api", "local"]),
+        ("summarizer", ["claudeCode", "codex", "api", "local", "enterprise"]),
         ("review", ["answered", "confirmed", "skipped"]),   // 待確認送出的題數（R41.7、M§31.3）
         ("errors", ["recording", "transcribe", "diarize", "summarize"]),
         // 整理失敗的種類、當時的整理工具（R47、M§34.5）；summarizeDraftErrors 在 Numbers
         ("summarizeErrors", SummarizeErrorKinds),
-        ("summarizeErrorProviders", ["claudeCode", "codex", "api", "local"]),
+        ("summarizeErrorProviders", ["claudeCode", "codex", "api", "local", "enterprise"]),
     ];
 
 
@@ -126,7 +126,7 @@ public sealed class UsageStats(string file, AppSettings settings, HttpClient htt
     public void Transcribed(double seconds, double wallSeconds, string engine, MeetingLanguage language, bool imported, bool diarized)
     {
         var audio = Whole(seconds);
-        var key = engine switch { "system" => "builtin", "japanese" => "whisperJa", "qwen" => "qwen", _ => "breeze" };
+        var key = engine switch { "system" => "builtin", "japanese" => "whisperJa", "qwen" => "qwen", "server" => "server", _ => "breeze" };
         Add(c =>
         {
             c.Add("transcribedSeconds", audio);
@@ -168,6 +168,7 @@ public sealed class UsageStats(string file, AppSettings settings, HttpClient htt
         LLMProvider.OpenAICompatible =>
             OpenAICompatibleApi.Normalized(settings.CompatibleBaseUrl) is { } url && OpenAICompatibleApi.IsLocal(url) ? "local" : "api",
         LLMProvider.Anthropic or LLMProvider.OpenAI or LLMProvider.Gemini => "api",
+        LLMProvider.Enterprise => "enterprise",
         _ => null,
     };
 

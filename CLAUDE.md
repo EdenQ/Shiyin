@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-拾音 Shiyin 是 macOS 原生的會議紀錄 app（SwiftUI，macOS 26）。目前是 4.1.1（4.1 加上三個分頁的減法、待確認就地回答、收音提醒送通知、可選的 Qwen3-ASR 引擎，Windows 同步；4.1.1 整理工具設定好才用、失敗說清楚怎麼修；第三版加上英文版、開源準備、轉錄準確度、日文、更多整理工具、穩定性修正；3.5 加上草稿紀錄、聲紋、猜說話者、對會議提問、偵測會議；3.6 加上重新辨識說話者、合併和改句子的說話者、分不準的提醒、收音提醒，修正錄音中畫面卡住；4.0 加上 Windows 版、待確認的是非題、聲紋沒把握時先問、短句的說話者、沒有 claude／codex 時先不整理）：
+拾音 Shiyin 是 macOS 原生的會議紀錄 app（SwiftUI，macOS 26）。目前是 4.2.1（4.1 加上三個分頁的減法、待確認就地回答、收音提醒送通知、可選的 Qwen3-ASR 引擎，Windows 同步；4.1.1 整理工具設定好才用、失敗說清楚怎麼修；4.1.2 忘了停止錄音時提醒、自動停止；4.2 可以連公司的企業伺服器（在公司的伺服器轉錄、整理，公司詞彙表、加入連結）；4.2.1 企業伺服器的安全強化；第三版加上英文版、開源準備、轉錄準確度、日文、更多整理工具、穩定性修正；3.5 加上草稿紀錄、聲紋、猜說話者、對會議提問、偵測會議；3.6 加上重新辨識說話者、合併和改句子的說話者、分不準的提醒、收音提醒，修正錄音中畫面卡住；4.0 加上 Windows 版、待確認的是非題、聲紋沒把握時先問、短句的說話者、沒有 claude／codex 時先不整理）：
 
 - 錄音：AVAudioEngine 收麥克風、Core Audio process tap 收電腦聲音，寫成雙聲道 WAV（`Sources/Shiyin/Capture/`）
 - 即時逐字稿：系統的 SpeechAnalyzer（zh_TW、en_US 或 ja_JP，依會議語言）
@@ -12,7 +12,7 @@
 
 不需要 Python、Homebrew、ffmpeg。選型的理由在 design.md 的決策紀錄（D#）。已經刪掉的舊文件（第二版的規格 `docs/archive/v2/`、選型實驗 `docs/spikes/`、3.4.0 以前完整的 `docs/tasks.md`）用 `git show b621ed6:<路徑>` 看。
 
-**Windows 版**（2026-10-20 起開發，4.0.0 跟 Mac 一起發布）：C# .NET 10＋WinUI 3，程式放 `windows/`，功能對齊 Mac 4.1.1；需求在 requirements 第 22 節（R26～R28），設計在 `docs/design-windows.md`，任務在 tasks.md 的「Windows 版」。見下面的「Windows 版」一節。
+**Windows 版**（2026-10-20 起開發，4.0.0 跟 Mac 一起發布）：C# .NET 10＋WinUI 3，程式放 `windows/`，功能對齊 Mac 4.2.1；需求在 requirements 第 22 節（R26～R28），設計在 `docs/design-windows.md`，任務在 tasks.md 的「Windows 版」。見下面的「Windows 版」一節。
 
 ## 開發流程：SDD（規格驅動）
 
@@ -73,7 +73,7 @@ sqlite3 ~/Library/Application\ Support/Shiyin/shiyin.sqlite # 看資料
 - 錄音、資料庫、模型放 `SHIYIN_HOME`（Windows 預設 `%LOCALAPPDATA%\Shiyin`）；設定是裡面的 `settings.json`；API key 只能存在認證管理員（`com.weiwei.shiyin.apikey/<帳號>`）。安裝位置（`%LOCALAPPDATA%\ShiyinApp`）跟資料分開。
 - 外部程式一律用 `ProcessStartInfo.ArgumentList`，**不能經過 cmd.exe**（npm 的 `.cmd`）：參數會被截斷、改寫。
 - 建置輸出放到 repo 外（`Directory.Build.props` 的 ArtifactsPath），不要放進專案。
-- 虛擬機（UTM，Windows 11 ARM64，design-windows §15.2）：工具在 `scripts/windows/vm/`（`sync.sh` 同步原始碼到 `C:\src`、`ssh.sh`／`run.sh` 建置和測試、`ctl.sh` 控制通道、`insession.sh`／`uia.sh` 在桌面開 app 和按按鈕、`shot.sh` 截圖），金鑰、IP 在 `~/Library/Caches/ShiyinBuild-win/vm`。使用者在用拾音錄會議時（Mac 的 `audio/recording/` 有檔案）不開、不跑重的工作；`diskguard.sh` 在背景跑（Mac 剩不到 10 GB 就停掉虛擬機），虛擬機裡刪了大檔案後跑 `Optimize-Volume -DriveLetter C -ReTrim` 才會還空間給 Mac。從 SSH 開的 app 不會出現在桌面，要用 `insession.sh`（§15.4）。虛擬機沒有音效裝置，錄音用 `record-sim`。 開虛擬機用 `utmctl start "Shiyin Windows"`（`~/Applications/UTM.app/Contents/MacOS/utmctl`）；UTM 開很久之後 AppleScript 會沒回應（`start` 卡住、-1712 逾時），虛擬機沒在跑的話 `kill` UTM 再 `open -g -a UTM` 就好；開機後約 3 分鐘 SSH 才連得上。
+- 虛擬機（UTM，Windows 11 ARM64，design-windows §15.2）：工具在 `scripts/windows/vm/`（`sync.sh` 同步原始碼到 `C:\src`、`ssh.sh`／`run.sh` 建置和測試、`ctl.sh` 控制通道、`insession.sh`／`uia.sh` 在桌面開 app 和按按鈕、`shot.sh` 截圖），金鑰、IP 在 `~/Library/Caches/ShiyinBuild-win/vm`。使用者在用拾音錄會議時（Mac 的 `audio/recording/` 有檔案）不開、不跑重的工作；`diskguard.sh` 在背景跑（Mac 剩不到 10 GB 就停掉虛擬機），虛擬機裡刪了大檔案後跑 `Optimize-Volume -DriveLetter C -ReTrim` 才會還空間給 Mac。從 SSH 開的 app 不會出現在桌面，要用 `insession.sh`（§15.4）。虛擬機沒有音效裝置，錄音用 `record-sim`。 開虛擬機用 `utmctl start "Shiyin Windows"`（`~/Applications/UTM.app/Contents/MacOS/utmctl`）；UTM 開很久之後 AppleScript 會沒回應（`start` 卡住、-1712 逾時），虛擬機沒在跑的話 `kill` UTM 再 `open -g -a UTM` 就好；開機後約 3 分鐘 SSH 才連得上。2026-10-28 UTM 在背景跑約 5 分鐘就被 macOS 的自動結束關掉兩次（log 有「would be terminated by TAL」、launchd 回報 SIGTERM），虛擬機跟著斷電；要不要關掉 UTM 的自動結束由使用者決定。虛擬機沒有瀏覽器：測企業伺服器的登入用 `ctl enterprise pending` 拿登入頁網址，在 Mac 走完登入後用 `insession.sh` 的 `Start-Process '<shiyin://auth…>'` 交回 app；`uia.sh show <視窗> <名稱>` 把元件捲進畫面再截圖。
 - 有中文的 `.ps1` 存成有 BOM 的 UTF-8：Windows 內建的 PowerShell 5.1 會把沒有 BOM 的檔案當成 Big5，整個腳本解析失敗。
 - PowerShell 傳給外部程式的 `-D名稱=$變數`、`--名稱=$變數` 要整串加雙引號（`"-DFOO=$x"`）：「-」開頭的參數裡的變數不會展開，程式拿到的是 `$x` 這串字（2026-10-22 CI 建 whisper 時，x64 因此去找 Vulkan）。
 - 測安裝檔（design-windows §14）：`pack.ps1` 打包、`Setup.exe --silent` 安裝、`%LOCALAPPDATA%\ShiyinApp\Update.exe --uninstall --silent` 移除；移除後等 20 秒再重裝（Velopack 會延後刪安裝資料夾，會把剛裝好的刪掉）。測 app 內更新用 `pack.ps1 -UpdateTest`（§14.2）。安裝版跟 DEBUG 版共用通知的 AppUserModelID，移除安裝版會把通知中心裡 DEBUG 版的通知一起清掉。
@@ -158,6 +158,7 @@ Shiyin 3.3.0: Japanese meetings and automatic language detection
 - 官網截圖（website.md §16.4）：Mac 用 `shiyinctl windowsize 960 672` 調視窗、`screencapture -l` 在別的桌面也截得到；Windows 在虛擬機 150%、深色，點過時間點要再點一次分頁讓提示框消失。
 - 設定頁、引導在背景打不開又不想搶前景時，用 `shiyinctl preview <settings [分頁編號]|onboarding [步驟]> [front]` 開在桌面層（被所有視窗蓋住；設定的分頁 0 整理工具、1 錄音與轉錄、2 說話者與詞彙、3 進階；引導的步驟 0～2），再 `screencapture -l` 截。桌面層的視窗 AX 看不到，要按裡面的按鈕就加 `front`（一般視窗層，會出現在使用者畫面上），用 `AXPRESS_TITLE=onboarding-preview axpress …`。設定頁打開時可能把欄位寫回共用設定，測完 `defaults read` 比對。
 - 會議頁（4.1，design §33）只有三個分頁 summary（紀錄）、transcript、ask：`shiyinctl tab review`、`tab topics`、`tab notes` 是別名（review 切到紀錄並展開頂部的待確認條，notes 切到逐字稿並展開「我的筆記」）；state 的 `reviewExpanded`、`userNotesExpanded` 看展開狀態。紀錄分頁的 `snapshot` 畫得出來（ReadingColumn 在 snapshot 模式不用 ScrollView），待確認條的按鈕 AX 名稱是「待確認 N 題」。
+- 企業伺服器（design §36，伺服器是另外的私人專案）：DEBUG 版用 `shiyinctl enterprise login <網址> <信箱> <輸出.json>`（伺服器開發用的登入，不經過瀏覽器）、`enterprise logout|expire|local <會議 id>`，`state` 的 `enterprise`；伺服器在本機用開發用的設定跑，DEBUG 版連 `http://127.0.0.1:<埠>`。登入會寫進共用設定的 `enterpriseServerURL`、`enterpriseServerAccount`，測完 `defaults delete`；用啟動參數帶 `-transcriptionEngine server -llmProvider enterprise` 測，測前存一份 `defaults read`、測完 diff（登出曾經把使用者的 `llmProvider` 刪掉）。
 - 轉錄引擎的評估（4.1，design §32）：`shiyinctl transcribe-eval` 的設定 JSON 用 `"engine": "qwen"`，`tuning` 可以加 `qwenChunkSeconds`、`qwenRetry`、`qwenGuard`、`qwenSplitMixed`、`qwenCutsAny`；`shiyinctl qwenchunks <錄音> <輸出.json> [秒數] [any] [mixed]` 只倒出說話者片段和分段；`shiyinctl s2tw <in.txt> <out.txt>` 簡轉繁；`shiyinctl model start|pause|delete qwen` 兩個檔一起。試新模型用 llama-server 的原型工具在 `~/Library/Caches/ShiyinSpike/qwen3asr/`（`qwen-eval.py`、`run-sets2.sh`、`batch-*.sh`；評估集 `eval32/datasets.json` 有 `tw-taimecs`、`tw-ntuml`）。**GPU 的工作一次只跑一個**：llama-server 跟 DEBUG 版的 whisper／Qwen 同時跑會互相拖慢 7 倍、asr-eval 超時；llama-server 跑幾小時會變慢到每個 token 20 秒，每批重開。長時間的背景評估用 `caffeinate -i` 包起來：2026-10-24 Mac 在 07:29 休眠到 12:26，背景工作全停。
 
 - 使用者可能直接把 `~/Library/Caches/ShiyinBuild/app` 裡的 app 當正式版在用，甚至正在錄音（先看 `audio/recording/` 有沒有檔案）：`build-app.sh` 會先結束從那個路徑啟動的 app。要測 DEBUG 版時，把建置腳本複製一份、`APP` 改到別的資料夾（例如 `app-debug`），用 `SHIYIN_HOME=… open --env SHIYIN_HOME=… -g -n` 啟動，啟動後用 `lsof -p <pid>` 確認開的是測試資料庫。加 `-debugQuietPrompts YES`：通知權限還沒決定時，測試版轉錄完會在使用者的畫面上跳出系統的詢問。

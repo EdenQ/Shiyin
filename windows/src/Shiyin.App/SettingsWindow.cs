@@ -50,8 +50,14 @@ public sealed class SettingsWindow : Window
         root.Children.Add(page);
         Content = Ui.WindowBackground(root);
         host.Models.Changed += _ => host.Post(() => { if (current == "recording") Show(); });
+        // 企業伺服器的登入狀態變了（登入、失效、登出）
+        host.Enterprise.Changed += () => host.Post(() => { if (current is "advanced" or "provider" or "recording") Show(); });
+        host.Enterprise.Glossary.Changed += () => host.Post(() => { if (current is "names") Show(); });
         Show();
     }
+
+    /// <summary>重畫目前這一頁</summary>
+    public void Refresh() => Show();
 
     /// <summary>DEBUG 的 settings 指令：直接打開某一頁；3.x 的頁名當別名（templates → 整理工具、glossary、speakers → 說話者與詞彙、storage → 進階）</summary>
     public void Open(string id)
@@ -90,7 +96,9 @@ public sealed class SettingsWindow : Window
         // 選單顯示實際用的整理工具；這台電腦沒有 claude、codex 時多「之後再設定」，選它等於清掉設定（R35.3、M§19.6）
         // 沒安裝的 claude、codex 不能選（R45.3）；目前選的就是它時照樣顯示
         bool Missing(LLMProvider p) => p is LLMProvider.Claude or LLMProvider.Codex && !S.HasTool(p == LLMProvider.Claude ? "claude" : "codex");
-        var options = LLMProviders.All.Select(p => ((LLMProvider?)p, Missing(p) ? L.F("%@（沒有安裝）", p.Label()) : p.Label())).ToList();
+        // 公司：登入了企業伺服器、公司有提供整理才出現（R51.1、M D124；登入在進階）
+        var options = LLMProviders.All.Where(p => p != LLMProvider.Enterprise || host.Enterprise.Account?.Llm == true || p == provider)
+            .Select(p => ((LLMProvider?)p, Missing(p) ? L.F("%@（沒有安裝）", p.Label()) : p == LLMProvider.Enterprise ? CompanyLabel() : p.Label())).ToList();
         if (S.DetectedProvider == LLMProvider.None) options.Insert(0, (null, L.T("之後再設定（先不整理）")));
         column.Children.Add(Ui.Combo(options, S.NeedsProviderSetup ? null : provider, p =>
         {
@@ -101,6 +109,11 @@ public sealed class SettingsWindow : Window
         // 還沒準備好：說原因，設定好之前不會自動整理（R45.3、M§34.3）
         if (provider != LLMProvider.None && ProblemNotice(S.SummarizerProblem) is { } notice)
             column.Children.Add(Ui.Text(notice, 12, color: Ui.Danger));
+
+        // 公司：模型由公司的後台決定，這裡只顯示（R51.1）；公司後來才提供整理時，選單就多「公司」（R51.5）
+        if (provider == LLMProvider.Enterprise && host.Enterprise.IsSignedIn && host.Enterprise.Account?.Llm == true)
+            column.Children.Add(CompanyModels());
+        _ = host.Enterprise.RefreshInfo();
 
         if (provider is LLMProvider.Claude or LLMProvider.Codex)
         {
@@ -178,15 +191,17 @@ public sealed class SettingsWindow : Window
                 column.Children.Add(Ui.Link(L.T("取得 API key"), () => _ = Windows.System.Launcher.LaunchUriAsync(new Uri(url))));
         }
 
-        if (provider != LLMProvider.None)
+        if (provider != LLMProvider.None && provider != LLMProvider.Enterprise)
         {
             var model = new TextBox
             {
                 Header = L.T("模型"), Text = S.String(provider.ModelKey()) ?? "",
-                PlaceholderText = provider == LLMProvider.OpenAICompatible ? L.T("必填") : provider.DefaultModel().Length == 0 ? L.T("留空使用預設模型") : L.F("預設：%@", provider.DefaultModel()),
+                PlaceholderText = provider == LLMProvider.OpenAICompatible ? L.T("必填") : provider == LLMProvider.Enterprise ? L.T("留空使用公司設定的預設模型")
+                    : provider.DefaultModel().Length == 0 ? L.T("留空使用預設模型") : L.F("預設：%@", provider.DefaultModel()),
             };
             model.TextChanged += (_, _) => S.Set(provider.ModelKey(), model.Text);
             var canList = provider == LLMProvider.OpenAICompatible ? OpenAICompatibleApi.Normalized(S.CompatibleBaseUrl) is not null
+                : provider == LLMProvider.Enterprise ? host.Enterprise.IsSignedIn
                 : provider.UsesApiKey() && host.Keys.Exists(provider.KeyAccount());
             if (canList)
             {
@@ -204,7 +219,9 @@ public sealed class SettingsWindow : Window
                 column.Children.Add(Ui.Bar(null, model, pick));
             }
             else column.Children.Add(model);
-
+        }
+        if (provider != LLMProvider.None && (provider != LLMProvider.Enterprise || host.Enterprise.IsSignedIn))
+        {
             // 測試：送一個很短的請求，確認登入、key、模型都能用
             var result = Ui.Text("", 13);
             var test = Ui.Button(L.T("測試整理工具"), () => { });
@@ -244,13 +261,53 @@ public sealed class SettingsWindow : Window
     /// <summary>存好 key、按「重新檢查」查到已登入之後，重畫時自動測一次（R45.3）</summary>
     bool autoTest;
 
+    /// <summary>選單上的「公司（範例公司）」</summary>
+    string CompanyLabel() => host.Enterprise.Account?.ServerName is { Length: > 0 } name ? L.F("公司（%@）", name) : LLMProvider.Enterprise.Label();
+
+    /// <summary>
+    /// 公司提供的模型（R51.1、M§36.3）：「公司的預設」存空字串；只有一個時只顯示名稱。
+    /// 選過的不在清單裡了就當成預設，設定不清掉（伺服器恢復後照舊）
+    /// </summary>
+    FrameworkElement CompanyModels()
+    {
+        var slot = Ui.Column(6);
+        slot.Children.Add(Ui.Bar(Ui.Text(L.T("模型"), 14), null, Ui.Text(L.T("正在取得公司的模型…"), 14, color: Ui.Secondary)));
+        slot.Children.Add(Note(L.T("模型和 API key 由公司在伺服器的後台設定。")));
+        async void Load()
+        {
+            var models = await host.Llm.EnterpriseModels(CancellationToken.None);
+            if (S.Provider != LLMProvider.Enterprise) return;
+            slot.Children.RemoveAt(0);
+            FrameworkElement row;
+            if (models is not { Count: > 0 })
+                row = Ui.Bar(Ui.Text(L.T("模型"), 14), null, Ui.Text(L.T("公司的預設"), 14, color: Ui.Secondary));
+            else
+            {
+                var fallback = models.FirstOrDefault(m => m.IsDefault) ?? models[0];
+                if (models.Count == 1) row = Ui.Bar(Ui.Text(L.T("模型"), 14), null, Ui.Text(fallback.Name, 14, color: Ui.Secondary));
+                else
+                {
+                    var options = new List<(string, string)> { ("", L.F("公司的預設（%@）", fallback.Name)) };
+                    options.AddRange(models.Select(m => (m.Id, m.Name)));
+                    var chosen = S.String(LLMProvider.Enterprise.ModelKey()) ?? "";
+                    row = Ui.Combo(options, models.Any(m => m.Id == chosen) ? chosen : "", id => S.Set(LLMProvider.Enterprise.ModelKey(), id), L.T("模型"));
+                }
+            }
+            slot.Children.Insert(0, row);
+        }
+        Load();
+        return slot;
+    }
+
     /// <summary>選單下面的紅字（M§34.3）：沒安裝、沒登入在「狀態」那一列已經寫了原因</summary>
-    static string? ProblemNotice(SummarizerProblem? problem) => problem?.Kind switch
+    string? ProblemNotice(SummarizerProblem? problem) => problem?.Kind switch
     {
         null or SummarizerProblemKind.NotChosen or SummarizerProblemKind.Off => null,
         SummarizerProblemKind.NotInstalled or SummarizerProblemKind.NotLoggedIn => L.T("設定好之前不會自動整理。"),
         SummarizerProblemKind.MissingKey => L.T("還沒有存 API key：貼上之後按「儲存 key」。設定好之前不會自動整理。"),
         SummarizerProblemKind.Incomplete => L.T("還沒有填網址或模型。設定好之前不會自動整理。"),
+        SummarizerProblemKind.EnterpriseSignedOut => L.T("公司的伺服器還沒登入或登入已失效：到「進階 → 企業伺服器」登入。設定好之前不會自動整理。"),
+        SummarizerProblemKind.EnterpriseNoModels => L.T("公司的伺服器還沒有提供整理用的模型：請管理者在伺服器後台的「整理模型」加上模型。"),
         _ => L.F("上次整理失敗：%@。改好設定，或按「測試整理工具」成功之後，才會再自動整理。", problem!.Detail.TrimEnd('。', '.', ' ')),
     };
 
@@ -262,6 +319,10 @@ public sealed class SettingsWindow : Window
         LLMProvider.Claude or LLMProvider.Anthropic => L.T("整理、提問、猜說話者時會把逐字稿文字、你的筆記、詞彙表和會議基本資料送到 Anthropic（Claude）。錄音檔不會送出。"),
         LLMProvider.Codex or LLMProvider.OpenAI => L.T("整理、提問、猜說話者時會把逐字稿文字、你的筆記、詞彙表和會議基本資料送到 OpenAI。錄音檔不會送出。"),
         LLMProvider.Gemini => L.T("整理、提問、猜說話者時會把逐字稿文字、你的筆記、詞彙表和會議基本資料送到 Google（Gemini）。錄音檔不會送出。"),
+        // 送到公司的伺服器，再由公司設定的模型整理（R51.4、M§36.5）
+        LLMProvider.Enterprise => host.Enterprise.Host.Length == 0
+            ? L.T("整理、提問、猜說話者時會把逐字稿文字、你的筆記、詞彙表和會議基本資料送到公司的伺服器，再由公司設定的模型整理。錄音檔不會因為整理而送出。")
+            : L.F("整理、提問、猜說話者時會把逐字稿文字、你的筆記、詞彙表和會議基本資料送到 %@（公司的伺服器），再由公司設定的模型整理。錄音檔不會因為整理而送出。", host.Enterprise.Host),
         _ => OpenAICompatibleApi.Normalized(S.CompatibleBaseUrl) is not { } url
             ? L.T("整理、提問、猜說話者時會把逐字稿文字、你的筆記、詞彙表和會議基本資料送到你填的網址。錄音檔不會送出。")
             : OpenAICompatibleApi.IsLocal(url)
@@ -402,7 +463,21 @@ public sealed class SettingsWindow : Window
         if (terms.Count == 0) column.Children.Add(Ui.Text(L.T("還沒有詞彙。用詞修正時勾選「加進詞彙表」也會加到這裡。"), 13, color: Ui.Secondary));
         foreach (var term in terms)
             column.Children.Add(Ui.Bar(null, Ui.Text(term.Term, 14), Ui.IconButton(Symbol.Delete, L.F("刪除「%@」", term.Term), () => { host.Controller.DeleteTerm(term.Id!.Value); Show(); })));
-        var prompt = Ui.Text(L.F("目前的轉錄提示：%@", WhisperRules.Prompt(terms.Select(t => t.Term).ToList(), S.DefaultMeetingLanguage)), 12, color: Ui.Tertiary, select: true);
+        // 公司詞彙表（R53.3）：唯讀，接在自己的詞後面；打開這頁時更新
+        var company = host.Enterprise.Glossary.Terms;
+        if (company.Count > 0)
+        {
+            var server = host.Enterprise.Account?.ServerName is { Length: > 0 } name ? name : L.T("公司");
+            column.Children.Add(new Expander
+            {
+                Header = Ui.Column(2, Ui.Text(L.F("公司的詞彙（%lld 個）", company.Count), 14),
+                    Ui.Caption(L.F("由%@的管理者維護，接在你的詞後面一起用。", server))),
+                Content = Ui.Text(string.Join(L.English ? ", " : "、", company), 13, select: true), // l10n-skip
+                HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Left,
+            });
+        }
+        _ = host.Enterprise.RefreshGlossary();
+        var prompt = Ui.Text(L.F("目前的轉錄提示：%@", WhisperRules.Prompt(CompanyGlossary.Merge(terms.Select(t => t.Term), company), S.DefaultMeetingLanguage)), 12, color: Ui.Tertiary, select: true);
         column.Children.Add(prompt);
         return column;
     }
@@ -481,10 +556,13 @@ public sealed class SettingsWindow : Window
         var transcription = Ui.Column(12);
         // 正式轉錄引擎（R4.1、M§32.3；Qwen3-ASR 見 design-windows §8.4）
         var engine = S.TranscriptionEngine;
-        transcription.Children.Add(Ui.Combo(new[]
+        var engines = new List<(string, string)>
         {
             ("breeze", L.T("Breeze ASR 25（聯發科，建議）")), ("qwen", L.T("Qwen3-ASR 1.7B（阿里巴巴）")), ("system", L.T("快速辨識")),
-        }, engine is "qwen" or "system" ? engine : "breeze", e =>
+        };
+        // 企業伺服器（R50.1）：登入過才有
+        if (host.Enterprise.Account is { } account) engines.Insert(0, ("server", L.F("企業伺服器（%@）", account.ServerName)));
+        transcription.Children.Add(Ui.Combo(engines, engine is "qwen" or "system" or "server" ? engine : "breeze", e =>
         {
             S.Set(AppSettings.TranscriptionEngineKey, e);
             if (e == "qwen") host.Models.AutoStart(ModelStore.Model.Qwen);
@@ -494,6 +572,7 @@ public sealed class SettingsWindow : Window
         }, L.T("正式轉錄")));
         transcription.Children.Add(Note(engine switch
         {
+            "server" => L.F("錄音會送到 %@（公司的伺服器）轉錄，轉完就刪；說話者辨識也在伺服器上做，聲紋只存在這台電腦。會參考詞彙表。連不上時會等，也可以改在這台電腦轉錄。", host.Enterprise.Host),
             "system" => L.T("速度快很多，下載也小；但不參考詞彙表，英文專有名詞、人名比較容易錯。"),
             "qwen" => L.T("會參考詞彙表，多人會議的漏字和同音字比 Breeze 少；阿里巴巴開源的模型，全程在這台電腦上跑、不連網，輸出會轉成台灣繁體；需要下載約 2.5 GB 的模型和 llama.cpp 的執行檔。日文會議改用 Whisper large-v3-turbo（574 MB）。"),
             _ => L.T("會參考詞彙表，中英夾雜、專有名詞比較準；聯發科開源的台灣模型，需要下載約 1.7 GB。日文會議改用 Whisper large-v3-turbo（574 MB）。"),
@@ -505,6 +584,9 @@ public sealed class SettingsWindow : Window
 
         var alerts = Ui.Column(12);
         alerts.Children.Add(Ui.Toggle(L.T("偵測到線上會議時提醒錄音"), S.MeetingDetection, on => S.Set(AppSettings.MeetingDetectionKey, on)));
+        // 忘了停止錄音（M§35、R48.5）
+        alerts.Children.Add(Ui.Toggle(L.T("很久沒人說話時提醒，30 分鐘後自動停止"), S.IdleStop, on => S.Set(AppSettings.IdleStopKey, on)));
+        alerts.Children.Add(Note(L.T("錄音中 15 分鐘沒人說話時提醒你；再 15 分鐘還是沒人說話就自動停止，只轉錄到最後有人說話的地方，錄音檔完整保留。")));
         alerts.Children.Add(Note(L.T("Zoom、Teams、Webex、Google Meet（瀏覽器）等開始用麥克風、拾音沒在錄音時提醒你；會議結束時提醒停止。只提醒，不會自動錄音。")));
         foreach (var app in host.Detector.Muted)
             alerts.Children.Add(Ui.Bar(null, Ui.Text(L.F("不提醒：%@", MeetingDetector.DisplayName(app)), 13), Ui.Link(L.T("恢復提醒"), () => { host.Detector.Unmute(app); Show(); })));
@@ -636,6 +718,8 @@ public sealed class SettingsWindow : Window
         // 語言的名稱用各自的語言寫
         var language = Ui.Combo(new[] { ("", L.T("跟著 Windows")), ("zh", "中文"), ("en", "English") }, S.String(AppSettings.InterfaceLanguageKey) ?? "",  // l10n-skip
             v => { S.Set(AppSettings.InterfaceLanguageKey, v.Length == 0 ? null : v); App.Current.Notice(L.T("重新打開拾音後換成新的介面語言")); }, L.T("介面語言"));
+        // 企業伺服器（R49、M§36.3）：放在最上面，公司的人照「進階 → 企業伺服器」找得到
+        column.Children.Add(Section(L.T("企業伺服器"), Enterprise()));
         column.Children.Add(Section(L.T("介面"), language));
         var update = Ui.Column(8, Ui.Bar(Ui.Text(L.T("目前版本"), 14), null, Ui.Text(host.Version, 14, color: Ui.Secondary)));
         if (host.Updater is { } updater)
@@ -660,6 +744,152 @@ public sealed class SettingsWindow : Window
         if (host.Usage.IsOffered)
             column.Children.Add(Ui.Card(Ui.Bar(Ui.Text(L.T("匿名使用統計"), 14), null, Ui.Button(L.T("詳細…"), ShowUsageStats))));
         return column;
+    }
+
+    // MARK: 企業伺服器（R49、design-windows §12.11）
+
+    /// <summary>登入前：網址、登入（用預設瀏覽器打開伺服器的登入頁，登入完走 shiyin://auth 回來）；登入後：帳號、轉錄和整理要不要用、登出</summary>
+    FrameworkElement Enterprise()
+    {
+        var server = host.Enterprise;
+        var column = Ui.Column(10);
+        if (server.Account is { } account)
+        {
+            column.Children.Add(Ui.Bar(Ui.Text(L.T("伺服器"), 14), null, Ui.Text(L.F("%@（%@）", account.ServerName, server.Host), 14, color: Ui.Secondary, select: true)));
+            column.Children.Add(Ui.Bar(Ui.Text(L.T("帳號"), 14), null, Ui.Row(8, Ui.Text(account.Email, 14, color: Ui.Secondary, select: true),
+                Ui.Text(server.IsSignedIn ? L.T("已登入") : L.T("登入已失效"), 14, color: server.IsSignedIn ? Ui.Celadon : Ui.Danger))));
+            if (server.ExpiredMessage is { } message)
+            {
+                var error = Ui.Text("", 12, color: Ui.Danger);
+                column.Children.Add(Ui.Text(message, 12, color: Ui.Danger));
+                column.Children.Add(Ui.Row(10, Ui.Button(L.T("重新登入"), () => SignIn(server.SavedUrl?.ToString() ?? "", error)), error));
+            }
+            column.Children.Add(Ui.Toggle(L.T("用企業伺服器轉錄"), S.TranscriptionEngine == "server", on =>
+            {
+                if (on) S.Set(AppSettings.TranscriptionEngineKey, "server"); else S.Remove(AppSettings.TranscriptionEngineKey);
+                host.Runner.Wake();
+            }));
+            if (account.Llm)
+                column.Children.Add(Ui.Toggle(L.T("用企業伺服器整理會議紀錄"), S.ChosenProvider == LLMProvider.Enterprise, on =>
+                {
+                    if (on) S.Set(AppSettings.ProviderKey, LLMProvider.Enterprise.Code()); else S.Remove(AppSettings.ProviderKey);
+                    S.NotifySummarizerChanged();
+                }));
+            column.Children.Add(Note(L.F("轉錄：錄音會送到 %@（公司的伺服器），轉完就刪。說話者辨識也在伺服器上做，聲紋只存在這台電腦；筆記、會議紀錄不會因為轉錄送出。伺服器用的轉錄引擎：%@。",
+                server.Host, account.Engine == "qwen" ? L.T("Qwen3-ASR（阿里巴巴開源）") : L.T("Breeze ASR 25（聯發科）"))));
+            column.Children.Add(Ui.Button(L.T("登出"), SignOut));
+        }
+        else
+        {
+            var url = new TextBox { Header = L.T("網址"), PlaceholderText = "https://shiyin.example.com" };
+            var error = Ui.Text("", 12, color: Ui.Danger);
+            url.KeyDown += (_, e) => { if (e.Key == Windows.System.VirtualKey.Enter) SignIn(url.Text, error); };
+            column.Children.Add(url);
+            column.Children.Add(Ui.Row(10, Ui.Button(L.T("登入"), () => SignIn(url.Text, error), accent: true), error));
+            column.Children.Add(Note(L.T("公司有拾音的企業伺服器時，填入公司給的網址、按「登入」，在打開的網頁用公司帳號登入。登入後錄音交給公司的伺服器轉錄，沒有 NVIDIA 顯示卡的電腦也很快；整理也可以用公司提供的模型。")));
+        }
+        return column;
+    }
+
+    /// <summary>
+    /// 加入連結（R49.7、M§36.2）：讀伺服器的 info，問「加入 主機 的企業伺服器？」（伺服器給的名稱只當成自稱），加入就照「登入」
+    /// （瀏覽器 → shiyin://auth）。已經登入同一台：說已經加入；登入的是別台：不先登出，新的登入成功了才換（EnterpriseServer.CompleteSignIn）。
+    /// async void：連結誰都做得出來，任何例外都接住（log 只寫型別），不能讓 app 當掉
+    /// </summary>
+    public async void ConfirmJoin(string text)
+    {
+        try { await Join(text); }
+        catch (Exception e)
+        {
+            Log.Error($"join failed: {e.GetType().Name}");
+            await Message(L.T("沒辦法加入"), EnterpriseException.Of(EnterpriseFailure.NotShiyin).Message);
+        }
+    }
+
+    async Task Join(string text)
+    {
+        var server = host.Enterprise;
+        if (EnterpriseServer.Normalized(text, server.AllowLocalHttp) is not { } url)
+        {
+            await Message(L.T("沒辦法加入"), EnterpriseException.Of(EnterpriseFailure.InvalidUrl).Message);
+            return;
+        }
+        var hostName = EnterpriseServer.DisplayHost(url);
+        if (server.IsSignedIn && server.SavedUrl is { } saved && EnterpriseServer.SameServer(saved, url) && server.Account is { } account)
+        {
+            await Message(L.F("已經加入「%@」了", account.ServerName), L.F("這台電腦已經用 %@ 登入 %@。", account.Email, hostName));
+            return;
+        }
+        EnterpriseInfo info;
+        try { info = await server.FetchInfo(url); }
+        catch (EnterpriseException e)
+        {
+            await Message(L.T("沒辦法加入"), e.Message);
+            return;
+        }
+        var detail = L.F("這台伺服器自稱「%@」。", info.Name) + "\n\n"
+            + L.F("會打開 %@ 的登入頁，用公司帳號登入。登入後錄音交給公司的伺服器轉錄，整理也用公司設定的模型。", hostName);
+        if (server.Account is { } current)
+            detail += "\n\n" + L.F("登入成功之後，才會登出目前的「%@」（%@）；沒有登入成功就維持原本的登入。", current.ServerName, server.Host);
+        var dialog = new ContentDialog
+        {
+            XamlRoot = Content.XamlRoot, Title = Ui.DialogTitle(L.F("加入 %@ 的企業伺服器？", hostName)),
+            Content = Ui.Text(detail, 14), PrimaryButtonText = L.T("加入"), CloseButtonText = L.T("取消"), DefaultButton = ContentDialogButton.Primary,
+        };
+        ContentDialogResult answer;
+        try { answer = await dialog.ShowAsync(); }
+        catch (Exception e) { Log.Error($"join dialog failed: {e.GetType().Name}"); return; }
+        if (answer != ContentDialogResult.Primary) return;
+        try
+        {
+            var attempt = await server.BeginSignIn(url.ToString());
+            await Windows.System.Launcher.LaunchUriAsync(attempt.LoginUrl);
+        }
+        catch (EnterpriseException e) { await Message(L.T("沒辦法登入"), e.Message); }
+    }
+
+    async Task Message(string title, string text)
+    {
+        var dialog = new ContentDialog
+        {
+            XamlRoot = Content.XamlRoot, Title = Ui.DialogTitle(title), Content = Ui.Text(text, 14),
+            CloseButtonText = L.T("好"), DefaultButton = ContentDialogButton.Close,
+        };
+        try { await dialog.ShowAsync(); }
+        catch (Exception e) { Log.Error($"message dialog failed: {e.GetType().Name}"); }
+    }
+
+    /// <summary>檢查網址 → 用預設瀏覽器打開伺服器的登入頁；登入完瀏覽器轉到 shiyin://auth，App 交給 AppHost.CompleteEnterpriseSignIn</summary>
+    async void SignIn(string text, TextBlock error)
+    {
+        error.Foreground = Ui.Secondary;
+        error.Text = L.T("登入中…");
+        try
+        {
+            var attempt = await host.Enterprise.BeginSignIn(text);
+            await Windows.System.Launcher.LaunchUriAsync(attempt.LoginUrl);
+            error.Text = L.T("在打開的網頁登入，登入完會回到拾音");
+        }
+        catch (EnterpriseException e)
+        {
+            error.Foreground = Ui.Danger;
+            error.Text = e.Message;
+        }
+        catch (Exception e)
+        {
+            // async void：不能讓 app 當掉（log 只寫型別）
+            Log.Error($"enterprise sign-in failed: {e.GetType().Name}");
+            error.Foreground = Ui.Danger;
+            error.Text = EnterpriseException.Of(EnterpriseFailure.NotShiyin).Message;
+        }
+    }
+
+    /// <summary>登出（R49.5）：async void，送不出去、伺服器回得怪也照樣清掉本機的登入，不能讓 app 當掉</summary>
+    async void SignOut()
+    {
+        try { await host.Enterprise.SignOut(); }
+        catch (Exception e) { Log.Error($"enterprise sign-out failed: {e.GetType().Name}"); }
+        Show();
     }
 
     /// <summary>「匿名使用統計」的「詳細…」（M§30.5、R40.4）：開關、說明、重設匿名 ID。不顯示送出的 JSON（使用者決定）</summary>

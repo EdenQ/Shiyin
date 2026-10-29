@@ -545,11 +545,14 @@ public sealed class ServicesTests : IDisposable
         public Func<double, double, float[]?>? Embedding { get; set; }
         public List<(double Start, double End)> Embedded { get; } = [];
         public List<string> Calls { get; } = [];
+        /// <summary>每次 whisper 拿到的 WhisperControl.GpuDevice（M§36.6）</summary>
+        public List<int?> Devices { get; } = [];
 
         public (List<TranscribedSegment> Segments, List<int> Seams, int SampleCount) WhisperFile(IAudioStream audio, double chunkSeconds, string model,
             string prompt, string language, WhisperControl control)
         {
             Calls.Add($"whisper-file {language} {prompt}");
+            Devices.Add(control.GpuDevice);
             var buffer = new List<float>();
             audio.Fill(buffer, int.MaxValue);
             control.OnProgress(1);
@@ -560,6 +563,7 @@ public sealed class ServicesTests : IDisposable
             string language, WhisperControl control)
         {
             Calls.Add("whisper-samples");
+            Devices.Add(control.GpuDevice);
             var result = PerChannel?.Invoke(samples) ?? Segments;
             if (result.Count == 0) throw new WhisperException(WhisperErrorKind.Empty);
             return result;
@@ -629,6 +633,12 @@ public sealed class ServicesTests : IDisposable
         Assert.Equal([1, 2, 2], new TranscriptionPipeline(options, new WavDecoder(), engines, model).Run(audio, default)!.Speakers);
         engines.Embedding = (_, _) => throw new InvalidOperationException("boom");
         Assert.Equal([1, 1, 2], new TranscriptionPipeline(options, new WavDecoder(), engines, model).Run(audio, default)!.Speakers);
+
+        // 企業伺服器指定的顯示卡傳到 whisper（M§36.6、D125）；app 不指定
+        Assert.All(engines.Devices, d => Assert.Null(d));
+        engines.Devices.Clear();
+        new TranscriptionPipeline(options with { GpuDevice = 1 }, new WavDecoder(), engines, model).Run(audio, default);
+        Assert.Equal([1], engines.Devices);
     }
 
     [Fact]
@@ -760,7 +770,7 @@ public sealed class ServicesTests : IDisposable
         var counted = JsonNode.Parse(usage.PreviewJson())!["usage"]!.AsObject();
         // 實際花的秒數看機器快慢，只確認有這一欄
         Assert.True(counted.Remove("transcribeWallSeconds"));
-        Assert.Equal("""{"diarizationRuns":1,"engines":{"breeze":9,"builtin":0,"qwen":0,"whisperJa":0},"importedSeconds":9,"meetingLanguages":{"en":0,"ja":0,"zh":1},"meetingsImported":1,"meetingsRecorded":0,"questionsAsked":0,"recordedSeconds":0,"review":{"answered":0,"confirmed":0,"skipped":0},"summarizer":{"api":1,"claudeCode":0,"codex":0,"local":0},"transcribedSeconds":9}""",
+        Assert.Equal("""{"diarizationRuns":1,"engines":{"breeze":9,"builtin":0,"qwen":0,"server":0,"whisperJa":0},"importedSeconds":9,"meetingLanguages":{"en":0,"ja":0,"zh":1},"meetingsImported":1,"meetingsRecorded":0,"questionsAsked":0,"recordedSeconds":0,"review":{"answered":0,"confirmed":0,"skipped":0},"summarizer":{"api":1,"claudeCode":0,"codex":0,"enterprise":0,"local":0},"transcribedSeconds":9}""",
             counted.ToJsonString());
     }
 

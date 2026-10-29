@@ -14,6 +14,14 @@ struct OpenAICompatibleAPI: LLMBackend {
 
     let model: String
     let baseURL: String
+    /// 企業伺服器（design §36.3）：key 換成登入拿到的 access token、模型可以留空（伺服器用公司設定的預設模型）、錯誤訊息裡的名稱
+    var key: (@MainActor () async throws -> String?)? = nil
+    var requiresModel = true
+    var name: String? = nil
+    /// 企業伺服器自己擋下的（額度、暫停、格式）只顯示伺服器的訊息（R51.6）
+    var plainServerErrors = false
+    /// 企業伺服器用不跟著轉址的連線（design §36.2、D126）
+    var session: URLSession = .shared
 
     /// 設定裡的網址；DEBUG 建置可以用 llmurl 取代
     @MainActor
@@ -46,10 +54,10 @@ struct OpenAICompatibleAPI: LLMBackend {
         guard let base = Self.normalized(baseURL) else {
             throw LLMError.notConfigured(String(localized: "OpenAI 相容 API 的網址不對，要以 http:// 或 https:// 開頭"))
         }
-        guard !model.isEmpty else {
+        guard !model.isEmpty || !requiresModel else {
             throw LLMError.notConfigured(String(localized: "還沒有填 OpenAI 相容 API 的模型名稱，請到設定 → 整理工具填寫"))
         }
-        let provider = base.host(percentEncoded: false) ?? "OpenAI 相容 API"   // l10n-skip
+        let provider = name ?? base.host(percentEncoded: false) ?? "OpenAI 相容 API"   // l10n-skip
         let schema = try JSONSerialization.jsonObject(with: Data(format.schema.utf8))
         let strict: [String: Any] = ["type": "json_schema",
                                      "json_schema": ["name": format.toolName, "schema": schema, "strict": true]]
@@ -61,7 +69,10 @@ struct OpenAICompatibleAPI: LLMBackend {
             response = try await complete(base, provider: provider, system: fallback, prompt: prompt,
                                           responseFormat: ["type": "json_object"])
         }
-        guard response.status == 200 else { throw APIRequest.error(response, provider: provider) }
+        guard response.status == 200 else {
+            if plainServerErrors, let error = APIRequest.serverError(response) { throw error }
+            throw APIRequest.error(response, provider: provider)
+        }
         let choice = (response.object["choices"] as? [[String: Any]])?.first
         let finish = choice?["finish_reason"] as? String
         if finish == "length" { throw LLMError.failed(String(localized: "回應不完整（可能超過長度上限）")) }
@@ -80,11 +91,11 @@ struct OpenAICompatibleAPI: LLMBackend {
         var request = URLRequest(url: base.appendingPathComponent("models"), timeoutInterval: 15)
         // 有存 key 卻讀不到（macOS 沒允許）時不送出：不帶 key 送出只會換來看不懂的錯誤（design §22.1）
         let key: String?
-        do { key = try Keychain.read("openaiCompatible") } catch { return [] }
+        do { key = try await currentKey() } catch { return [] }
         if let key, !key.isEmpty {
             request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
         }
-        guard let (data, _) = try? await URLSession.shared.data(for: request),
+        guard let (data, _) = try? await session.data(for: request),
               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let list = object["data"] as? [[String: Any]] else { return [] }
         return list.compactMap { $0["id"] as? String }.sorted()
@@ -99,12 +110,18 @@ struct OpenAICompatibleAPI: LLMBackend {
         ]
         var request = URLRequest(url: base.appendingPathComponent("chat/completions"), timeoutInterval: LLMClient.timeout)
         request.httpMethod = "POST"
-        if let key = try Keychain.read("openaiCompatible"), !key.isEmpty {
+        if let key = try await currentKey(), !key.isEmpty {
             request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
         }
+        if self.key != nil { EnterpriseServer.addLanguage(&request) }
         request.setValue("application/json", forHTTPHeaderField: "content-type")
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        return try await APIRequest.fetch(request, provider: provider)
+        return try await APIRequest.fetch(request, provider: provider, session: session)
+    }
+
+    private func currentKey() async throws -> String? {
+        if let key { return try await key() }
+        return try Keychain.read("openaiCompatible")
     }
 
     /// 400／422 而且錯誤訊息提到 response_format、json_schema 或 schema：模型不支援 JSON schema

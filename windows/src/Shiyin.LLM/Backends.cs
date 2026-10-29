@@ -168,6 +168,16 @@ sealed class GeminiApi(LLMClient client, string model) : ILLMBackend
 /// <summary>OpenAI 相容 API（M§19.3、D24）：Chat Completions；模型不支援 json_schema 時退回 JSON 模式</summary>
 public sealed class OpenAICompatibleApi(LLMClient client, string model, string baseUrl) : ILLMBackend
 {
+    /// <summary>企業伺服器（M§36.3）：key 換成登入拿到的 access token、模型可以留空（伺服器用公司的預設模型）、錯誤訊息裡的名稱</summary>
+    public Func<CancellationToken, Task<string?>>? Key { get; init; }
+    public bool RequiresModel { get; init; } = true;
+    public string? Name { get; init; }
+    public string? Language { get; init; }
+    /// <summary>企業伺服器自己擋下的（額度、暫停、格式）只顯示伺服器的訊息（R51.6）</summary>
+    public bool PlainServerErrors { get; init; }
+    /// <summary>企業伺服器用不跟著轉址的 HttpClient（M§36.2、D126）；null 用整理工具共用的</summary>
+    public HttpClient? Http { get; init; }
+
     public const string BaseUrlKey = "openaiCompatibleBaseURL";
 
     /// <summary>設定頁「常用」選單</summary>
@@ -210,8 +220,8 @@ public sealed class OpenAICompatibleApi(LLMClient client, string model, string b
         if (baseUrl.Trim().Length == 0) throw LLMException.NotConfigured(L.T("還沒有填 OpenAI 相容 API 的網址，請到設定 → 整理工具填寫"));
         if (NormalizedText(baseUrl) is not { } baseText || Normalized(baseUrl) is not { } url)
             throw LLMException.NotConfigured(L.T("OpenAI 相容 API 的網址不對，要以 http:// 或 https:// 開頭"));
-        if (model.Length == 0) throw LLMException.NotConfigured(L.T("還沒有填 OpenAI 相容 API 的模型名稱，請到設定 → 整理工具填寫"));
-        var provider = url.Host.Length > 0 ? url.Host : L.T("OpenAI 相容 API");
+        if (model.Length == 0 && RequiresModel) throw LLMException.NotConfigured(L.T("還沒有填 OpenAI 相容 API 的模型名稱，請到設定 → 整理工具填寫"));
+        var provider = Name ?? (url.Host.Length > 0 ? url.Host : L.T("OpenAI 相容 API"));
         var strict = new JsonObject
         {
             ["type"] = "json_schema",
@@ -224,7 +234,7 @@ public sealed class OpenAICompatibleApi(LLMClient client, string model, string b
             var fallback = system + "\n\nRespond with only a JSON object that matches this JSON schema, with no other text:\n" + format.Schema;
             response = await Complete(baseText, provider, fallback, prompt, new JsonObject { ["type"] = "json_object" }, cancel);
         }
-        if (response.Status != 200) throw ApiRequest.Error(response, provider);
+        if (response.Status != 200) throw (PlainServerErrors ? ApiRequest.ServerError(response) : null) ?? ApiRequest.Error(response, provider);
         var choice = (response.Object["choices"] as JsonArray)?.FirstOrDefault() as JsonObject;
         var finish = choice?["finish_reason"]?.GetValue<string>();
         if (finish == "length") throw LLMException.Failed(L.T("回應不完整（可能超過長度上限）"));
@@ -244,14 +254,14 @@ public sealed class OpenAICompatibleApi(LLMClient client, string model, string b
         if (NormalizedText(baseUrl) is not { } baseText) return [];
         string? key;
         // 有存 key 卻讀不到時不送出：不帶 key 送出只會換來看不懂的錯誤（M§22.1）
-        try { key = client.Keys.Read("openaiCompatible"); } catch { return []; }
+        try { key = await CurrentKey(cancel); } catch { return []; }
         try
         {
             using var r = new HttpRequestMessage(HttpMethod.Get, baseText + "/models");
             if (!string.IsNullOrEmpty(key)) r.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key);
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancel, timeout.Token);
-            using var response = await client.Http.SendAsync(r, linked.Token);
+            using var response = await (Http ?? client.Http).SendAsync(r, linked.Token);
             var obj = JsonNode.Parse(await response.Content.ReadAsStringAsync(linked.Token)) as JsonObject;
             return (obj?["data"] as JsonArray)?.OfType<JsonObject>().Select(m => m["id"]?.GetValue<string>()).OfType<string>()
                 .OrderBy(x => x, StringComparer.Ordinal).ToList() ?? [];
@@ -259,7 +269,9 @@ public sealed class OpenAICompatibleApi(LLMClient client, string model, string b
         catch (Exception e) when (e is HttpRequestException or JsonException or OperationCanceledException) { return []; }
     }
 
-    Task<ApiRequest.Response> Complete(string baseText, string provider, string system, string prompt, JsonObject responseFormat, CancellationToken cancel)
+    async Task<string?> CurrentKey(CancellationToken cancel) => Key is not null ? await Key(cancel) : client.Keys.Read("openaiCompatible");
+
+    async Task<ApiRequest.Response> Complete(string baseText, string provider, string system, string prompt, JsonObject responseFormat, CancellationToken cancel)
     {
         var body = new JsonObject
         {
@@ -267,11 +279,12 @@ public sealed class OpenAICompatibleApi(LLMClient client, string model, string b
             ["messages"] = new JsonArray(new JsonObject { ["role"] = "system", ["content"] = system }, new JsonObject { ["role"] = "user", ["content"] = prompt }),
             ["response_format"] = responseFormat,
         };
-        var key = client.Keys.Read("openaiCompatible");
-        return ApiRequest.Fetch(client.Http, () =>
+        var key = await CurrentKey(cancel);
+        return await ApiRequest.Fetch(Http ?? client.Http, () =>
         {
             var r = new HttpRequestMessage(HttpMethod.Post, baseText + "/chat/completions") { Content = ApiRequest.Json(body) };
             if (!string.IsNullOrEmpty(key)) r.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key);
+            if (Language is not null) r.Headers.AcceptLanguage.ParseAdd(Language);
             return r;
         }, provider, cancel);
     }
@@ -382,3 +395,75 @@ public static class TempDirectory
         try { Directory.Delete(dir, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
     }
 }
+
+/// <summary>
+/// 企業伺服器的整理（R51、M§36.3、D123）：伺服器轉送 OpenAI 相容格式給公司設定的模型。提示詞照舊在 app 組好；
+/// key 是登入企業伺服器拿到的 access token；被拒絕（401、403）時換一次 token 再送，換不到就是登入失效
+/// </summary>
+public sealed class EnterpriseApi(LLMClient client, string model) : ILLMBackend
+{
+    OpenAICompatibleApi Inner(IEnterpriseAccess access)
+    {
+        var baseUrl = access.BaseUrl;
+        return new(client, model, (baseUrl ?? "").TrimEnd('/') + "/api/v1/llm")
+        {
+            Key = async cancel =>
+            {
+                var token = await access.AccessToken(cancel);
+                // 等 token 的時候換了伺服器（加入連結）：新伺服器的 token 不能送到舊的伺服器
+                if (access.BaseUrl != baseUrl) throw LLMException.NotConfigured(L.T("企業伺服器的登入已失效，請重新登入"));
+                return token;
+            },
+            RequiresModel = false, Name = L.T("公司的伺服器"), Language = access.Language, PlainServerErrors = true, Http = access.Http,
+        };
+    }
+
+    public async Task<string> GenerateJson(string system, string prompt, OutputFormat format, CancellationToken cancel)
+    {
+        if (client.Enterprise is not { BaseUrl: not null } access)
+            throw LLMException.NotConfigured(L.T("公司的伺服器還沒登入或登入已失效，請到設定 → 進階 → 企業伺服器登入"));
+        try
+        {
+            return await Inner(access).GenerateJson(system, prompt, format, cancel);
+        }
+        catch (LLMException e) when (e.Kind == LLMErrorKind.Rejected)
+        {
+            access.InvalidateAccess();
+            try { return await Inner(access).GenerateJson(system, prompt, format, cancel); }
+            catch (LLMException again) when (again.Kind == LLMErrorKind.Rejected)
+            {
+                throw LLMException.NotConfigured(L.T("企業伺服器的登入已失效，請重新登入"));
+            }
+        }
+    }
+
+    /// <summary>伺服器提供的模型（GET /api/v1/llm/models）</summary>
+    public async Task<List<string>> ListModels(CancellationToken cancel) => (await Models(cancel))?.Select(m => m.Id).ToList() ?? [];
+
+    /// <summary>公司在後台設定的模型（R51.1）：id 給伺服器、name 給人看；取不到是 null</summary>
+    public async Task<List<EnterpriseModel>?> Models(CancellationToken cancel)
+    {
+        if (client.Enterprise is not { BaseUrl: not null } access) return null;
+        try
+        {
+            using var r = new HttpRequestMessage(HttpMethod.Get, access.BaseUrl.TrimEnd('/') + "/api/v1/llm/models");
+            r.Headers.Authorization = new AuthenticationHeaderValue("Bearer", await access.AccessToken(cancel));
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancel, timeout.Token);
+            using var response = await access.Http.SendAsync(r, linked.Token);
+            if (!response.IsSuccessStatusCode) return null;
+            var obj = JsonNode.Parse(await response.Content.ReadAsStringAsync(linked.Token)) as JsonObject;
+            if (obj?["data"] is not JsonArray list) return null;
+            return [.. list.OfType<JsonObject>().Where(m => m["id"]?.GetValue<string>() is { Length: > 0 }).Select(m =>
+            {
+                var id = m["id"]!.GetValue<string>();
+                var name = m["name"]?.GetValue<string>() is { Length: > 0 } n ? n : id;
+                return new EnterpriseModel(id, name, m["default"]?.GetValue<bool>() ?? false);
+            })];
+        }
+        catch (Exception e) when (e is HttpRequestException or JsonException or OperationCanceledException or LLMException or InvalidOperationException) { return null; }
+    }
+}
+
+/// <summary>公司在後台設定的一個整理模型（R51.1）</summary>
+public sealed record EnterpriseModel(string Id, string Name, bool IsDefault);

@@ -1125,6 +1125,7 @@ User-Agent: Shiyin/<版本>
 - 後台收到回 `204`（或任何 2xx）。用 `installId` + `date` 去重：同一筆重送（例如回應在路上掉了）要覆蓋，不要重複算。
 - 後台不要存 IP（或只用來擋濫用、不跟 `installId` 一起存）。`schema` 以後改格式時加 1，後台可以依版本解析。
 - `review`（2026-10-23 加，R41.7）：待確認的回答、確認、略過的題數。只加字典不改 `schema`：後台對不認得的字典忽略、少的鍵當 0，所以舊 app 和舊後台互相都能收。
+- 企業伺服器（4.2 加，R52.2、§36）：`engines.server` 是在企業伺服器轉錄的秒數（不分 Breeze、Qwen），`summarizer.enterprise`、`errorDetail.summarizeProvider.enterprise` 是整理工具是「公司」的次數；不記伺服器的網址、公司名稱、帳號。後台的欄是 `engine_server`、`summarizer_enterprise`、`summarize_err_enterprise`（`workers/usage/migrate-enterprise.sql`）。
 
 ### 30.5 設定頁、使用說明
 
@@ -1435,6 +1436,189 @@ Windows 版做一樣的功能（R40.7，跟 4.0.0 一起發）：同樣的格式
 - DEBUG：`shiyinctl summarizer <state.json>` 寫出 `summarizerProblem`、`pause`、登入快取；`-debugNoCLI YES` 和 `llmprovider`、`llmkey`（只在記憶體）組合出各種沒準備好的狀態；`-debugCLILogin no` 讓登入快取當成沒登入。
 - 驗證：沒選過、沒裝 CLI、選了 API 沒存 key、OpenAI 相容沒填模型、CLI 沒登入（`-debugCLILogin no`）、假伺服器回 401 各匯入一場，都不出現「整理失敗」或只失敗一次後暫停；引導和設定頁在真的畫面上用 AX 按過（CLAUDE.md：對話框的按鈕要真的按）；統計用 `shiyinctl usage` 看 `errorDetail`，後台用 `wrangler dev --local` 收一份。
 
+## 35. 忘了停止錄音（R48，D115、D116）
+
+### 35.1 有沒有人在說話（R48.4、D115）
+
+- `Recorder` 記 `lastSpeechAt`（錄音的秒數，開始錄音時是 0）。每秒的 `tick` 算 `idleSeconds = elapsed − lastSpeechAt`。
+- 即時逐字稿有在跑（`live` 已經接上音訊）：`onVolatile` 收到跟上次不同、不是空的文字，或 `onFinal`，就把 `lastSpeechAt` 設成現在。即時逐字稿聽的是麥克風和電腦聲音的混音（`MixTap`），線上會議對方說話也算。
+- 即時逐字稿沒在跑（設定關掉、沒辦法啟動、重新啟動中）：改看聲音。每秒看每個聲道最近 1 秒的音框，比背景（最近 30 秒的第 10 百分位）大 12 dB 以上而且高於 −50 dBFS、或本身就高於 −40 dBFS 的音框佔 30% 以上，就算有人說話（一開始就一直有人說話時背景也是說話的音量，只看相對值會抓不到；Windows 的測試用 2 秒連續的音發現的）。打字、關門也會算，所以只當備用（寧可晚停）。
+- 暫停時不計時：`resume()` 把 `lastSpeechAt` 設成現在。
+
+### 35.2 提醒、自動停止（R48.1、R48.2、R48.5）
+
+- `idleSeconds ≥ 900`（15 分鐘）：`idlePrompt` 顯示在錄音畫面、選單列的小視窗（「好像沒人在說話了，要停止錄音嗎？」，按鈕「停止錄音」「繼續錄」），第一次出現時送通知（同一組按鈕，`Notifier` 的類別 `idle`）。「繼續錄」：`lastSpeechAt` 設成現在、`idlePrompt` 收掉，之後又滿 15 分鐘再提醒（通知也再送）。
+- `idleSeconds ≥ 1800`（30 分鐘）：自動停止（`stop(reason: .idle)`），結果帶 `idleSince = lastSpeechAt`；通知「已自動停止錄音：30 分鐘沒有人說話」，點了打開那場會議。
+- 設定 `idleStop`（預設開）：關掉時不計時、不提醒、不停止。DEBUG 加啟動參數 `-idleRemindSeconds`、`-idleStopSeconds` 縮短時間（只在這次執行有效），`shiyinctl state` 的 `recorder.idle` 寫出 `idleSeconds`、`lastSpeechAt`、`prompt`。
+
+### 35.3 只轉錄到最後說話（R48.3、D116）
+
+- 自動停止時，轉錄工作的 payload 是 `{"until": 最後說話的秒數 + 15}`（`TranscribePayload`）。15 秒夠蓋過即時逐字稿的延遲（驗證時最後一句話在 32 秒結束、即時逐字稿 38 秒才記下），原本的 60 秒裡 Breeze 從第 58 秒開始生出沒說過的話；手動的「重新轉錄」、當掉後復原的錄音沒有 `until`，照舊轉錄全部。
+- `JobRunner.transcribe`：有 `until` 而且比錄音短時，先把錄音的前 `until` 秒複製成 `tmp/` 裡的暫存 WAV，用它跑整個轉錄流程（轉錄、說話者辨識、聲紋都一樣），完成後刪掉暫存檔。三種引擎、Windows 都不用改讀檔的方式，時間點也對得上（從 0 開始）。
+- 會議頁的資訊列：最新的轉錄工作有 `until`、而且錄音比 `until` 長 1 分鐘以上時，寫「最後 N 分鐘沒有人說話，沒有轉錄」（N 是錄音長度減 `until`，四捨五入到分鐘）。
+
+### 35.4 Windows、驗證
+
+- Windows（design-windows §6.3）：同一份規則；即時逐字稿的 VAD 有偵測到說話就算有人說話（SenseVoice 前面的 VAD 本來就在跑），沒有即時逐字稿時看聲音。
+- 驗證：`record-sim` 送一段「說話 1 分鐘＋安靜」的檔案，加 `-idleRemindSeconds 60 -idleStopSeconds 120` 看提醒、按「繼續錄」重新計時、自動停止、轉錄只到 until；有人一直說話的錄音（AMI 會議）跑滿時間不提醒；關掉 `idleStop` 不提醒。
+
+## 36. 企業伺服器（R49～R52，D117～D124）
+
+伺服器是另外的私人專案（C#，用 submodule 引用這個 repo 的 `windows/src` 核心，D118）。這一節寫 app 這邊、兩邊的 API 約定，以及伺服器一定要守的轉錄規則（§36.6）；伺服器內部（佇列、帳號、後台、部署）寫在伺服器專案自己的 design。
+
+### 36.1 流程
+
+```
+app                                              企業伺服器
+ 進階 → 企業伺服器：填網址 ─ GET /api/v1/info ───►  名稱、版本、引擎、上限
+ 按「登入」─ 打開 /login（PKCE）──────────────────►  公司帳號登入（例如 Google，限定網域）
+          ◄── shiyin://auth?code=…&state=…
+          ─── POST /api/v1/auth/token ───────────►  發 access／refresh token
+ 錄完或匯入 → 解成 16 kHz 單聲道、寫成 16-bit WAV（tmp/）
+          ─── POST /api/v1/transcriptions ───────►  建工作
+          ─── PATCH …/audio（8 MB 一塊、可續傳）►  收完、SHA-256 對了就排隊
+          ─── GET …（排隊 5 秒、轉錄中 2 秒一次）─►  排隊位置、階段、進度
+          ─── GET …/result ──────────────────────►  段落、低信心（Windows 另有說話者、聲紋）
+          ─── DELETE … ──────────────────────────►  刪錄音和結果
+ Mac：伺服器轉錄的同時在本機辨識說話者、算聲紋（R50.6）→ 壓縮 → 逐字稿校正 → 整理
+ 整理工具選企業伺服器：POST /api/v1/llm/chat/completions（OpenAI 相容，伺服器轉給公司的模型）
+```
+
+### 36.2 API（第 1 版）
+
+- 一律 HTTPS、JSON（上傳錄音除外）。`info` 和 `auth/token` 以外都要帶 `Authorization: Bearer <access token>`。
+- 錯誤一律 `{"error": {"kind": "…", "message": "…"}}`。`message` 給人看（伺服器依 `Accept-Language` 給中文或英文），app 依 `kind` 處理：
+
+| kind | HTTP | app 怎麼處理 |
+|---|---|---|
+| `unauthorized` | 401 | 用 refresh token 換新的 access token 再送一次；換不到就是登入失效（R49.4） |
+| `forbidden` | 403 | 帳號被停用、不在允許的網域：登入失效，顯示伺服器的 `message` |
+| `busy` | 429、503 | 伺服器忙：照 `Retry-After` 再試，不算失敗（R50.5） |
+| `too_large` | 413 | 錄音比伺服器的上限（`info.maxAudioSeconds`）長：這一場提示「改在這台電腦轉錄」 |
+| `not_found` | 404 | 工作不在了（過期、伺服器清掉）：重新建一個工作、從頭上傳 |
+| `bad_request` | 400 | app 送錯了（記 log，不含內容）：工作失敗，可以重試 |
+| `server_error` | 500 | 自動重試一次，再失敗算失敗 |
+
+- 網路錯誤、逾時、5xx 跟 `busy` 一樣當成「等企業伺服器」。
+- 不跟著轉址（4.2.1，D126）：app 送給企業伺服器的請求（info、換 token、登出、轉錄、詞彙表、整理）一律不跟著 3xx 轉址，收到 3xx 當成錯誤「企業伺服器要求轉到別的網址（HTTP N），拾音不會跟著轉…」（`kind` 當成 `redirect`：不是暫時的問題，轉錄的工作算失敗）。Mac 用專用的 `EnterpriseServer.session`（delegate 擋掉轉址），Windows 用 `EnterpriseServer.NoRedirectClient()`（`AllowAutoRedirect = false`；下載模型、更新用的共用 HttpClient 照舊跟著轉址）。
+
+**`GET /api/v1/info`**（不用登入）
+
+```json
+{"server": "shiyin", "apiVersion": 1, "minAppApi": 1, "name": "範例公司", "version": "1.0.0",
+ "login": "/login", "maxAudioSeconds": 28800,
+ "transcription": {"engine": "breeze", "languages": ["zh", "en", "ja"]}, "llm": true}
+```
+
+- `server` 不是 `shiyin`、不是 JSON →「這個網址不是拾音的伺服器」。app 用的 API 版本是 1：`apiVersion` < 1 →「企業伺服器的版本太舊」；`minAppApi` > 1 →「拾音的版本太舊，請先更新」。
+- `transcription.engine` 是伺服器用的中文、英文引擎（`breeze`、`qwen`），顯示在設定頁；`llm` 是 false 時整理工具不出現「企業伺服器」。
+
+**登入**（OAuth 2.0 授權碼＋PKCE，RFC 8252 原生 app 的做法，D121）
+
+- app 產生 `state`、`code_verifier`（各 32 bytes 隨機、base64url），打開 `<網址>/login?client_id=shiyin-app&redirect_uri=shiyin://auth&state=…&code_challenge=…&code_challenge_method=S256`。
+  - Mac：`ASWebAuthenticationSession`（`callbackURLScheme: "shiyin"`，不用 ephemeral，瀏覽器已經登入公司帳號的話不用再輸入），不用在 Info.plist 登錄網址。
+  - Windows：預設瀏覽器打開，回來走已經登錄的 `shiyin:` 網址（design-windows §12.2、§12.11）。
+- 伺服器的登入頁讓使用者用公司帳號登入、確認可以用之後，轉到 `shiyin://auth?code=…&state=…`；不允許時 `shiyin://auth?error=access_denied&error_description=…&state=…`，app 顯示 `error_description`。
+- `state` 不是這次發的（網頁裡的連結、舊的登入）就忽略，不換 token。
+- `POST /api/v1/auth/token`：`{"grant_type": "authorization_code", "code", "code_verifier", "device": "<電腦名稱>", "platform": "mac|windows", "appVersion"}` → `{"access_token", "expires_in", "refresh_token", "user": {"email", "name"}}`。
+- 換新：`{"grant_type": "refresh_token", "refresh_token"}` → 新的一組。refresh token 每換一次就作廢舊的，app 要先把新的存進鑰匙圈才算換好。
+- `POST /api/v1/auth/logout`：撤銷這台電腦的 refresh token（R49.5）。送不出去也照樣清掉本機的登入。
+- 存法（R49.6）：網址存設定 `enterpriseServerURL`，帳號（信箱、名字、伺服器名稱、引擎、有沒有提供整理，不是密鑰）存 `enterpriseServerAccount`，有帳號就算登入了；refresh token 存鑰匙圈 service `com.weiwei.shiyin.apikey`、account `enterpriseServer`（Windows 是認證管理員的同一個名稱）；access token 只放記憶體。鑰匙圈照 §22.1 的規則：第一次用到伺服器時才讀，不在啟動、打開設定頁時讀。
+- 換 token 同時只換一次（refresh token 換過就作廢）；換不到（401）就清掉這台的登入、標成失效，403 顯示伺服器的原因（帳號被停用）。
+
+**轉錄**
+
+- `POST /api/v1/transcriptions`：
+
+```json
+{"settings": {"language": "zh", "glossary": ["拾音"], "diarize": true, "splitChannels": false,
+              "audioSource": "mix", "minSpeakers": 2},
+ "audio": {"format": "wav", "sampleRate": 16000, "channels": 1, "bytes": 115200044, "sha256": "…"}}
+```
+
+  → `{"id": "…", "status": "uploading", "engine": "breeze"}`。`settings` 就是 `TranscriptionOptions`（`windows/src/Shiyin.Services/Transcription.cs`）裡跟引擎無關的欄位，app 照本機會用的值填；引擎由伺服器決定。app 一律送混好的單聲道（`splitChannels` 是 false）。`diarize`：Mac 送 false（說話者在本機辨識，D122），Windows 照設定。
+- 上傳：`HEAD …/<id>/audio` 回 `Upload-Offset`（已經收到幾個位元組）；`PATCH …/<id>/audio`，標頭 `Upload-Offset: <從哪裡開始>`、`Content-Type: application/offset+octet-stream`，一次 8 MB。offset 對不上回 409，app 先 `HEAD` 再接著傳。收滿 `bytes`、SHA-256 對了就排隊；SHA-256 不對回 `bad_request`，app 從頭傳一次。
+  - 伺服器回的 `Upload-Offset`（`HEAD`、`PATCH` 的回應）不是數字、小於 0、大於 `bytes` 時當成 0，從頭傳（4.2.1）。一次上傳裡 `PATCH` 之後的位置連續 3 次沒有往前，或 `PATCH` 超過「塊數 × 2 + 3」次，就算失敗「錄音一直沒辦法完整傳到企業伺服器」，不會一直重送。
+- `GET …/<id>` → `{"status": "uploading|queued|running|done|failed|cancelled|expired", "queueAhead": 2, "stage": "waiting_models|decode|diarize|transcribe", "progress": 0.42, "engine": "breeze", "duration": 91.0, "error": {"kind", "message"}}`。失敗的 `kind` 是 `empty`（沒有辨識出文字，app 當成 WhisperError.empty）或 `transcription_failed`。`progress` 限在 0～1（畫面拿來算百分比）。
+- `GET …/<id>/result`：
+
+```json
+{"engine": "breeze", "transcribedWith": "breeze", "duration": 3600.0, "seams": [600.0],
+ "segments": [{"start": 1.2, "end": 4.8, "text": "…", "lowConfidence": false, "speaker": 1, "channel": null}],
+ "voices": {"1": {"embedding": […], "seconds": 812.4, "source": "mix"}},
+ "diarizationQuality": {"collisionRate", "multiSpeakerChunks", "cohesion", "clusters", "chunks", "mergeRisk"}}
+```
+
+  欄位就是 `TranscriptionResult`。`voices` 是伺服器的說話者辨識算的聲紋（Windows 版同一個模型，ERes2Net），只有 `diarize` 是 true 時才有；Windows 直接存進本機的資料庫比對，Mac 不用（D122）。`transcribedWith` 寫進 `meetings.transcribed_with`（跟本機一樣是 breeze、qwen、japanese），在哪裡轉的不另外存（統計另外記 `engines.server`）。
+  - app 先檢查伺服器給的值（4.2.1，兩邊同一個規則，標準答案 `server/result.json`）：`start`、`end` 不是有限的數字、`start` < 0、`end` < `start`、`end` 超過 95040 秒（`ServerTranscriber.maxSeconds`，一天的錄音再多一成）的段落略過；`seams` 只留 0～95040 秒的數字。Windows 另外：`speaker` 只接受 1～64（其他當成沒有，資料庫照最大的編號建說話者），`voices` 也只留編號 1～64 的；`duration` 不是 0～95040 秒時用最後一段的結束時間。
+- `DELETE …/<id>`：還在跑的話停下，刪錄音和結果。app 把結果寫進資料庫後送一次；取消工作、改在本機轉錄時也送。送不出去不管（伺服器 24 小時內自己刪）。
+
+**加入連結、公司詞彙表**（R49.7、R53）
+
+- 加入連結：伺服器的 `GET /join`（不用登入的網頁）上的按鈕是 `shiyin://join?server=<伺服器網址，URL encode>`。app 收到後照 R49.7 處理；`server` 照 `EnterpriseServer.normalized` 檢查（https，DEBUG 本機 http；有帳號密碼 `user:pass@` 的不接受，設定頁填的網址也一樣）。舊版的 app 不認得這個網址，網頁另外寫手動加入的步驟。
+  - 問的時候（4.2.1）：標題寫主機「加入 <主機> 的企業伺服器？」（國際化網域顯示成 punycode `xn--…`，長得像別的網站的字元騙不了人），伺服器自己給的名稱只放在內文「這台伺服器自稱「<名稱>」。」：名稱是伺服器自己填的，不能當成可信的身分。
+  - 登入的是別台時不先登出（4.2.1）：`completeSignIn` 換到新的 token 之後才換掉帳號（先拿舊伺服器的 access token、存好新的登入，再送舊伺服器的 `auth/logout`，送不出去也照樣換），刪掉舊的公司詞彙表再拿新的；新的伺服器沒有提供整理、整理工具原本是「公司」時改成還沒設定（同登出）。登入沒完成（取消、被拒、連不上）就維持原本的登入。
+- `GET /api/v1/glossary` → `{"terms": ["…"], "updatedAt": "…"}`（要登入）：公司的詞，照管理者加的順序。舊的伺服器回 404：當成沒有。app 只留前 500 個、每個 100 字以內的（UTF-16 單位，中文、英文都是一個字算一個；太長的略過），兩邊同一個規則（`CompanyGlossary` 存檔前，4.2.1）。
+- 伺服器轉錄時也會把公司的詞接在 app 送來的 `glossary` 後面（去掉重複），舊版的 app 也有用；新版 app 送的已經含公司的詞，結果一樣。
+
+**整理**
+
+- `GET /api/v1/llm/models` → `{"data": [{"id": "…", "name": "…", "default": true}]}`。
+- `POST /api/v1/llm/chat/completions`：請求、回應、退回 json_object 的規則同 §19.3，伺服器轉給公司設定的模型。逾時同 §19.3（20 分鐘）。
+
+### 36.3 Mac
+
+- `Services/EnterpriseServer.swift`：網址、登入、換 token、API 呼叫（專用的 `URLSession`，不跟著轉址，§36.2）、錯誤分類（§36.2 的表）。給畫面的 `@Observable` 狀態只有 `account` 和 `status`（已登入、登入失效）。`state`、`code_verifier` 用 `SecRandomCopyBytes`，失敗就不登入。
+- **登入**：設定頁用 SwiftUI 的 `webAuthenticationSession`（`ASWebAuthenticationSession`，`callbackURLScheme: "shiyin"`、用預設瀏覽器的登入狀態）打開登入頁，拿到 `shiyin://auth` 的網址交給 `completeSignIn`；`state` 對不上就忽略。
+- **轉錄**（`transcriptionEngine = "server"`，登入過才用，`AppSettings.usesEnterpriseTranscription`）：`TranscriptionPipeline.runServer`：
+  1. 解碼同 §6.1（匯入的檔案也一樣），混成單聲道、寫成 `tmp/` 的 16-bit WAV（`ServerTranscriber.writeWAV`，邊換算邊寫、同時算 SHA-256）。R48.3 的 `until` 照 §35.3 先複製前段。
+  2. 說話者辨識不用等逐字稿：上傳的同時在本機跑 `Diarizer.diarize`（FluidAudio，同本機轉錄），伺服器只轉錄（`diarize: false`）。
+  3. `ServerTranscriber`：建工作、上傳、等結果。進度：上傳 0～0.1、伺服器 0.1～0.9、本機對說話者 0.9～1。階段的文字接「中 N%」：「上傳錄音」「企業伺服器排隊」「企業伺服器轉錄」；排隊第幾、為什麼在等放在後面的說明（`ServerNote`，`JobRunner.Running.server`）。
+  4. 拿到段落後照 Qwen 的做法（`assignSpeakers`：依重疊量標說話者、短句再確認、聲紋），結果跟本機轉錄一樣進資料庫、比對聲紋（R50.6）。`transcribedWith` 用伺服器的引擎。
+  5. 之後照舊：壓縮、校正、整理。
+- 工作記下伺服器的工作 id：`TranscribePayload` 加 `remoteId`（存在 `jobs` 原本的 payload，`AppDatabase.setJobPayload`，不改資料庫結構）。app 重開時有 `remoteId` 就先 `GET`：還在上傳就 `HEAD` 接著傳、`done` 就拿結果、`not_found` 就重建。
+- 轉錄線照舊一次一場（R4.3），等伺服器時也佔著。取捨：一次匯入很多場時比較慢；下一版看要不要同時送。
+- **等企業伺服器**（R50.5）：連不上、伺服器忙、伺服器出錯時工作照舊是執行中，階段「等企業伺服器」（列表不接百分比），說明寫原因和幾秒後再試（30 秒、1 分鐘、2 分鐘…最長 5 分鐘）；登入失效時每 5 秒看一次，重新登入就馬上接著做。伺服器負責的那段時間（上傳、排隊、轉錄、等）會議頁都有「改在這台電腦轉錄」：只改這一場（`JobRunner.transcribeLocally`，只在記憶體），用本機的引擎重來，模型沒下載就先下載、先用 macOS 內建（同 D35）。
+- 轉錄用企業伺服器時，`JobRunner` 不自動下載轉錄模型、引導不下載（R50.7）；環境檢查把模型當成不需要，多一項「企業伺服器：已登入 <信箱>」。
+- **整理工具**（R51）：`LLMProvider.enterprise`，`Notes/Backends/EnterpriseAPI.swift` 包一個 `OpenAICompatibleAPI`（網址 `<伺服器>/api/v1/llm`、key 換成 access token、模型可以留空用公司的預設）；被拒絕（401、403）時換一次 token 再送，換不到就是設定問題「企業伺服器的登入已失效」（暫停自動整理，R46）。伺服器自己的錯誤（回應是 §36.2 的 `{"error": {"kind", "message"}}`，有 `kind`）只顯示 `message`（R51.6，`OpenAICompatibleAPI.plainServerErrors`）：401、403 照舊是被拒絕，429 是用量上限，其他是失敗；轉送的模型回的錯誤（沒有 `kind`）照舊加「公司的伺服器 回傳 HTTP …」。`notes_by` 存 `enterprise`。準備好了沒（§34.1）：已登入（`SummarizerProblem.enterpriseSignedOut`）、伺服器有提供整理（`.enterpriseNoModels`）。
+- **整理工具頁的「公司」**（R51.1、R51.5、D124）：選單在 `account.llm` 是 true 時（或目前選的就是它）多 `enterprise`，標籤「公司（<`account.serverName`>）」（`LLMProvider.label` 是「公司」，選單另外接名稱）。整理工具頁不放網址和登入（都在進階）。選了之後：
+  - 沒有模型欄、key 欄，改成「模型」：伺服器 `llm/models` 只有一個時只顯示它的名稱；不只一個時是選單「公司的預設（<預設的名稱>）」（存空字串）＋每一個（顯示 `name`、存 `id`），之前選的 id 不在清單裡了就當成預設（不清掉設定）。下面一行「模型和 API key 由公司在伺服器的後台設定」。
+  - 登入失效、登出了：選單下的紅字說「到「進階 → 企業伺服器」重新登入」。
+  - `EnterpriseServer.refreshInfo()`：重新讀 `/api/v1/info`，更新帳號上的 `serverName`、`engine`、`llm`（只在值變了時存、通知畫面）。app 啟動時（不讀鑰匙圈）和打開整理工具頁時（不管選的是哪個整理工具）呼叫，公司後來才提供整理時選單就會多「公司」；連不上就保留舊的值。
+- **設定頁**（`Views/EnterpriseServerSettings.swift`，進階最上面一組「企業伺服器」）：登入前是網址欄和「登入」；登入後是伺服器名稱（主機）、信箱和「已登入／登入已失效」、「重新登入」（失效時）、「用企業伺服器轉錄」「用企業伺服器整理會議紀錄」兩個開關（R49.3，登入後預設都打開）、隱私說明、「登出」。錄音與轉錄頁的「正式轉錄」在登入後多「企業伺服器」；整理工具頁的選單在公司有提供整理時多「公司」（上面）。
+- **加入連結**（R49.7）：`Info.plist` 登記 `shiyin` 網址（`CFBundleURLTypes`）；`AppDelegate.application(_:open:)` 收到 `shiyin://join` 交給 `EnterpriseJoin.handle`：`beginSignIn`（檢查網址、讀 info）→ `NSAlert`「加入 <主機> 的企業伺服器？」（內文寫伺服器自稱的名稱；登入別台時寫出登入成功之後才登出目前那台，§36.2）→ 加入：用 AppKit 的 `ASWebAuthenticationSession`（錨點是目前的視窗，沒有就開一個小視窗）打開登入頁 → `completeSignIn`（換到別台時在這裡登出舊的）→ `AppModel.applyEnterpriseDefaults(llm:)`（跟設定頁共用：轉錄改企業伺服器、伺服器有提供整理時整理工具改「公司」）→ 提示「已加入」。不經過設定視窗（SwiftUI 的設定視窗在 app 外面打不開）。
+- **公司詞彙表**（R53）：`CompanyGlossary`（不綁 MainActor，鎖住的 `[String]`）：`SHIYIN_HOME/enterprise-glossary.json` 存上次拿到的；`EnterpriseServer.refreshInfo()` 和登入完成時一起 `GET /api/v1/glossary`（舊伺服器 404 就是空的），登出時刪檔。`JobRunner` 的四個地方（轉錄、猜說話者、校正、整理）改用 `glossaryTerms()`：自己的詞（`db.glossary()`，照 id）＋公司的詞（不分大小寫去掉重複）；沒有公司的詞時直接用自己的詞、一個字都不動（沒登入的人跟 4.1.2 一樣，R52.5：自己存了「API」和「api」兩個都留著）。`WhisperEngine.prompt`、`QwenEngine.context` 的 150／400 字上限照舊。「說話者與詞彙」頁的詞彙表下面多一段可以展開的「公司的詞彙（N 個）」；提示詞的預覽也用合併後的；建議的新詞去掉公司已經有的。
+- **登出**：只清掉存下來的值是企業伺服器的設定（`persistentDomain` 裡的；啟動參數帶的值不算，測試時曾經因此刪掉使用者自己選的整理工具）。
+- **引導**（§33.4）：整理工具那一步「其他」裡，登入了企業伺服器時多「企業伺服器」一項；轉錄用企業伺服器時最後一步寫「這台 Mac 不用下載轉錄模型」。引導裡不放登入（使用者說「設定多一個企業伺服器設定即可」）。
+- 統計（R52.2、§30.4）：轉錄的引擎記 `server`、整理工具記 `enterprise`，後台的欄在 `workers/usage/migrate-enterprise.sql`。
+- 回報問題（R52.3）：登入過企業伺服器時多一行「企業伺服器：已登入（伺服器 1.0.0）」，登入失效寫「登入已失效」；伺服器的版本在登入、每次讀 `/api/v1/info` 時存進帳號（`serverVersion`），不寫網址、公司名稱、帳號。
+
+### 36.4 Windows
+
+同 Mac，程式在 `Shiyin.Services`（`EnterpriseServer`、`ServerTranscriber`）和 `Shiyin.LLM`（`EnterpriseApi`、`IEnterpriseAccess`）；不同的地方（design-windows §12.11）：登入用預設瀏覽器打開、回來走 `shiyin://auth`；說話者也交給伺服器辨識，聲紋用伺服器回傳的（D122）；選企業伺服器時不自動下載 NVIDIA 加速元件（R50.7）。
+
+### 36.5 隱私說明
+
+- 設定的「企業伺服器」下面（Mac）：「轉錄：錄音會送到 <主機>（公司的伺服器），轉完就刪。說話者辨識和聲紋在這台 Mac 上做，聲紋、筆記、會議紀錄不會因為轉錄送出。」Windows 寫說話者辨識也在伺服器上做、聲紋只存在這台電腦。
+- 整理工具選企業伺服器：「整理、提問、猜說話者時會把逐字稿文字、你的筆記、詞彙表和會議基本資料送到 <主機>（公司的伺服器），再由公司設定的模型整理。」
+- 使用說明、官網的隱私段落各加一句（R52.1，任務 E6）。
+
+### 36.6 伺服器要守的規則
+
+- 轉錄用這個 repo `windows/src` 的 `Shiyin.Core`、`Shiyin.Engines`、`Shiyin.Services` 同一份流程（分段、接縫、過濾、低信心、Qwen 的分段和防線、說話者辨識、短句再確認、分不準的提醒），伺服器專案用 git submodule 固定這個 repo 的某個 commit。這個 repo 改了轉錄流程的規則，伺服器跟著升 submodule。
+- 模型檔跟 app 同一份網址和 SHA-256（`ModelStore`）。
+- **指定顯示卡**（D125）：伺服器有多張 NVIDIA 顯示卡時自己分配每場用哪一張（伺服器的 design），核心只負責照著用：`TranscriptionOptions.GpuDevice`（null 是第一張，app 一律 null）傳給 `WhisperControl.GpuDevice`；whisper 用 shim 的 `shiyin_init_device`（`whisper_context_params.gpu_device`，ggml 的 GPU 裝置裡的第幾個；超出範圍時 whisper 自己用 CPU），Qwen 的 llama-server 子程序設 `CUDA_VISIBLE_DEVICES=<編號>`、`CUDA_DEVICE_ORDER=PCI_BUS_ID`（只看得到那一張）。編號是 nvidia-smi 的 index：CUDA 預設把最快的卡排第一，跟 nvidia-smi（PCI 匯流排順序）不一定一樣，伺服器整個程序要設 `CUDA_DEVICE_ORDER=PCI_BUS_ID`，whisper（同一個程序）的順序才對得上。舊的 shim 沒有 `shiyin_init_device` 時用第一張。
+- 同一個 16-bit WAV，伺服器的結果跟 Windows 版同一個引擎的結果逐段相同。2026-10-27 驗證：91 秒的合成會議，Mac（Metal）和 Linux 容器（CPU）的伺服器轉出的 27 段文字完全相同。
+- 錄音、結果、提示詞、整理的內容不寫 log；轉完就刪錄音，結果在 `DELETE` 或 24 小時內刪掉。
+- 這個 repo 不能依賴伺服器專案；這一節的 API 改了要升 `apiVersion`，舊版的 app 至少再支援一個大版本。
+
+### 36.7 DEBUG、驗證
+
+- 伺服器開發用的登入（伺服器的 design §11.1）：不經過瀏覽器，直接送信箱。Mac：`shiyinctl enterprise login <網址> <信箱> <輸出.json>`、`enterprise logout`、`enterprise expire`（access token 立刻過期）、`enterprise local <會議 id>`（等於按「改在這台電腦轉錄」）；`state` 的 `enterprise`、`transcriptionEngine` 和轉錄的 `server`。登入會寫進共用的設定（網址、帳號），測完 `defaults delete com.weiwei.shiyin enterpriseServerURL enterpriseServerAccount`。Windows 的控制通道同名（design-windows §12.11）。
+- 要測 app 對真的伺服器：在私人的伺服器專案開發用的設定下跑（Mac 上 `dotnet run`，用 Metal），DEBUG 版用 `http://127.0.0.1:<埠>` 連（DEBUG 才接受本機的 http）。
+- Windows 的 `dotnet test`（`EnterpriseTests`）用測試裡的假伺服器照 §36.2 回應：登入、PKCE、換 token、失效、停用、登出、上傳續傳、伺服器忙之後接著傳、重開後接著做、改在這台電腦轉錄、JobRunner 整段、整理換 token 再送；4.2.1 加上不跟著轉址、回應型別不對、加入別台時保留舊的登入、不合理的結果和 `Upload-Offset`、詞彙表上限。
+- 2026-10-27 的驗證寫在 tasks 和 commit 訊息；還沒做的：Windows 的畫面在虛擬機走一次、真的按 Mac 的「登入」（`ASWebAuthenticationSession` 的視窗會出現在使用者的畫面上）、真的 Google 登入、機房的 NVIDIA 主機。
+
 ## F1. Fork 名稱（F1）
 
 - `CFBundleName`（含繁中在地化）設為 `MA`，提供應用程式選單的短名稱；`CFBundleDisplayName` 英文為 `Meeting Assistant`，繁中為「會議助手」。
@@ -1591,6 +1775,18 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 | D112 | 整理工具「準備好了沒」只用不花額度的檢查（找得到 CLI 和登入狀態、鑰匙圈有沒有 key、網址和模型），看不出登入狀態時當作準備好；測試請求只在引導和設定頁設定好的時候送一次（§34.1） | 每次整理前送一個測試請求：多花額度和十幾秒，而且失敗的原因跟真的整理一樣，不如直接整理。不檢查、失敗再說（4.0 的做法）：第一場會議就失敗，統計看到 6 台一次都沒成功。看不出登入狀態時當作沒準備好：舊版 CLI 沒有 `auth status` 的人會被擋住，卻其實能用。引導裡沒設定好就不能按下一步：不想現在設定的人卡住，R35 本來就允許「之後再設定」 |
 | D113 | 設定問題的失敗之後暫停自動整理，只記在記憶體，用整理工具設定的指紋判斷要不要解除（§34.4） | 存進 UserDefaults：設定跟使用者的拾音、DEBUG 版共用，測試會留下殘值；重開 app 才多失敗一次可以接受。每次改設定的地方都呼叫解除：入口太多（設定頁、引導、DEBUG、Windows 的設定檔），漏一個就一直暫停。自動重試：設定問題重試也不會好 |
 | D114 | 統計的失敗種類放新的上層鍵 `errorDetail`，原本的 `errors.summarize` 不動，`schema` 仍是 1（§34.5） | `schema` 改 2：舊後台會回 400，app 收到 4xx 就丟掉那一天。種類塞進 `errors`：`errors` 每一鍵都是「某件事失敗幾次」，混進種類後加總會重複算。記錯誤訊息的前幾個字：可能帶到 stderr 或模型回傳的會議內容（R40.2） |
+| D115 | 有沒有人說話主要看即時逐字稿有沒有新的字，沒有即時逐字稿時才看聲音大小（§35.1） | 只看聲音：忘了停的人通常回到座位繼續工作，打字、關門、背景音樂會一直重新計時，永遠不會停。用說話者辨識或 VAD 模型即時判斷：Mac 的錄音中沒有在跑這類模型，多跑一個要多佔 CPU（§25 量過錄音中的負擔）。取捨：即時辨識萬一中途沒反應，有人說話也可能被當成沒人，所以 15 分鐘先提醒，30 分鐘才停 |
+| D116 | 自動停止後只轉錄到最後說話＋15 秒，做法是把前段複製成暫存檔再跑原本的轉錄流程（§35.3） | 裁掉錄音檔：判斷錯的話後面的內容就找不回來（使用者選了保留）。每個引擎加「只讀到第幾秒」：Breeze、Qwen、macOS 內建、Windows 的 whisper、SenseVoice、Qwen 都要改，說話者辨識也要跟著改。整段照轉：幾小時的空白要轉很久，whisper 在空白處容易生出沒說過的話 |
+| D117 | 企業伺服器是同一個拾音的選項，不另外做企業版的 app（§36，R49） | 另做企業版：Mac、Windows 已經是兩套 app，再分版本要維護四份；沒連伺服器的人完全不受影響，公司的人在家也能用自己的設定 |
+| D118 | 伺服器放另外的私人專案，用 submodule 引用這個 repo 的 C# 核心（§36.6） | 放在這個 repo：使用者要伺服器先不公開（之後可能給別的公司）。伺服器另外寫一套（Python 的 faster-whisper、pyannote）：處理量比較大，但結果跟 app 本機的不一樣、要多維護一套規則，標準答案管不到 |
+| D119 | 伺服器第一版只算、不存會議（R49、§36.2） | 存會議、共享、網頁版：權限、搜尋、編輯、同步都要重新設計，工作量大很多；只算的話 app 的資料庫、搜尋、匯出都不用改 |
+| D120 | 上傳 16-bit WAV，不壓縮（§36.2） | m4a：小很多，但 app 跟伺服器的解碼器不同，結果會不一樣（合成會議 5.2% → 6.0%，design-windows §8）。FLAC：小一半，但伺服器、Windows 要另外加編解碼器。取捨：一小時雙聲道約 230 MB，公司內網幾秒，VPN 可能要幾分鐘；下一版邊錄邊傳之後就不用等 |
+| D121 | 登入用伺服器的登入頁＋OAuth 授權碼＋PKCE，app 只拿伺服器發的 token（§36.2） | app 裡直接接 Google 登入：每家公司的帳號系統不同，app 要跟著改。發 API key 給每個員工：要人工發，離職要記得收回 |
+| D122 | 聲紋只存在使用者的電腦：Mac 在本機辨識說話者、算聲紋（跟伺服器轉錄同時做），伺服器只轉錄；Windows 的說話者也交給伺服器辨識，伺服器把同一個模型（ERes2Net）的聲紋跟結果一起回傳、不存（R50.6、§36.3） | Mac 用伺服器的段落在本機另外算聲紋：FluidAudio 離線辨識的聲紋算法不同，門檻要重新驗證，分人也會變成 Windows 那一套（AMI 9 場人數對 7 場，Mac 本機 9 場）。Windows 也在本機辨識說話者：沒有 NVIDIA 的電腦本來就慢，38 分鐘的錄音 CPU 要一兩分鐘以上。伺服器建全公司的聲紋庫：要每個人同意，第一版不做 |
+| D123 | 整理只轉送 OpenAI 相容格式，提示詞留在 app（R51） | 伺服器組提示詞、自己整理：提示詞要在 Swift、C#、伺服器三個地方一樣，標準答案管不到伺服器；app 還要再把結果拿回來，流程變複雜 |
+| D124 | 整理工具的選單叫「公司（<公司名稱>）」，登入了、公司有提供整理才出現；登入只在進階；選了只顯示公司設定的模型，不填 key、模型（R51.1，2026-10-27 使用者要求） | 選單一直有「公司」、沒登入就在整理工具頁直接登入（同一天做過一版）：使用者說登入應該都在進階，這裡只選模型。app 照舊讓使用者自己輸入模型名稱：公司的模型由管理者決定，打錯名稱只會失敗 |
+| D125 | 多張顯示卡由伺服器分配，核心只加「用第幾張」（§36.6） | 每張卡開一個伺服器程序（或容器）、前面再擋一層分流：管理者要自己設好幾份、登入和工作佇列要共用，部署變複雜。whisper 也用 `CUDA_VISIBLE_DEVICES`：whisper 跟伺服器在同一個程序，環境變數只能設一次，同時跑的兩場沒辦法用不同的卡 |
+| D126 | 企業伺服器的請求一律不跟著轉址，3xx 當成錯誤（§36.2，4.2.1 的安全審查） | 跟著轉址（4.2.0）：307、308 轉到別的主機時，`Authorization` 會被拿掉，但 body（refresh token、錄音、逐字稿）照樣送過去。只跟同一個主機的轉址：要自己判斷 301、302、307、308 和要不要重送 body，§36.2 的 API 也沒有需要轉址的地方；伺服器搬家時請管理者給新網址 |
 
 | DF1 | 錄音中只記使用者的標記，錄完依時間套到離線辨識分出的說話者；對不上或有矛盾就不套用 | 錄音中即時分辨說話者（FluidAudio 的 Sortformer、LS-EEND）：AMI 上錯誤率 26～34%，錄完的離線辨識是 12%，Sortformer 最多 4 人，錄音中的編號跟錄完的結果還要再對一次，也要多下載模型。標記直接當成一段一段的說話者（不經過說話者辨識）：只有標過的幾段有名字。對不上也取最接近的說話者：標錯或說話者辨識把兩個人併成一位時會套錯名字，還會學到錯的聲紋（D29：寧可少、不能錯）。代價：錄音中只有標過的那幾行看得到名字 |
 

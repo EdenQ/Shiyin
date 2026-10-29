@@ -18,12 +18,13 @@ enum APIRequest {
     }
 
     /// 送出請求，不檢查 HTTP 狀態（OpenAI 相容 API 要看錯誤內容決定要不要退回 JSON 模式）。
-    /// 網路暫時出錯、429、5xx 時自動重試一次（design §21.14、R20.5）；取消（Task 被取消）時丟出 CancellationError
-    static func fetch(_ request: URLRequest, provider: String) async throws -> Response {
+    /// 網路暫時出錯、429、5xx 時自動重試一次（design §21.14、R20.5）；取消（Task 被取消）時丟出 CancellationError。
+    /// session：企業伺服器用不跟著轉址的那一個（design §36.2、D126）
+    static func fetch(_ request: URLRequest, provider: String, session: URLSession = .shared) async throws -> Response {
         var retried = false
         while true {
             let (data, response): (Data, URLResponse)
-            do { (data, response) = try await URLSession.shared.data(for: request) }
+            do { (data, response) = try await session.data(for: request) }
             catch {
                 if Task.isCancelled || (error as? URLError)?.code == .cancelled { throw CancellationError() }
                 if !retried, let code = (error as? URLError)?.code, retryableErrors.contains(code) {
@@ -64,6 +65,18 @@ enum APIRequest {
     private static func isNoCredit(_ response: Response) -> Bool {
         let message = response.message.lowercased()
         return response.status == 429 && ["credit", "quota", "billing"].contains { message.contains($0) }
+    }
+
+    /// 企業伺服器自己的錯誤（design §36.2 的 `{"error": {"kind", "message"}}`）：只用伺服器的訊息（R51.6）；
+    /// 轉送的模型回的錯誤沒有 kind，回傳 nil 照一般的寫法
+    static func serverError(_ response: Response) -> LLMError? {
+        guard let error = response.object["error"] as? [String: Any], error["kind"] is String,
+              let message = error["message"] as? String, !message.isEmpty else { return nil }
+        switch response.status {
+        case 401, 403: return LLMError.rejected(message)
+        case 429: return LLMError.limited(message)
+        default: return LLMError.failed(message)
+        }
     }
 
     static func error(_ response: Response, provider: String) -> LLMError {

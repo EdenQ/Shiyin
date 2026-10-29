@@ -18,6 +18,9 @@ enum MeetingStatus: Equatable {
         switch self {
         case .recording: return String(localized: "錄音中")
         case .queued: return String(localized: "排隊中")
+        case .transcribing(_, let stage) where stage == String(localized: "等企業伺服器"):
+            // 在等企業伺服器（R50.5）：不接「中」、不顯示百分比
+            return stage
         case .transcribing(let p, let stage):
             let name = stage.isEmpty || stage == String(localized: "轉錄") ? String(localized: "轉錄中") : String(localized: "\(stage)中")
             return p.map { "\(name) \(Int($0 * 100))%" } ?? name
@@ -93,6 +96,8 @@ struct MeetingDetail: Equatable {
     var speakerUndoLabel: String? = nil
     /// 有上一版會議紀錄可以復原（R44.4）：紀錄分頁的編輯列才顯示「復原上一版」
     var canUndoNotes: Bool { versionCount > 0 }
+    /// 最後幾分鐘沒人說話、沒有轉錄（design §35.3、R48.3）：自動停止的錄音，錄音比轉錄的範圍長 1 分鐘以上才有
+    var untranscribedMinutes: Int? = nil
     /// 待確認的題目對應到哪一條紀錄（R41.1，design §31.1）：載入時算一次，會議紀錄換了就重算（`linkReviewItems`）
     var reviewLinks: [NoteItemRef: [Int]] = [:]
 
@@ -233,6 +238,8 @@ final class AppModel {
     enum FolderPrompt: Equatable { case create(Int64), rename(String) }
     var glossary: [GlossaryTerm] = []
     var glossarySuggestions: [GlossarySuggestion] = []
+    /// 公司詞彙表（R53）：設定頁顯示、建議的新詞要排除
+    var companyGlossary: [String] = CompanyGlossary.terms
     var templates: [TemplateRecord] = []
 
     var searchQuery = "" { didSet { runSearch() } }
@@ -326,10 +333,19 @@ final class AppModel {
         meetingDetector.isRecording = { [weak self] in self?.recorder.isRecording ?? false }
         meetingDetector.onPrompt = { [weak self] in self?.showMeetingPrompt($0) }
         notifier.onMeetingAction = { [weak self] action, bundle in self?.handleMeetingAction(action, bundle: bundle) }
+        notifier.onIdleAction = { [weak self] action in
+            guard let self else { return }
+            if action == "stop" { self.recorder.stop() } else if action == "continue" { self.recorder.continueAfterIdle() }
+        }
         meetingDetector.start()
         BuiltinTemplates.seed(db)
         // claude、codex 的登入狀態（design §34.1）：沒登入時不自動整理
         Task { await CLILogin.refreshIfStale() }
+        // 企業伺服器：公司在後台加了模型、改了設定，不用重新登入（R51.5）
+        Task {
+            await EnterpriseServer.shared.refreshInfo()
+            refreshSummarizerProblem()
+        }
         refreshSummarizerProblem()
         // 設定（整理工具、模型、網址）、key、登入狀態、暫停變了就重算
         for name in [UserDefaults.didChangeNotification, .summarizerStateChanged] {
@@ -337,6 +353,12 @@ final class AppModel {
                 MainActor.assumeIsolated { AppModel.shared.refreshSummarizerProblem() }
             })
         }
+        summarizerObservers.append(NotificationCenter.default.addObserver(forName: .companyGlossaryChanged, object: nil, queue: .main) { _ in
+            MainActor.assumeIsolated {
+                AppModel.shared.companyGlossary = CompanyGlossary.terms
+                AppModel.shared.reload()
+            }
+        })
         cleanUpPreviousRun()
         purgeExpiredTrash()
         recoverRecordings()
@@ -347,6 +369,11 @@ final class AppModel {
         GlobalHotKey.shared.onBookmark = { [weak self] in self?.bookmarkFromHotKey() }
         recorder.onStarted = { GlobalHotKey.shared.setBookmarkEnabled(AppSettings.bookmarkHotKey) }
         recorder.onLevelHint = { [weak self] hint in self?.levelHintAppeared(hint) }
+        // 忘了停止錄音（design §35、R48）：提醒一出現就送通知（人多半不在電腦前）
+        recorder.onIdlePrompt = { [weak self] in
+            guard let self, let id = self.recorder.meetingId else { return }
+            self.notifier.idlePrompt(meetingId: id)
+        }
         GlobalHotKey.shared.setEnabled(AppSettings.globalHotKey)
         updater.scheduleAutomaticChecks()
         UsageStats.shared.touch()
@@ -366,7 +393,8 @@ final class AppModel {
             meetings = try db.meetingRows()
             trash = try db.meetingRows(trash: true)
             glossary = try db.glossary()
-            glossarySuggestions = try db.glossarySuggestions()
+            // 公司已經有的詞不再建議（R53.3）
+            glossarySuggestions = try db.glossarySuggestions().filter { !CompanyGlossary.contains($0.term) }
             templates = try db.templates()
             queuedCount = try db.activeJobs().filter { $0.status == .queued }.count
         } catch {
@@ -382,7 +410,7 @@ final class AppModel {
 
     /// 這場會議是用 macOS 內建辨識（模型下載好之前）或 Breeze 轉的，現在目前引擎的模型下載好了，可以重新轉錄（design §21.17、§32.6）
     func canUpgradeTranscript(_ meeting: Meeting) -> Bool {
-        guard !AppSettings.useSystemTranscriber, meeting.hasAudio, meeting.deletedAt == nil,
+        guard !AppSettings.useSystemTranscriber, !AppSettings.usesEnterpriseTranscription, meeting.hasAudio, meeting.deletedAt == nil,
               models.isInstalled(transcriptionFor: meeting.meetingLanguage) else { return false }
         let older = ModelStore.transcription(for: meeting.meetingLanguage) == .qwen ? ["system", "breeze"] : ["system"]
         return older.contains(meeting.transcribedWith)
@@ -459,6 +487,9 @@ final class AppModel {
         loaded.speakerTags = (try? db.speakerTags(id)) ?? []
         loaded.speakerCandidates = (try? db.voiceprintCandidates(id)) ?? [:]
         loaded.speakerUndoLabel = try? db.speakerUndoLabel(id)
+        if let until = try? db.transcribedUntil(id), let duration = meeting.durationSeconds, Double(duration) - until >= 60 {
+            loaded.untranscribedMinutes = Int(((Double(duration) - until) / 60).rounded())
+        }
         loaded.buildIndexes()
         loaded.linkReviewItems()
         detail = loaded
@@ -519,7 +550,7 @@ final class AppModel {
     var menuBarSymbol: String {
         if bookmarkFlash { return "star.circle.fill" }
         // 收音提醒還在時換成警示的樣子（R42.2），按「知道了」或提示消失就換回來
-        if recorder.isRecording { return recorder.levelHint != nil ? "mic.badge.exclamationmark" : "record.circle.fill" }
+        if recorder.isRecording { return recorder.levelHint != nil || recorder.idlePrompt ? "mic.badge.exclamationmark" : "record.circle.fill" }
         if runner.isBusy || queuedCount > 0 { return "waveform.circle.fill" }
         return "waveform"
     }
@@ -682,7 +713,11 @@ final class AppModel {
                 meeting.audioFile = destination.lastPathComponent
                 if result.duration > 0 { meeting.durationSeconds = Int(result.duration.rounded()) }
                 try db.updateMeeting(meeting)
-                try db.enqueue(result.meetingId, kind: .transcribe)
+                // 沒人說話太久而自動停止：只轉錄到最後說話後 15 秒（design §35.3、R48.3）
+                let until = result.idleSince.map { $0 + 15 }.flatMap { $0 < result.duration ? $0 : nil }
+                let payload = until.flatMap { try? JSONEncoder().encode(TranscribePayload(until: $0)) }.map { String(decoding: $0, as: UTF8.self) }
+                try db.enqueue(result.meetingId, kind: .transcribe, payload: payload)
+                if result.idleSince != nil { notifier.idleStopped(meetingId: result.meetingId, title: meeting.displayTitle) }
                 UsageStats.shared.recorded(seconds: result.duration)
             } catch {
                 // 資料庫寫不進去（磁碟滿時常一起發生）：搬回 recording/，下次開啟由復原流程接回（design §20.3）。
@@ -1722,6 +1757,15 @@ final class AppModel {
 }
 
 extension AppModel {
+    /// 登入企業伺服器後預設轉錄、整理都用它（R49.3）：設定頁的登入、加入連結共用
+    func applyEnterpriseDefaults(llm: Bool) {
+        UserDefaults.standard.set("server", forKey: AppSettings.transcriptionEngineKey)
+        if llm { UserDefaults.standard.set(LLMProvider.enterprise.rawValue, forKey: AppSettings.providerKey) }
+        runner.wake()
+        refreshEnvironment()
+        NotificationCenter.default.post(name: .summarizerStateChanged, object: nil)
+    }
+
     func refreshSummarizerProblem() {
         let problem = AppSettings.summarizerProblem
         if problem != summarizerProblem { summarizerProblem = problem }

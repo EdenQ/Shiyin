@@ -30,6 +30,8 @@ public sealed class AppSettings
     public const string VoiceprintsKey = "voiceprints";
     public const string MeetingDetectionKey = "meetingDetection";
     public const string BookmarkHotKeyKey = "bookmarkHotKey";
+    /// <summary>很久沒人說話時提醒，30 分鐘後自動停止（M§35、R48.5）</summary>
+    public const string IdleStopKey = "idleStop";
     /// <summary>NVIDIA 顯示卡加速已經自動下載過（R27 R4.6）：只自動一次，使用者刪掉後不再下載</summary>
     public const string GpuPackOfferedKey = "gpuPackOffered";
     /// <summary>Qwen3-ASR 的 CUDA 版已經自動下載過（design-windows §8.4）</summary>
@@ -235,6 +237,11 @@ public sealed class AppSettings
         SummarizerChanged?.Invoke();
     }
 
+    /// <summary>企業伺服器登入了（R51.3）；App 接上 EnterpriseServer</summary>
+    public Func<bool> EnterpriseSignedIn { get; set; } = () => false;
+    /// <summary>企業伺服器有提供整理用的模型（R51.3）</summary>
+    public Func<bool> EnterpriseHasModels { get; set; } = () => false;
+
     /// <summary>整理工具設定的指紋：換工具、改模型或網址、存或刪 key 都會變</summary>
     string Signature(LLMProvider provider) =>
         string.Join("|", provider.Code(), Model, provider == LLMProvider.OpenAICompatible ? CompatibleBaseUrl : "", KeyGeneration);
@@ -258,6 +265,10 @@ public sealed class AppSettings
                     break;
                 case LLMProvider.OpenAICompatible:
                     if (OpenAICompatibleApi.Normalized(CompatibleBaseUrl) is null || Model.Length == 0) return new(SummarizerProblemKind.Incomplete, provider);
+                    break;
+                case LLMProvider.Enterprise:
+                    if (!EnterpriseSignedIn()) return new(SummarizerProblemKind.EnterpriseSignedOut, provider);
+                    if (!EnterpriseHasModels()) return new(SummarizerProblemKind.EnterpriseNoModels, provider);
                     break;
             }
             PauseState? paused;
@@ -289,6 +300,7 @@ public sealed class AppSettings
     public bool Voiceprints => Flag(VoiceprintsKey, true);
     public bool MeetingDetection => Flag(MeetingDetectionKey, true);
     public bool BookmarkHotKey => Flag(BookmarkHotKeyKey, true);
+    public bool IdleStop => Flag(IdleStopKey, true);
     /// <summary>正式轉錄用快速辨識（Mac 的「macOS 內建」，D45）：設定值同 Mac 是 system</summary>
     public bool UseFastTranscriber => String(TranscriptionEngineKey) == "system";
     /// <summary>正式轉錄的引擎：breeze（預設）、qwen、system（同 Mac 的 transcriptionEngine，M§32.3）</summary>

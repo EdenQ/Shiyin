@@ -171,6 +171,11 @@ Mac 改完重跑 `dump-golden`、commit 新的 `shared/golden/`，Windows 的測
 - **麥克風權限**（R27 R1.8）：開啟時回 `E_ACCESSDENIED` 就顯示「拾音沒有麥克風權限」，按「打開設定」打開 `ms-settings:privacy-microphone`（固定的網址）。Windows 之後如果對桌面 app 也個別詢問，照同樣的流程。
 - **開始失敗、中途出問題**：同 Mac 的「錄音的提醒」，Recorder 記下原因（`FailureMessage`、`PermissionDenied`），主視窗顯示一次就清掉。原因要保留原本的說明（例如「找不到可以用的麥克風」），不要換成錯誤代碼。
 
+### 6.3 忘了停止錄音（R48，M§35）
+
+- `Recorder` 記 `LastSpeechAt`，每秒算沒人說話多久：即時逐字稿在跑時，VAD 偵測到說話或出現新的字就算有人說話；沒有即時逐字稿時照 M§35.1 看聲音。暫停時不計時。
+- 15 分鐘提醒（錄音列、系統匣的小視窗、Windows 通知，按鈕「停止錄音」「繼續錄」）、30 分鐘自動停止，自動停止的轉錄工作帶 `until`，照 M§35.2、M§35.3。設定 `idleStop` 同 Mac；DEBUG 用 `--set idleRemindSeconds=…`、`--set idleStopSeconds=…`。
+
 ## 7. 即時逐字稿（R2、R27 R2.1）
 
 - 混音（左右平均，同 Mac 的 MixTap）先經過自動增益，再送進 Silero VAD（門檻 0.35，D61）；VAD 判定在說話時，約每 0.4 秒把這一句目前的聲音整句丟給 SenseVoice 重新辨識，結果當暫定文字；VAD 判定一句結束時（一句最長約 15 秒，超過就切），最後一次的結果當定稿，存成 `kind='live'` 的段落（同 M§5.3）。
@@ -192,6 +197,7 @@ Mac 改完重跑 `dump-golden`、commit 新的 `shared/golden/`，Windows 的測
 - **NVIDIA 顯示卡加速**（R27 R4.6，D64）：x64 有 NVIDIA 顯示卡時（顯示卡驅動的登錄裡 `MatchingDeviceId` 有 `VEN_10DE`），第一次啟動自動下載 whisper.cpp 官方同一版（b5454）的 `whisper-bin-win-cuda-12.4.0-x64.zip`（685 MB，固定網址和 SHA-256，`ModelStore.Model.GpuCuda`），驗證後只解出 whisper、ggml、ggml-base、ggml-cpu-*、ggml-cuda、cudart、cublas、cublasLt（約 1.1 GB）到 `models\gpu-cuda12\`，刪掉壓縮檔。自動下載只做一次（設定的 `gpuPackOffered`），使用者刪掉後不再下載。
   - 載入：整套 whisper 都用元件資料夾裡的（同一次建置的 ggml 才能搭配 ggml-cuda），不跟安裝資料夾的 CPU 版混用。第一次用到 whisper 之前，把安裝資料夾的 `shiyin_whisper.dll` 和 VC++ 執行階段（msvcp140、vcruntime140、vcruntime140_1、vcomp140）複製過去（不一樣才複製，app 更新後 shim 也跟著換），`SetDllDirectory` 加上元件資料夾，再從那裡載入 shim。ggml 用 `LoadLibraryW` 載入 `ggml-cuda.dll`，它要的 cudart、cublas 只會照一般的順序找（安裝資料夾、系統），所以一定要加 `SetDllDirectory`。
   - whisper 已經從安裝資料夾載入（這次開啟已經轉錄過）時換不了，下載好時提示重新開啟拾音。驅動太舊、沒有 CUDA 裝置時 ggml-cuda 不會有裝置，whisper 自己用 CPU。
+  - 指定第幾張卡（企業伺服器用，M§36.6、D125）：shim 的 `shiyin_init_device(路徑, use_gpu, flash_attn, gpu_device)`，`shiyin_init` 等於 gpu_device 0；`WhisperControl.GpuDevice` 是 null 時用 `shiyin_init`（app 一律如此）。Qwen 的子程序設 `CUDA_VISIBLE_DEVICES`、`CUDA_DEVICE_ORDER=PCI_BUS_ID`（`QwenServer.Options.Device`）。
   - shim 的 `shiyin_gpu_device` 回傳 whisper 會用的顯示卡（第一個 GPU 裝置的名稱和說明），寫進 log 和回報問題。
   - 元件靠安裝檔裡的 VC++ 執行階段：CI 改成靜態連結執行階段的 whisper 之後，安裝檔還是要帶這四個 DLL（x64 約 0.9 MB）。
 - **shim**（D56）：約 100 行的 C，匯出 `shiyin_whisper_full(ctx, const ShiyinParams*, 進度 callback, 取消 callback, …)`，在 C 這邊填好 `whisper_full_params`。不在 C# 複製這個 struct：它用傳值的方式傳、C 的 `bool` 是 1 byte、裡面有巢狀 struct 和 callback，很容易對錯而且不會報錯。其他簡單的函式（`whisper_full_n_segments`、`whisper_full_get_segment_*`、`whisper_full_get_token_p`、`whisper_pcm_to_mel`、`whisper_lang_auto_detect`、`whisper_lang_id`…）直接 P/Invoke，跟 `WhisperEngine.swift`、`LanguageDetector.swift` 用的一樣。
@@ -400,6 +406,18 @@ Windows 版本和 build（`RtlGetVersion`）、CPU 名稱和架構（登錄的 P
 - 送出：用 AppHost 的 HttpClient，每個請求 20 秒逾時；啟動 60 秒後、之後每小時（同 M§30.3）。
 - 設定 → 進階的最下面（「其他」之後）一張卡片：「匿名使用統計」和「詳細…」；按下去是對話框（ContentDialog）：開關、說明、「重設匿名 ID」、「完成」（不顯示 JSON）。使用說明「資料與隱私」加一條。文字和行為同 M§30.5，只在有統計網址時顯示（DEBUG 一律顯示）。
 - DEBUG 控制通道：`usageurl <網址|off>`、`usage <輸出.json>`、`usageage <天數>`、`usagesend`，同 Mac 的 shiyinctl。虛擬機裡驗證時，假後台（`scripts/dev/fake-usage-server.py`）開在 Mac 上，用 `ssh -R` 讓虛擬機連 `http://127.0.0.1:<埠>`（同 §14.2 測更新）。
+
+### 12.11 企業伺服器（R49～R52，M§36）
+
+- API、流程、錯誤分類、隱私說明同 M§36。程式：`Shiyin.Services/EnterpriseServer.cs`（info、登入、換 token、HTTP、`ISecretStore`）、`Shiyin.Services/ServerTranscriber.cs`（寫 16-bit WAV、建工作、續傳、等結果、解析結果）、`Shiyin.LLM` 的 `EnterpriseApi`（包 OpenAI 相容那一個，key 換成 access token；LLM 專案不能參照 Services，用 `IEnterpriseAccess` 介面拿 token）。都在 net10.0，Mac 上 `dotnet test`（`EnterpriseTests` 用測試裡的假伺服器）。
+- HTTP：企業伺服器的請求用自己的 HttpClient（`EnterpriseServer.NoRedirectClient()`，`AppHost.EnterpriseHttp`），`AllowAutoRedirect = false`，收到 3xx 當成錯誤（M§36.2、D126）；整理（`EnterpriseApi`）用同一個（`IEnterpriseAccess.Http`）。`AppHost.Http`（下載模型、更新）照舊跟著轉址。伺服器的回應型別不對（例如 `apiVersion` 是字串）不能讓 `GetValue` 丟出 `InvalidOperationException`：`FetchInfo`、換 token 當成「不是拾音的企業伺服器」，錯誤的 `kind`、`message` 不是字串就當成沒有。
+- 登入：設定頁按「登入」→ `BeginSignIn` 檢查網址 → `Launcher.LaunchUriAsync` 用預設瀏覽器打開 `/login`，`redirect_uri` 是 `shiyin://auth`。回來的網址走已經登錄的 `shiyin:` 網址（§12.2）：第二個拾音把網址轉給開著的那個（§12.1），`App.OpenLinks` 看到 `shiyin://auth` 就交給 `AppHost.CompleteEnterpriseSignIn`（不是通知的網址）。`state` 只放記憶體、10 分鐘有效，對不上就忽略。登入完套用預設（轉錄、整理都用企業伺服器，R49.3）、打開設定的「進階」、顯示「已登入企業伺服器」。
+- token：認證管理員 `com.weiwei.shiyin.apikey/enterpriseServer`（同 §12.5，DEBUG 沒加 debugRealKeychain 時只放記憶體），網址、帳號存 `settings.json` 的 `enterpriseServerURL`、`enterpriseServerAccount`。啟動參數 `--set` 覆蓋的值登出時只清記憶體（`AppSettings` 本來就這樣）。
+- 說話者辨識也交給伺服器（D122）：建工作時 `diarize` 照設定；結果的 `speakers`、`voices`（伺服器跟 Windows 同一個 ERes2Net 模型）、`diarizationQuality` 直接存進資料庫、比對聲紋，跟本機轉錄一樣。這台電腦不用說話者辨識的模型。
+- 選企業伺服器時：`JobRunner.PrepareTranscription` 不等模型、不自動下載（R50.7）；有 NVIDIA 顯示卡也不自動下載加速元件（`GpuAcceleration.Start` 看到 `transcriptionEngine=server` 就跳過，`gpuPackOffered` 不設，之後換回本機引擎時下次開啟再判斷）。快速辨識的模型照樣下載（即時逐字稿要用）。按「改在這台電腦轉錄」時才開始下載 Breeze、說話者辨識的模型，還沒好就先用快速辨識（D35）。
+- 畫面：設定的「進階」最上面一組「企業伺服器」（同 M§36.3）；「錄音與轉錄」的正式轉錄多「企業伺服器（公司名稱）」；整理工具的選單在登入了、公司有提供整理時多「公司（<公司名稱>）」（M§36.3、D124；伺服器自己的錯誤只顯示伺服器的訊息，R51.6、`OpenAICompatibleApi.PlainServerErrors`），登入只在進階；選了沒有模型欄、key 欄，只顯示公司設定的模型（不只一個時是下拉選單「公司的預設」＋後台設定的名稱）。啟動、打開整理工具頁時 `EnterpriseServer.RefreshInfo` 重新讀伺服器的資訊。會議頁的狀態列：伺服器負責的那段時間有「改在這台電腦轉錄」，在等伺服器時只顯示原因（不顯示百分比）。
+- 加入連結（R49.7）：`shiyin://join?server=…` 跟 `shiyin://auth` 一樣從 `App.OpenLinks` 進來（`EnterpriseServer.IsJoin`），打開設定的「進階」，`SettingsWindow.ConfirmJoin` 讀 info 後用對話框問「加入 <主機> 的企業伺服器？」（`Uri.IdnHost`：國際化網域顯示成 punycode），內文寫伺服器自稱的名稱，加入就照設定頁的「登入」（瀏覽器 → `shiyin://auth`）；登入的是別台時不先登出，`CompleteSignIn` 成功才換掉舊的（M§36.2）。`ConfirmJoin`、設定頁的「登入」「登出」是 `async void`：接住所有例外（log 只寫型別）、顯示訊息，加入連結再怎麼怪都不能讓 app 當掉；`AppHost.CompleteEnterpriseSignIn` 也一樣。公司詞彙表（R53）：`CompanyGlossary` 存在 `SHIYIN_HOME\enterprise-glossary.json`，`EnterpriseServer.RefreshInfo` 和登入完成時一起更新、登出時刪；`JobRunner` 的四個地方用合併後的詞；「說話者與詞彙」頁多一段「公司的詞彙」。
+- DEBUG 控制通道：`enterprise login <網址> <信箱>`（伺服器開發用的登入，不經過瀏覽器，登入後套用預設）、`enterprise logout`、`enterprise expire`、`enterprise local <會議 id>`；`state` 的 `enterprise`、`transcriptionEngine`、`provider` 和轉錄的 `server`。虛擬機裡驗證時，伺服器開在 Mac 上，用 `ssh -R` 讓虛擬機連 `http://127.0.0.1:<埠>`（同 §14.2）。
 
 ## 13. 匯出與封包
 
