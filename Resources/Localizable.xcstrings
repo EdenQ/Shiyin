@@ -9553,6 +9553,17 @@
         }
       }
     },
+    "這個名字是從錄音時的標記帶入的。不對的話直接改名，或按「不是他」。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This name came from a tag you added while recording. If it's wrong, rename the speaker or click Not this person."
+          }
+        }
+      }
+    },
     "這個名字是會議助手認出聲音後自動帶入的。不對的話直接改名，或按「不是他」。": {
       "extractionState": "manual",
       "localizations": {
@@ -10927,6 +10938,17 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "錄音時標記的名字。不對的話點名字": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Name from a tag you added while recording. Click the name if it's wrong"
           }
         }
       }

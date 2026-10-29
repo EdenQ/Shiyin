@@ -699,6 +699,11 @@ final class AppDatabase: @unchecked Sendable {
         }
     }
 
+    /// 用標記帶入的名字要不要存聲紋（design §F2.3、DF2）：說話者辨識沒有提示可能把不同的人併成一位才存
+    func rememberTaggedVoices(_ meetingId: Int64) throws -> Bool {
+        !(try meeting(meetingId)?.mayHaveMergedSpeakers ?? false)
+    }
+
     #if DEBUG
     /// shiyinctl applytags：用標記帶入的名字先回到預設名稱，等於重新轉錄存檔時（design §24.5）
     func resetTaggedSpeakers(_ meetingId: Int64) throws {

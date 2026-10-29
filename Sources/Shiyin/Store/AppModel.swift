@@ -979,9 +979,11 @@ final class AppModel {
         perform(.detail([.speakers, .segments, .meeting])) {
             guard try db.mergeSpeakers(id, from: from, into: into,
                                        label: String(localized: "把「\(fromName)」合併到「\(intoName)」")) != nil else { return }
-            // 使用者取的名字：用合併後的聲紋重新學（自動帶入的名字不學，design §21.4）
+            // 使用者取的名字、錄音時標記的名字：用合併後的聲紋重新學（聲紋自動帶入的名字不學，design §21.4、§F2.3）
             if AppSettings.voiceprints, source == "manual" || source == "suggestion" {
                 try db.learnVoiceprint(id, idx: into, name: intoName, source: source ?? "manual")
+            } else if AppSettings.voiceprints, source == "tag" {
+                try db.learnVoiceprint(id, idx: into, name: intoName, source: "tag", remember: db.rememberTaggedVoices(id))
             }
             noticeMessage = String(localized: "已把「\(fromName)」合併到「\(intoName)」。要復原的話，點說話者的名字選「復原」。")
         }
@@ -1238,7 +1240,7 @@ final class AppModel {
         }
     }
 
-    /// 「不是他」：聲紋自動帶入的名字不對，回到預設名稱（design §21.4）；會議紀錄裡的名字也換回去
+    /// 「不是他」：聲紋自動帶入、錄音時標記帶入的名字不對，回到預設名稱（design §21.4、§F2.4）；會議紀錄裡的名字也換回去
     func rejectVoiceprintMatch(_ idx: Int) {
         guard let id = selection else { return }
         let language = detail?.meeting.meetingLanguage ?? .zh

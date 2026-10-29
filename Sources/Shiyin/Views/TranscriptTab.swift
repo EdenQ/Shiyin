@@ -356,6 +356,7 @@ struct TranscriptTab: View {
                 .popover(isPresented: Binding(get: { renaming?.segment == segment.id && segment.id != nil },
                                               set: { if !$0 { renaming = nil } })) {
                     RenameSpeakerForm(name: $renameText, automatic: detail.speakerSources[idx] == "voiceprint",
+                                      tagged: detail.speakerSources[idx] == "tag",
                                       onReject: { model.rejectVoiceprintMatch(idx); renaming = nil },
                                       mergeTargets: otherSpeakers(than: idx),
                                       onMerge: { into in
@@ -525,6 +526,8 @@ struct RenameSpeakerForm: View {
     @Binding var name: String
     /// 名字是聲紋自動帶入的：多一個「不是他」（design §21.4）
     var automatic = false
+    /// 名字是錄音時標記帶入的：一樣有「不是他」（design §F2.4）
+    var tagged = false
     var onReject: (() -> Void)? = nil
     /// 「合併到…」（design §24.2）：其他說話者
     var mergeTargets: [(idx: Int, name: String)] = []
@@ -540,8 +543,9 @@ struct RenameSpeakerForm: View {
             TextField("例如：小明", text: $name)
                 .textFieldStyle(.roundedBorder)
                 .onSubmit(onSave)
-            if automatic {
-                Text("這個名字是會議助手認出聲音後自動帶入的。不對的話直接改名，或按「不是他」。")
+            if automatic || tagged {
+                Text(tagged ? "這個名字是從錄音時的標記帶入的。不對的話直接改名，或按「不是他」。"
+                            : "這個名字是會議助手認出聲音後自動帶入的。不對的話直接改名，或按「不是他」。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -551,7 +555,7 @@ struct RenameSpeakerForm: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             HStack {
-                if automatic, let onReject { Button("不是他", action: onReject) }
+                if automatic || tagged, let onReject { Button("不是他", action: onReject) }
                 if !mergeTargets.isEmpty, let onMerge {
                     Menu("合併到…") {
                         ForEach(mergeTargets, id: \.idx) { target in

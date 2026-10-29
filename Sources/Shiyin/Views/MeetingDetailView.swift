@@ -105,8 +105,9 @@ struct MeetingHeader: View {
             if !detail.speakers.isEmpty {
                 HStack(spacing: 6) {
                     ForEach(detail.speakers.keys.sorted(), id: \.self) { idx in
-                        if detail.speakerSources[idx] == "voiceprint" {
-                            AutoSpeakerName(idx: idx, name: detail.speakers[idx] ?? "", others: detail.speakerCandidates[idx] ?? [])
+                        if let source = detail.speakerSources[idx], source == "voiceprint" || source == "tag" {
+                            AutoSpeakerName(idx: idx, name: detail.speakers[idx] ?? "", others: detail.speakerCandidates[idx] ?? [],
+                                            tagged: source == "tag")
                         } else {
                             Text(detail.speakers[idx] ?? "").foregroundStyle(Color.speaker(idx))
                         }
@@ -445,13 +446,14 @@ struct DraftNotesBanner: View {
     }
 }
 
-/// 聲紋自動帶入的說話者名字（design §21.4、R19.3）：名字後面標「自動」。
+/// 聲紋自動帶入的說話者名字（design §21.4、R19.3）：名字後面標「自動」；錄音時標記帶入的標「標記」（§F2.4）。
 /// 點一下直接選是別人（最像的幾位認識的人，一次改名、記住聲音、改會議紀錄，R33.4），或說不是他
 private struct AutoSpeakerName: View {
     @Environment(AppModel.self) private var model
     let idx: Int
     let name: String
     let others: [String]
+    var tagged = false
 
     var body: some View {
         HStack(spacing: 3) {
@@ -473,13 +475,13 @@ private struct AutoSpeakerName: View {
             .menuIndicator(.hidden)
             .fixedSize()
             // 選單按鈕在畫面上只畫標題的文字（標籤裡的背景會被拿掉），「自動」標記要放在選單外面
-            Text("自動")
+            Text(tagged ? MeetingLanguage.ui(zh: "標記", en: "Tagged") : String(localized: "自動"))
                 .font(.caption2)
                 .padding(.horizontal, 4)
                 .padding(.vertical, 1)
                 .background(Color.secondary.opacity(0.15), in: Capsule())
         }
-        .help("會議助手認出這個人的聲音，自動帶入名字。不對的話點名字")
+        .help(tagged ? "錄音時標記的名字。不對的話點名字" : "會議助手認出這個人的聲音，自動帶入名字。不對的話點名字")
     }
 }
 

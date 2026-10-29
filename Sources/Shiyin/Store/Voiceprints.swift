@@ -118,8 +118,9 @@ extension AppDatabase {
     }
 
     /// 說話者被取名（手動、套用建議）之後：連到同名的人（沒有就建立），把這場會議的聲紋存起來（design §21.4）。
-    /// 名字是預設的「說話者 N」時，取消連結、刪掉這場會議這位說話者存過的聲紋
-    func learnVoiceprint(_ meetingId: Int64, idx: Int, name: String, source: String = "manual") throws {
+    /// 名字是預設的「說話者 N」時，取消連結、刪掉這場會議這位說話者存過的聲紋。
+    /// remember 是 false 時只連到那個人、不存聲紋（可能把人併在一起的標記，design §F2.3）
+    func learnVoiceprint(_ meetingId: Int64, idx: Int, name: String, source: String = "manual", remember: Bool = true) throws {
         try pool.write { db in
             // 這位說話者之前存過的聲紋（例如改正自動帶入的名字）先刪掉
             try db.execute(sql: "DELETE FROM voiceprints WHERE meeting_id = ? AND speaker_idx = ?", arguments: [meetingId, idx])
@@ -137,7 +138,7 @@ extension AppDatabase {
             guard let personId = person?.id else { return }
             try db.execute(sql: "UPDATE speakers SET person_id = ?, name_source = ? WHERE meeting_id = ? AND idx = ?",
                            arguments: [personId, source, meetingId, idx])
-            guard let speaker = try SpeakerName.filter(Column("meeting_id") == meetingId && Column("idx") == idx).fetchOne(db),
+            guard remember, let speaker = try SpeakerName.filter(Column("meeting_id") == meetingId && Column("idx") == idx).fetchOne(db),
                   let embedding = speaker.embedding, speaker.speechSeconds >= Self.voiceprintMinimumSeconds else { return }
             let vector = Voiceprint.vector(embedding)
             let existing = try Row.fetchAll(db, sql: "SELECT embedding FROM voiceprints WHERE person_id = ?", arguments: [personId])

@@ -380,14 +380,14 @@ final class JobRunner {
         try db.saveTranscript(job.meetingId, segments: segments, duration: Int(savedDuration.rounded()),
                               speakerCount: speakers.compactMap { $0 }.max() ?? 0, voices: result.voices,
                               transcribedWith: transcribedWith)
+        // 說話者辨識的碰撞率（design §24.3）：可能把人併在一起時，逐字稿分頁會提示；套用標記時也要看（§F2.3）
+        try db.setSpeakerCheck(job.meetingId, result.diarizationQuality?.mergeRisk)
         // 套用失敗不影響逐字稿和之後的整理，只記 log
         do { try applySpeakerTags(job.meetingId) } catch { log.error("apply speaker tags failed: \(error.logSummary, privacy: .public)") }
         // 匿名使用統計（design §30.1）：語音長度、實際花的時間、引擎；說話者辨識跟 pipeline 的條件一樣
         UsageStats.shared.transcribed(seconds: duration, wallSeconds: Date().timeIntervalSince(startedAt),
                                       engine: pipeline.options.engine == .server ? "server" : transcribedWith, language: meeting.meetingLanguage,
                                       imported: meeting.source == "import", diarized: pipeline.options.diarize && duration > 5)
-        // 說話者辨識的碰撞率（design §24.3）：可能把人併在一起時，逐字稿分頁會提示
-        try db.setSpeakerCheck(job.meetingId, result.diarizationQuality?.mergeRisk)
         // 聲紋比對（design §21.4）：在整理之前，會議紀錄裡就會是名字
         if AppSettings.voiceprints {
             let matched = try db.matchVoiceprints(job.meetingId)
@@ -413,13 +413,15 @@ final class JobRunner {
         wake()
     }
 
-    /// 錄音中標記的說話者（design §F2.3、F2）：在聲紋比對之前套用，使用者自己標的優先；跟手動改名一樣記住聲紋
+    /// 錄音中標記的說話者（design §F2.3、F2）：在聲紋比對之前套用，使用者自己標的優先；跟手動改名一樣記住聲紋，
+    /// 但說話者辨識可能把人併在一起時只連到認識的人、不存聲紋（F2.9）。setSpeakerCheck 要先寫好
     func applySpeakerTags(_ meetingId: Int64) throws {
         let tagged = try db.applySpeakerTags(meetingId)
         guard !tagged.isEmpty else { return }
-        log.info("speaker tags applied to \(tagged.count) speakers")
+        let remember = try db.rememberTaggedVoices(meetingId)
+        log.info("speaker tags applied to \(tagged.count) speakers, voiceprints \(remember ? "kept" : "skipped", privacy: .public)")
         if AppSettings.voiceprints {
-            for (idx, name) in tagged { try db.learnVoiceprint(meetingId, idx: idx, name: name, source: "tag") }
+            for (idx, name) in tagged { try db.learnVoiceprint(meetingId, idx: idx, name: name, source: "tag", remember: remember) }
         }
     }
 
@@ -468,7 +470,8 @@ final class JobRunner {
                     if extra[o] == nil {
                         extra[o] = next
                         // 預設名稱不沿用（編號變了，用新編號的預設名稱）
-                        if let speaker = old.first(where: { $0.idx == o }), speaker.nameSource != "default" {
+                        // 標記帶入的名字也不沿用：下面用標記重新對（design §F2.3）
+                        if let speaker = old.first(where: { $0.idx == o }), speaker.nameSource != "default", speaker.nameSource != "tag" {
                             inherited[next] = (speaker.name, speaker.nameSource, speaker.personId)
                         }
                         next += 1
@@ -479,6 +482,8 @@ final class JobRunner {
             try db.reassignSpeakers(job.meetingId, segmentSpeakers: zip(segments, assigned).compactMap { s, n in s.id.map { ($0, n) } },
                                     voices: voices, inherited: inherited)
             try db.setSpeakerCheck(job.meetingId, output.quality?.mergeRisk)
+            // 標記帶入的名字沒有沿用，照新的說話者重新對一次（design §F2.3、F2.10）
+            do { try applySpeakerTags(job.meetingId) } catch { log.error("apply speaker tags failed: \(error.logSummary, privacy: .public)") }
             // 沿用使用者取的名字：用新的、比較乾淨的分群重新學聲紋（自動帶入的名字本來就不學）
             for (idx, item) in inherited where item.source != "voiceprint" {
                 try db.learnVoiceprint(job.meetingId, idx: idx, name: item.name, source: item.source)
@@ -508,10 +513,11 @@ final class JobRunner {
     }
 
     /// 名字沿用（design §23.3）：新的說話者 n 的段落（依秒數）有 60% 以上原本是同一位取過名字的 o，
-    /// 而且 o 原本的段落分到 n 最多，n 就沿用 o 的名字、名字來源、連到的人
+    /// 而且 o 原本的段落分到 n 最多，n 就沿用 o 的名字、名字來源、連到的人。
+    /// 標記帶入的名字不沿用，重新辨識完用標記重新對（design §F2.3）
     nonisolated static func inheritNames(old: [SpeakerName], segments: [Segment], newSpeakers: [Int?])
         -> [Int: (name: String, source: String, personId: Int64?)] {
-        let named = Dictionary(old.filter { $0.nameSource != "default" }.map { ($0.idx, $0) }, uniquingKeysWith: { a, _ in a })
+        let named = Dictionary(old.filter { $0.nameSource != "default" && $0.nameSource != "tag" }.map { ($0.idx, $0) }, uniquingKeysWith: { a, _ in a })
         var byNew: [Int: [Int: Double]] = [:]   // 新 → 舊 → 秒數
         var byOld: [Int: [Int: Double]] = [:]   // 舊 → 新 → 秒數
         for (segment, new) in zip(segments, newSpeakers) {
