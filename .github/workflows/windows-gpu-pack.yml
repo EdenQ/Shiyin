@@ -1,0 +1,163 @@
+# Windows 的 AMD 顯示卡加速元件（design-windows §8「AMD 顯示卡加速」、D127、R27 R4.7）：用跟安裝檔同一個 commit 的 whisper.cpp 建 Vulkan 版，
+# CI 沒有顯示卡，用 Mesa 的 lavapipe（軟體實作的 Vulkan）跑一次語言偵測、跟同一次建置的 CPU 版比（判斷出同一個語言、三個機率差 ≤ 0.03），打包成 whisper-vulkan-x64.zip。
+# 手動執行；publish 打勾才上傳到 prerelease win-gpu-vulkan-b5454（官網、Windows 的檢查更新都跳過 prerelease，Mac 的更新網址是 latest）。
+# whisper 升版才要重跑；跑完把印出的大小、SHA-256 填進 ModelStore.GpuVulkan、VulkanFiles
+name: Windows 顯示卡元件（Vulkan）
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 上傳到 prerelease win-gpu-vulkan-b5454
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+env:
+  # 跟 llama.cpp b11840 的 Windows Vulkan 版同一個 SDK：ggml-vulkan 要 SPIRV-Headers 的 CMake 設定檔，1.4.309.0 沒有（2026-10-29 run 40817771887）
+  VULKAN_SDK_VERSION: 1.4.357.0
+  VULKAN_SDK_SHA256: 81f474711e9042f4cd22b31b2f7a8870db2e428b21586fb43dd80150be97310d
+  # Vulkan 的載入器（vulkan-1.dll）：使用者的電腦是顯示卡驅動附的，CI 沒有顯示卡驅動，只在測試時從這裡拿（不放進元件）
+  VULKAN_RT_SHA256: a14672efed15aafc7f5a16572d35cd3a3416eadf670aeee3cdf50ee32d5fbf83
+  MESA_VERSION: 26.2.4
+  MESA_SHA256: 351fc8c8b695878ffb3eaa044b3ead08672a48b1a045e3c3e3975811df0f6695
+  BASE_MODEL_URL: https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-base-q5_1.bin
+  BASE_MODEL_SHA256: 422f1ae452ade6f30a004d7e5c6a43195e4433bc370bf23fac9cc591f01a8898
+  RELEASE_TAG: win-gpu-vulkan-b5454
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: windows/global.json
+      - name: 裝 Vulkan SDK（固定版本，驗證 SHA-256）
+        shell: pwsh
+        run: |
+          $exe = Join-Path $env:RUNNER_TEMP 'vulkan-sdk.exe'
+          Invoke-WebRequest "https://sdk.lunarg.com/sdk/download/$env:VULKAN_SDK_VERSION/windows/vulkansdk-windows-X64-$env:VULKAN_SDK_VERSION.exe" -OutFile $exe
+          $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($hash -ne $env:VULKAN_SDK_SHA256) { throw "Vulkan SDK 的 SHA-256 不對：$hash" }
+          $dir = "C:\VulkanSDK\$env:VULKAN_SDK_VERSION"
+          Start-Process -FilePath $exe -ArgumentList '--root', $dir, '--accept-licenses', '--default-answer', '--confirm-command', 'install' -Wait -NoNewWindow
+          if (-not (Test-Path "$dir\Bin\glslc.exe")) { throw '裝完找不到 glslc（ggml-vulkan 建置時要用它編 shader）' }
+          if (-not (Get-ChildItem $dir -Recurse -Filter 'SPIRV-HeadersConfig.cmake' -ErrorAction SilentlyContinue)) { throw '裝完找不到 SPIRV-HeadersConfig.cmake（ggml-vulkan 的 find_package 要用）' }
+          "VULKAN_SDK=$dir" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+          "$dir\Bin" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
+      - name: 建 whisper（Vulkan）
+        shell: pwsh
+        run: scripts/windows/build-whisper.ps1 -Arch x64 -Out build/whisper-vulkan -Vulkan
+      - name: lavapipe 跑語言偵測，跟 CPU 版比
+        shell: pwsh
+        run: |
+          # CPU 版：同一次建置拿掉 ggml-vulkan
+          New-Item -ItemType Directory -Force build/whisper-cpu, build/models | Out-Null
+          Get-ChildItem build/whisper-vulkan -Filter *.dll | Where-Object Name -ne 'ggml-vulkan.dll' | Copy-Item -Destination build/whisper-cpu
+          # Mesa 的 lavapipe（軟體 Vulkan）
+          $z = Join-Path $env:RUNNER_TEMP 'mesa.7z'
+          Invoke-WebRequest "https://github.com/pal1000/mesa-dist-win/releases/download/$env:MESA_VERSION/mesa3d-$env:MESA_VERSION-release-msvc.7z" -OutFile $z
+          if ((Get-FileHash $z -Algorithm SHA256).Hash.ToLowerInvariant() -ne $env:MESA_SHA256) { throw 'Mesa 的 SHA-256 不對' }
+          7z x $z "-o$env:RUNNER_TEMP\mesa" -y | Out-Null
+          $icd = Get-ChildItem "$env:RUNNER_TEMP\mesa" -Recurse -Filter 'lvp_icd*.json' | Where-Object FullName -match '\\x64\\' | Select-Object -First 1
+          if (-not $icd) { throw '找不到 lavapipe 的 ICD（lvp_icd*.json）' }
+          # 登記到登錄（跟一般的顯示卡驅動一樣）：GitHub 的 Windows 機器用系統管理員權限跑，Vulkan 載入器這時會忽略 VK_DRIVER_FILES、VK_ICD_FILENAMES
+          #（run 40820562359：「Registry lookup failed to get ICD manifest files」「Found no drivers」）
+          New-Item -Path 'HKLM:\SOFTWARE\Khronos\Vulkan\Drivers' -Force | Out-Null
+          New-ItemProperty -Path 'HKLM:\SOFTWARE\Khronos\Vulkan\Drivers' -Name $icd.FullName -Value 0 -PropertyType DWord -Force | Out-Null
+          $env:VK_DRIVER_FILES = $icd.FullName
+          $env:VK_ICD_FILENAMES = $icd.FullName
+          # ggml-vulkan 預設只用獨顯、內顯，lavapipe 回報的是 CPU 類型（run 40821775975：「ggml_vulkan: No devices found.」）：直接指定第 0 個裝置。
+          # 使用者的 AMD 顯示卡（獨顯、Radeon 內顯）是獨顯、內顯類型，app 不用設這個
+          $env:GGML_VK_VISIBLE_DEVICES = '0'
+          # Vulkan 的載入器：run 40819293791 少了它，ggml-vulkan.dll 載入失敗，ggml 又是安靜地跳過，只剩 CPU
+          $rt = Join-Path $env:RUNNER_TEMP 'vulkan-rt.zip'
+          Invoke-WebRequest "https://sdk.lunarg.com/sdk/download/$env:VULKAN_SDK_VERSION/windows/VulkanRT-X64-$env:VULKAN_SDK_VERSION-Components.zip" -OutFile $rt
+          if ((Get-FileHash $rt -Algorithm SHA256).Hash.ToLowerInvariant() -ne $env:VULKAN_RT_SHA256) { throw 'Vulkan 執行階段的 SHA-256 不對' }
+          Expand-Archive $rt -DestinationPath "$env:RUNNER_TEMP\vulkan-rt" -Force
+          $loader = Get-ChildItem "$env:RUNNER_TEMP\vulkan-rt" -Recurse -Filter 'vulkan-1.dll' | Where-Object FullName -match '\\x64\\' | Select-Object -First 1
+          if (-not $loader) { throw '找不到 x64 的 vulkan-1.dll' }
+          $env:PATH = "$($loader.DirectoryName);$env:PATH"
+          & (Join-Path $loader.DirectoryName 'vulkaninfo.exe') --summary
+          # 直接載入一次 ggml-vulkan.dll：載入失敗時印出原因（ggml 自己載入失敗不會說）
+          try { [System.Runtime.InteropServices.NativeLibrary]::Load((Resolve-Path build/whisper-vulkan/ggml-vulkan.dll).Path) | Out-Null; Write-Host 'ggml-vulkan.dll 載入成功' }
+          catch { throw "ggml-vulkan.dll 載入失敗：$($_.Exception.Message)" }
+          # 語言偵測的模型（同 ModelStore.LanguageDetection）、whisper.cpp 原始碼附的英文錄音
+          Invoke-WebRequest $env:BASE_MODEL_URL -OutFile build/models/ggml-base-q5_1.bin
+          if ((Get-FileHash build/models/ggml-base-q5_1.bin -Algorithm SHA256).Hash.ToLowerInvariant() -ne $env:BASE_MODEL_SHA256) { throw '模型的 SHA-256 不對' }
+          $jfk = Join-Path ([System.IO.Path]::GetTempPath()) 'shiyin-whisper-x64\whisper.cpp\samples\jfk.wav'
+          if (-not (Test-Path $jfk)) { throw "找不到 $jfk" }
+          # 語言偵測要湊滿 10 秒有聲音的錄音（LanguageCollector）：jfk.wav 只有 11 秒（中間有停頓），接成三遍（run 40819293791 的 CPU 版因此沒有結果）
+          $bytes = [System.IO.File]::ReadAllBytes($jfk)
+          $i = 12; $fmt = $null; $data = $null
+          while ($i -lt $bytes.Length - 8) {
+              $id = [System.Text.Encoding]::ASCII.GetString($bytes, $i, 4); $n = [BitConverter]::ToInt32($bytes, $i + 4)
+              if ($id -eq 'fmt ') { $fmt = New-Object byte[] $n; [Array]::Copy($bytes, $i + 8, $fmt, 0, $n) }
+              if ($id -eq 'data') { $data = New-Object byte[] $n; [Array]::Copy($bytes, $i + 8, $data, 0, $n); break }
+              $i += 8 + $n + ($n % 2)
+          }
+          if (-not $fmt -or -not $data) { throw 'jfk.wav 讀不到 fmt 或 data' }
+          $ms = New-Object System.IO.MemoryStream; $w = New-Object System.IO.BinaryWriter($ms)
+          $total = $data.Length * 3
+          $w.Write([System.Text.Encoding]::ASCII.GetBytes('RIFF')); $w.Write([int](4 + 8 + $fmt.Length + 8 + $total)); $w.Write([System.Text.Encoding]::ASCII.GetBytes('WAVE'))
+          $w.Write([System.Text.Encoding]::ASCII.GetBytes('fmt ')); $w.Write([int]$fmt.Length); $w.Write($fmt)
+          $w.Write([System.Text.Encoding]::ASCII.GetBytes('data')); $w.Write([int]$total); foreach ($k in 1..3) { $w.Write($data) }
+          $w.Flush()
+          $wav = Join-Path (Resolve-Path build).Path 'jfk3.wav'
+          [System.IO.File]::WriteAllBytes($wav, $ms.ToArray())
+          $env:SHIYIN_MODELS = (Resolve-Path build/models).Path
+          $result = @{}
+          foreach ($kind in 'cpu', 'vulkan') {
+              $env:SHIYIN_NATIVE_DIR = (Resolve-Path "build/whisper-$kind").Path
+              $info = dotnet run --project windows/src/Shiyin.Eval -c Release -- info
+              if ($LASTEXITCODE -ne 0) { throw "$kind：info 失敗" }
+              $gpu = ($info | Select-String '^gpu: ').Line
+              Write-Host "$kind $gpu"
+              if ($kind -eq 'vulkan' -and $gpu -notmatch 'Vulkan') { throw "Vulkan 版沒有用到 Vulkan 的裝置：$gpu" }
+              if ($kind -eq 'cpu' -and $gpu -ne 'gpu: ') { throw "CPU 版不應該有顯示卡：$gpu" }
+              dotnet run --project windows/src/Shiyin.Eval -c Release -- detect-eval $wav 0 "build/detect-$kind.json"
+              if ($LASTEXITCODE -ne 0) { throw "$kind：detect-eval 失敗" }
+              $result[$kind] = (Get-Content "build/detect-$kind.json" -Raw | ConvertFrom-Json).probabilities
+              Write-Host "$kind $($result[$kind] | ConvertTo-Json -Compress)"
+          }
+          # Vulkan 用 fp16 算、CPU 用 fp32，本來就有一點差（Mac 的 Metal、NVIDIA 的 CUDA 也是 fp16）：run 40822650922 英文 0.9854 對 0.9980。
+          # 算錯的 Vulkan 會判斷錯語言或機率亂掉，所以要同一個語言、差 ≤ 0.03
+          $best = { param($p) ('zh', 'en', 'ja' | Sort-Object { -$p.$_ })[0] }
+          if ((& $best $result['cpu']) -ne (& $best $result['vulkan'])) { throw 'Vulkan 版跟 CPU 版判斷出的語言不同' }
+          foreach ($lang in 'zh', 'en', 'ja') {
+              $d = [math]::Abs($result['cpu'].$lang - $result['vulkan'].$lang)
+              if ($d -gt 0.03) { throw "Vulkan 版跟 CPU 版的 $lang 機率差 $d（上限 0.03）" }
+          }
+          if ($result['vulkan'].en -lt 0.5) { throw '英文錄音沒有判斷成英文' }
+          Write-Host 'Vulkan 版跟 CPU 版的語言偵測一致'
+      - name: 打包（shim 不放：app 用安裝資料夾的）
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          $files = Get-ChildItem build/whisper-vulkan -Filter *.dll | Where-Object Name -ne 'shiyin_whisper.dll'
+          Compress-Archive -Path $files.FullName -DestinationPath dist/whisper-vulkan-x64.zip -CompressionLevel Optimal
+          Write-Host '每個檔案的大小（填進 ModelStore.VulkanFiles）：'
+          foreach ($f in $files) { Write-Host "  (`"$($f.Name)`", $($f.Length))" }
+          $zip = Get-Item dist/whisper-vulkan-x64.zip
+          $sha = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          Write-Host "whisper-vulkan-x64.zip：$($zip.Length) bytes，SHA-256 $sha"
+          "$sha  whisper-vulkan-x64.zip" | Out-File -Encoding ascii dist/whisper-vulkan-x64.zip.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: whisper-vulkan-x64
+          path: dist/
+      - name: 上傳到 prerelease
+        if: ${{ inputs.publish }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $notes = "拾音 Windows 版的 AMD 顯示卡加速元件：whisper.cpp b5454（commit d1be6fd）的 Vulkan 版，app 偵測到 AMD 顯示卡時自動下載（design-windows §8、D127）。不是新版本的拾音。"
+          gh release view $env:RELEASE_TAG 2>$null
+          if ($LASTEXITCODE -ne 0) {
+              gh release create $env:RELEASE_TAG --prerelease --title 'Windows 元件：AMD 顯示卡加速（Vulkan，whisper.cpp b5454）' --notes $notes --target $env:GITHUB_SHA
+          }
+          gh release upload $env:RELEASE_TAG dist/whisper-vulkan-x64.zip dist/whisper-vulkan-x64.zip.sha256 --clobber

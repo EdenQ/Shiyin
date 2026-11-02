@@ -25,6 +25,9 @@ search_hit = source[source.index('struct SearchHit:'):source.index('final class 
 HARNESS = r'''
 import Foundation
 import GRDB
+import os
+
+let log = Logger(subsystem: "com.weiwei.shiyin.fork-regression", category: "test")
 
 __SEARCH_HIT__
 enum AppMigrations {
@@ -159,7 +162,8 @@ with tempfile.TemporaryDirectory(prefix='ma-fork-regression-') as work:
                     '-I', str(products), '-I', str(grdb), str(swift),
                     *[str(ROOT/name) for name in ['Sources/Shiyin/Model/SpeakerTagging.swift',
                         'Sources/Shiyin/Model/MeetingNotes.swift',
-                        'Sources/Shiyin/Model/MeetingLanguage.swift', 'Sources/Shiyin/Services/Paths.swift']],
+                        'Sources/Shiyin/Model/MeetingLanguage.swift', 'Sources/Shiyin/Services/Paths.swift',
+                        'Sources/Shiyin/Services/DesktopApps.swift']],
                     str(model), str(obj), '-lsqlite3',
                     '-o', str(executable)], check=True)
     subprocess.run([str(executable), str(work)], check=True)

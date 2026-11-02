@@ -1,6 +1,17 @@
 {
   "sourceLanguage": "zh-Hant",
   "strings": {
+    "%@ 還沒登入，登入之後才會用它整理。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ isn’t signed in. Shiyin will use it once you sign in."
+          }
+        }
+      }
+    },
     "%@失敗（錯誤代碼 %@）": {
       "extractionState": "manual",
       "localizations": {
@@ -63,6 +74,39 @@
           "stringUnit": {
             "state": "translated",
             "value": "- Graphics: %1$@; whisper: %2$@"
+          }
+        }
+      }
+    },
+    "100%（標準）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "100% (Default)"
+          }
+        }
+      }
+    },
+    "AMD 顯示卡加速下載好了，重新開啟拾音後，轉錄就會用顯示卡": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AMD GPU acceleration is ready. Reopen Shiyin and transcription will use the GPU."
+          }
+        }
+      }
+    },
+    "AMD 顯示卡加速（Vulkan）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AMD GPU acceleration (Vulkan)"
           }
         }
       }
@@ -151,6 +195,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "PDF and docx use a serif font for section headings; Markdown is good for pasting into Notion or GitHub."
+          }
+        }
+      }
+    },
+    "Qwen3-ASR 的 AMD 顯示卡加速（Vulkan）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AMD GPU acceleration for Qwen3-ASR (Vulkan)"
           }
         }
       }
@@ -408,6 +463,39 @@
         }
       }
     },
+    "之前選的麥克風（沒有接上，會用系統預設）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Previously chosen microphone (not connected; using system default)"
+          }
+        }
+      }
+    },
+    "之後的錄音用 %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New recordings will use %@"
+          }
+        }
+      }
+    },
+    "之後的錄音用系統預設的麥克風（%@）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New recordings will use the system default microphone (%@)"
+          }
+        }
+      }
+    },
     "之後隨時可以從「輔助說明」選單（⌘?）或選單列的拾音圖示，再打開這份說明。": {
       "extractionState": "manual",
       "localizations": {
@@ -426,6 +514,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "You can open this guide again any time from the system tray or Settings → Advanced."
+          }
+        }
+      }
+    },
+    "也可以用 Ctrl＋＋、Ctrl＋－ 調整": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You can also press Ctrl+Plus or Ctrl+Minus."
           }
         }
       }
@@ -492,6 +591,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "Identifying speakers on the enterprise server"
+          }
+        }
+      }
+    },
+    "你有 Claude 桌面版：另外安裝 Claude Code（命令列版）之後，拾音就能用你的 Claude 訂閱（Pro 以上）整理。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You have the Claude desktop app. Install Claude Code (the command-line version) as well, and Shiyin can summarize with your Claude subscription (Pro or higher)."
+          }
+        }
+      }
+    },
+    "使用 %@ 附的 codex（這台電腦沒有另外安裝 Codex CLI）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Using the codex bundled with %@ (Codex CLI isn't installed separately on this PC)"
           }
         }
       }
@@ -595,6 +716,17 @@
         }
       }
     },
+    "刪除所有認識的人的聲音特徵？": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete the voice samples of everyone Shiyin knows?"
+          }
+        }
+      }
+    },
     "到逐字稿改名": {
       "extractionState": "manual",
       "localizations": {
@@ -646,6 +778,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Exporting PDF needs the Microsoft Edge WebView2 Runtime, which isn't installed on this PC. You can download it free from Microsoft, or export to Word instead."
+          }
+        }
+      }
+    },
+    "匯出會議紀錄、逐字稿或錄音（Ctrl+E）；箭頭可以直接複製會議紀錄": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export notes, transcript, or audio (Ctrl+E). Use the arrow to copy the notes."
           }
         }
       }
@@ -749,6 +892,17 @@
         }
       }
     },
+    "已改用 %@，之後的錄音也用這支": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switched to %@. New recordings will use it too."
+          }
+        }
+      }
+    },
     "已登入企業伺服器": {
       "extractionState": "manual",
       "localizations": {
@@ -845,6 +999,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "The quick recognition model is still downloading"
+          }
+        }
+      }
+    },
+    "打開 PowerShell，貼上這一行安裝：": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open PowerShell and paste this line to install:"
           }
         }
       }
@@ -1091,6 +1256,17 @@
         }
       }
     },
+    "拾音：正在打開 %@。在那裡登入之後，回到拾音按「重新檢查」。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shiyin: opening %@. After you sign in there, come back to Shiyin and click “Check Again”."
+          }
+        }
+      }
+    },
     "拾音：正在打開瀏覽器登入 %@。登入完成後，回到拾音按「重試」或「測試整理工具」。": {
       "extractionState": "manual",
       "localizations": {
@@ -1168,6 +1344,17 @@
         }
       }
     },
+    "按側欄上方的「錄音」（Ctrl+R）開始錄；點按鈕旁的箭頭可以選錄音來源和麥克風，線上會議請選「麥克風＋電腦聲音（線上會議）」，對方的聲音也會錄進來。錄音畫面會寫出正在用哪一支麥克風，點一下可以換；藍牙耳機連著時 Windows 可能自動改用耳機的麥克風，拾音會提醒你。已經有錄音檔的話，拖進視窗、按「匯入」（Ctrl+O），或在檔案總管按右鍵用拾音開啟都可以。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Click Record at the top of the sidebar (Ctrl+R) to start. The arrow next to it chooses the source and microphone — for online meetings pick “Microphone + computer audio (online meeting)” so the other side is recorded too. While recording, the microphone in use is shown and you can click it to switch; if a Bluetooth headset is connected, Windows may switch to its microphone, and Shiyin will let you know. If you already have a recording, drag it into the window, click Import (Ctrl+O), or right-click it in File Explorer and open it with Shiyin."
+          }
+        }
+      }
+    },
     "按側欄上方的「錄音」（Ctrl+R）開始錄；點按鈕旁的箭頭可以選錄音來源，線上會議請選「麥克風＋電腦聲音（線上會議）」，對方的聲音也會錄進來。已經有錄音檔的話，拖進視窗、按「匯入」（Ctrl+O），或在檔案總管按右鍵用拾音開啟都可以。": {
       "extractionState": "manual",
       "localizations": {
@@ -1175,6 +1362,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "Click Record at the top of the sidebar (Ctrl+R) to start. The arrow next to it chooses the source — for online meetings pick “Microphone + computer audio (online meeting)” so the other side is recorded too. If you already have a recording, drag it into the window, click Import (Ctrl+O), or right-click it in File Explorer and open it with Shiyin."
+          }
+        }
+      }
+    },
+    "按右上角的「匯出」（Ctrl+E）：會議紀錄可以存成 Markdown、PDF、Word；逐字稿可以存成 txt、srt、vtt、Word；錄音可以存成 m4a、wav；「整場會議（.shiyin）」可以傳給同事，對方雙擊就能匯入（Mac 版也可以）。「匯出」旁邊的箭頭可以直接複製會議紀錄，貼到 Notion、Slack 或郵件。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Click Export at the top right (Ctrl+E): notes can be saved as Markdown, PDF or Word; transcripts as txt, srt, vtt or Word; recordings as m4a or wav. Send a “Whole meeting (.shiyin)” to a colleague and they can import it with a double-click (on the Mac version too). The arrow next to Export copies the notes so you can paste them straight into Notion, Slack or email."
+          }
+        }
+      }
+    },
+    "按工具列的「錄音」（⌘R）開始錄；點按鈕旁的箭頭可以選錄音來源和麥克風，線上會議請選「麥克風＋電腦聲音（線上會議）」，對方的聲音也會錄進來。錄音畫面的音量條旁寫著正在用哪一支麥克風，點一下可以換；藍牙耳機連著時，系統可能自動改用耳機的麥克風，現場會議記得換成這台 Mac 的麥克風。已經有錄音檔的話，拖進視窗、按「匯入」（⌘O），或拖到 Dock 上的拾音圖示都可以。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Click “Record” (⌘R) in the toolbar to start. Click the arrow next to it to choose the source and microphone; for online meetings choose “Microphone + computer audio (online meetings)” so the other side is recorded too. While recording, the microphone in use is shown next to the level meter; click it to switch. When Bluetooth headphones are connected, macOS may switch to their microphone, so for in-person meetings switch back to this Mac’s microphone. If you already have a recording, drag it into the window, click “Import” (⌘O), or drop it on the Shiyin icon in the Dock."
           }
         }
       }
@@ -1197,6 +1406,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "Play"
+          }
+        }
+      }
+    },
+    "改用 %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use %@"
+          }
+        }
+      }
+    },
+    "放大、縮小會議內容的文字": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Make meeting text bigger or smaller"
           }
         }
       }
@@ -1311,6 +1542,39 @@
         }
       }
     },
+    "會議內容的文字回到實際大小": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reset meeting text to actual size"
+          }
+        }
+      }
+    },
+    "會議內容的文字大小": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meeting text size"
+          }
+        }
+      }
+    },
+    "會議內容的文字大小：%@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meeting text size: %@"
+          }
+        }
+      }
+    },
     "會議可以分資料夾：在會議上按右鍵（或「更多」）選「移到資料夾」→「新資料夾…」。正在看某個資料夾時，新錄的和匯入的會議都會放進去。": {
       "extractionState": "manual",
       "localizations": {
@@ -1329,6 +1593,39 @@
           "stringUnit": {
             "state": "translated",
             "value": "Meeting date: from each file's name or modification date"
+          }
+        }
+      }
+    },
+    "有 AMD 顯示卡、選了 Qwen3-ASR 時自動下載，Qwen 改用顯示卡轉錄。%@，解開約 %@（llama.cpp 官方的 Vulkan 版）。刪除後不會再自動下載。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Downloaded automatically when this PC has an AMD GPU and Qwen3-ASR is selected, so Qwen transcribes on the GPU. %@, about %@ unpacked (the official llama.cpp Vulkan build). Once deleted, it won’t be downloaded again automatically."
+          }
+        }
+      }
+    },
+    "有 AMD 顯示卡時自動下載，正式轉錄改用顯示卡。%@，解開約 %@（拾音用同一版 whisper.cpp 建的 Vulkan 版）。刪除後不會再自動下載。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Downloaded automatically when this PC has an AMD GPU, so final transcription runs on the GPU. %@, about %@ unpacked (a Vulkan build Shiyin makes from the same whisper.cpp version). Once deleted, it won’t be downloaded again automatically."
+          }
+        }
+      }
+    },
+    "有 Claude 桌面版，但拾音要另外安裝 Claude Code（命令列版）：在終端機執行 %@，再執行 claude 登入": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The Claude desktop app is installed, but Shiyin needs Claude Code (the command-line version): run %@ in Terminal, then sign in by running claude"
           }
         }
       }
@@ -1410,6 +1707,28 @@
         }
       }
     },
+    "正在用「%@」收音：這是藍牙耳機的麥克風，人不在旁邊時錄不到現場的聲音。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recording with “%@”, a Bluetooth headset microphone. If you're not near it, it won't pick up the room."
+          }
+        }
+      }
+    },
+    "正在用這支麥克風收音，點一下可以換": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recording with this microphone. Click to switch."
+          }
+        }
+      }
+    },
     "正在錄音，要結束拾音嗎？": {
       "extractionState": "manual",
       "localizations": {
@@ -1443,6 +1762,17 @@
         }
       }
     },
+    "每天送一份匿名的使用統計（版本、系統、錄音和轉錄的分鐘數、用了哪些功能、失敗的次數和種類），不含任何會議內容。在設定 → 進階可以關掉。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Once a day, Shiyin sends an anonymous usage summary (version, system, minutes recorded and transcribed, which features were used, and how many tasks failed and of what kind) that never includes meeting content. You can turn it off in Settings → Advanced."
+          }
+        }
+      }
+    },
     "沒有權限替換「%@」裡的拾音，已經打開下載好的 DMG，請把拾音拖進「應用程式」取代舊版": {
       "extractionState": "manual",
       "localizations": {
@@ -1461,6 +1791,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Couldn't delete the key from Credential Manager (error %lld)"
+          }
+        }
+      }
+    },
+    "沒辦法執行 %@ 附的 codex（%@）。可以另外安裝 Codex CLI（npm install -g @openai/codex）再試。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't run the codex bundled with %@ (%@). You can install Codex CLI (npm install -g @openai/codex) and try again."
           }
         }
       }
@@ -1575,6 +1916,28 @@
         }
       }
     },
+    "系統預設（%@）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "System default (%@)"
+          }
+        }
+      }
+    },
+    "紀錄、逐字稿、提問、即時逐字稿和我的筆記的文字。也可以用 Ctrl+加號、Ctrl+減號調整，Ctrl+0 回到標準大小。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Text in Notes, Transcript, Ask, the live transcript and My notes. You can also press Ctrl+Plus or Ctrl+Minus, and Ctrl+0 to return to the default size."
+          }
+        }
+      }
+    },
     "結束拾音": {
       "extractionState": "manual",
       "localizations": {
@@ -1619,6 +1982,39 @@
         }
       }
     },
+    "複製會議紀錄：Markdown": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy Notes: Markdown"
+          }
+        }
+      }
+    },
+    "複製會議紀錄：保留格式（貼到 Word、Notion、郵件）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy Notes: Formatted (for Word, Notion, email)"
+          }
+        }
+      }
+    },
+    "複製會議紀錄：純文字（貼到 Slack、訊息）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy Notes: Plain Text (for Slack, Messages)"
+          }
+        }
+      }
+    },
     "要先安裝並登入對應的 CLI。登入後可以在「設定 → 整理工具」按「測試整理工具」確認。": {
       "extractionState": "manual",
       "localizations": {
@@ -1637,6 +2033,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Enjoying Shiyin? Buy me a coffee."
+          }
+        }
+      }
+    },
+    "認識的人": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "People Shiyin Knows"
           }
         }
       }
@@ -1769,6 +2176,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Couldn't read the key from Credential Manager (error %lld)"
+          }
+        }
+      }
+    },
+    "貼上 API key 並按「儲存」後才會用 %@ 整理；沒有 key 的話可以選「先不用」。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shiyin uses %@ after you paste an API key and click “Save”. No key? Choose “Not now”."
           }
         }
       }
@@ -2004,6 +2422,17 @@
         }
       }
     },
+    "這台電腦找不到 Claude Code（命令列版）。Claude 桌面版不能直接用，請到設定 → 整理工具照說明安裝 Claude Code；或改用 API（填 API key）、選「不整理」": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude Code (the command-line version) isn't installed on this PC. The Claude desktop app can't be used directly: go to Settings → Summarizer and follow the steps to install Claude Code, or choose an API (with an API key) or “Don't summarize”."
+          }
+        }
+      }
+    },
     "這台電腦找不到 claude。沒有在用 Claude Code 的話，請到設定 → 整理工具改用 API（填 API key）或選「不整理」": {
       "extractionState": "manual",
       "localizations": {
@@ -2033,6 +2462,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "This PC doesn't have Claude Code or Codex. To have AI write your meeting notes, choose an API and paste an API key (there's a link to get one). You can also set this up later; recording and transcripts work either way."
+          }
+        }
+      }
+    },
+    "這台電腦沒有安裝 Claude Code（命令列版），安裝方法在下面": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude Code (the command-line version) isn't installed on this PC. See how to install it below"
           }
         }
       }
@@ -2110,6 +2550,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "The connection timed out"
+          }
+        }
+      }
+    },
+    "進行中的轉錄或整理會中斷，下次開啟時從頭重跑。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transcription or summarizing in progress will stop and start over the next time you open Shiyin."
           }
         }
       }
@@ -2224,6 +2675,17 @@
         }
       }
     },
+    "錄音中 15 分鐘沒人說話時提醒你；再 15 分鐘還是沒人說話就自動停止，只轉錄到最後有人說話的地方，錄音檔完整保留。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shiyin reminds you after 15 minutes with nobody talking. After 15 more minutes of silence it stops recording and transcribes only up to the last speech; the full recording is kept."
+          }
+        }
+      }
+    },
     "錄音中很久沒人說話，拾音自動停止了錄音。要轉錄全部的話，用「更多 → 重新處理 → 重新轉錄」。": {
       "extractionState": "manual",
       "localizations": {
@@ -2279,6 +2741,28 @@
         }
       }
     },
+    "錄音寫不進磁碟（可能是空間不足），已經停止錄音。停止前錄到的部分有保留，會照常轉錄。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shiyin couldn't write the recording to disk (the disk may be full), so recording has stopped. Everything recorded before that is kept and will be transcribed as usual."
+          }
+        }
+      }
+    },
+    "錄音按鈕旁的箭頭、錄音畫面的麥克風名稱也可以換麥克風。藍牙耳機連著時，Windows 可能自動改用耳機的麥克風，人不在旁邊就錄不到現場的聲音。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You can also switch microphones from the arrow next to Record or by clicking the microphone name while recording. If a Bluetooth headset is connected, Windows may switch to its microphone, which won't pick up the room if you're not near it."
+          }
+        }
+      }
+    },
     "錄音會先存好，下次開啟拾音時開始轉錄。": {
       "extractionState": "manual",
       "localizations": {
@@ -2297,6 +2781,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Recordings are sent to %@ (your company's server) for transcription and deleted afterwards; speakers are identified on the server too, and voiceprints stay on this computer. Uses the glossary. If the server can't be reached, Shiyin waits, or you can transcribe on this computer instead."
+          }
+        }
+      }
+    },
+    "錄音會送到 %@（公司的伺服器）轉錄，轉完就刪；說話者辨識和聲紋在這台 Mac 上做，聲紋不會送出。會參考詞彙表。連不上時會等，也可以改在這台 Mac 轉錄。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recordings are sent to %@ (your company's server) for transcription and deleted afterwards; speaker identification and voiceprints stay on this Mac. Uses the glossary. If the server can't be reached, Shiyin waits, or you can transcribe on this Mac instead."
           }
         }
       }
@@ -2334,6 +2829,17 @@
         }
       }
     },
+    "開始錄音（Ctrl+R），用%@辨識；點右邊的箭頭可以改錄音來源、麥克風和語言": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start recording (Ctrl+R), recognizing %@; click the arrow on the right to change the source, microphone, and language"
+          }
+        }
+      }
+    },
     "開始錄音（Ctrl+R），用%@辨識；點右邊的箭頭可以改錄音來源和語言": {
       "extractionState": "manual",
       "localizations": {
@@ -2363,6 +2869,50 @@
           "stringUnit": {
             "state": "translated",
             "value": "Computer audio"
+          }
+        }
+      }
+    },
+    "電腦聲音的擷取中斷了，重新連接失敗：%@。會繼續重試，錄音沒有停": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Computer audio capture stopped and couldn't reconnect: %@. Shiyin will keep trying; recording continues."
+          }
+        }
+      }
+    },
+    "顯示": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Display"
+          }
+        }
+      }
+    },
+    "麥克風沒有送出聲音，重新連接失敗：%@。會繼續重試，錄音沒有停": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The microphone stopped sending audio and couldn't reconnect: %@. Shiyin will keep trying; recording continues."
+          }
+        }
+      }
+    },
+    "麥克風：%@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Microphone: %@"
           }
         }
       }

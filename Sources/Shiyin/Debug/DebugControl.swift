@@ -1,6 +1,7 @@
 #if DEBUG
 import FluidAudio
 import AVFoundation
+import CoreAudio
 import AppKit
 import SwiftUI
 import UserNotifications
@@ -144,6 +145,30 @@ enum DebugControl {
         case "speakerhint": model.selection = id; if args.count > 2, args[2] == "dismiss" { model.dismissSpeakerHint() }
         case "minspeakers": model.selection = id; model.setMinSpeakers(args[2] == "auto" ? nil : Int(args[2]))   // 錄音中的「人數」選單（design §26.2）
         case "levelhint": if args.count > 1, args[1] == "dismiss" { model.recorder.dismissLevelHint() }   // 收音提醒按「知道了」
+        // 麥克風（design §38.7）：fakemic <名稱> <bluetooth 0|1> [內建麥克風的名稱]｜off：加假的麥克風（只在記憶體），
+        // 第一支當成系統預設；micswitch <uid|default>：等於在錄音畫面選一支；michint dismiss：藍牙提示按「知道了」
+        case "fakemic":
+            let monitor = MicrophoneMonitor.shared
+            if args.count < 3 || args[1] == "off" {
+                monitor.fakeDefault = nil
+                monitor.fakes = []
+            } else {
+                var fakes = [AudioDevices.Device(uid: "fake-mic-1", name: args[1],
+                                                 transport: args[2] == "1" ? kAudioDeviceTransportTypeBluetooth : kAudioDeviceTransportTypeUSB)]
+                if args.count > 3 { fakes.append(AudioDevices.Device(uid: "fake-mic-builtin", name: args[3], transport: kAudioDeviceTransportTypeBuiltIn)) }
+                monitor.fakes = fakes
+                monitor.fakeDefault = "fake-mic-1"
+            }
+        case "micswitch": model.switchMicrophone(args[1] == "default" ? "" : args[1])
+        case "michint": if args.count > 1, args[1] == "dismiss" { model.recorder.dismissMicHint() }
+        // textsize <−1～5|bigger|smaller|actual>：會議內容的文字大小（design §38.7；寫共用設定，測完 defaults delete contentTextSize）
+        case "textsize":
+            switch args[1] {
+            case "bigger": TextSize.change(1)
+            case "smaller": TextSize.change(-1)
+            case "actual": TextSize.change(nil)
+            default: UserDefaults.standard.set(Int(args[1]) ?? 0, forKey: AppSettings.textSizeKey)
+            }
         case "namespeakers": if let id { try? model.db.enqueue(id, kind: .nameSpeakers); model.runner.wake() }
         case "applysuggestion": model.selection = id; model.applySpeakerSuggestion(Int(args[2]) ?? 1)
         case "dismisssuggestion": model.selection = id; model.dismissSpeakerSuggestion(Int(args[2]) ?? 1)
@@ -289,6 +314,11 @@ enum DebugControl {
             }
         case "summon":   // summon：把拾音的視窗移到目前的桌面、放到最前面（真的畫面上用輔助使用測試時，視窗在別的桌面會按不到）
             for window in NSApp.windows where window.isVisible && window.frame.width > 400 {
+                // preview 的視窗本來就在每個桌面：再加 moveToActiveSpace 會被 AppKit 丟例外、整個 app 當掉（2026-10-29）
+                if window.collectionBehavior.contains(.canJoinAllSpaces) {
+                    window.makeKeyAndOrderFront(nil)
+                    continue
+                }
                 window.collectionBehavior.insert(.moveToActiveSpace)
                 window.makeKeyAndOrderFront(nil)
                 window.collectionBehavior.remove(.moveToActiveSpace)
@@ -606,7 +636,7 @@ enum DebugControl {
             },
             "glossary": model.glossary.map(\.term),
             "glossarySuggestions": model.glossarySuggestions.map { ["term": $0.term, "source": $0.sourceLabel] },
-            "environment": model.environment.items.map { ["name": $0.name, "ok": $0.ok] },
+            "environment": model.environment.items.map { ["name": $0.name, "ok": $0.ok, "detail": $0.detail, "fix": $0.fix] },
             "meetings": model.meetings.map { ["id": $0.id, "title": $0.meeting.displayTitle, "date": $0.meeting.meetingDate,
                                                "status": model.status($0).label, "audio": $0.meeting.audioFile,
                                                "template": $0.meeting.templateId, "folder": $0.meeting.folder] },
@@ -619,7 +649,13 @@ enum DebugControl {
                 ["lane": lane.rawValue, "job": r.job.id ?? 0, "kind": r.job.kind.rawValue, "stage": r.stage, "progress": r.progress ?? -1,
                  "remaining": r.remaining ?? -1, "server": r.server.map { ["text": $0.text, "waiting": $0.waiting] } as Any] },
             "enterprise": EnterpriseServer.shared.debugState,
+            // 找到的 claude、codex：使用者自己裝的，或桌面版附的（design §37.4）
+            "tools": ["claude": Paths.locateTool("claude").map { ["path": $0.url.path, "desktopApp": $0.desktopApp ?? ""] } as Any,
+                      "codex": Paths.locateTool("codex").map { ["path": $0.url.path, "desktopApp": $0.desktopApp ?? "",
+                                                                "extraPath": $0.extraPath] } as Any,
+                      "claudeDesktop": DesktopApps.hasClaude],
             "transcriptionEngine": AppSettings.transcriptionEngine,
+            "textSize": TextSize.level,   // 會議內容的文字大小（design §38.5）
             "player": ["loaded": model.player.isLoaded, "playing": model.player.isPlaying,
                        "time": model.player.currentTime, "duration": model.player.duration, "rate": model.player.rate],
             "recorder": ["recording": model.recorder.isRecording, "paused": model.recorder.isPaused,
@@ -631,7 +667,13 @@ enum DebugControl {
                          "idle": model.recorder.idleInfo,   // 忘了停止錄音（design §35）
                          "failure": model.recorder.failureMessage ?? "", "language": model.recorder.language.rawValue,
                          "languageSwitch": model.recorder.languageSwitch.map { "\($0.from.rawValue)→\($0.to.rawValue)" } ?? "",
-                         "deviceWarning": model.recorder.deviceWarning ?? ""],
+                         "deviceWarning": model.recorder.deviceWarning ?? "",
+                         // 麥克風（design §38.7）
+                         "micDevice": model.recorder.micDevice.map { ["name": $0.name, "uid": $0.uid, "bluetooth": $0.isBluetooth] } as Any,
+                         "micHint": model.recorder.micHint.map { ["text": $0.text, "builtIn": $0.builtIn?.name ?? ""] } as Any],
+            "microphones": ["inputs": MicrophoneMonitor.shared.inputs.map { ["name": $0.name, "uid": $0.uid, "bluetooth": $0.isBluetooth,
+                                                                            "builtIn": $0.isBuiltIn] },
+                            "default": MicrophoneMonitor.shared.defaultInput?.uid ?? "", "setting": AppSettings.inputDeviceUID],
             "languages": ["defaultMeeting": AppSettings.defaultMeetingLanguage.rawValue, "interface": MeetingLanguage.interface.rawValue,
                           "preferred": Locale.preferredLanguages.first ?? ""],
             "models": ["breeze": "\(model.models.state)", "japanese": "\(model.models.state(.japanese))",

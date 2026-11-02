@@ -1,15 +1,14 @@
 # 拾音 Shiyin Windows 版：設計
 
-> 狀態：草稿（2026-10-20）。對應 `requirements.md` 第 22 節（R26～R28）。
+> 狀態：4.0.0 起發布。對應 `requirements.md` 第 22 節（R26～R28）。
 > Mac 版的設計在 `design.md`，本文件以「M§n」指那邊的章節。行為跟 Mac 相同的部分只寫「同 M§n」，這裡只寫 Windows 不同的地方。
-> 標「待 T-W#」的選擇要等 §17 的實驗做完才定案；做完後把結果寫進對應的章節和決策紀錄，拿掉標記。
 > 套件版本在 `windows/Directory.Packages.props` 釘死。
 
 ## 1. 架構
 
 ```
 Shiyin.exe（WinUI 3，單一程序，不需要 Python、ffmpeg、系統管理員權限，也不用另外裝 .NET）
- ├─ Capture        WASAPI 擷取（麥克風）＋ WASAPI process loopback（電腦聲音，排除拾音自己和它開的程式）
+ ├─ Capture        WASAPI 擷取（麥克風）＋ WASAPI loopback（電腦聲音，預設輸出裝置，D129）
  │    ├─► RecordingWriter   16 kHz WAV，左聲道麥克風、右聲道電腦聲音（同 M§5.2），WAVRepair
  │    └─► LiveTranscriber   sherpa-onnx：Silero VAD ＋ SenseVoice → 即時逐字稿（暫定＋定稿）
  ├─ JobRunner      三條線（同 M§21.2）
@@ -44,14 +43,14 @@ Shiyin.exe（WinUI 3，單一程序，不需要 Python、ffmpeg、系統管理�
 |---|---|---|
 | 語言、介面（R26.3） | C# .NET 10（LTS，支援到 2028-11）＋ WinUI 3：Windows App SDK 2.5，**只參考用到的元件套件**（WinUI、Foundation、InteractiveExperiences） | 使用者決定（D42）。整包的 Windows App SDK 會帶進 Windows ML 的 `onnxruntime.dll`，跟 sherpa-onnx 的同名檔衝突 |
 | 麥克風（R1.1） | NAudio 3.3（MIT，`NAudio.Wasapi`）；不行就用 CsWin32 自己包 WASAPI | 3.x 是 2026-08 才出的新大版，版本釘死 |
-| 電腦聲音（R1.2） | WASAPI process loopback，`EXCLUDE_TARGET_PROCESS_TREE` 排除拾音自己（NAudio 3 的 `WithProcessLoopback`） | 對應 Mac 的「全域 tap 排除自己」；需要 build 20348 以上，Windows 11 都有 |
+| 電腦聲音（R1.2、R54） | 預設輸出裝置的 WASAPI loopback（endpoint loopback），換預設裝置時重開 | 原本用 process loopback 排除拾音自己（對應 Mac 的「全域 tap 排除自己」），新版 Teams 的聲音收到的全是 0（D129） |
 | 即時逐字稿（R2） | sherpa-onnx 1.13（Apache-2.0）：Silero VAD ＋ SenseVoice-Small int8；中文用 OpenccNetLib（MIT，s2twp）轉台灣繁體 | Windows 沒有可用的內建離線中文辨識（D44）；T-W5 的結果見 §7、D61 |
 | 快速辨識（R4.1、R20.8） | 同一個 SenseVoice 模型讀整個檔案 | 取代 macOS 內建（D45） |
-| 正式轉錄（R4） | whisper.cpp b5454（v1.9.5、commit `d1be6fd`，跟 `Package.swift` 同一版）自己建：x64 CPU 各種指令集（Vulkan 還沒做，D64）；ARM64 一個 CPU 版本（clang，§8）。加一層小的 C shim，C# 用 P/Invoke | 結果跟 Mac 一致（R28.4，D46、D56），T-W3 的結果見 §8 |
+| 正式轉錄（R4） | whisper.cpp b5454（v1.9.5、commit `d1be6fd`，跟 `Package.swift` 同一版）自己建：x64 CPU 各種指令集，AMD 的電腦另外下載 Vulkan 版（D127）；NVIDIA 另外下載官方的 CUDA 版（D64）；ARM64 一個 CPU 版本（clang，§8）。加一層小的 C shim，C# 用 P/Invoke | 結果跟 Mac 一致（R28.4，D46、D56），T-W3 的結果見 §8 |
 | 語言偵測（R16） | 同上的 whisper ＋ Whisper base（同 M§18.8） | 同一個模型和門檻；要中英日三個機率，Whisper.net 拿不到 |
 | 說話者辨識、聲紋（R5、R19.3） | sherpa-onnx 的說話者分段（pyannote segmentation-3.0，6 MB）切段落＋聲紋嵌入（3D-Speaker ERes2Net base，512 維，40 MB），自己分群 | 有 .NET 套件、跑在 CPU（D47、D58） |
 | 解碼、壓縮 m4a | Media Foundation（NAudio 的 `MediaFoundationReader`、`MediaFoundationEncoder`）；AIFF 用 NAudio 的 `AiffFileReader` | 系統內建，不用 ffmpeg（R4.5）；解得開的格式見 §8 |
-| 播放（R8.2） | `Windows.Media.Playback.MediaPlayer` 的 `PlaybackRate` | 變速時有沒有保持音高待 T-W9 |
+| 播放（R8.2） | `Windows.Media.Playback.MediaPlayer` 的 `PlaybackRate` | 變速時有沒有保持音高，要在有音效裝置的電腦確認（tasks 的「播放」）；會變調的話換成 WASAPI 加自己的變速 |
 | 資料庫 | Microsoft.Data.Sqlite 10 ＋ SQLitePCLRaw 2.1（自帶 SQLite，含 FTS5、有 win-arm64），Dapper | trigram 要 SQLite 3.34 以上，不能用系統的 |
 | API key | 認證管理員（CredWriteW／CredReadW，CsWin32 產生呼叫） | 對應鑰匙圈（D49） |
 | 設定 | `SHIYIN_HOME\settings.json` | 對應 UserDefaults（D48） |
@@ -75,14 +74,14 @@ Shiyin.exe（WinUI 3，單一程序，不需要 Python、ffmpeg、系統管理�
 
 ```
 windows/
-├── Shiyin.Windows.sln
+├── Shiyin.Windows.slnx
 ├── global.json                 固定 .NET SDK 10.0.x
 ├── Directory.Packages.props    所有套件的版本
 ├── Directory.Build.props       ArtifactsPath：建置輸出放到 repo 外（Mac 是 ~/Library/Caches/ShiyinBuild-win）
 ├── src/Shiyin.Core/  Shiyin.Data/  Shiyin.LLM/  Shiyin.Engines/  Shiyin.Eval/
 ├── src/Shiyin.Platform.Windows/  Shiyin.App/  Shiyin.Ctl/  Shiyin.Services/
 ├── tests/Shiyin.Tests/         xUnit：標準答案、資料庫、整理工具、服務（Mac、CI 都跑）；畫面用虛擬機的 UI Automation 驗（§15.4）
-└── native/whisper/             CMake 腳本、shim、各平台建出來的檔案的 SHA-256
+└── native/whisper/             CMake 腳本（CMakeLists.txt）、shim（shiyin_whisper.c、.h）
 shared/golden/                  Mac 產生的標準答案（§4）
 scripts/windows/                build-whisper.ps1、pack.ps1、update-key.cs、make-third-party-licenses.py；vm/ 驗證用虛擬機的工具（§15.2）
 ```
@@ -157,7 +156,11 @@ Mac 改完重跑 `dump-golden`、commit 新的 `shared/golden/`，Windows 的測
 ## 6. 錄音
 
 - **麥克風**：WASAPI 共用模式、事件驅動，用 Console／Multimedia 角色的端點，**不用 Communications**（Windows 會把其他聲音自動降低 80%）。裝置用端點 ID 記在設定。換裝置、拔耳機：NAudio 3.2 起的 `MMDeviceEnumerator.CreateNotificationClient()` 事件（3.0 起 `IMMNotificationClient` 不公開了），收到就重新開（D25）。
-- **電腦聲音**：process loopback 排除拾音的程序樹（claude CLI、WebView2 這些子程序也一起排除）。格式自己指定（沒有 GetMixFormat）：48 kHz 浮點雙聲道，再降混、重新取樣。輸出裝置換了要不要重開待 T-W2。
+- **電腦聲音**（R54、D129）：預設輸出裝置（Render、Console 角色）的 endpoint loopback，跟麥克風同一套：先請系統轉成 16 kHz 單聲道，不接受時用裝置的格式自己轉。
+  - 換預設輸出裝置（`DefaultDeviceChanged` 的 Render、Console）、正在錄的裝置被停用或拔掉時重新開始，接著錄新的預設裝置（同 D25 的 0.3 秒合併）。
+  - 沒有任何輸出裝置（例如虛擬機、沒接喇叭的桌機）：不算開始失敗，音源照時間補靜音，等 `DefaultDeviceChanged` 出現新的預設裝置再重開。
+  - 不排除拾音自己：錄音中在拾音裡播放錄音會錄進去（R54.3）。process loopback 錄不到新版 Teams（Windows 給全是 0 的資料、不回報錯誤），見 D129。
+  - Teams 的聲音不在預設輸出裝置上時錄不到：Teams 的喇叭指定了別的裝置，或藍牙耳機通話時聲音改送到「免持」裝置（預設的通訊裝置，Communications 角色）。2026-10-29 issue #2 的回報者回覆：Windows 預設的輸出和 Teams 的喇叭是同一台 USB 會議揚聲器（Jabra Speak 710），R54 就錄得到；失敗的那幾場是「沒有辨識到語音」（只錄到靜音），不是模型載入失敗。所以「也錄 Teams 指定的裝置」和「顯示卡載入模型失敗時改用 CPU」先不做，有人回報再做（requirements 第 37 節）。
 - **沒有聲音在播時，電腦聲音完全不送資料**（連靜音都不送）。所以：
   - 寫檔時電腦聲音那一聲道依時間（QPC）補靜音，不是等它送資料。
   - 3 秒 watchdog（M§20.2）只看麥克風；電腦聲音沒有資料不算中斷。
@@ -190,8 +193,8 @@ Mac 改完重跑 `dump-golden`、commit 新的 `shared/golden/`，Windows 的測
 
 > Mac 4.1 起設定裡可選 Qwen3-ASR，預設維持 Breeze（M§32、R43；使用者 2026-10-24 決定）。Windows 4.1 同樣可選（§8.4、D95）：llama.cpp 官方預建的 `llama-server.exe` 當子程序跑，分段、重試、防線照 M§32.4，簡轉繁 `Shiyin.Core/Text/ChineseScript.cs`（標準答案 `util/s2tw.json`）。
 
-- **whisper**：`native/whisper/` 的 CMake 腳本從 commit `d1be6fd` 建置，CI 建好、記下 SHA-256 放進安裝檔，不從別處下載。C/C++ 執行階段靜態連結（`CMAKE_MSVC_RUNTIME_LIBRARY`），沒裝 VC++ 可轉散發套件的電腦也載得起來；`build-whisper.ps1` 檢查 DLL 沒有匯入 VC++ 的 DLL（sherpa-onnx、onnxruntime 的 DLL 本來就是靜態連結）。
-  - x64：`GGML_BACKEND_DL`＋`GGML_CPU_ALL_VARIANTS`（執行時依 CPU 指令集選），加 `ggml-vulkan.dll`（官方的 Windows 檔案沒有 Vulkan，要自己建）。
+- **whisper**：`native/whisper/` 的 CMake 腳本從 commit `d1be6fd` 建置，CI 建好（`build-whisper.ps1` 在建置記錄印出每個 DLL 的 SHA-256）放進安裝檔，不從別處下載。C/C++ 執行階段靜態連結（`CMAKE_MSVC_RUNTIME_LIBRARY`），沒裝 VC++ 可轉散發套件的電腦也載得起來；`build-whisper.ps1` 檢查 DLL 沒有匯入 VC++ 的 DLL（sherpa-onnx、onnxruntime 的 DLL 本來就是靜態連結）。
+  - x64：`GGML_BACKEND_DL`＋`GGML_CPU_ALL_VARIANTS`（執行時依 CPU 指令集選）。Vulkan 版另外建、AMD 的電腦才下載（不放進安裝檔，見下面的「AMD 顯示卡加速」、D127）。
   - ARM64：只建一個 CPU 版本，指定最低等級 `armv8.2-a+dotprod+fp16`（Snapdragon 7c、8cx、X 都有；`GGML_CPU_ARM_ARCH`），用 clang 建（同 whisper.cpp 官方的 Windows ARM64 版）。ggml 在 Windows ARM 不支援建多個版本（`GGML_CPU_ALL_VARIANTS`：「Unsupported ARM target OS: Windows」）；用 MSVC 建 ARM64 一定要依建置的機器偵測 CPU 功能（`GGML_NATIVE`），GitHub 的 ARM 機器是伺服器 CPU，偵測出的指令（SVE 等）一般的 Snapdragon 筆電沒有。官方用 armv8.7-a，舊的 Snapdragon 可能碰到不支援的指令；只建新指令集（i8mm）的版本也一樣。取捨：Snapdragon X 用不到 i8mm，稍慢。GPU（OpenCL-Adreno）還是實驗性，先不用。
   - Mac 也建一份 dylib，`Shiyin.Engines` 的測試在 Mac 上就能跑。官方 zip 裡的 `whisper-cli.exe` 拿來交叉比對結果。
 - **NVIDIA 顯示卡加速**（R27 R4.6，D64）：x64 有 NVIDIA 顯示卡時（顯示卡驅動的登錄裡 `MatchingDeviceId` 有 `VEN_10DE`），第一次啟動自動下載 whisper.cpp 官方同一版（b5454）的 `whisper-bin-win-cuda-12.4.0-x64.zip`（685 MB，固定網址和 SHA-256，`ModelStore.Model.GpuCuda`），驗證後只解出 whisper、ggml、ggml-base、ggml-cpu-*、ggml-cuda、cudart、cublas、cublasLt（約 1.1 GB）到 `models\gpu-cuda12\`，刪掉壓縮檔。自動下載只做一次（設定的 `gpuPackOffered`），使用者刪掉後不再下載。
@@ -200,12 +203,18 @@ Mac 改完重跑 `dump-golden`、commit 新的 `shared/golden/`，Windows 的測
   - 指定第幾張卡（企業伺服器用，M§36.6、D125）：shim 的 `shiyin_init_device(路徑, use_gpu, flash_attn, gpu_device)`，`shiyin_init` 等於 gpu_device 0；`WhisperControl.GpuDevice` 是 null 時用 `shiyin_init`（app 一律如此）。Qwen 的子程序設 `CUDA_VISIBLE_DEVICES`、`CUDA_DEVICE_ORDER=PCI_BUS_ID`（`QwenServer.Options.Device`）。
   - shim 的 `shiyin_gpu_device` 回傳 whisper 會用的顯示卡（第一個 GPU 裝置的名稱和說明），寫進 log 和回報問題。
   - 元件靠安裝檔裡的 VC++ 執行階段：CI 改成靜態連結執行階段的 whisper 之後，安裝檔還是要帶這四個 DLL（x64 約 0.9 MB）。
+- **AMD 顯示卡加速**（R27 R4.7，D127）：x64、顯示卡驅動的登錄裡 `MatchingDeviceId` 有 `VEN_1002`（AMD，含 Radeon 內顯）、而且沒有 NVIDIA 時，第一次啟動自動下載一次拾音自己建的 Vulkan 版 whisper（`ModelStore.Model.GpuVulkan`）。同時有 NVIDIA 和 AMD（AMD 內顯＋NVIDIA 獨顯的筆電）時用 CUDA，不下載 Vulkan。
+  - 建置：`windows-gpu-pack.yml`（手動執行）在 windows-latest 裝固定版本的 Vulkan SDK，`build-whisper.ps1 -Arch x64 -Vulkan` 從同一個 commit `d1be6fd`、同一份 CMake 設定建（`GGML_BACKEND_DL`＋`GGML_CPU_ALL_VARIANTS`＋`GGML_VULKAN`）；只打包 whisper、ggml、ggml-base、ggml-cpu-*、ggml-vulkan 成 `whisper-vulkan-x64.zip`（shim 不放：跟 CUDA 一樣用安裝資料夾的那一份），上傳到 GitHub 的 prerelease `win-gpu-vulkan-b5454`。官網（website.md §7）和 Windows 的檢查更新（D94）都跳過 prerelease，Mac 的更新網址是 latest，所以這個 release 不會被當成新版。app 固定網址、大小、SHA-256；whisper 升版才重建。2026-10-29 建的：下載 19.8 MB、解開 59.2 MB（`ggml-vulkan.dll` 45.6 MB）；zip 裡另外有 `parakeet.dll`（whisper 沒有用到），不解出來。
+  - CI 沒有顯示卡：裝 Mesa 的 lavapipe（軟體實作的 Vulkan，固定版本），用 Vulkan 版跑一次語言偵測，跟 CPU 版判斷出同一個語言、中英日三個機率差 ≤ 0.03，確認建出來的 ggml-vulkan 算得對。Vulkan 用 fp16 算、CPU 用 fp32，本來就有一點差（Mac 的 Metal、NVIDIA 的 CUDA 也是 fp16；2026-10-29 lavapipe 英文 0.985、CPU 0.998）；算錯的話會判斷錯語言或機率亂掉。lavapipe 要登記到登錄（GitHub 的機器是系統管理員權限，Vulkan 載入器不看 `VK_DRIVER_FILES`）、`GGML_VK_VISIBLE_DEVICES=0`（ggml-vulkan 預設只用獨顯、內顯，lavapipe 是 CPU 類型），Vulkan 的載入器（`vulkan-1.dll`）從 LunarG 的執行階段拿（使用者的電腦是顯示卡驅動附的）。真的 AMD 顯示卡的速度要使用者的電腦量。
+  - 解到 `models\gpu-vulkan\`，載入同 CUDA（複製 shim、`SetDllDirectory`、`WhisperEngine.NativeDirectory`；`GpuAcceleration` 依 `Pack` 處理兩種）。Vulkan 的執行階段（`vulkan-1.dll`）是顯示卡驅動附的，不另外帶；驅動太舊、沒有 Vulkan 裝置時 ggml-vulkan 沒有裝置，whisper 用 CPU。
+  - 只開 AMD：Intel 內顯也有 Vulkan，但 ggml-vulkan 在 Intel 內顯的速度和正確性還沒量過，先不下載（R4.7）；量過再改成也給 Intel。
+  - 自動下載只做一次（設定的 `gpuVulkanOffered`），使用者刪掉後不再下載；轉錄用企業伺服器時不下載（R50.7）。回報問題的「whisper 用的顯示卡」是 ggml 的裝置名稱（例如 `Vulkan0 (AMD Radeon 780M Graphics)`）。
 - **shim**（D56）：約 100 行的 C，匯出 `shiyin_whisper_full(ctx, const ShiyinParams*, 進度 callback, 取消 callback, …)`，在 C 這邊填好 `whisper_full_params`。不在 C# 複製這個 struct：它用傳值的方式傳、C 的 `bool` 是 1 byte、裡面有巢狀 struct 和 callback，很容易對錯而且不會報錯。其他簡單的函式（`whisper_full_n_segments`、`whisper_full_get_segment_*`、`whisper_full_get_token_p`、`whisper_pcm_to_mel`、`whisper_lang_auto_detect`、`whisper_lang_id`…）直接 P/Invoke，跟 `WhisperEngine.swift`、`LanguageDetector.swift` 用的一樣。
-- **參數**同 Mac：beam 5、best_of 5、執行緒數 clamp(核心數 − 2, 2, 8)、`suppress_blank`、有顯卡時用 GPU。只有 CPU 時要不要改（beam、執行緒）待 T-W3，改了寫進決策紀錄、設定頁顯示。
+- **參數**同 Mac：beam 5、best_of 5、執行緒數 clamp(核心數 − 2, 2, 8)、`suppress_blank`、有顯卡時用 GPU。只有 CPU 時要不要改（beam、執行緒）等 CI 量完速度再定（tasks 的「速度和記憶體」），改了寫進決策紀錄、設定頁顯示。
 - **分段、提示詞、接縫、過濾、低信心**：同 M§21.16、M§6.2，程式在 Core，用 §4 的 `pipeline/` 比對。
 - **快速辨識**（R4.1、R20.8）：SenseVoice＋VAD 讀整個檔案。Breeze 還沒下載好時自動用（同 D35），轉完提示「可以用 Breeze 重新轉錄」。錯字率（D61 的設定）：合成會議 9.2%（Mac 的內建辨識 9.2%、Breeze 6.0%）、AISHELL-4 26.4%（Mac 的內建辨識約 25%）、AMI 英文 WER 39.0%（約 26%）、日文 15.5～28.1%（日文的 Whisper large-v3-turbo 4.5～9.2%）。38 分鐘的錄音 14 秒轉完（M3 Pro）。快速辨識的模型還沒下載好時，轉錄線先不接工作、自動開始下載（Mac 的內建辨識不用下載）。
-- **T-W3 的 Mac 部分**：C# 經 shim 呼叫同一版 whisper.cpp（Mac 的 dylib、Metal），餵一樣的取樣時結果跟 Mac 逐段相同；m4a 解碼器不同造成的取樣差異會讓少數段落不同（合成會議錯字率 5.2% → 6.0%），Windows 用 Media Foundation 解碼後要再比一次。虛擬機、CI 的 CPU 倍速待 W0.4。
-- **快速辨識的模型怎麼來**（R27 R20.8）：首次使用引導的「模型」步驟先下載快速辨識和 VAD（約 240 MB，比 Breeze 小很多），下載好就能錄音，Breeze 接著在背景下載。要不要直接附在安裝檔，T-W7 量過安裝檔和差異更新的大小再決定。
+- **跟 Mac 比對（Mac 上，T-W3）**：C# 經 shim 呼叫同一版 whisper.cpp（Mac 的 dylib、Metal），餵一樣的取樣時結果跟 Mac 逐段相同；m4a 解碼器不同造成的取樣差異會讓少數段落不同（合成會議錯字率 5.2% → 6.0%），Windows 用 Media Foundation 解碼後要再比一次。CI x64、ARM64 的 CPU 倍速見 tasks 的「速度和記憶體」。
+- **快速辨識的模型怎麼來**（R27 R20.8）：不附在安裝檔，第一次使用時下載（`ModelStore.FastRecognition`：SenseVoice 和 VAD，約 240 MB，比 Breeze 小很多）。首次使用引導一打開就在背景依序下載快速辨識、說話者辨識、正式轉錄的模型（R44.6，`OtherWindows.Onboarding`）；快速辨識的模型下載好就有即時逐字稿。開始錄音時還沒下載好的話，這場沒有即時逐字稿、模型在背景接著下載（`AppHost.MakeLive`），錄完照常轉錄。
 - **解碼**：Media Foundation 的 SourceReader 依序讀、轉成 16 kHz 單聲道浮點（同 D34 的串流讀法）。Media Foundation 不支援 CAF、AIFF：AIFF 用 `AiffFileReader`，CAF 不支援（不在匯入的格式清單裡）。T-W9：m4a、mp3、aac、flac、aiff、aif、wma、mp4、mov、m4v、wmv、webm 都解得開；ogg、opus 是 Ogg 容器，要「Web 媒體延伸模組」（一般的 Windows 11 有預裝），沒有時錯誤是 `MF_E_UNSUPPORTED_BYTESTREAM_TYPE`，畫面說明可以先轉檔或去 Microsoft Store 裝（不顯示內部的檔名）。Windows 的 N 版沒有 Media Foundation，要裝 Media Feature Pack（寫進系統需求）。
 - **結束拾音**時等 whisper 收尾最多 10 秒（R18.12）。
 
@@ -214,11 +223,11 @@ Mac 改完重跑 `dump-golden`、commit 新的 `shared/golden/`，Windows 的測
 
 - **為什麼是子程序**：whisper（b5454）和 llama.cpp（b11840）各帶一套 `ggml.dll`、`ggml-base.dll`、`ggml-cpu*.dll`。Windows 的載入器處理隱含匯入時只認模組名稱——同名的 DLL 已經載入就直接用它，不看路徑——兩個版本的 ggml 沒辦法在同一個程序裡並存（Mac 的問題是 Swift 不能同時 import 兩份 `ggml.h`，用 C 薄層解；Windows 的問題在載入器，薄層解不了）。所以 Qwen 用 llama.cpp 官方 Windows 版自帶的 `llama-server.exe`：獨立程序、HTTP 在 127.0.0.1 的隨機埠；原生程式當掉不會拖垮拾音，也不用自己建 C 程式（官方有 cpu x64／arm64、cuda 12.4 x64）。
 - **模型和執行檔**（`ModelStore.Model.Qwen`，三個檔一起下載、一起算裝好、一起刪）：`qwen3-asr-1.7b-q8_0.gguf`（2.17 GB）、`qwen3-asr-1.7b-mmproj-q8_0.gguf`（356 MB）同 Mac（固定 commit、SHA-256，檔名相同，模型檔可以直接從 Mac 複製）；`llama-b11840-bin-win-cpu-<x64|arm64>.zip`（24／13 MB，固定 SHA-256）只解出 `llama-server.exe`、`llama-server-impl.dll`、`llama-common.dll`、`llama.dll`、`mtmd.dll`、`ggml*.dll`、`libomp.dll` 到 `models\qwen-runtime\`。
-- **NVIDIA**（x64）：`Model.QwenCuda`：`llama-b11840-bin-win-cuda-12.4-x64.zip`（272 MB）解到 `qwen-runtime-cuda\`（含 `ggml-cuda.dll` 578 MB，整套 ggml 用同一次建置的）；cudart、cublas 用 whisper 的 `gpu-cuda12\` 那一份（子程序的 `PATH` 加上那個資料夾），所以 GpuCuda 也裝好才用 CUDA 版，不然用 CPU 版。有 NVIDIA 顯示卡而且選了 Qwen（或 Qwen 已經裝好）時自動下載一次（設定 `qwenCudaOffered`），使用者刪掉後不再下載。Vulkan（AMD、Intel）同 whisper 還沒做（D64）。
-- **每次轉錄**（`Shiyin.Engines/Qwen/QwenServer.cs`）：啟動 llama-server（`-m`、`--mmproj`、`-c 4096 -b 2048 -ub 512`、`-t` 同 whisper 的執行緒數、`-ngl 0`（CPU）或 `999`（CUDA）、`--host 127.0.0.1 --port <先找到的空埠> -np 1 --no-webui --no-warmup --jinja`），等 `/health` 回 200（最多 5 分鐘，程序先結束就把 stderr 的最後幾行寫進 log），逐段 `POST /v1/chat/completions`：system = 詞彙表（空的也送，跟 Mac 的薄層一樣）、user = `input_audio`（這一段 16 kHz 16-bit WAV 的 base64）、assistant 先填 `language <Chinese|English|Japanese><asr_text>`（llama-server 預設接著寫下去）；`temperature`、`seed`、`repeat_penalty`、`repeat_last_n`、`max_tokens` 同 Mac 的薄層，`top_k 0`、`top_p 1`、`min_p 0` 讓取樣鏈只剩懲罰和溫度；回應的 `finish_reason` 是 `length` 就是到達 max_tokens。轉完結束子程序（同 Mac 每次載入、釋放）。Windows 用 Job Object（`KILL_ON_JOB_CLOSE`）綁住子程序，拾音當掉子程序也跟著結束；取消是取消 HTTP 請求、結束程序。Mac 原型（`qwen-eval.py`）走的就是這條 HTTP 路，評估結果跟 Mac app 的薄層一致。
+- **NVIDIA**（x64）：`Model.QwenCuda`：`llama-b11840-bin-win-cuda-12.4-x64.zip`（272 MB）解到 `qwen-runtime-cuda\`（含 `ggml-cuda.dll` 578 MB，整套 ggml 用同一次建置的）；cudart、cublas 用 whisper 的 `gpu-cuda12\` 那一份（子程序的 `PATH` 加上那個資料夾），所以 GpuCuda 也裝好才用 CUDA 版，不然用 CPU 版。有 NVIDIA 顯示卡而且選了 Qwen（或 Qwen 已經裝好）時自動下載一次（設定 `qwenCudaOffered`），使用者刪掉後不再下載。
+- **AMD**（x64，R4.7、D127）：`Model.QwenVulkan`：`llama-b11840-bin-win-vulkan-x64.zip`（37 MB）解到 `qwen-runtime-vulkan\`（`ggml-vulkan.dll` 41.5 MB 加上 CPU 版那些檔案，大小跟 CPU 版一樣），不用另外的執行階段。條件同 whisper 的 Vulkan（有 AMD、沒有 NVIDIA），選了 Qwen（或 Qwen 已經裝好）時自動下載一次（設定 `qwenVulkanOffered`），不需要 whisper 的 Vulkan 元件；`-ngl 999`。Intel 同 whisper 先不用。
+- **每次轉錄**（`Shiyin.Engines/Qwen/QwenServer.cs`）：啟動 llama-server（`-m`、`--mmproj`、`-c 4096 -b 2048 -ub 512`、`-t` 同 whisper 的執行緒數、`-ngl 0`（CPU）或 `999`（CUDA、Vulkan）、`--host 127.0.0.1 --port <先找到的空埠> -np 1 --no-webui --no-warmup --jinja`），等 `/health` 回 200（最多 5 分鐘，程序先結束就把 stderr 的最後幾行寫進 log），逐段 `POST /v1/chat/completions`：system = 詞彙表（空的也送，跟 Mac 的薄層一樣）、user = `input_audio`（這一段 16 kHz 16-bit WAV 的 base64）、assistant 先填 `language <Chinese|English|Japanese><asr_text>`（llama-server 預設接著寫下去）；`temperature`、`seed`、`repeat_penalty`、`repeat_last_n`、`max_tokens` 同 Mac 的薄層，`top_k 0`、`top_p 1`、`min_p 0` 讓取樣鏈只剩懲罰和溫度；回應的 `finish_reason` 是 `length` 就是到達 max_tokens。轉完結束子程序（同 Mac 每次載入、釋放）。Windows 用 Job Object（`KILL_ON_JOB_CLOSE`）綁住子程序，拾音當掉子程序也跟著結束；取消是取消 HTTP 請求、結束程序。Mac 原型（`qwen-eval.py`）走的就是這條 HTTP 路，評估結果跟 Mac app 的薄層一致。
 - **規則**：分段、重試、幻覺防線、縮寫併回去在 `Shiyin.Core/Transcribe/QwenRules.cs`，流程在 `Shiyin.Engines/Qwen/QwenTranscriber.cs`，照 M§32.4 一字不差（能量用 float 相乘再加進 double，跟 Swift 一樣）；說話者先辨識再分段，段落的說話者用 `SpeakerRules.AssignNumbering` 加短句再確認（§9）。分段用 Mac `shiyinctl qwenchunks` 倒出的 turns 餵 `shiyin-eval qwen-chunks` 比對切點（§4 的標準答案沒有這一項：要真的錄音和說話者片段）。
 - **設定**：「正式轉錄」三選一（Breeze、Qwen3-ASR、快速辨識），存 `transcriptionEngine=qwen`（同 Mac）；Qwen 沒下載好、Breeze 在時先用 Breeze（R43.7），兩個都沒有才用快速辨識；日文一律 large-v3-turbo。設定的模型清單多 Qwen（和 NVIDIA 的 QwenCuda）。匿名統計 `engines.qwen`（後台 2026-10-25 已加欄）。
-- **驗證**（2026-10-25）：合成中英夾雜會議（91 秒，詞彙表 5 個）Mac app 的 Qwen 引擎和 Windows 的 C# 流程（Mac 上接 macOS 版 llama-server、Metal）7 段文字、6 個切點逐字相同，CER 都是 2.0%、關鍵詞 4/6；虛擬機（ARM64、4 核 CPU）同一套跑出一樣的 7 段（55 秒，含說話者辨識 5.5 秒，1.7 倍速），app 裡匯入同一個檔 `transcribed_with=qwen`、7 段；設定頁「正式轉錄」三選一、模型清單有 Qwen；`dotnet test` 114 個（QwenTests 9 個：分段、整理輸出、防線、重試流程）。
 - **評估**：`shiyin-eval transcribe-eval` 的設定 `"engine": "qwen"`（tuning 同 Mac：`qwenChunkSeconds`、`qwenRetry`、`qwenTurns`、`qwenGuard`、`qwenCutsAny`、`qwenSplitMixed`），說話者辨識用 `SHIYIN_DIARIZATION_MODELS`；Mac 上 `SHIYIN_QWEN_SERVER` 指到 macOS 版的 llama-server（原型工具 `~/Library/Caches/ShiyinSpike/qwen3asr/llama/llama-b11840/llama-server`）、`SHIYIN_MODELS` 指到有兩個 GGUF 的資料夾，同一套 C# 流程就能在 Mac 上跑、跟 Mac app 比。`shiyin-eval qwen-chunks <錄音.wav> <turns.json|-> <輸出.json>` 只做分段。
 
 ## 9. 說話者辨識與聲紋
@@ -244,7 +253,6 @@ sherpa-onnx 的說話者分段是凝聚式分群（`FastClusteringConfig` 只有
   - 評估：`Shiyin.Eval diarize-eval` 的設定加 `embedSegments` 輸出每句的聲紋（離線試門檻），加 `recheck` 照 app 的規則跑（`margin` 換門檻）。逐字稿用標準答案的每一句（同 M§6.3.2），「完整逐字稿」用 Mac 的 Breeze 逐字稿。結果：AMI 9 場沒重疊、2 秒內的句子 59.5% → 61.4%（改錯 0），含重疊 42.8% → 47.1%；AISHELL-4 含重疊 73.3% → 77.5%；完整逐字稿單人說話的時間裡標對 AMI 94.9% → 95.5%、AISHELL-4 96.6% → 97.1%（人數不變）。
   - 門檻怎麼定的：照 Mac 用長句（3 秒以上、最長的 20 句）的平均、差距 0.15，AMI 沒重疊的句子改錯 5：Windows 的模型只聽得到這一句，0.5～1 秒的聲紋很散。改用每位說話者的聲紋，0.25～0.3 都是改錯 0，0.24 以下開始改錯。先減掉整場的平均再比反而比較差。句長上限 2～10 秒結果差不多，照 Mac 用 4 秒。
   - 時間：約是說話者辨識的 10～20%（M3 Pro，AISHELL-4 38 分鐘多 11.6 秒）；不用另外下載模型。
-- 使用者的麻將錄音（手機遠距收音、洗牌聲）還沒試：在 Windows 版拿到使用者同意後跑（T-W4 的最後一項）。
 - 合併、改句子的說話者、復原、重新辨識的邏輯同 M§23、M§24（在 Core、Services）。
 
 ## 10. 整理工具
@@ -258,6 +266,16 @@ sherpa-onnx 的說話者分段是凝聚式分群（`FastClusteringConfig` 只有
 - 子程序放進 Job Object（`KILL_ON_JOB_CLOSE`）：拾音當掉時子程序一起結束；逾時時整棵程序樹一起結束。
 - 登入：用固定參數開 Windows Terminal（沒有就用 `cmd.exe /k`）執行 `claude` 或 `codex login`，參數裡不放任何使用者內容。
 - **還沒設定整理工具**（R35、M§19.6、D95）：同 Mac。`AppSettings.DetectCli` 由 App 用 `WindowsToolLocator` 找 claude、codex（要掃過 PATH 的每個資料夾，快取 30 秒）；Services、測試裡沒給就是找不到。DEBUG 加 `--set debugNoCli=YES` 當成找不到。
+- **Codex 桌面版附的 codex**（R55、M§37、D128）：npm、PATH 都找不到 codex 時才找（`WindowsToolLocator.CodexDesktop`，結果留 30 秒，不記住路徑）。實際的樣子是從 openai/codex 的 issue 查到的（#40700、#40867、#42645、#54698，2026-08～10 的 26.820～26.930 版；虛擬機沒有 Microsoft Store，裝不了）：
+  - 套件：Microsoft Store 的 MSIX `OpenAI.Codex`，package family `OpenAI.Codex_2p2nqsd0c76g0`，裝在 `C:\Program Files\WindowsApps\OpenAI.Codex_<版本>_x64__2p2nqsd0c76g0\`。安裝資料夾用 `Platform/Packages.cs`（kernel32 的 `GetPackagesByPackageFamily` 加 `GetPackagePathByFullName`，LibraryImport）查：`WindowsApps` 一般使用者列不出內容，不能用掃資料夾的方式找；資料夾名稱有版本號，所以每次重新查。2026-10-29 在虛擬機用控制通道的 `packages Microsoft.AAD.BrokerPlugin_cw5n1h2txyewy` 驗過：查得到完整名稱、`C:\Windows\SystemApps\…` 的位置和 `Application` 的 Id；沒裝的 `OpenAI.Codex_2p2nqsd0c76g0` 是空的。
+  - 執行檔：套件裡是 `app\resources\codex.exe`（旁邊有 `codex-command-runner.exe`、`codex-code-mode-host.exe`），沒有 Mac 那種說明檔。但**直接執行 WindowsApps 裡的那份，有些電腦會拒絕存取**；桌面版自己是先複製到 `%LOCALAPPDATA%\OpenAI\Codex\bin\<16 位的雜湊>\codex.exe`（每個版本一個資料夾，`.staging-…` 是複製到一半的）再執行。所以順序是：
+    1. `%LOCALAPPDATA%\OpenAI\Codex\bin\` 底下最新建立的雜湊資料夾裡的 `codex.exe`（套件還在才找：移除桌面版之後當成沒有安裝，R55.4）
+    2. 還沒複製過（裝了但沒開過桌面版）：`Shiyin.LLM/DesktopApps.cs` 的 `CodexPackage.Find(<安裝資料夾>\app\resources)`（跨平台，Mac 上的 `dotnet test` 測得到）：先找跟 Mac 一樣的說明檔 `codex-cli\codex-package.json`（以後的版本可能會有；規則同 M§37.1：`layoutVersion` 1；`entrypoint`、`pathDir` 是相對路徑，不接受絕對路徑、磁碟代號、`..`，展開後要在 `codex-cli` 裡面；**`entrypoint` 一定要是 .exe**：.cmd、.ps1 要經過 cmd.exe 或 PowerShell，參數會被改寫）。有說明檔但不對就當作沒有；沒有說明檔時用 `resources\codex.exe`。不對的原因記 log（同一個原因只記一次）。
+  - 執行不了（`Process.Start` 丟 `Win32Exception`，例如拒絕存取）：`CodexCli` 把它變成「沒辦法執行 Codex 附的 codex（原因）。可以另外安裝 Codex CLI（npm install -g @openai/codex）再試。」（R55.4）；查登入狀態失敗時照舊當作看不出來。
+  - app 的名稱、打開 app：`Packages.Manifest` 讀套件資料夾的 `AppxManifest.xml`，名稱用 `Properties/DisplayName`（是 `ms-resource:` 時用「Codex」），第一個 `Application` 的 `Id` 組成 `<package family>!<Id>`。找到的 `ToolCommand` 多 `DesktopApp`（名稱）、`AppUserModelId`；`CliLogin.Open` 遇到它們就 `Shell.OpenPackagedApp`（`explorer.exe shell:AppsFolder\<id>`，`ArgumentList`，不經過 cmd.exe），提示「拾音：正在打開 Codex。在那裡登入之後，回到拾音按「重新檢查」。」，不開終端機。
+  - 訊息：`DesktopApps.CodexAppName`（App 啟動時接成 `Tools.Find("codex")?.DesktopApp`）給 `LLMException.NotLoggedIn("codex")`、`SummarizerProblem` 的訊息和按鈕、失敗橫幅的「打開 Codex 登入」、`LLMException.IsLoginMessage`（同 M§37.2：標準答案用的 `IsLoginProblem` 不改）。設定頁、引導的文字同 Mac（「使用 Codex 附的 codex（這台電腦沒有另外安裝 Codex CLI）」「Codex（使用 Codex 附的 codex）」「打開 Codex 登入」）；Windows 沒有環境檢查的清單。
+- **Claude 桌面版**（R56、M§37.3）：`WindowsToolLocator.HasClaudeDesktop`（接到 `DesktopApps.HasClaude`，留 30 秒）看 MSIX 套件 `Claude_pzs8sxrjxfjjc`（Store 和官網的安裝檔現在都是 MSIX），或舊版安裝在 `%LOCALAPPDATA%\AnthropicClaude\claude.exe`。提示在 `Shiyin.App/ClaudeCodeHint.cs`：指令是 PowerShell 的 `irm https://claude.ai/install.ps1 | iex`（「打開 PowerShell，貼上這一行安裝：」，Consolas 字型、可以選取）、「複製」（翻譯表裡的「複製」是 Duplicate，這裡用 `L.English ? "Copy" : "複製"`）、「安裝說明」、「重新檢查」（清掉桌面版的快取、重畫）。原生安裝放在 `%USERPROFILE%\.local\bin\claude.exe`，本來就找得到。出現的地方、訊息同 Mac。
+- DEBUG：控制通道的 `packages <package family>`（`Packages.ByFamily`、`Manifest` 的結果）、`tools refresh`（清掉桌面版的快取）；`--set debugOnlyDesktopCli=YES`（不看使用者自己裝的 claude、codex，只找桌面版）、`--set debugCodexApp=<資料夾>`（把這個資料夾當成 Codex 桌面版的安裝資料夾，不問系統）、`--set debugClaudeDesktop=yes|no`；`--set debugNoCli=YES` 照舊連桌面版都找不到。`state` 多 `tools`：`claude`、`codex`（`path`、`desktopApp`、`appId`、`pathEnv`）、`claudeDesktop`。
 
 ### 10.1 整理工具設定好才用、失敗說清楚怎麼修（R45～R47、M§34）
 
@@ -305,7 +323,7 @@ sherpa-onnx 的說話者分段是凝聚式分群（`FastClusteringConfig` 只有
 - 文字加按鈕的一列（狀態列、範本的說明、錄音列）用 `Ui.Bar`：長的文字或會被截的東西放中間那欄（左欄寬度跟著內容、不會換行），按鈕放右邊照內容寬。全部放在橫的 StackPanel 裡時，英文的按鈕比較寬，會被擠出視窗。放不下時整個藏起來、不要切一半的（錄音列的兩個音量條）用 `FitRow`。逐字稿的搜尋列是 Grid：搜尋框最寬 300、可以縮。
 - `TextHighlighter` 要給 `Foreground`：預設是黑色，深色模式下標起來的字看不見。
 - 視窗的最小尺寸同 Mac（主視窗 960×620、設定 600×480、其他 520×440，`WindowPlacement.MinimumSize`，不超過螢幕的工作區）。
-- 介面巡檢的做法：虛擬機用 `ctl.sh open settings|guide|report|ask|onboarding`、`uia.sh` 按分頁和選單、`shot.sh` 截圖，淺色、深色（改 `AppsUseLightTheme` 再廣播 `ImmersiveColorSet`，app 不用重開）、中文、英文（`--set interfaceLanguage=en`）、最小視窗（`SetWindowPos` 拉到比最小還小）各走一次；測試資料夾裡有各種狀態的會議（整理失敗、猜到名字、校正建議、分不準的提醒、待確認、日文）。螢幕縮放 125%、150% 還沒試（虛擬機要登出才換得了）。
+- 介面巡檢的做法：虛擬機用 `ctl.sh open settings|guide|report|ask|onboarding`、`uia.sh` 按分頁和選單、`shot.sh` 截圖，淺色、深色（改 `AppsUseLightTheme` 再廣播 `ImmersiveColorSet`，app 不用重開）、中文、英文（`--set interfaceLanguage=en`）、最小視窗（`SetWindowPos` 拉到比最小還小）各走一次；測試資料夾裡有各種狀態的會議（整理失敗、猜到名字、校正建議、分不準的提醒、待確認、日文）。
 - 可以選取的 `TextBlock` 有自己的右鍵選單（拷貝、全選），會蓋掉外層的 `ContextFlyout`：文字上也要設同一個選單。
 - 快捷鍵掛在整個視窗時設 `KeyboardAcceleratorPlacementMode = Hidden`，不然滑鼠停在視窗裡會跳出快捷鍵提示。
 - 無障礙名稱（螢幕閱讀器、UI Automation）：只有圖示的按鈕、沒有標題的輸入框和下拉選單、`ListViewItem`（內容是好幾個文字元件時，名稱會是空的或資料的型別名稱）都要設 `AutomationProperties.Name`。新的畫面用虛擬機的 `uia.sh dump` 檢查。
@@ -316,7 +334,7 @@ sherpa-onnx 的說話者分段是凝聚式分群（`FastClusteringConfig` 只有
 
 - 顏色（celadon、signal、說話者 8 色）在 `Ui/Ui.cs`，每個顏色有淺色、深色兩個值，跟著視窗的主題換（Mac 是 `Views/Theme.swift`）。
 - 視窗的底色：淺色白、深色 #202020（Windows 11 的 SolidBackgroundFillColorBase），每個視窗的最外層用 `Ui.WindowBackground` 設、跟著深淺色換。沒設時深色模式是純黑。主視窗的側欄淺色 #F7F7F7、深色 #2B2B2B（跟內容區分得出來，同 Mac 的側欄）。
-- 介面字型用系統預設（Segoe UI Variable、微軟正黑體）。會議標題的明體：Mac 用宋體，Windows 用新細明體（沒有時退回微軟正黑體粗體），W2 截圖比較後定。
+- 介面字型用系統預設（Segoe UI Variable、微軟正黑體）。會議標題的明體：Mac 用宋體，Windows 中文、英文用新細明體（`PMingLiU`，沒有時退回 `Microsoft JhengHei UI`），日文用 `Yu Mincho`，都是粗體（`Ui.TitleFont`、`Ui.Heading`）。
 - 會議內容依會議語言設定 `Language`（ja-JP 時日文字形，對應 D20）。
 - 匯出（PDF、docx）的字型：中文 Microsoft JhengHei／PMingLiU、日文 Yu Gothic／Yu Mincho、英文 Segoe UI／Georgia（Mac 是 New York）。
 
@@ -341,6 +359,19 @@ sherpa-onnx 的說話者分段是凝聚式分群（`FastClusteringConfig` 只有
 - 設定頁四頁、引導三步，分法同 M§33.3、§33.4（Windows 沒有 CLI 時「你平常用哪個 AI？」的第二段只列 API）。
 - 標準答案不變；介面文字跑 `l10n.py windows-check`。
 
+### 11.7 麥克風看得到、換得到，文字大小，匯出（R58～R60，M§38）
+
+- 麥克風的資訊（R58）：`Services.Capture.MicrophoneDevice`（`Id`、`Name`、`IsBluetooth`、`IsBuiltIn`）。Platform 的 `Microphones.All()`（Capture、Active 的端點）、`Microphones.Default()`（Capture、Console 角色的預設，同 §6）。每次要用時才列（打開下拉選單的 `Opening`、設定頁建畫面時），不另外常駐監聽：下拉選單打開時就是當下的裝置。
+- 藍牙、內建的判斷看端點的屬性（`MMDevice.Properties`）：`PKEY_Device_EnumeratorName`（`{a45c254e-df1c-4efd-8020-67d146a850e0}`,24）是 `BTHENUM`、`BTHHFENUM`、`BTHLE`、`BTHLEDEVICE`（`BTH` 開頭）算藍牙；`PKEY_AudioEndpoint_FormFactor`（`{1da5d803-d492-4edd-8c23-e0c0ffee7f0e}`,0）是 `Microphone`（4）、而且 enumerator 不是 USB、藍牙、`ROOT`（虛擬的音效驅動程式）算內建。讀不到屬性就當成都不是（不提醒，比誤報好）。虛擬機沒有音效裝置，判斷方法要在真的電腦上確認（MT6 的 `[~]`）。
+- `WasapiSource`：麥克風的端點 ID 改成可以改的 `DeviceId`；開始（含重新開始）時記下實際開的端點 `Current`（指定的不在時是系統預設）。`IMicrophoneSource`（`IAudioSource` 加 `DeviceId`、`Current`）讓 Recorder 拿得到。
+- `Recorder`（Core，用標準的單元測試測）：`MicDevice`（`Begin`、`RestartSource(0)` 之後更新；模擬錄音時照設定從 `Hooks.Microphones` 找，找不到用 `Hooks.DefaultMicrophone`）、`MicHint`（條件同 M§38.4）、`MicHintAppeared`（第一次出現，App 照 R42 送通知）、`SwitchMicrophone(id)`（寫 `inputDeviceUID`、改 `DeviceId`、`RestartSource(0)`，模擬錄音時 FileSource 從停下的位置接著送）、`DismissMicHint()`。`Hooks` 加 `Microphones`、`DefaultMicrophone`（預設值是空的，原本的測試不用改）。
+- 錄音按鈕的下拉選單（R58.1）：來源、語言之間加子選單「麥克風：<目前的選擇>」，裡面是「系統預設（<名稱>）」、每一支、存的 ID 不在時的「之前選的麥克風（沒有接上，會用系統預設）」；子選單在 `MenuFlyout.Opening` 才建，接上、拔掉耳機後打開就是新的清單。錄音來源是「只錄電腦聲音」時不放。
+- 錄音列（R58.2）：麥克風音量條後面加 `DropDownButton`（名稱，最寬 180、超過截斷），選單同上，選了 `SwitchMicrophone`。`FitRow` 放不下時整個藏起來（音量條還在）。系統匣的右鍵選單在錄音中多一行「麥克風：<名稱>」。
+- 藍牙的提示列、通知、系統匣：同 §11.5 的收音提醒（提示列的「改用 <內建>」「知道了」、`Notifier.MicHint`、系統匣的提示文字和右鍵選單）。
+- 文字大小（R59）：設定 `contentTextSize`（−1～5，同 Mac），`TextSizes.Scales` 在 Services。`Ui.ContentScale`（啟動和設定改了時設）、`Ui.C(size)` 乘上倍率；會議內容的元件（紀錄、待確認的題目、逐字稿的段落和欄寬、提問、錄音中的即時逐字稿、我的筆記、紀錄的編輯器）建的時候用 `Ui.C`，側欄、按鈕、提示列、搜尋列不用。設定改了：主視窗整個重畫、逐字稿重綁看得到的那幾段、錄音中的即時逐字稿重建。快捷鍵在主視窗的 `PreviewKeyDown` 處理（不用 `KeyboardAccelerator`：游標在輸入框時 TextBox 把 `Ctrl+-` 當成「插入選擇性連字號」吃掉，加速鍵收不到，2026-11-02 虛擬機發現；PreviewKeyDown 比輸入框先收到，處理完設 Handled，輸入框也不會多一個連字號）：`Ctrl+=`、`Ctrl+Shift+=`（加號）、數字鍵盤的 `Ctrl++` 放大，`Ctrl+-`、數字鍵盤的 `Ctrl+-` 縮小，`Ctrl+0`、數字鍵盤的 `Ctrl+0` 實際大小；Windows 沒有選單列，按了在下方提示「會議內容的文字大小：130%」。設定頁「進階」加「顯示」一組（介面語言之後）。
+- 匯出（R60）：會議頁右上角「更多」左邊加 `SplitButton`（分享圖示加「匯出」，按下打開匯出對話框，箭頭是複製會議紀錄的三種格式）；`MoreMenu` 剩重新處理、移到資料夾、移到垃圾桶。條件同「更多」（不在垃圾桶、不是錄音中的那場）。
+- DEBUG 控制通道（M§38.7）：`fakemic <名稱> <bluetooth 0|1> [內建的名稱]`（假的麥克風只在記憶體，當成系統預設，排在真的裝置前面；`fakemic off` 清掉）、`micswitch <id|default>`、`michint dismiss`、`textsize <−1～5>`；`state` 的 `recorder` 多 `micDevice`、`micHint`，最外層多 `textSize`。
+
 ## 12. 系統整合
 
 ### 12.1 單一執行個體、開檔
@@ -363,12 +394,11 @@ sherpa-onnx 的說話者分段是凝聚式分群（`FastClusteringConfig` 只有
 
 `RegisterHotKey`：Ctrl+Alt+Shift+R 開始或停止錄音、Ctrl+Alt+Shift+B 標記重點（只在錄音中註冊）；`MOD_NOREPEAT`。不用 Win 鍵（Win+Alt+R 是 Xbox Game Bar 的錄影，Win 的組合多半被系統佔用）。被別的 app 佔走時回 `ERROR_HOTKEY_ALREADY_REGISTERED`，設定頁顯示原因（等於 Mac 的獨佔註冊）。
 
-### 12.4 偵測會議（R19.4，D55，待 T-W8）
+### 12.4 偵測會議（R19.4，D55）
 
 - 讀 `HKCU\Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\microphone`：封裝的 app 用套件家族名稱當子鍵（新版 Teams 是 `MSTeams_8wekyb3d8bbwe`），桌面 app 在 `NonPackaged\` 下、路徑的 `\` 換成 `#`（例如 `C:#…#Zoom.exe`）；`LastUsedTimeStop = 0` 表示正在用。這是 Windows「麥克風使用中」指示的資料來源，涵蓋封裝的新版 Teams。
-- 照 Mac 每 2 秒讀一次（或用 `RegNotifyChangeKeyValue` 監聽）。
-- 備案：麥克風端點的 audio session 清單（`IAudioSessionManager2`）。瀏覽器和 WebView2 用另一個程序收音，容易漏，只在 DEBUG 交叉比對。
-- app 清單：執行檔名稱或套件家族名稱（Zoom.exe、新版 Teams、Teams.exe、Webex、slack.exe、LINE.exe、Discord.exe；chrome.exe、msedge.exe、firefox.exe、brave.exe、Arc），確切名稱 T-W8 確認。
+- 照 Mac 每 2 秒讀一次（`Shiyin.Platform.Windows/MicrophoneUsage.cs`，計時器在 `Services/MeetingDetector.cs`）；拾音自己不算。
+- app 清單（`MeetingDetector.MeetingApps`、`Browsers`，小寫比對；封裝的 app 比對套件家族名稱的前綴）：zoom.exe、新版 Teams（`msteams_8wekyb3d8bbwe`、ms-teams.exe）、舊版 teams.exe、Webex（ciscocollabhost.exe、webex.exe、atmgr.exe）、slack.exe、line.exe、discord.exe；瀏覽器 chrome.exe、msedge.exe、firefox.exe、brave.exe、Arc（`thebrowsercompany.arc`）、opera.exe、vivaldi.exe，顯示成「Chrome（可能是 Google Meet）」。真的電腦上還沒確認（tasks 的「偵測會議」）。
 - 時間規則同 M§21.7：用麥克風 5 秒提醒開始、停 10 秒提醒停止；不要再提醒的清單存在設定。
 
 ### 12.5 API key（R27 R21）
@@ -385,7 +415,9 @@ sherpa-onnx 的說話者分段是凝聚式分群（`FastClusteringConfig` 只有
 
 ### 12.7 回報問題（R19.7）
 
-Windows 版本和 build（`RtlGetVersion`）、CPU 名稱和架構（登錄的 ProcessorNameString）、記憶體、顯示卡（DXGI 的介面卡名稱）、whisper 用的是 CPU 還是 Vulkan，其他同 M§21.9。
+`Shiyin.Platform.Windows/SystemInfo.cs`：Windows 版本和 build（登錄 `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion` 的 CurrentBuild、UBR、EditionID、DisplayVersion，build 22000 以上是 Windows 11；加上系統架構）、CPU 名稱（登錄的 ProcessorNameString）、記憶體（`GlobalMemoryStatusEx`）、顯示卡（顯示卡驅動的登錄 `DriverDesc`，不用 DXGI）、whisper 用的顯示卡（shim 的 `shiyin_gpu_device`：ggml 第一個 GPU 裝置的名稱和說明，例如 `CUDA0 (NVIDIA GeForce RTX 3060)`、`Vulkan0 (AMD Radeon 780M Graphics)`；沒有就是「CPU」），其他同 M§21.9。
+
+最近失敗的工作的錯誤種類（`jobs.error_kind`，`ErrorSummary.LogSummary`，R54.4）：整理工具是 `LLMError.<種類>`（同 Mac）；轉錄是 `WhisperError.modelMissing`、`loadFailed`、`failed(<whisper 的錯誤代碼>)`、`cancelled`、`empty`、`qwenFailed(<HTTP 狀態>)`；Windows 系統元件的錯誤（`ExternalException`：COM、Media Foundation、Win32）寫型別和 HRESULT（`COMException 0xC00D36C4`）；其他寫型別名稱。都不含訊息（訊息可能有逐字稿）。Mac 是 `<domain> <code>`，不改（R26.5）。
 
 ### 12.8 設定
 
@@ -465,16 +497,16 @@ Windows 版本和 build（`RtlGetVersion`）、CPU 名稱和架構（登錄的 P
 ### 14.3 GitHub Releases（D51）
 
 - Windows 用自己的 tag：`win-vX.Y.Z`（Mac 的工作流程只認 `v*`，不會被觸發）。
-- 版號跟 Mac 的功能版本對齊：第一版 3.6.0 表示功能跟 Mac 3.6 相同（D52）；之後只修 Windows 的問題時加第三碼。
+- 版號跟 Mac 的功能版本對齊：第一版 4.0.0（`win-v4.0.0`）跟 Mac 4.0.0 一起發布、功能相同（D52）；之後只修 Windows 的問題時加第三碼。
 - **Windows 的 release 一律用 `--latest=false`**：Mac 的更新網址是 `releases/latest/download/shiyin-update.json`，Windows 的 release 變成 latest 時，Mac 的 app 內更新會找不到檔案（R27 R13.2）。之後 Mac 發新版時照樣變成 latest。
 - Windows 的更新來源（Velopack 的 GithubSource 讀 GitHub 的 release 清單）要能跳過沒有 Windows 檔案的 Mac release：只有 Mac 的 release 時顯示「已是最新版本」、沒有錯誤。
-- **release 清單讀 100 筆**（D94）：Velopack 的 GithubSource 只讀最新的 10 筆（`releases?per_page=10&page=1`）。Windows 使用者一段時間沒開、這期間 Mac 發了 10 版以上，Windows 的新版就不在這 10 筆裡，顯示「已是最新版本」，要等下一個 Windows 版發布才看得到。`Services/WindowsReleaseSource.cs` 繼承 GithubSource、只換掉讀清單的那一步：讀 100 筆（GitHub 一次最多），只留有 Velopack 更新說明（`releases.*.json`）的最新 10 個，找新版、下載照 Velopack 原本的做法。測試：12 個 Mac 版之後才有 1 個 Windows 版的清單找得到（`ServicesTests.ReleaseSourceFindsWindowsBehindManyMacReleases`）。第一個 Windows release 時再用真的 repo 確認一次。
-- 新的工作流程 `.github/workflows/release-windows.yml`：推 `win-v*` 時在 `windows-latest`（x64）、`windows-11-arm`（ARM64）建置，跑測試、whisper 從固定 commit 建並比對 SHA、`vpk pack`、簽更新金鑰、建立 Release（不設成 latest）。手動執行只產出 artifact（同 Mac）。
-- Release 說明的格式同 CLAUDE.md 的規定，標題改成「拾音 Windows 3.6.0：…」「Shiyin for Windows 3.6.0: …」。
+- **release 清單讀 100 筆**（D94）：Velopack 的 GithubSource 只讀最新的 10 筆（`releases?per_page=10&page=1`）。Windows 使用者一段時間沒開、這期間 Mac 發了 10 版以上，Windows 的新版就不在這 10 筆裡，顯示「已是最新版本」，要等下一個 Windows 版發布才看得到。`Services/WindowsReleaseSource.cs` 繼承 GithubSource、只換掉讀清單的那一步：讀 100 筆（GitHub 一次最多），只留有 Velopack 更新說明（`releases.*.json`）的最新 10 個，找新版、下載照 Velopack 原本的做法。測試：12 個 Mac 版之後才有 1 個 Windows 版的清單找得到（`ServicesTests.ReleaseSourceFindsWindowsBehindManyMacReleases`）。
+- 新的工作流程 `.github/workflows/release-windows.yml`：推 `win-v*` 時在 `windows-latest`（x64）、`windows-11-arm`（ARM64）建置，跑測試、whisper 從固定 commit 建（檢查沒有匯入 VC++ 的 DLL、印出每個 DLL 的 SHA-256）、`vpk pack`、簽更新金鑰、建立 Release（不設成 latest）。手動執行只產出 artifact（同 Mac）。
+- Release 說明的格式同 CLAUDE.md 的規定，標題改成「拾音 Windows X.Y.Z：…」「Shiyin for Windows X.Y.Z: …」。
 
 ### 14.4 官網
 
-`site/src/releases.mjs` 依 tag 分兩組（`docs/website.md` §7）：`v*` 是 Mac（規則不變，最新的 release 一定要有 DMG）、`win-v*` 是 Windows（要有兩個 Setup.exe）；下載區、`/download/windows`、更新紀錄、下載次數分開算。常見問題「只有 Mac 版」的文字（`site/src/content.mjs` 三種語言）第一個 Windows 版發布時改掉。試建置用 `node site/build.mjs --releases <檔案>` 拿兩種 release 混在一起的 JSON。
+`site/src/releases.mjs` 依 tag 分兩組（`docs/website.md` §7）：`v*` 是 Mac（規則不變，最新的 release 一定要有 DMG）、`win-v*` 是 Windows（要有兩個 Setup.exe）；下載區、`/download/windows`、更新紀錄、下載次數分開算。試建置用 `node site/build.mjs --releases <檔案>` 拿兩種 release 混在一起的 JSON。
 
 ## 15. 驗證環境與 DEBUG 控制通道
 
@@ -515,7 +547,7 @@ Windows 版本和 build（`RtlGetVersion`）、CPU 名稱和架構（登錄的 P
 從 SSH 啟動的程式不會出現在登入的桌面，UI Automation 也碰不到桌面。所以用排程工作在桌面的工作階段執行 PowerShell（`ps/in-session.ps1`：註冊「互動式登入」的工作、等它跑完、讀回輸出）。
 
 - `insession.sh`：把標準輸入的 PowerShell 放到桌面跑，例如 `ps/start-app.ps1` 在桌面開 DEBUG 版（資料在 `C:\ShiyinTest`）。
-- `uia.sh <動作> <視窗> <名稱>`（`ps/uia.ps1`，Windows 內建的 UIAutomationClient）：`windows`、`dump`、`click`（Invoke／Toggle／選取／展開）、`open`（會打開選單的按鈕，交給另一個程序按，不然會等到選單關掉）、`menu`、`choose`（下拉選單）、`set`（輸入框）、`close`。同名的元件能按的排前面，`名稱#2` 指定第幾個。
+- `uia.sh <動作> <視窗> <名稱>`（`ps/uia.ps1`，Windows 內建的 UIAutomationClient）：`windows`、`dump`、`click`（Invoke／Toggle／選取／展開）、`open`（會打開選單的按鈕，交給另一個程序按，不然會等到選單關掉）、`menu`、`choose`（下拉選單）、`set`（輸入框）、`close`。同名的元件能按的排前面，`名稱#2` 指定第幾個。SplitButton 的箭頭、DropDownButton、子選單用 `ps/expand.ps1 <視窗> <名稱> [項目] [子選單的項目或 ?]`（ExpandCollapsePattern；`uia.ps1` 的 `click`、`menu` 用 Invoke，會按到 SplitButton 主要的動作），放在 `insession.sh` 裡跑。
 - `shot.sh <檔案>`：在 Mac 上用 `screencapture -l` 截 UTM 的視窗（整個虛擬機的畫面）。
 - UI Automation 做不到時（開著選單、存檔對話框時 UI Automation 會卡住）：用 UTM 的 AppleScript `input scan code` 送按鍵，只會送進虛擬機，不會到 Mac 前景的 app。
 - 系統的視窗（SmartScreen、系統匣）不屬於拾音：直接從桌面的根元件找（例如系統匣在 `Shell_TrayWnd`，隱藏的圖示先按「顯示隱藏的圖示」）。
@@ -534,34 +566,21 @@ Windows 版本和 build（`RtlGetVersion`）、CPU 名稱和架構（登錄的 P
 | D49 | API key 存在認證管理員 | DPAPI 加密後存檔案：N6 規定 key 不寫進檔案。WinRT 的 PasswordVault：底層也是認證管理員，不打包的 app 用起來比較麻煩 |
 | D50 | 用 Velopack 安裝和更新，加上自己的更新金鑰（ECDSA）驗證發布者 | MSIX：自簽的 MSIX 要先用系統管理員把憑證裝進「受信任的人」，一般使用者裝不起來。Inno Setup 加自己寫更新器：要自己處理替換、重開、解除安裝，Velopack 都有，還有差異更新。只靠自簽的 Authenticode 比對簽署者：做得到（`CERT_E_UNTRUSTEDROOT` 表示簽章完整只是不受信任），但對 SmartScreen、Smart App Control 沒有幫助，還要多保管一張憑證；更新金鑰的驗證只要幾行標準的密碼學程式。Microsoft Store：要開發者帳號和審核，之後再說 |
 | D51 | Windows 的 release 用 `win-v*` tag，不設成 latest | 同一個 release 放兩邊的檔案、版號一樣：兩邊一定要同時發布，但 Windows 修自己的問題、Mac 加新功能的時間不會一樣。Windows 的 release 標成 prerelease：官網、Velopack 預設都會略過它，使用者看不到也更新不到。另外開一個 repo：星星、issue、官網的資料來源都要分開。取捨：官網的 `releases.mjs` 要改成認兩種 tag，而且要在第一個 Windows release 之前改好 |
-| D52 | Windows 的版號對齊 Mac 的功能版本，第一版 3.6.0 | 從 1.0.0 開始：使用者看不出 Windows 版有哪些 Mac 的功能 |
+| D52 | Windows 的版號對齊 Mac 的功能版本，第一版 4.0.0（跟 Mac 一起發布） | 從 1.0.0 開始：使用者看不出 Windows 版有哪些 Mac 的功能 |
 | D53 | 驗證用排程工作在桌面跑 PowerShell 的 UI Automation，加上 named pipe 的控制通道（§15.4；原本規劃的桌面代理 app 用不到） | 在使用者的電腦上送鍵盤事件：CLAUDE.md 禁止。WinAppDriver：微軟已經不維護。從 SSH 直接開 app：不會出現在桌面，截不到圖 |
 | D54 | 複製富文字只放純文字和 HTML | 再放 RTF：要自己從 HTML 產生 RTF；Windows 上常用的貼上目標都吃 HTML |
-| D55 | 偵測會議讀隱私設定的麥克風使用紀錄（ConsentStore）（待 T-W8） | audio session 清單（IAudioSessionManager2）：要一個一個裝置列，瀏覽器和 WebView2 用另一個程序收音，容易漏。取捨：ConsentStore 沒有官方文件，Windows 改版時可能變；它是系統「麥克風使用中」指示的資料來源，改了也比較容易發現 |
+| D55 | 偵測會議讀隱私設定的麥克風使用紀錄（ConsentStore） | audio session 清單（IAudioSessionManager2）：要一個一個裝置列，瀏覽器和 WebView2 用另一個程序收音，容易漏。取捨：ConsentStore 沒有官方文件，Windows 改版時可能變；它是系統「麥克風使用中」指示的資料來源，改了也比較容易發現 |
 | D56 | whisper 外面包一層小的 C shim | 在 C# 宣告整個 `whisper_full_params`：傳值、1 byte 的 bool、巢狀 struct 和 callback，對錯了不會報錯、只會結果怪；每次升級 whisper.cpp 都要重新對一次 struct |
 | D57 | 介面語言在設定裡可以另外選 | 只跟著 Windows：Windows 沒有替不打包的桌面 app 個別設定語言的地方（Mac 有），英文 Windows 上想用中文介面的人就沒辦法 |
 | D58 | sherpa-onnx 只切段落（固定 30 群），每 3 秒的小段用 3D-Speaker 算聲紋，減掉整場平均後自己做凝聚式分群（§9） | sherpa-onnx 原本的門檻分群：中文會議（AISHELL-4）把 6 人併成 1～3 人，門檻怎麼調都不行（整場的聲紋太像）。WeSpeaker（英文 VoxCeleb）的聲紋：減掉平均後 AMI 還好，AISHELL-4 同一人、不同人的相似度重疊太多（第 10 百分位 0.03 對第 90 百分位 0.33；3D-Speaker 是 0.17 對 0.09）。VBx：要 PLDA 模型、參數多，這個做法在 AMI、AISHELL-4 已經跟 Mac 一樣好。取捨：聲紋模型比 WeSpeaker 大（40 MB 對 26 MB）；聲紋比對、分不準的門檻跟 Mac 不同（0.6、0.37） |
-| D59 | WinUI 的畫面全部用 C# 建，不用 XAML 檔 | XAML：排版看得比較清楚，但 XAML 編譯器（XamlCompiler.exe）只能在 Windows 跑，Mac 上連編譯檢查都不行，每改一次畫面都要進虛擬機。取捨：程式比較長、沒有設計工具的預覽；用 `Ui.cs` 的小工具把常用的寫法縮短，畫面一律在虛擬機截圖確認（W2） |
+| D59 | WinUI 的畫面全部用 C# 建，不用 XAML 檔 | XAML：排版看得比較清楚，但 XAML 編譯器（XamlCompiler.exe）只能在 Windows 跑，Mac 上連編譯檢查都不行，每改一次畫面都要進虛擬機。取捨：程式比較長、沒有設計工具的預覽；用 `Ui.cs` 的小工具把常用的寫法縮短，畫面一律在虛擬機截圖確認 |
 | D60 | 不碰畫面的 app 邏輯放在 `Shiyin.Services`（net10.0），平台的部分是介面 | 寫在 App 的 ViewModel 裡：Mac 上測不了，錄音、工作佇列、匯入、更新這些最容易出錯的流程都要進虛擬機才能測。取捨：多一層介面（`IAudioDecoder`、`IAudioSource`、`IExportPlatform`、`IUpdatePlatform`…）；換來在 Mac 上用模擬的音源、假的引擎和本機伺服器跑完整的流程 |
 | D61 | 快速辨識、即時逐字稿用原版 SenseVoice-Small（2024-07-17），VAD 門檻 0.35，送進 VAD 前自動增益（§7） | 2025-09-09 版（原本選的，比較新）是用粵語語料微調過的：日文的假名幾乎都不見（國會聽證、FLEURS 錯字率約 80%，原版 16～28%），英文 AMI WER 60%（原版 40%），只有中文合成會議稍好（8.8% 對 9.2%）。VAD 用預設門檻 0.5、不放大：遠距收音的 AISHELL-4 只抓到兩成的時間，錯字率 84%；門檻 0.35 加自動增益是 26%，其他錄音也沒有變差（門檻 0.35 單獨讓 FLEURS 從 19.9% 降到 15.8%）。固定放大 15～20 dB 對 AISHELL-4 也有用，但大聲的錄音（國會聽證的第 90 百分位已經 −20 dBFS）再放大會超過 0 dBFS 被削掉。取捨：自動增益在很安靜的房間會把背景放大（最多 24 dB），靠 VAD 擋；音量變化很大的會議，增益要幾秒才跟上 |
 | D62 | 通知用 Windows 本身的 ToastNotificationManager＋登錄的 AppUserModelID，按鈕用 `shiyin:` 網址加權杖（§12.2） | Windows App SDK 的 AppNotification：自帶部署、沒打包的 app 不能用（依賴 Singleton 套件）。不自帶 Windows App SDK、改用框架套件：要另外裝執行階段，安裝檔要系統管理員或多一步。COM 啟動器（INotificationActivationCallback）：按按鈕時不用開第二個程序，但要登錄 CLSID、實作 COM 伺服器，程式多很多。取捨：每按一次按鈕會短暫多開一個程序（轉送完就結束）；網址可能被網頁觸發，所以會改變狀態的動作要權杖 |
 | D63 | 開始功能表、桌面的捷徑由 app 的安裝 hook 自己建，名稱依介面語言（§14.1） | 用 Velopack 建的捷徑：名稱是打包時固定的 `--packTitle`，英文 Windows 也是「拾音」。名稱寫成「拾音 Shiyin」：兩種語言都找得到，但「應用程式」清單、捷徑都多一串字。`desktop.ini` 的 LocalizedFileNames 依語言顯示：要在 exe 放多語言的字串資源（MUI），還要改開始功能表資料夾裡共用的 `desktop.ini`。取捨：建立、改名、刪除捷徑要自己處理（`Shortcuts.cs`）；安裝程式自己的視窗標題還是固定的「拾音」 |
-| D64 | NVIDIA 顯示卡加速由 app 另外下載 whisper.cpp 官方的 CUDA 版（R27 R4.6、§8） | 直接放進安裝檔：x64 的安裝檔從約 100 MB 變成約 750 MB（ggml-cuda 570 MB、cuBLASLt 474 MB），沒有 NVIDIA 顯示卡的人也要下載。官方的 CUDA 11.8 版：壓縮檔沒有附 cuBLAS，要另外從 NVIDIA 下載。自己建 Vulkan 版（設計原本的做法，所有顯示卡都能用）：官方沒有 Windows 的 Vulkan 檔案，要 CI 裝 Vulkan SDK 建，還沒做；做好之後 AMD、Intel 的顯示卡用 Vulkan，NVIDIA 再比較 CUDA 和 Vulkan 的速度決定要不要留這個下載。取捨：下載 685 MB、佔 1.1 GB；只支援 NVIDIA；CUDA 12.4 要 527 版以後的驅動（太舊時用 CPU）；要第一次用 whisper 之前下載好才用得上，不然要重新開啟 |
+| D64 | NVIDIA 顯示卡加速由 app 另外下載 whisper.cpp 官方的 CUDA 版（R27 R4.6、§8） | 直接放進安裝檔：x64 的安裝檔從約 100 MB 變成約 750 MB（ggml-cuda 570 MB、cuBLASLt 474 MB），沒有 NVIDIA 顯示卡的人也要下載。官方的 CUDA 11.8 版：壓縮檔沒有附 cuBLAS，要另外從 NVIDIA 下載。自己建 Vulkan 版（設計原本的做法，所有顯示卡都能用）：官方沒有 Windows 的 Vulkan 檔案，要 CI 裝 Vulkan SDK 建，還沒做；做好之後 AMD、Intel 的顯示卡用 Vulkan，NVIDIA 再比較 CUDA 和 Vulkan 的速度決定要不要留這個下載。取捨：下載 685 MB、佔 1.1 GB；只支援 NVIDIA；CUDA 12.4 要 527 版以後的驅動（太舊時用 CPU）；要第一次用 whisper 之前下載好才用得上，不然要重新開啟。後續：AMD 的顯示卡改用拾音自己建的 Vulkan 版（D127），Intel 還沒開，NVIDIA 照舊用 CUDA |
 | D93 | Windows 的短句再確認用說話者辨識的同一個聲紋模型，跟每位說話者的聲紋比，像另一位 0.25 以上才改（§9；Mac 用另一個帶前後文的模型、跟長句的平均比、0.15，D92） | 照搬 Mac 的長句平均、0.15：Windows 的模型只聽得到這一句，AMI 沒重疊的句子改錯 5 句，使用者的訪談有 4 句改得跟 Mac 相反。像 Mac 帶前後文算：sherpa-onnx 的聲紋模型沒有遮罩的輸入（Mac 的 wespeaker_v2 有），只能把前後的聲音一起算，會混進別人的聲音（沒有試）。不做：完整逐字稿還是有進步（AMI 94.9% → 95.5%、AISHELL-4 96.6% → 97.1%），也沒有變差。取捨：使用者回報的那一句在 Windows 改不回來（兩位的分數只差 0.09）；說話者辨識多約 10～20% 的時間 |
 | D94 | Windows 找新版時自己讀 GitHub 的 release 清單（100 筆），其他照 Velopack 的 GithubSource（§14.3） | 照用 GithubSource：只讀最新的 10 筆，Mac 連發 10 版後 Windows 使用者看不到新版。固定網址的 feed（SimpleWebSource）：每次發布要另外更新一個固定的 release 或網站上的檔案，官網的 release 清單也要跳過它，多一個會出錯的地方。分 Mac、Windows 兩個 repo：星星、issue、下載數分散（D51）。取捨：Mac 在一次 Windows 發布之間發了 100 版以上才會再漏，到時候改成往下翻頁 |
 | D95 | Windows 的 Qwen3-ASR 用 llama.cpp 官方的 `llama-server.exe` 當子程序（HTTP），不做 shim DLL（§8.4） | 同程序載入 llama 的 DLL：跟 whisper 同名的 ggml DLL，載入器只認名稱，兩個版本不能並存；side-by-side manifest 可以但複雜、出錯時只會靜默用錯版本。自己建 llama.cpp 把 DLL 改名：每次升級要重建 cpu／cuda 兩種後端兩種架構，CI 時間和出錯的地方都多。用跟 llama 同版的 ggml 重建 whisper：whisper 固定在 d1be6fd 才跟 Mac 結果一致（R28.4）。取捨：多一個程序、每次轉錄多幾秒啟動（Mac 也是每次載入模型）、音訊要 base64 走 localhost（15 秒一段約 0.6 MB，可忽略）、要自己管子程序的生命週期（Job Object） |
-
-## 17. 需要先做的實驗
-
-結果寫在對應的 commit 訊息，選擇定了就改上面的章節和決策紀錄。做完的實驗從表裡拿掉（T-W1 見 §15、T-W5 見 §7），只留還有部分沒做的。
-
-| # | 內容 | 通過標準 |
-|---|---|---|
-| T-W2 | 錄音：命令列原型同時錄麥克風和電腦聲音 5 分鐘（Edge 播 YouTube，中間停 30 秒；原型自己播一段正弦波） | 沒有斷音、停播的 30 秒補成靜音、兩個聲道時間差 100 ms 以內、正弦波沒錄進去；換預設裝置後自動接回；`powercfg /requests` 看得到 |
-| T-W3 | whisper：建 x64（CPU 各版本＋Vulkan）、ARM64（CPU 各版本）、Mac 的 dylib，跑 Breeze | 同一段錄音跟 Mac 的 `transcribe-eval` 錯字率差 ≤ 0.5 個百分點（R28.4 的上限是 1）；語言偵測跟 Mac 判斷相同；取消 1 秒內停；記憶體峰值 ≤ 3 GB；量出虛擬機、CI x64、CI ARM64 的倍速，決定只有 CPU 時的參數和 N2、N4 的數字 |
-| T-W4 | 說話者辨識：`Shiyin.Eval` 在 Mac 上跑 AMI 9 場、AISHELL-4、使用者的麻將錄音，A、B 兩個方案 | 說話者標錯的時間 ≤ 15%（同 T-A3）；AMI 自動判斷出 4 人、AISHELL-4 6 人、麻將給「至少 4 人」時分出 ≥ 4 位；選出門檻（聲紋誤認 ≤ 2%）；1 小時的錄音 3 分鐘內處理完（CI x64） |
-| T-W6 | claude、codex CLI：原生安裝和 npm 安裝各試一次 | 找得到真正的執行檔（不經過 cmd.exe）；10,000 字以上的中文 `--system-prompt` 和 JSON schema 傳進去不會被截斷；能判斷登入狀態、開終端機登入（登入要使用者同意） |
-| T-W7 | 安裝和更新：本機伺服器模擬 GitHub Releases（Mac 和 Windows 的 release 混在一起） | 從 Edge 下載的 Setup.exe（有網路來源標記）被 SmartScreen 擋下時照說明可以裝、不用系統管理員；Smart App Control 開著時的畫面記下來寫進安裝說明；正常、SHA 不符、更新金鑰不符、同版本四種更新檔的結果都對；更新後麥克風權限還在；解除安裝不刪資料；更新來源跳過 Mac 的 release |
-| T-W8 | 偵測會議：新版 Teams、Zoom、Chrome 打開麥克風 | 5 秒內偵測到是哪個 app；停用 10 秒內偵測到；ConsentStore 跟 audio session 清單比對 |
-| T-W9 | 媒體：解碼 m4a、mp3、wav、aac、flac、mp4、mov、wma、aiff、caf；AAC 編碼的檔案大小；變速播放的音高；WebView2 印中文、日文 PDF；docx 用 Word 打開 | 列出解得開的格式，寫進 R27 的 R3.1；解不開的有清楚的錯誤；1.5 倍速時聲音不變調（不行就換成 WASAPI 加自己的變速） |
-| T-W10 | 長會議畫面：2,086 段的會議捲動、跟著播放 | `metrics` 的 UI 執行緒最長卡住時間跟 Mac 的 R20.3 同一個標準 |
+| D127 | AMD 顯示卡用 Vulkan：拾音自己在 CI 建 whisper 的 Vulkan 版、放在 prerelease，app 偵測到 AMD 才下載；Qwen 用 llama.cpp 官方的 Vulkan 版（R4.7、§8、§8.4；2026-10-29 使用者要求） | 放進 x64 的安裝檔（§8 原本的寫法）：沒有 AMD 的人也要下載，使用者要「只有部分電腦要的元件讓 app 自己下載」。ROCm／HIP：Windows 的 HIP SDK 只支援部分獨顯，Radeon 內顯（拾音的使用者裡有 780M、860M）多半不支援，元件也大很多。DirectML、ONNX：whisper.cpp 沒有，要換引擎，結果跟 Mac 不一致（R28.4）。直接用 llama.cpp 官方的 ggml-vulkan.dll：ggml 版本不同（b11840 對 whisper 的 d1be6fd），不能混用。Intel 也一起開：還沒量過內顯會不會比 CPU 快。取捨：要在 CI 裝 Vulkan SDK、自己放檔案；沒有顯示卡的 CI 只能用 lavapipe 確認算得對，真的速度要使用者的 AMD 電腦 |
+| D129 | Windows 的電腦聲音改錄預設輸出裝置（endpoint loopback），跟著預設裝置換（R54、§6；2026-10-28 GitHub issue #2） | 照舊用 process loopback 排除拾音自己：新版 Teams（ms-teams.exe）的聲音收到的全是 0，開始、收音都回報成功（排除和只錄某個程序兩種模式都一樣；Microsoft 的 ApplicationLoopback 範例 microsoft/Windows-classic-samples#414、OBS 的應用程式音訊擷取一樣）。process loopback 為主，偵測到「自己收到靜音、輸出裝置卻有聲音」才改錄整個裝置：Teams 跟別的聲音同時在播時偵測不到，還要一直讀每個裝置的音量、切換時兩邊銜接。process loopback 和 endpoint loopback 一起錄再混：別的 app 的聲音兩邊都有，會疊兩次。取捨：錄音中在拾音裡播放錄音會錄進去（Mac 排除自己，R54.3）；Teams 的喇叭指定了不是預設的裝置時錄不到。後續：issue #2 的回報者 Windows 預設的輸出和 Teams 的喇叭是同一台裝置，R54 就錄得到（2026-10-29 回覆）；「也錄 Teams 指定的裝置」先不做，有人回報再做（§6） |

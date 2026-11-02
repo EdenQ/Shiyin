@@ -115,17 +115,24 @@ public sealed class SettingsWindow : Window
             column.Children.Add(CompanyModels());
         _ = host.Enterprise.RefreshInfo();
 
+        // 只有 Claude 桌面版：說明怎麼裝 Claude Code（R56.2、R56.3）；已經在用別的整理工具的人不顯示
+        var claudeHint = (provider == LLMProvider.Claude || S.NeedsProviderSetup) && ClaudeCodeHint.Applies(host);
         if (provider is LLMProvider.Claude or LLMProvider.Codex)
         {
+            // 桌面版附的 codex：寫出來，登入是打開那個 app（R55.3）
+            var desktopApp = provider == LLMProvider.Codex ? host.Tools.Find("codex")?.DesktopApp : null;
             var status = Ui.Text(L.T("檢查登入狀態…"), 13, color: Ui.Secondary);
-            var login = Ui.Button(L.F("登入 %@", provider.ShortLabel()), () => CliLogin.Open(host, provider));
+            var login = Ui.Button(desktopApp is not null ? L.F("打開 %@ 登入", desktopApp) : L.F("登入 %@", provider.ShortLabel()), () => CliLogin.Open(host, provider));
             login.Visibility = Visibility.Collapsed;
             async void Check(bool userInitiated)
             {
+                if (userInitiated) host.Locator.ClearCache();
                 if (host.Tools.Find(provider == LLMProvider.Claude ? "claude" : "codex") is null)
                 {
                     status.Text = provider == LLMProvider.Codex ? L.T("這台電腦沒有安裝 codex：沒有在用 Codex 的話，請改選 API")
+                        : claudeHint ? L.T("這台電腦沒有安裝 Claude Code（命令列版），安裝方法在下面")
                         : L.T("這台電腦沒有安裝 claude：沒有在用 Claude Code 的話，請改選 API");
+                    if (userInitiated) Show();
                     return;
                 }
                 var result = await CliLogin.Refresh(provider);
@@ -138,7 +145,11 @@ public sealed class SettingsWindow : Window
             }
             Check(false);
             column.Children.Add(Ui.Row(8, Ui.Text(L.T("狀態"), 13), status, login, Ui.IconButton(Symbol.Refresh, L.T("重新檢查登入狀態"), () => Check(true))));
+            if (desktopApp is not null)
+                column.Children.Add(Ui.Caption(L.F("使用 %@ 附的 codex（這台電腦沒有另外安裝 Codex CLI）", desktopApp)));
         }
+        if (claudeHint)
+            column.Children.Add(ClaudeCodeHint.Build(() => { host.Locator.ClearCache(); Show(); }));
 
         // OpenAI 相容 API 的網址（M§19.3）
         if (provider == LLMProvider.OpenAICompatible)
@@ -527,13 +538,15 @@ public sealed class SettingsWindow : Window
         var source = Ui.Column(12);
         source.Children.Add(Ui.Combo(new[] { "mic", "both", "system" }.Select(s => (s, MainWindow.SourceLabel(s))), S.RecordSource,
             s => { S.Set(AppSettings.RecordSourceKey, s); Show(); }, L.T("錄音來源")));
-        List<(string Id, string Name)> microphones;
-        try { microphones = WasapiSource.Microphones(); }
-        catch (Exception e) when (e is System.Runtime.InteropServices.COMException) { microphones = []; }
-        var mic = Ui.Combo(new[] { ("", L.T("系統預設")) }.Concat(microphones), S.InputDevice, id => S.Set(AppSettings.InputDeviceKey, id), L.T("麥克風"));
+        // 同錄音按鈕的下拉選單（R58.1）：系統預設後面寫出現在是哪一支
+        var fallback = host.DefaultMicrophone();
+        var microphones = host.MicrophoneList().Select(d => (d.Id, d.Name));
+        var mic = Ui.Combo(new[] { ("", fallback is null ? L.T("系統預設") : L.F("系統預設（%@）", fallback.Name)) }.Concat(microphones), S.InputDevice,
+            id => S.Set(AppSettings.InputDeviceKey, id.Length == 0 ? null : id), L.T("麥克風"));
         mic.IsEnabled = S.RecordSource != "system";
         source.Children.Add(mic);
         source.Children.Add(Note(L.T("錄線上會議時選「麥克風＋電腦聲音」：你的聲音和對方的聲音會分別錄在左右聲道。")));
+        source.Children.Add(Note(L.T("錄音按鈕旁的箭頭、錄音畫面的麥克風名稱也可以換麥克風。藍牙耳機連著時，Windows 可能自動改用耳機的麥克風，人不在旁邊就錄不到現場的聲音。")));
         source.Children.Add(Ui.Button(L.T("麥克風權限設定"), Shell.OpenMicrophonePrivacy));
 
         var language = Ui.Column(12);
@@ -566,7 +579,7 @@ public sealed class SettingsWindow : Window
         {
             S.Set(AppSettings.TranscriptionEngineKey, e);
             if (e == "qwen") host.Models.AutoStart(ModelStore.Model.Qwen);
-            host.Gpu.OfferQwenCuda();
+            host.Gpu.OfferQwenGpu();
             host.Runner.Wake();
             Show();
         }, L.T("正式轉錄")));
@@ -625,22 +638,43 @@ public sealed class SettingsWindow : Window
             if (note.Length > 0) models.Children.Add(Note(note));
         }
         // Qwen 的 CUDA 版（design-windows §8.4）：有 NVIDIA 顯示卡或已經下載過才顯示
-        if (host.Gpu.Applies || host.Models.StateOf(ModelStore.Model.QwenCuda) is not ModelStore.State.Missing)
+        if (host.Gpu.Kind == GpuAcceleration.Pack.Cuda || host.Models.StateOf(ModelStore.Model.QwenCuda) is not ModelStore.State.Missing)
         {
             models.Children.Add(ModelRow(ModelStore.Model.QwenCuda, transcribing));
             models.Children.Add(Note(L.T("有 NVIDIA 顯示卡、選了 Qwen3-ASR 時自動下載，Qwen 的轉錄會快很多。272 MB，解開約 610 MB（llama.cpp 官方的 CUDA 版，要先有上面的 NVIDIA 顯示卡加速）。刪除後不會再自動下載。")));
         }
         // NVIDIA 顯示卡加速（R27 R4.6）：只在有 NVIDIA 顯示卡的 x64 電腦（或已經下載過）顯示
-        if (host.Gpu.Applies || host.Models.StateOf(ModelStore.Model.GpuCuda) is not ModelStore.State.Missing)
+        if (host.Gpu.Kind == GpuAcceleration.Pack.Cuda || host.Models.StateOf(ModelStore.Model.GpuCuda) is not ModelStore.State.Missing)
         {
-            // 元件已經載入時刪不掉（DLL 在用），重新開啟拾音之後才能刪
-            var inUse = WhisperEngine.NativeDirectory is { } pack && WhisperEngine.LoadedDirectory == pack;
+            var inUse = PackInUse(ModelStore.Model.GpuCuda);
             models.Children.Add(ModelRow(ModelStore.Model.GpuCuda, transcribing || inUse,
                 inUse ? L.T("轉錄正在用這個元件，重新開啟拾音後才能刪除") : null));
             models.Children.Add(Note(L.T("有 NVIDIA 顯示卡時自動下載，轉錄會快很多。685 MB，解開約 1.1 GB（whisper.cpp 官方的 CUDA 版）。刪除後不會再自動下載。")));
         }
+        // AMD 顯示卡加速（R27 R4.7）：只在有 AMD 顯示卡（沒有 NVIDIA）的 x64 電腦（或已經下載過）顯示
+        if (host.Gpu.Kind == GpuAcceleration.Pack.Vulkan || host.Models.StateOf(ModelStore.Model.QwenVulkan) is not ModelStore.State.Missing)
+        {
+            models.Children.Add(ModelRow(ModelStore.Model.QwenVulkan, transcribing));
+            models.Children.Add(Note(L.F("有 AMD 顯示卡、選了 Qwen3-ASR 時自動下載，Qwen 改用顯示卡轉錄。%@，解開約 %@（llama.cpp 官方的 Vulkan 版）。刪除後不會再自動下載。",
+                Recorder.ByteCount(ModelStore.QwenVulkan.Size), Recorder.ByteCount(Unpacked(ModelStore.QwenVulkan)))));
+        }
+        if (host.Gpu.Kind == GpuAcceleration.Pack.Vulkan || host.Models.StateOf(ModelStore.Model.GpuVulkan) is not ModelStore.State.Missing)
+        {
+            var inUse = PackInUse(ModelStore.Model.GpuVulkan);
+            models.Children.Add(ModelRow(ModelStore.Model.GpuVulkan, transcribing || inUse,
+                inUse ? L.T("轉錄正在用這個元件，重新開啟拾音後才能刪除") : null));
+            models.Children.Add(Note(L.F("有 AMD 顯示卡時自動下載，正式轉錄改用顯示卡。%@，解開約 %@（拾音用同一版 whisper.cpp 建的 Vulkan 版）。刪除後不會再自動下載。",
+                Recorder.ByteCount(ModelStore.GpuVulkan.Size), Recorder.ByteCount(Unpacked(ModelStore.GpuVulkan)))));
+        }
         return models;
     }
+
+    /// <summary>元件已經載入時刪不掉（DLL 在用），重新開啟拾音之後才能刪</summary>
+    bool PackInUse(ModelStore.Model pack) =>
+        WhisperEngine.LoadedDirectory is { } loaded && string.Equals(loaded, host.Models.Directory(pack), StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>壓縮檔解開之後的大小（解出來的檔案加起來）</summary>
+    static long Unpacked(ModelStore.ModelInfo info) => info.Files.Sum(f => f.Extract?.Sum(e => e.Size) ?? f.Size);
 
     FrameworkElement StorageRows()
     {
@@ -721,6 +755,10 @@ public sealed class SettingsWindow : Window
         // 企業伺服器（R49、M§36.3）：放在最上面，公司的人照「進階 → 企業伺服器」找得到
         column.Children.Add(Section(L.T("企業伺服器"), Enterprise()));
         column.Children.Add(Section(L.T("介面"), language));
+        // 會議內容的文字大小（R59.1）：快捷鍵改的也是這個設定
+        var levels = Enumerable.Range(TextSizes.Min, TextSizes.Max - TextSizes.Min + 1);
+        var textSize = Ui.Combo(levels.Select(l => (l, TextSizes.Label(l))), S.TextSize, l => S.Set(AppSettings.TextSizeKey, (double)l), L.T("會議內容的文字大小"));
+        column.Children.Add(Section(L.T("顯示"), textSize, Note(L.T("紀錄、逐字稿、提問、即時逐字稿和我的筆記的文字。也可以用 Ctrl+加號、Ctrl+減號調整，Ctrl+0 回到標準大小。"))));
         var update = Ui.Column(8, Ui.Bar(Ui.Text(L.T("目前版本"), 14), null, Ui.Text(host.Version, 14, color: Ui.Secondary)));
         if (host.Updater is { } updater)
         {

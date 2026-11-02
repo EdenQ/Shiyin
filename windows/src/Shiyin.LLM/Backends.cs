@@ -360,14 +360,27 @@ sealed class CodexCli(LLMClient client, string model) : ILLMBackend
                 "--output-schema", schemaFile, "-o", output };
             if (model.Length > 0) args.AddRange(["-m", model]);
             args.Add("-");
-            var result = await client.Runner.Run(tool, args, system + "\n\n" + prompt, dir, LLMClient.Timeout, cancel);
+            ProcessResult result;
+            try
+            {
+                result = await client.Runner.Run(tool, args, system + "\n\n" + prompt, dir, LLMClient.Timeout, cancel);
+            }
+            catch (System.ComponentModel.Win32Exception e) when (tool.DesktopApp is { } desktop)
+            {
+                // 桌面版附的 codex 有些電腦執行不了（拒絕存取，openai/codex #40867、#42645）：說原因、建議另外裝 CLI（R55.4）
+                throw LLMException.Failed(L.F("沒辦法執行 %@ 附的 codex（%@）。可以另外安裝 Codex CLI（npm install -g @openai/codex）再試。", desktop, e.Message));
+            }
             var data = File.Exists(output) ? await File.ReadAllTextAsync(output, cancel) : "";
             if (!result.Succeeded || data.Length == 0)
             {
                 var detail = result.StderrTail(500);
                 if (LLMException.IsLoginProblem(detail)) throw LLMException.NotLoggedIn("codex");
                 if (LLMException.IsLimitProblem(detail)) throw LLMException.Limited(detail);
-                throw LLMException.Failed(detail.Length == 0 ? L.F("codex 沒有回傳結果（結束代碼 %lld）", (long)result.ExitCode) : detail);
+                var message = detail.Length == 0 ? L.F("codex 沒有回傳結果（結束代碼 %lld）", (long)result.ExitCode) : detail;
+                // 桌面版附的 codex 出錯：建議另外裝 CLI（R55.4）
+                if (tool.DesktopApp is { } app)
+                    message += "\n" + L.F("這是 %@ 附的 codex，也可以另外安裝 Codex CLI（npm install -g @openai/codex）再試。", app);
+                throw LLMException.Failed(message);
             }
             return data;
         }

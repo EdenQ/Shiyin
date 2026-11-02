@@ -84,6 +84,17 @@
         }
       }
     },
+    "%@ 附的 codex": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "codex bundled with %@"
+          }
+        }
+      }
+    },
     "%@・最近：%@ %@": {
       "extractionState": "manual",
       "localizations": {
@@ -513,6 +524,17 @@
         }
       }
     },
+    "100%（標準）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "100% (Default)"
+          }
+        }
+      }
+    },
     "30 天內都可以從垃圾桶還原。": {
       "extractionState": "manual",
       "localizations": {
@@ -646,6 +668,17 @@
         }
       }
     },
+    "Codex 還沒登入或登入已過期，請打開 %@ 重新登入後再試一次。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Codex isn’t signed in, or its sign-in has expired. Open %@, sign in again, and try once more."
+          }
+        }
+      }
+    },
     "Codex 還沒登入或登入已過期，請重新登入後再試一次（終端機指令：codex login）。": {
       "extractionState": "manual",
       "localizations": {
@@ -668,6 +701,17 @@
         }
       }
     },
+    "Codex 還沒登入，請打開 %@ 登入之後再整理。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Codex isn’t signed in. Open %@ and sign in to summarize."
+          }
+        }
+      }
+    },
     "Codex（codex CLI）": {
       "extractionState": "manual",
       "localizations": {
@@ -675,6 +719,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Codex (codex CLI)"
+          }
+        }
+      }
+    },
+    "Codex（使用 %@ 附的 codex）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Codex (using the codex bundled with %@)"
           }
         }
       }
@@ -717,9 +772,6 @@
           }
         }
       }
-    },
-    "Markdown": {
-      "extractionState": "manual"
     },
     "OpenAI API": {
       "extractionState": "manual"
@@ -964,13 +1016,13 @@
         }
       }
     },
-    "⌘1～⌘6": {
+    "⌘1～⌘3": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "⌘1–⌘6"
+            "value": "⌘1–⌘3"
           }
         }
       }
@@ -1360,6 +1412,17 @@
         }
       }
     },
+    "之前選的麥克風（沒有接上，會用系統預設）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Previously chosen microphone (not connected; using system default)"
+          }
+        }
+      }
+    },
     "之後再設定（先不整理）": {
       "extractionState": "manual",
       "localizations": {
@@ -1378,6 +1441,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "You can show this again from Settings → Advanced."
+          }
+        }
+      }
+    },
+    "之後的錄音用 %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New recordings will use %@"
+          }
+        }
+      }
+    },
+    "之後的錄音用系統預設的麥克風（%@）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New recordings will use the system default microphone (%@)"
           }
         }
       }
@@ -1646,6 +1731,17 @@
         }
       }
     },
+    "你有 Claude 桌面版：另外安裝 Claude Code（命令列版）之後，會議助手就能用你的 Claude 訂閱（Pro 以上）整理。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You have the Claude desktop app. Install Claude Code (the command-line version) as well, and Meeting Assistant can summarize with your Claude subscription (Pro or higher)."
+          }
+        }
+      }
+    },
     "你的回答": {
       "extractionState": "manual",
       "localizations": {
@@ -1653,6 +1749,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Your answer"
+          }
+        }
+      }
+    },
+    "使用 %@ 附的 codex（這台 Mac 沒有另外安裝 Codex CLI）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Using the codex bundled with %@ (Codex CLI isn't installed separately on this Mac)"
           }
         }
       }
@@ -1764,17 +1871,6 @@
                 }
               }
             }
-          }
-        }
-      }
-    },
-    "保留格式（貼到 Word、Notion、郵件）": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Formatted text (for Word, Notion, email)"
           }
         }
       }
@@ -2275,13 +2371,13 @@
         }
       }
     },
-    "切換摘要、詳細、逐字稿、待確認、筆記、提問": {
+    "切換紀錄、逐字稿、提問": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Switch between Summary, Details, Transcript, To confirm, Notes and Ask"
+            "value": "Switch between Notes, Transcript and Ask"
           }
         }
       }
@@ -2418,24 +2514,24 @@
         }
       }
     },
-    "到「模型與儲存空間」下載": {
+    "到設定的「錄音與轉錄」下載": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Download it in “Models & Storage”"
+            "value": "Download it in Settings → Recording & Transcription"
           }
         }
       }
     },
-    "到「模型與儲存空間」下載，或在「錄音」把正式轉錄改成 macOS 內建": {
+    "到設定的「錄音與轉錄」下載，或把正式轉錄改成 macOS 內建": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Download it in “Models & Storage”, or set transcription to macOS in “Recording”"
+            "value": "Download it in Settings → Recording & Transcription, or set transcription to macOS there"
           }
         }
       }
@@ -2680,6 +2776,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Export failed: %@"
+          }
+        }
+      }
+    },
+    "匯出會議紀錄、逐字稿或錄音（⌘E）；箭頭可以直接複製會議紀錄": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export notes, transcript, or audio (⌘E). Use the arrow to copy the notes."
           }
         }
       }
@@ -3191,13 +3298,13 @@
         }
       }
     },
-    "在其他 app 裡也能開始或停止錄音（可以在設定 → 錄音關掉）": {
+    "在其他 app 裡也能開始或停止錄音（可以在設定 → 錄音與轉錄關掉）": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Start or stop recording from any app (you can turn this off in Settings → Recording)"
+            "value": "Start or stop recording from any app (you can turn this off in Settings → Recording & Transcription)"
           }
         }
       }
@@ -3468,6 +3575,17 @@
         }
       }
     },
+    "安裝說明": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installation guide"
+          }
+        }
+      }
+    },
     "完成": {
       "extractionState": "manual",
       "localizations": {
@@ -3486,6 +3604,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "You can close this window when you’re done."
+          }
+        }
+      }
+    },
+    "實際大小": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actual Size"
           }
         }
       }
@@ -3739,6 +3868,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "Changed to “%@” (was “%@”)"
+          }
+        }
+      }
+    },
+    "已改用 %@，之後的錄音也用這支": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switched to %@. New recordings will use it too."
+          }
+        }
+      }
+    },
+    "已改用系統預設的麥克風（%@），之後的錄音也用系統預設": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switched to the system default microphone (%@). New recordings will use the system default too."
           }
         }
       }
@@ -4163,17 +4314,6 @@
         }
       }
     },
-    "從「更多」選「匯出…」（⌘E）：會議紀錄可以存成 Markdown、PDF、Word；逐字稿可以存成 txt、srt、vtt、Word；錄音可以存成 m4a、wav；「整場會議（.shiyin）」可以傳給同事，對方雙擊就能匯入。「複製會議紀錄」可以直接貼到 Notion、Slack 或郵件。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Choose “Export…” (⌘E) from “More”: save meeting notes as Markdown, PDF or Word; the transcript as txt, srt, vtt or Word; the recording as m4a or wav. Send “Whole meeting (.shiyin)” to a colleague, who can double-click it to import. “Copy meeting notes” pastes straight into Notion, Slack or email."
-          }
-        }
-      }
-    },
     "從左邊選一場會議": {
       "extractionState": "manual",
       "localizations": {
@@ -4369,6 +4509,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "Manual edit"
+          }
+        }
+      }
+    },
+    "打開 %@ 登入": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open %@ to Sign In"
+          }
+        }
+      }
+    },
+    "打開「終端機」，貼上這一行安裝：": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Terminal and paste this line to install:"
           }
         }
       }
@@ -4693,13 +4855,24 @@
         }
       }
     },
-    "按工具列的「錄音」（⌘R）開始錄；點按鈕旁的箭頭可以選錄音來源，線上會議請選「麥克風＋電腦聲音（線上會議）」，對方的聲音也會錄進來。已經有錄音檔的話，拖進視窗、按「匯入」（⌘O），或拖到 Dock 上的會議助手圖示都可以。": {
+    "按右上角的「匯出」（⌘E）：會議紀錄可以存成 Markdown、PDF、Word；逐字稿可以存成 txt、srt、vtt、Word；錄音可以存成 m4a、wav；「整場會議（.shiyin）」可以傳給同事，對方雙擊就能匯入。「匯出」旁邊的箭頭可以直接複製會議紀錄，貼到 Notion、Slack 或郵件。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Click “Record” (⌘R) in the toolbar to start. Click the arrow next to it to choose the source; for online meetings choose “Microphone + computer audio (online meetings)” so the other side is recorded too. If you already have a recording, drag it into the window, click “Import” (⌘O), or drop it on the Meeting Assistant icon in the Dock."
+            "value": "Click “Export” (⌘E) at the top right: save meeting notes as Markdown, PDF or Word; the transcript as txt, srt, vtt or Word; the recording as m4a or wav. Send “Whole meeting (.shiyin)” to a colleague, who can double-click it to import. The arrow next to “Export” copies the notes so you can paste them straight into Notion, Slack or email."
+          }
+        }
+      }
+    },
+    "按工具列的「錄音」（⌘R）開始錄；點按鈕旁的箭頭可以選錄音來源和麥克風，線上會議請選「麥克風＋電腦聲音（線上會議）」，對方的聲音也會錄進來。錄音畫面的音量條旁寫著正在用哪一支麥克風，點一下可以換；藍牙耳機連著時，系統可能自動改用耳機的麥克風，現場會議記得換成這台 Mac 的麥克風。已經有錄音檔的話，拖進視窗、按「匯入」（⌘O），或拖到 Dock 上的會議助手圖示都可以。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Click “Record” (⌘R) in the toolbar to start. Click the arrow next to it to choose the source and microphone; for online meetings choose “Microphone + computer audio (online meetings)” so the other side is recorded too. While recording, the microphone in use is shown next to the level meter; click it to switch. When Bluetooth headphones are connected, macOS may switch to their microphone, so for in-person meetings switch back to this Mac’s microphone. If you already have a recording, drag it into the window, click “Import” (⌘O), or drop it on the Meeting Assistant icon in the Dock."
           }
         }
       }
@@ -5021,6 +5194,39 @@
           "stringUnit": {
             "state": "translated",
             "value": "Change to someone else or clear the tag"
+          }
+        }
+      }
+    },
+    "改用 %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use %@"
+          }
+        }
+      }
+    },
+    "放大、縮小會議內容的文字（⌘0 回到標準大小）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Make meeting text bigger or smaller (⌘0 returns to the default size)"
+          }
+        }
+      }
+    },
+    "放大文字": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Make Text Bigger"
           }
         }
       }
@@ -5916,6 +6122,17 @@
         }
       }
     },
+    "會議內容的文字大小": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meeting text size"
+          }
+        }
+      }
+    },
     "會議助手": {
       "extractionState": "manual",
       "localizations": {
@@ -6265,6 +6482,17 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "有 Claude 桌面版，但會議助手要另外安裝 Claude Code（命令列版）：在終端機執行 %@，再執行 claude 登入": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The Claude desktop app is installed, but Meeting Assistant needs Claude Code (the command-line version): run %@ in Terminal, then sign in by running claude"
           }
         }
       }
@@ -6739,6 +6967,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "Using %@ to guess speaker names…"
+          }
+        }
+      }
+    },
+    "正在用「%@」收音，點一下可以換": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recording with “%@”. Click to switch."
+          }
+        }
+      }
+    },
+    "正在用「%@」收音：這是藍牙耳機的麥克風，人不在旁邊時錄不到現場的聲音。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recording with “%@”, a Bluetooth headset microphone. If you're not near it, it won't pick up the room."
           }
         }
       }
@@ -8154,6 +8404,17 @@
         }
       }
     },
+    "系統預設（%@）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "System default (%@)"
+          }
+        }
+      }
+    },
     "紀錄": {
       "extractionState": "manual",
       "localizations": {
@@ -8161,6 +8422,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Notes"
+          }
+        }
+      }
+    },
+    "紀錄、逐字稿、提問、即時逐字稿和我的筆記的文字。也可以用 ⌘＋、⌘－ 調整，⌘0 回到標準大小。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Text in Notes, Transcript, Ask, the live transcript and My notes. You can also press ⌘+ or ⌘−, and ⌘0 to return to the default size."
           }
         }
       }
@@ -8183,17 +8455,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Plain text (txt)"
-          }
-        }
-      }
-    },
-    "純文字（貼到 Slack、訊息）": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Plain text (for Slack, Messages)"
           }
         }
       }
@@ -8315,6 +8576,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Edit This Segment"
+          }
+        }
+      }
+    },
+    "縮小文字": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Make Text Smaller"
           }
         }
       }
@@ -8550,6 +8822,17 @@
         }
       }
     },
+    "裝好之後在終端機執行 claude 登入，再按「重新檢查」。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "After installing, run claude in Terminal to sign in, then click “Check Again”."
+          }
+        }
+      }
+    },
     "複製": {
       "extractionState": "manual",
       "localizations": {
@@ -8557,17 +8840,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Duplicate"
-          }
-        }
-      }
-    },
-    "複製會議紀錄": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Copy Meeting Notes"
           }
         }
       }
@@ -8590,6 +8862,39 @@
           "stringUnit": {
             "state": "translated",
             "value": "Copy Meeting Notes (Formatted)"
+          }
+        }
+      }
+    },
+    "複製會議紀錄：Markdown": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy Notes: Markdown"
+          }
+        }
+      }
+    },
+    "複製會議紀錄：保留格式（貼到 Word、Notion、郵件）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy Notes: Formatted (for Word, Notion, email)"
+          }
+        }
+      }
+    },
+    "複製會議紀錄：純文字（貼到 Slack、訊息）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy Notes: Plain Text (for Slack, Messages)"
           }
         }
       }
@@ -9641,6 +9946,17 @@
         }
       }
     },
+    "這台 Mac 找不到 Claude Code（命令列版）。Claude 桌面版不能直接用，請到設定 → 整理工具照說明安裝 Claude Code；或改用 API（填 API key）、選「不整理」": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude Code (the command-line version) isn't installed on this Mac. The Claude desktop app can't be used directly: go to Settings → Summarizer and follow the steps to install Claude Code, or choose an API (with an API key) or “Don't summarize”."
+          }
+        }
+      }
+    },
     "這台 Mac 找不到 claude。沒有在用 Claude Code 的話，請到設定 → 整理工具改用 API（填 API key）或選「不整理」": {
       "extractionState": "manual",
       "localizations": {
@@ -9659,6 +9975,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "codex isn't installed on this Mac. If you don't use Codex, go to Settings → Summarizer and choose an API (with an API key) or “Don't summarize”."
+          }
+        }
+      }
+    },
+    "這台 Mac 沒有安裝 Claude Code（命令列版），安裝方法在下面": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude Code (the command-line version) isn't installed on this Mac. See how to install it below"
           }
         }
       }
@@ -9890,6 +10217,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Don’t mention this again during this recording"
+          }
+        }
+      }
+    },
+    "這是 %@ 附的 codex，也可以另外安裝 Codex CLI（npm install -g @openai/codex）再試。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This is the codex bundled with %@. You can also install Codex CLI (npm install -g @openai/codex) and try again."
           }
         }
       }
@@ -10160,13 +10498,13 @@
         }
       }
     },
-    "還沒有下載轉錄模型，請到設定 → 模型與儲存空間下載": {
+    "還沒有下載轉錄模型，請到設定 → 錄音與轉錄下載": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The transcription model hasn't been downloaded. Download it in Settings → Models & Storage."
+            "value": "The transcription model hasn't been downloaded. Download it in Settings → Recording & Transcription."
           }
         }
       }
@@ -10754,6 +11092,17 @@
         }
       }
     },
+    "錄音不會中斷，接著用這支麥克風錄；之後的錄音也用這支": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recording continues with this microphone; new recordings will use it too"
+          }
+        }
+      }
+    },
     "錄音中": {
       "extractionState": "manual",
       "localizations": {
@@ -10904,6 +11253,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Recording, transcription or summarizing is in progress. Update when it's done."
+          }
+        }
+      }
+    },
+    "錄音按鈕旁的箭頭、錄音畫面也可以換麥克風。藍牙耳機連著時，系統預設可能會自動變成耳機的麥克風，現場會議請選這台 Mac 的麥克風。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You can also switch microphones from the arrow next to Record and on the recording screen. When Bluetooth headphones are connected, the system default may switch to their microphone; for in-person meetings, choose this Mac’s microphone."
           }
         }
       }
@@ -11338,6 +11698,17 @@
         }
       }
     },
+    "顯示": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Display"
+          }
+        }
+      }
+    },
     "驗證模型失敗：%@": {
       "extractionState": "manual",
       "localizations": {
@@ -11382,13 +11753,13 @@
         }
       }
     },
-    "麥克風沒有收到聲音：可能被靜音、被其他 app 佔用，或選錯了麥克風。可以在設定的「錄音」換一個。": {
+    "麥克風沒有收到聲音：可能被靜音、被其他 app 佔用，或選錯了麥克風。可以在設定的「錄音與轉錄」換一個。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The microphone isn’t picking up any sound. It may be muted, in use by another app, or the wrong microphone. You can choose another one in Settings → Recording."
+            "value": "The microphone isn’t picking up any sound. It may be muted, in use by another app, or the wrong microphone. You can choose another one in Settings → Recording & Transcription."
           }
         }
       }
@@ -11433,6 +11804,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "Microphone + computer audio (online meetings)"
+          }
+        }
+      }
+    },
+    "麥克風：%@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Microphone: %@"
+          }
+        }
+      }
+    },
+    "點一下可以換麥克風": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Click to switch microphones"
           }
         }
       }

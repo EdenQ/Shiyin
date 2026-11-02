@@ -77,15 +77,27 @@ public sealed class AppHost
         // 遷移在交易裡進行，失敗時原本的資料不會被改到（N3）；App 顯示原因後結束
         Db = new AppDatabase(Paths.Database, Paths.Backups);
         Models = new ModelStore(Paths.Models, Http);
-        // NVIDIA 顯示卡加速（R27 R4.6）：官方的 CUDA 版只有 x64。DEBUG 的 --set debugNvidia=YES 當作有 NVIDIA（虛擬機測自動下載）
+        // 顯示卡加速：NVIDIA 用官方的 CUDA 版（R27 R4.6）、AMD 用拾音的 Vulkan 版（R4.7），都只有 x64。
+        // DEBUG 的 --set debugNvidia=YES、--set debugAmd=YES 當作有那張顯示卡（虛擬機測自動下載）
         var nvidia = SystemInfo.HasNvidiaGpu() || (Debug && Settings.Flag("debugNvidia", false));
-        Gpu = new GpuAcceleration(Models, Settings, nvidia && RuntimeInformation.ProcessArchitecture == Architecture.X64, AppContext.BaseDirectory);
+        var amd = SystemInfo.HasAmdGpu() || (Debug && Settings.Flag("debugAmd", false));
+        Gpu = new GpuAcceleration(Models, Settings, GpuAcceleration.PackFor(RuntimeInformation.ProcessArchitecture == Architecture.X64, nvidia, amd),
+            AppContext.BaseDirectory);
         // DEBUG 預設不讀真的認證管理員（同 Mac 3.4.1）：key 只放記憶體，要測時加 --set debugRealKeychain=YES
         Keys = Debug && !Settings.Flag("debugRealKeychain", false) ? new MemoryKeyStore() : new CredentialStore();
         var children = new ChildProcesses();
         var runner = new ProcessRunner { OnStarted = children.Add };
-        // 找 claude、codex：DEBUG 加 --set debugNoCli=YES 當成沒有安裝（M§19.6）
-        Tools = Debug && Settings.Flag("debugNoCli", false) ? new NoCliTools(new WindowsToolLocator()) : new WindowsToolLocator();
+        // 找 claude、codex：DEBUG 加 --set debugNoCli=YES 當成沒有安裝（M§19.6）；
+        // debugOnlyDesktopCli、debugCodexApp、debugClaudeDesktop 測桌面版（R55、R56，M§37.4）
+        Locator = new WindowsToolLocator
+        {
+            SkipInstalled = Debug && Settings.Flag("debugOnlyDesktopCli", false),
+            CodexAppOverride = Debug ? Settings.String("debugCodexApp") : null,
+            ClaudeDesktopOverride = Debug ? Settings.String("debugClaudeDesktop")?.ToLowerInvariant() switch { "yes" => true, "no" => false, _ => null } : null,
+        };
+        Tools = Debug && Settings.Flag("debugNoCli", false) ? new NoCliTools(Locator) : Locator;
+        DesktopApps.CodexAppName = () => Tools.Find("codex")?.DesktopApp;
+        DesktopApps.HasClaude = Locator.HasClaudeDesktop;
         // 企業伺服器：refresh token 跟 API key 存在同一個地方（認證管理員；DEBUG 只放記憶體）；DEBUG 可以連本機的 http
         Enterprise = new EnterpriseServer(Settings, EnterpriseHttp, new KeySecrets(Keys), Version, Environment.MachineName)
         {
@@ -108,10 +120,10 @@ public sealed class AppHost
         {
             Url = Debug ? null : BuiltUsageUrl, AlwaysOffered = Debug,
         };
-        var engines = new SpeechEngines(Models, () => Gpu.QwenCudaReady);
+        var engines = new SpeechEngines(Models, () => Gpu.QwenRuntime);
         var power = new PowerRequests();
         Runner = new JobRunner(Db, Settings, Paths, Models, Llm, Decoder, engines, Compressor, power) { Usage = Usage, Enterprise = Enterprise };
-        Recorder = new Recorder(Settings, Paths, power, new Recorder.Hooks(MakeSources, MakeLive, DetectLanguage, Shell.AvailableBytes));
+        Recorder = new Recorder(Settings, Paths, power, new Recorder.Hooks(MakeSources, MakeLive, DetectLanguage, Shell.AvailableBytes, MicrophoneList, DefaultMicrophone));
         // 忘了停止錄音（M§35.2）：DEBUG 用 --set idleRemindSeconds=60 --set idleStopSeconds=180 縮短
         if (Debug)
         {
@@ -242,7 +254,9 @@ public sealed class AppHost
     public void Start()
     {
         // 在任何轉錄之前（Controller.Start 會接著做當掉前沒做完的工作）：決定 whisper 從哪裡載入
-        Gpu.RestartNeeded += () => Post(() => Notifier.Notice(L.T("NVIDIA 顯示卡加速下載好了，重新開啟拾音後，轉錄就會用顯示卡")));
+        Gpu.RestartNeeded += () => Post(() => Notifier.Notice(Gpu.Kind == GpuAcceleration.Pack.Vulkan
+            ? L.T("AMD 顯示卡加速下載好了，重新開啟拾音後，轉錄就會用顯示卡")
+            : L.T("NVIDIA 顯示卡加速下載好了，重新開啟拾音後，轉錄就會用顯示卡")));
         Gpu.Start();
         Controller.Start();
         Detector.Prompted += p => Post(() => ShowMeetingPrompt?.Invoke(p));
@@ -265,6 +279,9 @@ public sealed class AppHost
         Usage.Touch();
         _ = Usage.RunAutomaticSends(CancellationToken.None);
     }
+
+    /// <summary>找工具的本體：桌面版的快取、有沒有 Claude 桌面版（R55、R56）</summary>
+    public WindowsToolLocator Locator { get; }
 
     /// <summary>找 claude、codex（設定頁、引導、整理工具共用；DEBUG 的 debugNoCli 會換掉）</summary>
     public IToolLocator Tools { get; }
@@ -307,6 +324,26 @@ public sealed class AppHost
 
     /// <summary>快捷鍵被別的 app 佔走的原因（設定頁顯示）</summary>
     public string? HotKeyError { get; set; }
+
+    /// <summary>DEBUG 的 fakemic（M§38.7）：假的麥克風只在記憶體，第一支當成系統預設，排在真的裝置前面</summary>
+    public IReadOnlyList<MicrophoneDevice> FakeMicrophones { get; set; } = [];
+
+    /// <summary>這台電腦的麥克風（R58）：錄音按鈕的下拉選單、錄音列、設定頁、Recorder 都用這裡</summary>
+    public IReadOnlyList<MicrophoneDevice> MicrophoneList()
+    {
+        List<MicrophoneDevice> real;
+        try { real = Microphones.All(); }
+        catch (Exception e) when (e is System.Runtime.InteropServices.COMException) { real = []; }
+        return [.. FakeMicrophones, .. real];
+    }
+
+    /// <summary>系統預設的麥克風；DEBUG 的 fakemic 時是第一支假的</summary>
+    public MicrophoneDevice? DefaultMicrophone()
+    {
+        if (FakeMicrophones.Count > 0) return FakeMicrophones[0];
+        try { return Microphones.Default(); }
+        catch (Exception e) when (e is System.Runtime.InteropServices.COMException) { return null; }
+    }
 
     IReadOnlyList<(int Channel, IAudioSource Source)> MakeSources(string source, string device) => source switch
     {

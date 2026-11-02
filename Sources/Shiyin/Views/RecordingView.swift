@@ -4,6 +4,7 @@ import SwiftUI
 struct RecordingPanel: View {
     @Environment(AppModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.textScale) private var scale
     let detail: MeetingDetail
     @State private var followLatest = true
 
@@ -36,6 +37,25 @@ struct RecordingPanel: View {
                     Button("停止錄音") { recorder.stop() }
                 }
                 .font(.callout)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(Color.signal.opacity(0.12))
+            }
+            if let hint = recorder.micHint {
+                // 用藍牙耳機的麥克風錄現場會議（design §38.4、R58.3）
+                HStack(spacing: 12) {
+                    Label(hint.text, systemImage: "headphones")
+                    Spacer()
+                    if let builtIn = hint.builtIn {
+                        Button("改用 \(builtIn.name)") { model.switchMicrophone(builtIn.uid) }
+                            .buttonStyle(.borderedProminent)
+                            .help("錄音不會中斷，接著用這支麥克風錄；之後的錄音也用這支")
+                    }
+                    Button("知道了") { recorder.dismissMicHint() }
+                        .help("這場錄音不再提示這件事")
+                }
+                .font(.callout)
+                .controlSize(.small)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
                 .background(Color.signal.opacity(0.12))
@@ -95,6 +115,10 @@ struct RecordingPanel: View {
             if recorder.hasMic {
                 Label { RecorderMeter(recorder: recorder, system: false) } icon: { Image(systemName: "mic") }
                     .help("麥克風音量")
+                // 正在用哪一支麥克風，點一下可以換（design §38.3、R58.2）；視窗窄的時候先縮這個
+                MicrophoneMenu(recorder: recorder)
+                    .frame(maxWidth: 180, alignment: .leading)
+                    .layoutPriority(-1)
             }
             if recorder.hasSystem {
                 Label { RecorderMeter(recorder: recorder, system: true) } icon: { Image(systemName: "speaker.wave.2") }
@@ -189,9 +213,9 @@ struct RecordingPanel: View {
                     Isolated {
                         if !recorder.volatileText.isEmpty {
                             HStack(alignment: .firstTextBaseline, spacing: 12) {
-                                Text("…").frame(width: 52, alignment: .trailing).foregroundStyle(.tertiary)
+                                Text("…").frame(width: 52 * scale, alignment: .trailing).foregroundStyle(.tertiary)
                                 // 跟定稿的行對齊：空出標記名字那一欄
-                                if tagging { Color.clear.frame(width: 64, height: 0) }
+                                if tagging { Color.clear.frame(width: 64 * scale, height: 0) }
                                 Text(recorder.volatileText).foregroundStyle(.secondary).meetingText()
                             }
                             .id("volatile")
@@ -203,6 +227,7 @@ struct RecordingPanel: View {
                     }
                     Color.clear.frame(height: 1).id("bottom")
                 }
+                .contentFont()   // 文字大小（design §38.5）
                 .padding(20)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -279,7 +304,7 @@ private struct SpeakerTagBar: View {
                     } onCancel: { adding = false }
                 }
         }
-        .font(.callout)
+        .contentFont(.callout)
         .padding(.horizontal, 20)
         .padding(.vertical, 8)
         #if DEBUG
@@ -295,6 +320,7 @@ private struct SpeakerTagBar: View {
 /// 即時逐字稿的一行（design §5.4）：時間、這段是誰說的（design §24.2、R23.1）、文字、重點
 private struct LiveLineRow: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.textScale) private var scale
     let line: Recorder.LiveLine
     let tagged: String?
     let roster: [String]
@@ -305,12 +331,12 @@ private struct LiveLineRow: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Text(TimeFormat.string(line.start)).font(.callout.monospacedDigit()).foregroundStyle(Color.celadon)
-                .frame(width: 52, alignment: .trailing)
+            Text(TimeFormat.string(line.start)).contentFont(.callout, monospacedDigit: true).foregroundStyle(Color.celadon)
+                .frame(width: 52 * scale, alignment: .trailing)
             if tagging { tagMenu }
             Text(line.text).textSelection(.enabled).fixedSize(horizontal: false, vertical: true).meetingText()
             if starred {
-                Image(systemName: "star.fill").foregroundStyle(Color.signal).font(.caption)
+                Image(systemName: "star.fill").foregroundStyle(Color.signal).contentFont(.caption)
             }
         }
         .onHover { hovering = $0 }
@@ -354,7 +380,7 @@ private struct LiveLineRow: View {
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .lineLimit(1)
-        .frame(width: 64, alignment: .leading)
+        .frame(width: 64 * scale, alignment: .leading)
         .opacity(tagged != nil || hovering ? 1 : 0.35)
         .help(tagged == nil ? "這段是誰說的？標記後，錄完會套到他的說話者" : "改成別人或清除標記")
         .accessibilityLabel(tagged ?? String(localized: "這段是誰說的"))
@@ -453,7 +479,7 @@ struct UserNotesEditor: View {
 
     var body: some View {
         TextEditor(text: $text).meetingText()
-            .font(.body)
+            .contentFont()   // 文字大小（design §38.5）
             .scrollContentBackground(.hidden)
             .padding(8)
             .background(Color.secondary.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
@@ -592,4 +618,35 @@ struct RecorderMeter: View {
 struct Isolated<Content: View>: View {
     @ViewBuilder let content: () -> Content
     var body: some View { content() }
+}
+
+/// 錄音畫面的麥克風名稱（design §38.3、R58.2）：寫出實際在收音的那一支，點一下從清單換，錄音不中斷
+struct MicrophoneMenu: View {
+    @Environment(AppModel.self) private var model
+    let recorder: Recorder
+
+    var body: some View {
+        let monitor = MicrophoneMonitor.shared
+        let current = recorder.micDevice
+        Menu {
+            Button {
+                model.switchMicrophone("")
+            } label: {
+                Text(monitor.defaultInput.map { String(localized: "系統預設（\($0.name)）") } ?? String(localized: "系統預設"))
+            }
+            Divider()
+            ForEach(monitor.inputs) { device in
+                Button {
+                    model.switchMicrophone(device.uid)
+                } label: {
+                    if device.uid == current?.uid { Label(device.name, systemImage: "checkmark") } else { Text(device.name) }
+                }
+            }
+        } label: {
+            Text(current?.name ?? String(localized: "麥克風")).lineLimit(1).truncationMode(.middle)
+        }
+        .menuStyle(.borderlessButton)
+        .help(current.map { String(localized: "正在用「\($0.name)」收音，點一下可以換") } ?? String(localized: "點一下可以換麥克風"))
+        .accessibilityLabel(String(localized: "麥克風：\(current?.name ?? "")"))
+    }
 }
