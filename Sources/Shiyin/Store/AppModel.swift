@@ -378,7 +378,12 @@ final class AppModel {
         if AppSettings.autoDetectLanguage { models.autoStart(.languageDetection) }
         GlobalHotKey.shared.onPress = { [weak self] in self?.toggleRecording() }
         GlobalHotKey.shared.onBookmark = { [weak self] in self?.bookmarkFromHotKey() }
-        recorder.onStarted = { GlobalHotKey.shared.setBookmarkEnabled(AppSettings.bookmarkHotKey) }
+        GlobalHotKey.shared.onMute = { [weak self] in self?.toggleMicMuteFromHotKey() }
+        recorder.onStarted = { [weak self] in
+            GlobalHotKey.shared.setBookmarkEnabled(AppSettings.bookmarkHotKey)
+            GlobalHotKey.shared.setMuteEnabled(AppSettings.muteHotKey && self?.recorder.canMuteMic == true)
+        }
+        recorder.onMuteHint = { [weak self] in self?.muteHintAppeared() }
         recorder.onLevelHint = { [weak self] hint in self?.levelHintAppeared(hint) }
         recorder.onMicHint = { [weak self] hint in self?.micHintAppeared(hint) }
         // 忘了停止錄音（design §35、R48）：提醒一出現就送通知（人多半不在電腦前）
@@ -559,11 +564,19 @@ final class AppModel {
         }
     }
 
+    /// ⌃⌥⌘M（design §F3.3）：人多半在 Teams 裡，用聲音讓人知道按到了
+    func toggleMicMuteFromHotKey() {
+        guard recorder.canMuteMic else { return }
+        recorder.toggleMicMute()
+        NSSound(named: recorder.micMuted ? "Bottle" : "Pop")?.play()
+    }
+
     var menuBarSymbol: String {
         if bookmarkFlash { return "star.circle.fill" }
         // 收音提醒還在時換成警示的樣子（R42.2），按「知道了」或提示消失就換回來
         if recorder.isRecording {
-            return recorder.levelHint != nil || recorder.micHint != nil || recorder.idlePrompt ? "mic.badge.exclamationmark" : "record.circle.fill"
+            if recorder.levelHint != nil || recorder.micHint != nil || recorder.idlePrompt || recorder.muteHint { return "mic.badge.exclamationmark" }
+            return recorder.micMuted ? "mic.slash.circle.fill" : "record.circle.fill"
         }
         if runner.isBusy || queuedCount > 0 { return "waveform.circle.fill" }
         return "waveform"
@@ -580,6 +593,12 @@ final class AppModel {
     private func micHintAppeared(_ hint: Recorder.MicHint) {
         guard let id = recorder.meetingId, !mainWindowInFront else { return }
         notifier.levelHint(hint.text, kind: "bluetooth", meetingId: id)
+    }
+
+    /// 靜音中現場好像有人在說話（design §F3.2、F3.4）：通知的規則同收音提醒
+    private func muteHintAppeared() {
+        guard let id = recorder.meetingId, !mainWindowInFront else { return }
+        notifier.levelHint(Recorder.muteHintText, kind: "muted", meetingId: id)
     }
 
     private var mainWindowInFront: Bool {
@@ -725,7 +744,8 @@ final class AppModel {
     /// 錄音結束：把錄音檔接到會議上並排轉錄（R2.5）
     private func recordingFinished(_ result: Recorder.Result) {
         MeetingPromptPanel.shared.close()   // 還開著的「要停止錄音嗎？」不用了
-        GlobalHotKey.shared.setBookmarkEnabled(false)   // 不錄音時不佔用 ⌃⌥⌘B
+        GlobalHotKey.shared.setBookmarkEnabled(false)   // 不錄音時不佔用 ⌃⌥⌘B、⌃⌥⌘M
+        GlobalHotKey.shared.setMuteEnabled(false)
         do {
             if let error = result.error {
                 errorMessage = error

@@ -60,6 +60,22 @@ struct RecordingPanel: View {
                 .padding(.vertical, 8)
                 .background(Color.signal.opacity(0.12))
             }
+            if recorder.muteHint {
+                // 靜音中現場好像有人在說話（design §F3.3、F3.4）
+                HStack(spacing: 12) {
+                    Label(Recorder.muteHintText, systemImage: "mic.slash")
+                    Spacer()
+                    Button("打開麥克風") { recorder.setMicMuted(false) }
+                        .buttonStyle(.borderedProminent)
+                    Button("知道了") { recorder.dismissMuteHint() }
+                        .help("這次靜音不再提示這件事")
+                }
+                .font(.callout)
+                .controlSize(.small)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(Color.signal.opacity(0.12))
+            }
             if let hint = recorder.levelHint {
                 // 收音提醒（design §26.1）
                 HStack(spacing: 12) {
@@ -112,9 +128,20 @@ struct RecordingPanel: View {
                 RecorderClock(recorder: recorder).foregroundStyle(.secondary)
             }
             .font(.title3)
-            if recorder.hasMic {
+            if recorder.canMuteMic {
+                // 麥克風＋電腦聲音的錄音：麥克風的圖示可以按，靜音麥克風（design §F3.3）
+                HStack(spacing: 6) {
+                    MicMuteButton(recorder: recorder)
+                    RecorderMeter(recorder: recorder, system: false).opacity(recorder.micMuted ? 0.35 : 1)
+                    if recorder.micMuted {
+                        Text("麥克風已靜音").font(.callout).foregroundStyle(.red).fixedSize()
+                    }
+                }
+            } else if recorder.hasMic {
                 Label { RecorderMeter(recorder: recorder, system: false) } icon: { Image(systemName: "mic") }
                     .help("麥克風音量")
+            }
+            if recorder.hasMic {
                 // 正在用哪一支麥克風，點一下可以換（design §38.3、R58.2）；視窗窄的時候先縮這個
                 MicrophoneMenu(recorder: recorder)
                     .frame(maxWidth: 180, alignment: .leading)
@@ -610,6 +637,25 @@ struct RecorderMeter: View {
         } else {
             LevelMeter(segments: segments) { [recorder, system] in system ? recorder.systemLevel : recorder.micLevel }
         }
+    }
+}
+
+/// 靜音、打開麥克風的按鈕（design §F3.3）：錄音畫面、選單列共用
+struct MicMuteButton: View {
+    let recorder: Recorder
+
+    var body: some View {
+        Button {
+            recorder.toggleMicMute()
+        } label: {
+            Image(systemName: recorder.micMuted ? "mic.slash.fill" : "mic.fill")
+                .foregroundStyle(recorder.micMuted ? Color.red : Color.primary)
+                .frame(width: 18)
+        }
+        .buttonStyle(.borderless)
+        .help(recorder.micMuted ? String(localized: "打開麥克風（⇧⌘M）")
+                                : String(localized: "靜音麥克風（⇧⌘M）：現場的聲音不錄，電腦聲音照常錄"))
+        .accessibilityLabel(recorder.micMuted ? String(localized: "打開麥克風") : String(localized: "靜音麥克風"))
     }
 }
 

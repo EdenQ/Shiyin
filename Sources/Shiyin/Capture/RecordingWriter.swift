@@ -3,6 +3,7 @@ import Foundation
 
 /// 把各音源的 16 kHz 音訊對齊後寫成 WAV（design §5.2），同時把混音後的單聲道交給即時轉錄。
 /// 兩個音源時：左聲道麥克風、右聲道系統聲音。暫停時丟掉收到的音訊，所以檔案裡沒有暫停的那一段。
+/// 靜音的聲道（design §F3.1）寫成 0，時間照常算；音量照真的聲音算。
 final class RecordingWriter: @unchecked Sendable {
     let channels: Int
     let url: URL
@@ -14,6 +15,7 @@ final class RecordingWriter: @unchecked Sendable {
     private var levels: [Float]
     private var silentSeconds: [Double]
     private var paused = false
+    private var muted: [Bool]
     private var acceptedFrames: [Int] // 各聲道累計收到的音框（不含暫停）
     private var lastReceived: [Double]  // 各聲道最後一次收到音訊的時間（systemUptime），看門狗用（design §20.2）
     private var timer: DispatchSourceTimer?
@@ -35,6 +37,7 @@ final class RecordingWriter: @unchecked Sendable {
         frameEnergy = Array(repeating: 0, count: channels)
         frameSamples = Array(repeating: 0, count: channels)
         recent = Array(repeating: [], count: channels)
+        muted = Array(repeating: false, count: channels)
         lastReceived = Array(repeating: ProcessInfo.processInfo.systemUptime, count: channels)
         file = try AVAudioFile(forWriting: url, settings: [
             AVFormatIDKey: kAudioFormatLinearPCM,
@@ -67,7 +70,11 @@ final class RecordingWriter: @unchecked Sendable {
             levels[channel] = rms
             silentSeconds[channel] = rms == 0 ? silentSeconds[channel] + Double(samples.count) / CaptureFormat.sampleRate : 0
             guard !paused else { return }
-            pending[channel].append(contentsOf: samples)
+            if muted[channel] {
+                pending[channel].append(contentsOf: repeatElement(Float(0), count: samples.count))
+            } else {
+                pending[channel].append(contentsOf: samples)
+            }
             acceptedFrames[channel] += samples.count
             frameEnergy[channel] += sum
             frameSamples[channel] += samples.count
@@ -86,6 +93,11 @@ final class RecordingWriter: @unchecked Sendable {
             paused = value
             if value { for i in 0..<channels { pending[i].removeAll() } }
         }
+    }
+
+    /// 靜音這個聲道（design §F3.1）：之後收到的寫成 0
+    func setMuted(_ channel: Int, _ value: Bool) {
+        lock.withLock { if channel < channels { muted[channel] = value } }
     }
 
     /// 目前錄到的秒數（不含暫停），給計時、筆記和重點標記的時間點用
@@ -164,8 +176,12 @@ final class RecordingWriter: @unchecked Sendable {
             lock.withLock { failed = true }
         }
         // 即時轉錄用的單聲道混音
+        let mutedNow = lock.withLock { muted }
         if channels == 1 {
             onMix?(frames[0])
+        } else if mutedNow[0] != mutedNow[1] {
+            // 一邊靜音：只用另一邊，音量才不會小一半（design §F3.1）
+            onMix?(frames[mutedNow[0] ? 1 : 0])
         } else {
             var mix = [Float](repeating: 0, count: count)
             for i in 0..<count { mix[i] = (frames[0][i] + frames[1][i]) * 0.5 }

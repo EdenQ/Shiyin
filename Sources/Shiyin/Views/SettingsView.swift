@@ -742,6 +742,7 @@ struct RecordingSettings: View {
     @AppStorage(AppSettings.meetingDetectionKey) private var meetingDetection = true
     @AppStorage(AppSettings.idleStopKey) private var idleStop = true
     @AppStorage(AppSettings.bookmarkHotKeyKey) private var bookmarkHotKey = true
+    @AppStorage(AppSettings.muteHotKeyKey) private var muteHotKey = true
     @State private var mutedApps: [String] = []
     @State private var hotKeyFailed = false
 
@@ -850,6 +851,11 @@ struct RecordingSettings: View {
                 Toggle("錄音中按 \(GlobalHotKey.bookmarkDisplay) 標記重點（在其他 app 裡也能用）", isOn: $bookmarkHotKey)
                     .onChange(of: bookmarkHotKey) { _, enabled in
                         GlobalHotKey.shared.setBookmarkEnabled(enabled && model.recorder.isRecording)
+                    }
+                // 靜音麥克風（design §F3.3）
+                Toggle("錄音中按 \(GlobalHotKey.muteDisplay) 靜音或打開麥克風（麥克風＋電腦聲音的錄音）", isOn: $muteHotKey)
+                    .onChange(of: muteHotKey) { _, enabled in
+                        GlobalHotKey.shared.setMuteEnabled(enabled && model.recorder.canMuteMic)
                     }
             }
         }

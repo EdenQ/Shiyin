@@ -90,6 +90,24 @@ final class Recorder {
     @ObservationIgnored private var noisySeconds = 0
     @ObservationIgnored private var quietSeconds = 0
 
+    /// 麥克風靜音（design §F3.2、F3）：只有麥克風＋電腦聲音的錄音
+    private(set) var micMuted = false
+    /// 靜音中現場好像有人在說話（F3.4）：錄音畫面、選單列顯示「打開麥克風」
+    private(set) var muteHint = false
+    @ObservationIgnored private var muteHintDismissed = false
+    @ObservationIgnored private var muteHintNotified = false
+    /// 靜音後每秒一筆：麥克風、電腦聲音像不像有人在說話，留最近 20 秒
+    @ObservationIgnored private var muteTalk: [(mic: Bool, system: Bool)] = []
+    /// 提示第一次出現：AppModel 決定要不要送通知（同收音提醒）
+    @ObservationIgnored var onMuteHint: (() -> Void)?
+    /// 錄音畫面、選單列、通知都用同一句
+    static var muteHintText: String {
+        String(localized: "麥克風靜音中，現場好像有人在說話。要錄進去的話，打開麥克風。")
+    }
+    #if DEBUG
+    @ObservationIgnored private(set) var muteCheck: [String: Any] = [:]
+    #endif
+
     /// 忘了停止錄音（design §35、R48）：最後有人說話的錄音秒數；即時逐字稿有沒有接上音訊
     @ObservationIgnored private var lastSpeechAt: Double = 0
     @ObservationIgnored private var liveActive = false
@@ -148,6 +166,8 @@ final class Recorder {
 
     var hasMic: Bool { source != "system" }
     var hasSystem: Bool { source != "mic" }
+    /// 錄音中可以靜音麥克風（F3.1、F3.6）
+    var canMuteMic: Bool { isRecording && source == "both" }
 
     func start(meetingId: Int64, source: String = AppSettings.recordSource, language: MeetingLanguage) {
         guard !isRecording else { return }
@@ -219,6 +239,27 @@ final class Recorder {
         isPaused = false
     }
 
+    /// 靜音、打開麥克風（design §F3.2）：麥克風那一聲道寫成 0，電腦聲音照常錄
+    func setMicMuted(_ value: Bool) {
+        guard canMuteMic, value != micMuted else { return }
+        writer?.setMuted(0, value)
+        micMuted = value
+        muteTalk = []
+        muteHintDismissed = false
+        if muteHint { muteHint = false }
+        // 靜音時不做收音提醒；打開後重新計時（30 秒的音量紀錄是真的聲音，照留）
+        if value { if levelHint != nil { levelHint = nil } } else { (noisySeconds, quietSeconds) = (0, 0) }
+        log.info("microphone \(value ? "muted" : "unmuted", privacy: .public)")
+    }
+
+    func toggleMicMute() { setMicMuted(!micMuted) }
+
+    /// 提示的「知道了」：這次靜音不再提示，下次靜音重新算
+    func dismissMuteHint() {
+        muteHintDismissed = true
+        if muteHint { muteHint = false }
+    }
+
     /// 「繼續錄」：人還在，重新計時（R48.1）
     func continueAfterIdle() {
         guard isRecording else { return }
@@ -252,15 +293,37 @@ final class Recorder {
     /// 最近 1 秒有 30% 以上的音框像說話（design §35.1）：比背景（最近 30 秒的第 10 百分位）大 12 dB 而且高於 -50 dBFS，
     /// 或本身就高於 -40 dBFS（一開始就一直有人說話時，背景也是說話的音量）
     private func soundsLikeSpeech(_ writer: RecordingWriter) -> Bool {
-        for channel in 0..<(source == "both" ? 2 : 1) {
-            let levels = writer.recentLevels(channel)
-            guard levels.count >= 20 else { continue }
-            let background = levels.sorted()[Int(Double(levels.count - 1) * 0.1)]
-            let threshold = min(max(background + 12, -50), -40)
-            let last = levels.suffix(10)
-            if Double(last.filter { $0 > threshold }.count) >= Double(last.count) * 0.3 { return true }
+        (0..<(source == "both" ? 2 : 1)).contains { soundsLikeSpeech(writer, channel: $0) }
+    }
+
+    private func soundsLikeSpeech(_ writer: RecordingWriter, channel: Int) -> Bool {
+        // 超過 1 秒沒送資料（音源停了、重新連接中）：最近的音量是停之前的，不算
+        guard writer.secondsSinceSamples(channel) < 1 else { return false }
+        let levels = writer.recentLevels(channel)
+        guard levels.count >= 20 else { return false }
+        let background = levels.sorted()[Int(Double(levels.count - 1) * 0.1)]
+        let threshold = min(max(background + 12, -50), -40)
+        let last = levels.suffix(10)
+        return Double(last.filter { $0 > threshold }.count) >= Double(last.count) * 0.3
+    }
+
+    /// 忘了打開麥克風（design §F3.2、F3.4）：最近 20 秒麥克風像說話 ≥ 10 秒、電腦聲音 ≤ 2 秒
+    private func checkMuted(_ writer: RecordingWriter) {
+        muteTalk.append((soundsLikeSpeech(writer, channel: 0), soundsLikeSpeech(writer, channel: 1)))
+        if muteTalk.count > 20 { muteTalk.removeFirst(muteTalk.count - 20) }
+        let mic = muteTalk.filter(\.mic).count
+        let system = muteTalk.filter(\.system).count
+        let show = !muteHintDismissed && muteTalk.count >= 20 && mic >= 10 && system <= 2
+        if show != muteHint {
+            muteHint = show
+            if show && !muteHintNotified {
+                muteHintNotified = true
+                onMuteHint?()
+            }
         }
-        return false
+        #if DEBUG
+        muteCheck = ["mic": mic, "system": system, "seconds": muteTalk.count]
+        #endif
     }
 
     /// 換麥克風（design §38.3、R58.2）：存成設定，錄音中就接著用新的這支錄（同一個檔案，錄音不停）
@@ -385,6 +448,10 @@ final class Recorder {
             micHint = nil
             micHintDismissed = false
             micHintNotified = false
+            micMuted = false
+            muteHint = false
+            muteHintNotified = false
+            muteTalk = []
             (noisySeconds, quietSeconds) = (0, 0)
             lastSpeechAt = 0
             liveActive = false
@@ -538,6 +605,10 @@ final class Recorder {
     /// 收音提醒（design §26.1）：每秒看麥克風最近 30 秒的音量。第 90 百分位是說話的音量、第 10 百分位是背景
     private func checkLevels(_ writer: RecordingWriter) {
         guard hasMic, !isPaused else { return }
+        if micMuted {
+            checkMuted(writer)
+            return
+        }
         let silent = writer.silence(0) > 10
         let levels = writer.recentLevels(0).sorted()
         var speech: Float = 0, background: Float = 0
@@ -667,6 +738,8 @@ final class Recorder {
         levelHint = nil
         micHint = nil
         micDevice = nil
+        micMuted = false
+        muteHint = false
         idlePrompt = false
         liveActive = false
         meetingId = nil

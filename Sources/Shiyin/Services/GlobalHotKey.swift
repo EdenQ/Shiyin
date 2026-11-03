@@ -2,23 +2,28 @@ import Carbon.HIToolbox
 import Foundation
 
 /// 全域快捷鍵（R11.3、R19.5、design §12、§21.10）：在其他 app 裡也能用。
-/// ⌃⌥⌘R 開始或停止錄音；⌃⌥⌘B 錄音中標記重點（只在錄音中註冊，不錄音時不佔用這組按鍵）。
+/// ⌃⌥⌘R 開始或停止錄音；⌃⌥⌘B 錄音中標記重點（只在錄音中註冊，不錄音時不佔用這組按鍵）；
+/// ⌃⌥⌘M 靜音或打開麥克風（只在麥克風＋電腦聲音的錄音中註冊，design §F3.3）。
 /// 用 Carbon 的 RegisterEventHotKey，不需要輔助使用權限。
 @MainActor
 final class GlobalHotKey {
     static let shared = GlobalHotKey()
     static let display = "⌃⌥⌘R"
     static let bookmarkDisplay = "⌃⌥⌘B"
+    static let muteDisplay = "⌃⌥⌘M"
 
     private static let recordID: UInt32 = 1
     private static let bookmarkID: UInt32 = 2
+    private static let muteID: UInt32 = 3
 
     var onPress: (() -> Void)?
     var onBookmark: (() -> Void)?
+    var onMute: (() -> Void)?
     /// 最近一次註冊錄音快捷鍵的結果；被其他 app 佔用時不是 noErr
     private(set) var status: OSStatus = noErr
     var isRegistered: Bool { hotKeys[Self.recordID] != nil }
     var isBookmarkRegistered: Bool { hotKeys[Self.bookmarkID] != nil }
+    var isMuteRegistered: Bool { hotKeys[Self.muteID] != nil }
 
     private var hotKeys: [UInt32: EventHotKeyRef] = [:]
     private var handler: EventHandlerRef?
@@ -37,9 +42,15 @@ final class GlobalHotKey {
         if enabled { _ = register(Self.bookmarkID, key: kVK_ANSI_B) } else { unregister(Self.bookmarkID) }
     }
 
+    /// 麥克風＋電腦聲音的錄音開始時打開、停止時關掉（design §F3.3）
+    func setMuteEnabled(_ enabled: Bool) {
+        if enabled { _ = register(Self.muteID, key: kVK_ANSI_M) } else { unregister(Self.muteID) }
+    }
+
     /// 按下快捷鍵；DEBUG 指令也用這個模擬
     func fire() { onPress?() }
     func fireBookmark() { onBookmark?() }
+    func fireMute() { onMute?() }
 
     private func register(_ id: UInt32, key: Int) -> OSStatus {
         guard hotKeys[id] == nil else { return noErr }
@@ -51,7 +62,11 @@ final class GlobalHotKey {
                                   MemoryLayout<EventHotKeyID>.size, nil, &hotKeyID)
                 let id = hotKeyID.id
                 Task { @MainActor in
-                    if id == GlobalHotKey.bookmarkID { GlobalHotKey.shared.fireBookmark() } else { GlobalHotKey.shared.fire() }
+                    switch id {
+                    case GlobalHotKey.bookmarkID: GlobalHotKey.shared.fireBookmark()
+                    case GlobalHotKey.muteID: GlobalHotKey.shared.fireMute()
+                    default: GlobalHotKey.shared.fire()
+                    }
                 }
                 return noErr
             }, 1, &spec, nil, &handler)

@@ -4635,6 +4635,28 @@
         }
       }
     },
+    "打開麥克風": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unmute Microphone"
+          }
+        }
+      }
+    },
+    "打開麥克風（⇧⌘M）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unmute microphone (⇧⌘M)"
+          }
+        }
+      }
+    },
     "找不到": {
       "extractionState": "manual",
       "localizations": {
@@ -10288,6 +10310,17 @@
         }
       }
     },
+    "這次靜音不再提示這件事": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Don't remind me again until the next mute"
+          }
+        }
+      }
+    },
     "這段是誰說的": {
       "extractionState": "manual",
       "localizations": {
@@ -11203,6 +11236,17 @@
         }
       }
     },
+    "錄音中按 %@ 靜音或打開麥克風（麥克風＋電腦聲音的錄音）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Press %@ while recording to mute or unmute the microphone (microphone + computer audio recordings)"
+          }
+        }
+      }
+    },
     "錄音中標記重點": {
       "extractionState": "manual",
       "localizations": {
@@ -11677,6 +11721,28 @@
         }
       }
     },
+    "靜音麥克風": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mute Microphone"
+          }
+        }
+      }
+    },
+    "靜音麥克風（⇧⌘M）：現場的聲音不錄，電腦聲音照常錄": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mute microphone (⇧⌘M): sound in the room isn't recorded; computer audio still is"
+          }
+        }
+      }
+    },
     "音量": {
       "extractionState": "manual",
       "localizations": {
@@ -11776,6 +11842,17 @@
         }
       }
     },
+    "麥克風已靜音": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Microphone muted"
+          }
+        }
+      }
+    },
     "麥克風權限": {
       "extractionState": "manual",
       "localizations": {
@@ -11827,6 +11904,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "The microphone stopped sending audio and couldn't reconnect: %@. Meeting Assistant will keep trying; recording continues."
+          }
+        }
+      }
+    },
+    "麥克風靜音": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mute Microphone"
+          }
+        }
+      }
+    },
+    "麥克風靜音中，現場好像有人在說話。要錄進去的話，打開麥克風。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The microphone is muted, but someone in the room seems to be talking. Unmute to record it."
           }
         }
       }

@@ -535,8 +535,19 @@ enum DebugControl {
         case "usageage": UsageStats.shared.debugAge(days: Int(args[1]) ?? 1)   // usageage <天數>：把今天的匯總改成幾天前
         case "usagesend": Task { await UsageStats.shared.sendPending() }
         // 全域快捷鍵（R11.3）：不能送按鍵，用這個模擬按下
-        case "hotkey":   // hotkey [bookmark]：模擬按下 ⌃⌥⌘R（或 ⌃⌥⌘B）
-            if args.count > 1 && args[1] == "bookmark" { GlobalHotKey.shared.fireBookmark() } else { GlobalHotKey.shared.fire() }
+        case "hotkey":   // hotkey [bookmark|mute]：模擬按下 ⌃⌥⌘R（或 ⌃⌥⌘B、⌃⌥⌘M）
+            switch args.count > 1 ? args[1] : "" {
+            case "bookmark": GlobalHotKey.shared.fireBookmark()
+            case "mute": GlobalHotKey.shared.fireMute()
+            default: GlobalHotKey.shared.fire()
+            }
+        case "micmute":   // micmute on|off|toggle|dismiss：錄音畫面的麥克風圖示、提示列的「知道了」（design §F3.4）
+            switch args.count > 1 ? args[1] : "toggle" {
+            case "on": model.recorder.setMicMuted(true)
+            case "off": model.recorder.setMicMuted(false)
+            case "dismiss": model.recorder.dismissMuteHint()
+            default: model.recorder.toggleMicMute()
+            }
         case "hotkeyenable": GlobalHotKey.shared.setEnabled(args[1] == "1")
         // 點通知後的動作（系統的點擊沒辦法模擬，直接呼叫同一個處理函式）
         case "opennotification": if let id { model.notifier.onOpen?(id) }
@@ -667,6 +678,8 @@ enum DebugControl {
                          "liveLines": model.recorder.liveLines.count, "volatile": model.recorder.volatileText,
                          "liveStatus": model.recorder.liveStatus, "permissionDenied": model.recorder.permissionDenied,
                          "levelCheck": model.recorder.levelCheck,   // 收音提醒（design §26.1）
+                         "micMuted": model.recorder.micMuted, "muteHint": model.recorder.muteHint,   // 靜音麥克風（design §F3.4）
+                         "muteCheck": model.recorder.muteCheck,
                          "idle": model.recorder.idleInfo,   // 忘了停止錄音（design §35）
                          "failure": model.recorder.failureMessage ?? "", "language": model.recorder.language.rawValue,
                          "languageSwitch": model.recorder.languageSwitch.map { "\($0.from.rawValue)→\($0.to.rawValue)" } ?? "",
@@ -691,7 +704,8 @@ enum DebugControl {
             "update": ["state": model.updater.state.label, "prompt": model.updater.prompt?.version ?? "",
                        "version": Updater.currentVersion, "feed": Updater.feedURLString],
             "hotkey": ["registered": GlobalHotKey.shared.isRegistered, "status": Int(GlobalHotKey.shared.status),
-                       "bookmarkRegistered": GlobalHotKey.shared.isBookmarkRegistered],
+                       "bookmarkRegistered": GlobalHotKey.shared.isBookmarkRegistered,
+                       "muteRegistered": GlobalHotKey.shared.isMuteRegistered],
             "notifications": model.notifier.recent,
             "filteredIds": model.filteredMeetings.map(\.id),
             "highlightSegment": model.highlightSegment ?? -1,
