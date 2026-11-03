@@ -332,6 +332,14 @@ struct TranscriptTab: View {
             Spacer(minLength: 8)
             Button("刪除標記") { if let id = tag.id { model.deleteSpeakerTag(id) } }
                 .buttonStyle(.link)
+            let count = detail.taggedSegments(tag).count
+            if count > 0 {
+                Button(count == 1 ? String(localized: "只改這句") : String(localized: "只改這 \(count) 句")) {
+                    model.reassignTaggedSegments(tag)
+                }
+                .buttonStyle(.link)
+                .help("只把標記蓋到的句子改成\(tag.name)說的，說話者的其他句子不變")
+            }
             Button("套用到\(detail.speakerName(idx) ?? "")") { model.renameSpeaker(idx, to: tag.name) }
                 .buttonStyle(.link)
         }

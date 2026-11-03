@@ -154,6 +154,17 @@ struct MeetingDetail: Equatable {
         return !SpeakerTagging.sameName(speakerName(idx) ?? "", tag.name)
     }
 
+    /// 「只改這句」改哪幾句（design §F2.4、F2.12）
+    func taggedSegments(_ tag: SpeakerTag) -> [Int64] {
+        guard let id = tag.id, let match = tagMatches[id] else { return [] }
+        return SpeakerTagging.covered(tag.tag, by: match, in: segments)
+    }
+
+    /// 這場名字跟 name 一樣的說話者（不分大小寫），except 那位不算
+    func speaker(named name: String, except idx: Int?) -> Int? {
+        speakers.keys.sorted().first { $0 != idx && SpeakerTagging.sameName(speakers[$0] ?? "", name) }
+    }
+
     /// 跟這段同一位說話者、在逐字稿裡前後連在一起的段落（「這段連續的話是誰說的」，design §24.3）
     func speakerRun(around id: Int64) -> [Int64] {
         guard let i = segmentIndex[id], let speaker = segments[i].speaker else { return [id] }
@@ -1026,6 +1037,24 @@ final class AppModel {
                                    : String(localized: "把 \(ids.count) 句改成「\(target)」說的")
         perform(.detail([.speakers, .segments])) {
             try db.reassignSegments(id, ids: ids, to: idx, label: label)
+        }
+    }
+
+    /// 沒套用的標記「只改這句」（F2.12，design §F2.4）：標記蓋到的句子改給叫這個名字的說話者，沒有就新增一位
+    func reassignTaggedSegments(_ tag: SpeakerTag) {
+        guard let id = selection, let detail else { return }
+        if let problem = speakerEditProblem(id) {
+            noticeMessage = problem
+            return
+        }
+        let ids = detail.taggedSegments(tag)
+        guard let tagId = tag.id, !ids.isEmpty else { return }
+        let name = tag.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let target = detail.speaker(named: name, except: detail.tagMatches[tagId]?.segmentSpeaker)
+        let label = ids.count == 1 ? String(localized: "把一句改成「\(name)」說的")
+                                   : String(localized: "把 \(ids.count) 句改成「\(name)」說的")
+        perform(.detail([.speakers, .segments])) {
+            try db.reassignSegments(id, ids: ids, to: target, name: target == nil ? name : nil, label: label)
         }
     }
 

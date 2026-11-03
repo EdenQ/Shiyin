@@ -364,8 +364,8 @@ enum DebugControl {
             let pressed = matches.indices.contains(index) && matches[index].accessibilityPerformPress()
             if args.count > 3 { write(["found": matches.count, "pressed": pressed], to: args[3]) }
         case "bookmark": model.addBookmark(at: Double(args[2]) ?? 0, meetingId: id)
-        case "tagspeaker":   // tagspeaker now <名字> | line <第幾行> <名字|-> | add <會議 id> <開始> <結束> <名字> | delete <標記 id>（design §24.5）
-            let count = ["now": 3, "line": 4, "add": 6, "delete": 3][args.count > 1 ? args[1] : ""] ?? Int.max
+        case "tagspeaker":   // tagspeaker now <名字> | line <第幾行> <名字|-> | add <會議 id> <開始> <結束> <名字> | delete <標記 id> | only <會議 id> <標記 id>（design §24.5）
+            let count = ["now": 3, "line": 4, "add": 6, "delete": 3, "only": 4][args.count > 1 ? args[1] : ""] ?? Int.max
             guard args.count >= count else { break }
             switch args[1] {
             case "now": model.tagSpeakerNow(args[2])
@@ -377,6 +377,9 @@ enum DebugControl {
                 model.perform(.detail([.speakerTags])) {
                     try model.db.addSpeakerTag(Int64(args[2]) ?? 0, start: Double(args[3]) ?? 0, end: Double(args[4]) ?? 0, name: args[5])
                 }
+            case "only":   // 沒套用的標記按「只改這句」（F2.12）
+                model.selection = Int64(args[2])
+                if let tag = model.detail?.speakerTags.first(where: { $0.id == Int64(args[3]) }) { model.reassignTaggedSegments(tag) }
             default: model.deleteSpeakerTag(Int64(args[2]) ?? 0)
             }
         case "tagui":   // tagui add | tagui name <第幾行>：等於按 ＋、一行選單裡的「其他名字…」，打開輸入名字的彈出視窗（design §24.5）

@@ -2946,6 +2946,51 @@
         }
       }
     },
+    "只把標記蓋到的句子改成%@說的，說話者的其他句子不變": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Change only the tagged lines to %@; the speaker's other lines stay as they are"
+          }
+        }
+      }
+    },
+    "只改這 %lld 句": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Only this %lld line"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Only these %lld lines"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "只改這句": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only this line"
+          }
+        }
+      }
+    },
     "只看某一位說話者的內容": {
       "extractionState": "manual",
       "localizations": {

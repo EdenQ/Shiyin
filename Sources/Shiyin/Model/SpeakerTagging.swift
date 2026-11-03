@@ -73,6 +73,17 @@ enum SpeakerTagging {
                      segmentId: target?.id, segmentSpeaker: target?.speaker)
     }
 
+    /// 「只改這句」改哪幾句（design §F2.4、F2.12）：那一段的說話者的段落裡，跟標記範圍重疊至少佔這一句一半長度的，加上那一段本身
+    static func covered<S: SpeakerSpan>(_ tag: Tag, by match: Match, in spans: [S]) -> [Int64] {
+        guard let anchor = match.segmentId, let speaker = match.segmentSpeaker else { return [] }
+        return spans.compactMap { span in
+            guard let id = span.id, span.speaker == speaker else { return nil }
+            if id == anchor { return id }
+            let seconds = min(tag.end, span.end) - max(tag.start, span.start)
+            return seconds > 0 && seconds >= (span.end - span.start) / 2 ? id : nil
+        }
+    }
+
     /// 每位說話者要套用的名字（design §24.3）：只看 candidates 裡的說話者（名字還是預設的），
     /// 對上他的標記都是同一個名字才套用，寫法用第一個標記的（tags 依標記的先後）
     static func names<S: SpeakerSpan>(for tags: [Tag], in spans: [S], candidates: Set<Int>) -> [Int: String] {

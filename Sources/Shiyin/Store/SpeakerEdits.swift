@@ -111,10 +111,10 @@ extension AppDatabase {
         }
     }
 
-    /// 改句子的說話者（R23.2）：to 是 nil 時新增一位說話者（預設名稱）；改過的句子標成 speaker_manual；
-    /// 沒有段落的說話者拿掉。回傳句子現在的說話者
+    /// 改句子的說話者（R23.2）：to 是 nil 時新增一位說話者（預設名稱；有 name 時用這個名字，算手動改的，F2.12）；
+    /// 改過的句子標成 speaker_manual；沒有段落的說話者拿掉。回傳句子現在的說話者
     @discardableResult
-    func reassignSegments(_ meetingId: Int64, ids: [Int64], to idx: Int?, label: String) throws -> Int {
+    func reassignSegments(_ meetingId: Int64, ids: [Int64], to idx: Int?, name: String? = nil, label: String) throws -> Int {
         try pool.write { db in
             try Self.saveSpeakerUndo(db, meetingId: meetingId, label: label)
             var target = idx ?? 0
@@ -123,6 +123,10 @@ extension AppDatabase {
                 let language = try Meeting.fetchOne(db, key: meetingId)?.meetingLanguage ?? .zh
                 var speaker = SpeakerName(meetingId: meetingId, idx: target,
                                           name: language.text(zh: "說話者 \(target)", en: "Speaker \(target)", ja: "話者 \(target)"))
+                if let name {
+                    speaker.name = name
+                    speaker.nameSource = "manual"
+                }
                 speaker.audioSource = try String.fetchOne(db, sql: "SELECT audio_source FROM speakers WHERE meeting_id = ? LIMIT 1",
                                                           arguments: [meetingId]) ?? "mix"
                 try speaker.insert(db)
