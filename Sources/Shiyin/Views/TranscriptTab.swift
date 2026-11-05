@@ -178,7 +178,7 @@ struct TranscriptTab: View {
                 Picker("說話者", selection: $speakerFilter) {
                     Text("所有說話者").tag(Int?.none)
                     ForEach(detail.speakers.keys.sorted(), id: \.self) { idx in
-                        Text(detail.speakers[idx] ?? detail.meeting.meetingLanguage.text(zh: "說話者 \(idx)", en: "Speaker \(idx)", ja: "話者 \(idx)")).tag(Int?.some(idx))
+                        Text(detail.speakers[idx] ?? detail.meeting.meetingLanguage.defaultSpeaker(idx)).tag(Int?.some(idx))
                     }
                 }
                 .labelsHidden()
@@ -201,13 +201,21 @@ struct TranscriptTab: View {
         .padding(.vertical, 10)
     }
 
+    /// 重新轉錄會用的模型（design §41.3）
+    private var upgradeText: String {
+        switch ModelStore.transcription(for: detail.meeting.meetingLanguage) {
+        case .japanese:
+            return String(localized: "這場會議是在模型下載好之前，用 macOS 內建辨識轉錄的。可以用\(MeetingLanguage.uiNames(model: "turbo"))轉錄模型重新轉錄，通常比較準。")
+        case .qwen: return String(localized: "這場會議是在模型下載好之前，用 macOS 內建辨識轉錄的。可以用 Qwen3-ASR 重新轉錄，通常比較準。")
+        default: return String(localized: "這場會議是在模型下載好之前，用 macOS 內建辨識轉錄的。可以用 Breeze 重新轉錄，通常比較準。")
+        }
+    }
+
     /// 模型下載好之前用 macOS 內建辨識轉錄的會議（design §21.17）
     private var upgradeBar: some View {
         HStack(spacing: 10) {
             Image(systemName: "waveform.badge.magnifyingglass").foregroundStyle(Color.signal)
-            Text(detail.meeting.meetingLanguage == .ja
-                 ? "這場會議是在模型下載好之前，用 macOS 內建辨識轉錄的。可以用日文轉錄模型重新轉錄，通常比較準。"
-                 : "這場會議是在模型下載好之前，用 macOS 內建辨識轉錄的。可以用 Breeze 重新轉錄，通常比較準。")
+            Text(upgradeText)
             // 不能加 fixedSize：在 HStack 裡量最小高度時會用很窄的寬度，算出很高的高度，整個視窗的內容被往上推
             Spacer()
             Button("重新轉錄") { model.retranscribe() }

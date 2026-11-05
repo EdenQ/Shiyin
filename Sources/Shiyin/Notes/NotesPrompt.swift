@@ -15,12 +15,27 @@ struct NotesContext {
     var bookmarks: [Bookmark]
     var glossary: [String]
     var template: TemplateDefinition
+    /// 會議參考資料（design §39.3、R61.5）；沒有文件時提示詞跟以前一字不差
+    var documents: [DocumentText] = []
 }
 
 /// 整理與校稿的提示詞（design §8.3），規則沿用第二版；依會議語言分成中文、英文、日文三份（design §16.5、§18.4）
 enum NotesPrompt {
-    static func system(_ language: MeetingLanguage) -> String {
-        language.text(zh: systemChinese, en: systemEnglish, ja: systemJapanese)
+    /// documents：有參考文件時接上文件的規則（design §39.3、D133）。語言的兩級（design §41.2、D140、D141）：
+    /// 共用別的語言那份的精調語言（粵語）最後接一段逐字稿的說明；一般語言（韓文）用英文那份、改成用那個語言寫
+    static func system(_ language: MeetingLanguage, documents: Bool = false) -> String {
+        var text = language.prompt(zh: systemChinese, en: systemEnglish, ja: systemJapanese)
+        if language.profile.tier == .general, let name = language.profile.outputName {
+            text = text.replacingOccurrences(of: "written entirely in English.", with: "written entirely in \(name).")
+                .replacingOccurrences(of: "(translated into English if it is not in English)", with: "(translated into \(name) if it is not in \(name))")
+        }
+        if documents { text += "\n" + DocumentPrompt.notesRules(language) }
+        if let note = language.profile.transcriptNote?.notes { text += "\n\n" + note }
+        if language.profile.tier == .general, let name = language.profile.outputName {
+            text += "\n\nOutput language: \(name). Every text value in the JSON (title, summary, decisions, action items, open questions, "
+                + "topics, custom sections, review questions) must be in \(name); keep the JSON keys and the time format as they are."
+        }
+        return text
     }
 
     static let systemChinese = """
@@ -79,7 +94,6 @@ enum NotesPrompt {
     private struct Labels {
         var meetingDate, existingTitle, participants, notProvided, glossary, none, template, sections, custom, extra: String
         var userNotes, bookmarks, transcript, currentNotes, answers, answer, reviseInstructions, listSeparator, colon: String
-        var speaker: (Int) -> String
         var section: (String, String) -> String
 
         static let zh = Labels(
@@ -97,7 +111,6 @@ enum NotesPrompt {
             - 除非回答本身帶出新的疑點，否則不要新增題目。
             """,
             listSeparator: "、", colon: "：",
-            speaker: { "說話者 \($0)" },
             section: { id, label in "\(id)（\(label)）" })
 
         static let en = Labels(
@@ -115,7 +128,6 @@ enum NotesPrompt {
             - Do not add new questions unless an answer raises a new doubt.
             """,
             listSeparator: ", ", colon: ": ",
-            speaker: { "Speaker \($0)" },
             section: { id, label in "\(id) (\(label))" })
 
         static let ja = Labels(
@@ -133,11 +145,10 @@ enum NotesPrompt {
             - 回答そのものが新しい疑問を生まない限り、質問を追加しない。
             """,
             listSeparator: "、", colon: "：",
-            speaker: { "話者 \($0)" },
             section: { id, label in "\(id)（\(label)）" })
 
         static func of(_ language: MeetingLanguage) -> Labels {
-            switch language {
+            switch language.base {
             case .zh: return zh
             case .en: return en
             case .ja: return ja
@@ -151,7 +162,7 @@ enum NotesPrompt {
         let l = Labels.of(language)
         var lines: [String] = []
         let weekday = DateText.weekday(m.meetingDate, language: language)
-        lines.append("\(l.meetingDate)\(l.colon)\(m.meetingDate)" + (language == .en ? " (\(weekday))" : "（\(weekday)）"))
+        lines.append("\(l.meetingDate)\(l.colon)\(m.meetingDate)" + (language.base == .en ? " (\(weekday))" : "（\(weekday)）"))
         lines.append("\(l.existingTitle)\(l.colon)\(m.titleLocked ? m.title : "")")
         let participants = m.participantList
         lines.append("\(l.participants)\(l.colon)\(participants.isEmpty ? l.notProvided : participants.joined(separator: l.listSeparator))")
@@ -159,7 +170,7 @@ enum NotesPrompt {
         lines.append("")
         lines.append("\(l.template)\(l.colon)\(c.template.description)")
         let sectionNames = TemplateDefinition.builtinSectionIDs.filter { c.template.includes($0) }
-            .map { l.section($0, TemplateDefinition.sectionLabel($0, language: language)) }
+            .map { l.section($0, TemplateDefinition.sectionLabel($0, language: language, prompt: true)) }
         lines.append("\(l.sections)\(l.colon)\(sectionNames.joined(separator: l.listSeparator))")
         if !c.template.custom.isEmpty {
             lines.append("\(l.custom)\(l.colon)")
@@ -177,10 +188,14 @@ enum NotesPrompt {
             lines.append("\(l.bookmarks)\(l.colon)" + c.bookmarks.map { TimeFormat.string($0.time) + ($0.label.isEmpty ? "" : " \($0.label)") }
                 .joined(separator: l.listSeparator))
         }
+        if !c.documents.isEmpty {
+            lines.append("")
+            lines.append(DocumentPrompt.block(c.documents, language: language))
+        }
         lines.append("")
         lines.append("\(l.transcript)\(l.colon)")
         for s in c.segments {
-            let speaker = s.speaker.map { (c.speakers[$0] ?? l.speaker($0)) + l.colon } ?? ""
+            let speaker = s.speaker.map { (c.speakers[$0] ?? language.defaultSpeaker($0)) + l.colon } ?? ""
             lines.append("[\(TimeFormat.string(s.start))] \(speaker)\(s.lowConfidence ? "(?) " : "")\(s.text)")
         }
         return lines.joined(separator: "\n")

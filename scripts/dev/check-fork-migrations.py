@@ -55,7 +55,7 @@ func require(_ value: Bool, _ message: String) {
 }
 
 let directory = URL(fileURLWithPath: CommandLine.arguments[1], isDirectory: true)
-for scenario in ["fresh", "v7", "fork-v8", "upstream-v8", "upstream-v9"] {
+for scenario in ["fresh", "v7", "fork-v8", "upstream-v8", "upstream-v9", "upstream-v10"] {
     let path = directory.appendingPathComponent(scenario + ".sqlite").path
     var config = Configuration()
     config.foreignKeysEnabled = true
@@ -82,11 +82,22 @@ for scenario in ["fresh", "v7", "fork-v8", "upstream-v8", "upstream-v9"] {
                 VALUES (1, 0, 4, 'Fixture person', 'line', '2026-10-24');
                 """)
         }
-    } else if scenario == "upstream-v8" || scenario == "upstream-v9" {
-        try migrator.migrate(queue, upTo: scenario == "upstream-v8" ? "v8" : "v9")
+    } else if scenario.hasPrefix("upstream-") {
+        try migrator.migrate(queue, upTo: String(scenario.dropFirst("upstream-".count)))
         try queue.write { db in try db.execute(sql: "UPDATE meetings SET min_speakers = 3 WHERE id = 1") }
-        if scenario == "upstream-v9" {
+        if scenario != "upstream-v8" {
             try queue.write { db in try db.execute(sql: "UPDATE segments SET speaker_manual = 1 WHERE meeting_id = 1") }
+        }
+        if scenario == "upstream-v10" {
+            // 模擬上游已升級 v10、從未安裝 fork 的資料庫；保留真實的文件資料。
+            try queue.write { db in
+                try db.execute(sql: """
+                    DROP TABLE speaker_tags;
+                    DELETE FROM grdb_migrations WHERE identifier = 'ma_speaker_tags_v1';
+                    INSERT INTO documents (meeting_id, name, file, kind, pages, created_at)
+                    VALUES (1, 'Fixture document', 'fixture.txt', 'text', '["Retained document"]', '2026-11-05');
+                    """)
+            }
         }
     }
     try migrator.migrate(queue)
@@ -100,6 +111,7 @@ for scenario in ["fresh", "v7", "fork-v8", "upstream-v8", "upstream-v9"] {
         require(try db.columns(in: "segments").contains { $0.name == "speaker_manual" }, "Missing upstream speaker edits")
         require(try db.tableExists("speaker_tags"), "Missing fork tags")
         require(try db.tableExists("speaker_undo"), "Missing upstream undo")
+        require(try db.tableExists("documents"), "Missing upstream documents")
         require(try String.fetchOne(db, sql: "PRAGMA integrity_check") == "ok", "Integrity check failed")
         require(try Row.fetchAll(db, sql: "PRAGMA foreign_key_check").isEmpty, "Foreign key check failed")
         let count = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM speaker_tags")
@@ -113,8 +125,11 @@ for scenario in ["fresh", "v7", "fork-v8", "upstream-v8", "upstream-v9"] {
         if scenario.hasPrefix("upstream") {
             require(try Int.fetchOne(db, sql: "SELECT min_speakers FROM meetings WHERE id = 1") == 3, "Speaker count lost")
         }
-        if scenario == "upstream-v9" {
+        if scenario == "upstream-v9" || scenario == "upstream-v10" {
             require(try Int.fetchOne(db, sql: "SELECT speaker_manual FROM segments WHERE meeting_id = 1") == 1, "Manual speaker edit lost")
+        }
+        if scenario == "upstream-v10" {
+            require(try String.fetchOne(db, sql: "SELECT pages FROM documents WHERE meeting_id = 1") == "[\"Retained document\"]", "Document lost")
         }
     }
     print("PASS migration: \(scenario) + reopen; data retained")

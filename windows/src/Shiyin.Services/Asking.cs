@@ -41,7 +41,7 @@ public sealed class AskService(AppDatabase db, AppSettings settings, LLMClient l
     static string Line(Segment s, IReadOnlyDictionary<int, string> names, MeetingLanguage language)
     {
         var speaker = s.Speaker is int i
-            ? (names.TryGetValue(i, out var n) ? n : language.Text($"說話者 {i}", $"Speaker {i}", $"話者 {i}")) + language.Text("：", ": ", "：")  // l10n-skip
+            ? (names.TryGetValue(i, out var n) ? n : language.DefaultSpeaker(i)) + language.Text("：", ": ", "：")  // l10n-skip
             : "";
         return $"[{TimeFormat.String(s.Start)}] {speaker}{s.Text}";
     }
@@ -58,12 +58,13 @@ public sealed class AskService(AppDatabase db, AppSettings settings, LLMClient l
         var history = db.Questions(id).TakeLast(3)
             .Select(q => AskPrompt.Answer.Decode(q.Answer) is { } a ? (q.Question, a.Text) : default)
             .Where(h => h.Question is not null).ToList();
-        var prompt = AskPrompt.MeetingPrompt(meeting, meeting.DecodedNotes, lines, history, question);
-        var json = await llm.GenerateJson(provider, model, AskPrompt.MeetingSystem(language), prompt, AskPrompt.MeetingFormat, cancel);
+        var documents = db.Documents(id).Select(DocumentText.From).ToList();
+        var prompt = AskPrompt.MeetingPrompt(meeting, meeting.DecodedNotes, lines, history, question, documents);
+        var json = await llm.GenerateJson(provider, model, AskPrompt.MeetingSystem(language, documents.Count > 0), prompt, AskPrompt.MeetingFormat, cancel);
         var raw = AskPrompt.Answer.Decode(json) ?? throw LLMException.BadOutput("JSON" + provider.BadOutputHint());
         var record = new QuestionRecord
         {
-            MeetingId = id, Question = question, Answer = AskPrompt.Validate(raw, null).JsonString(), Provider = provider.Code(),
+            MeetingId = id, Question = question, Answer = AskPrompt.Validate(raw, null, documents.Count > 0).JsonString(), Provider = provider.Code(),
         };
         cancel.ThrowIfCancellationRequested();
         db.SaveQuestion(record);

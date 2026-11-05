@@ -405,7 +405,7 @@ enum DebugControl {
             model.recorder.simulateStall(channel: args.count > 2 ? Int(args[2]) ?? 0 : 0, seconds: args[1] == "off" ? nil : Double(args[1]) ?? 5)
         case "recordinterrupt":   // recordinterrupt [聲道]：等於音源發現裝置變了，Recorder 會重新開始這個音源
             model.recorder.simulateInterruption(channel: args.count > 1 ? Int(args[1]) ?? 0 : 0)
-        case "recordlang":   // recordlang <zh|en|ja>：錄音中換會議語言（等於按「改回」）
+        case "recordlang":   // recordlang <語言代碼>：錄音中換會議語言（等於按「改回」；zh、en、ja、yue、ko…）
             if let language = MeetingLanguage(rawValue: args[1]) { model.recorder.switchLanguage(to: language) }
         case "record-sim":
             // record-sim <音檔> <倍速> <both: 1/0>
@@ -435,6 +435,28 @@ enum DebugControl {
             }
             model.requestImport(files.map { URL(fileURLWithPath: $0) })
             if model.showImportSheet { model.confirmImport(options) }
+        // 會議的參考文件（design §39.7）：adddoc <會議 id> <檔案>…（加到這場，同「加入文件…」選了這些檔）；
+        // drop <檔案>…（等於拖進主視窗：文件加到選取中的會議，其他照舊匯入）；removedoc <文件 id>；
+        // docread <檔案> <zh|en|ja> <輸出.json>（只讀出文字，不寫資料庫）；docbanner <會議 id> dismiss|resummarize（文件有變動的提示條）
+        case "adddoc": if let id { model.addDocuments(args.dropFirst(2).map { URL(fileURLWithPath: $0) }, to: id) }
+        case "drop": model.requestImport(args.dropFirst().map { URL(fileURLWithPath: $0) })
+        case "removedoc":
+            if let docId = Int64(args[1]), let document = try? model.db.document(docId) { model.removeDocument(document) }
+        case "docread":
+            let url = URL(fileURLWithPath: args[1]), language = MeetingLanguage(rawValue: args[2]) ?? .zh, output = args[3]
+            Task {
+                let started = Date()
+                let result = await Task.detached { Result { try DocumentReader.read(url, language: language) } }.value
+                switch result {
+                case .success(let r):
+                    write(["kind": r.kind.rawValue, "pages": r.pages, "ocr": r.ocr, "seconds": Date().timeIntervalSince(started)], to: output)
+                case .failure(let error):
+                    write(["error": error.localizedDescription], to: output)
+                }
+            }
+        case "docbanner":
+            model.selection = id
+            if args.count > 2, args[2] == "dismiss" { model.dismissDocumentsChanged() } else { model.resummarize() }
         case "copy": model.copyNotes(args.count > 1 && args[1] == "plain" ? .plain : args.count > 1 && args[1] == "md" ? .markdown : .rich)
         case "search": model.searchQuery = args.count > 1 ? args[1] : ""
         case "openhit": if let index = Int(args[1]), model.searchResults.indices.contains(index) { model.openSearchHit(model.searchResults[index]) }
@@ -643,6 +665,15 @@ enum DebugControl {
         var out: [String: Any] = [
             "selection": model.selection ?? -1,
             "tab": model.tab.rawValue, "reviewExpanded": model.reviewExpanded, "userNotesExpanded": model.userNotesExpanded,
+            // 會議的參考文件（design §39.7）：選取中的會議
+            "documents": (model.detail?.documents ?? []).map { d -> [String: Any] in
+                let use = model.detail?.documentUse[d.id ?? 0]
+                return ["id": d.id ?? 0, "name": d.name, "kind": d.kind, "file": d.file, "pages": d.pageTexts.count, "ocr": d.ocr,
+                        "chars": d.pageTexts.reduce(0) { $0 + $1.count },
+                        "includedPages": use?.includedPages ?? 0, "truncated": use?.truncated ?? false]
+            },
+            "readingDocuments": Dictionary(uniqueKeysWithValues: model.readingDocuments.map { (String($0.key), $0.value) }),
+            "documentsChanged": model.documentsChanged.sorted(),
             // 選中的會議：說話者的名字、來源、建議、最像的幾位認識的人（R33，「自動」名字的選單）
             "speakers": (model.detail?.speakers ?? [:]).keys.sorted().map { idx -> [String: Any] in
                 ["idx": idx, "name": model.detail?.speakers[idx] ?? "", "source": model.detail?.speakerSources[idx] ?? "",
@@ -818,7 +849,7 @@ enum DebugControl {
                 else { throw LLMError.badOutput("bad input") }
                 let language = MeetingLanguage(rawValue: settings["language"] as? String ?? "zh") ?? .zh
                 let speakerName = { (s: [String: Any]) -> String? in
-                    (s["speaker"] as? Int).map { language.text(zh: "說話者 \($0)", en: "Speaker \($0)", ja: "話者 \($0)") }
+                    (s["speaker"] as? Int).map { language.defaultSpeaker($0) }
                 }
                 let context = TranscriptCorrection.Context(
                     language: language,

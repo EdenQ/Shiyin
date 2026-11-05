@@ -732,6 +732,30 @@ struct GlossarySettings: View {
 struct RecordingSettings: View {
     @Environment(AppModel.self) private var model
     @AppStorage(AppSettings.transcriptionEngineKey) private var engine = "breeze"
+
+    /// 正式轉錄引擎的說明；Breeze、Qwen3-ASR 後面接不跟著這個設定的語言
+    private var engineDescription: String {
+        switch engine {
+        case "server":
+            return String(localized: "錄音會送到 \(EnterpriseServer.shared.host)（公司的伺服器）轉錄，轉完就刪；說話者辨識和聲紋在這台 Mac 上做，聲紋不會送出。會參考詞彙表。連不上時會等，也可以改在這台 Mac 轉錄。")
+        case "system":
+            return String(localized: "不用下載模型，速度快很多；但不參考詞彙表，英文專有名詞、人名比較容易錯。")
+        case "qwen":
+            return String(localized: "會參考詞彙表，多人會議的漏字和同音字比 Breeze 少、速度快三成；阿里巴巴開源的模型，全程在這台 Mac 上跑、不連網，輸出會轉成台灣繁體；需要下載約 2.5 GB 的模型。")
+                + Self.otherEngines
+        default:
+            return String(localized: "會參考詞彙表，中英夾雜、專有名詞比較準；聯發科開源的台灣模型，需要下載約 1.7 GB。") + Self.otherEngines
+        }
+    }
+
+    /// 不跟著這個設定的語言（design §41.3）：「日文和韓文會議改用 Whisper large-v3-turbo（574 MB）。廣東話會議一律用 Qwen3-ASR。」
+    static var otherEngines: String {
+        let space = MeetingLanguage.ui(zh: "", en: " ")
+        var text = space + String(localized: "\(MeetingLanguage.uiNames(model: "turbo"))會議改用 Whisper large-v3-turbo（574 MB）。")
+        let qwen = MeetingLanguage.uiNames(model: "qwen")
+        if !qwen.isEmpty { text += space + String(localized: "\(qwen)會議一律用 Qwen3-ASR。") }
+        return text
+    }
     @AppStorage(AppSettings.defaultMeetingLanguageKey) private var meetingLanguage: MeetingLanguage = .systemDefault
     @AppStorage(AppSettings.recordSourceKey) private var source = "mic"
     @AppStorage(AppSettings.inputDeviceKey) private var device = ""
@@ -788,7 +812,7 @@ struct RecordingSettings: View {
                         }
                     }
                 }
-                Text("開始錄音後聽約 10 秒，判斷是中文、英文還是日文；跟會議語言不同而且有把握時會自動切換，錄音畫面可以改回來。需要 60 MB 的語言偵測模型。")
+                Text("開始錄音後聽約 10 秒，判斷是哪一種語言（\(MeetingLanguage.uiNames(MeetingLanguage.detectable))）；跟會議語言不同而且有把握時會自動切換，錄音畫面可以改回來。需要 60 MB 的語言偵測模型。")
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             Section("轉錄") {
@@ -806,13 +830,7 @@ struct RecordingSettings: View {
                     model.runner.wake()
                     model.refreshEnvironment()
                 }
-                Text(engine == "server"
-                     ? "錄音會送到 \(EnterpriseServer.shared.host)（公司的伺服器）轉錄，轉完就刪；說話者辨識和聲紋在這台 Mac 上做，聲紋不會送出。會參考詞彙表。連不上時會等，也可以改在這台 Mac 轉錄。"
-                     : engine == "system"
-                     ? "不用下載模型，速度快很多；但不參考詞彙表，英文專有名詞、人名比較容易錯。"
-                     : engine == "qwen"
-                     ? "會參考詞彙表，多人會議的漏字和同音字比 Breeze 少、速度快三成；阿里巴巴開源的模型，全程在這台 Mac 上跑、不連網，輸出會轉成台灣繁體；需要下載約 2.5 GB 的模型。日文會議改用 Whisper large-v3-turbo（574 MB）。"
-                     : "會參考詞彙表，中英夾雜、專有名詞比較準；聯發科開源的台灣模型，需要下載約 1.7 GB。日文會議改用 Whisper large-v3-turbo（574 MB）。")
+                Text(verbatim: engineDescription)
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 Toggle("轉錄時辨識說話者", isOn: $diarize)
                 Toggle("錄音中顯示即時逐字稿", isOn: $live)
@@ -881,11 +899,13 @@ struct ModelRows: View {
         ModelRow(title: String(localized: "Qwen3-ASR 1.7B（q8_0，含音訊編碼器）"), state: model.models.combinedState(.qwen),
                  start: { model.models.startAll(.qwen) }, pause: { model.models.pauseAll(.qwen) },
                  delete: { model.models.deleteAll(.qwen); model.refreshEnvironment() }, deleteDisabled: transcribing)
-        Text("正式轉錄選「Qwen3-ASR」時用，2.5 GB。").font(.caption).foregroundStyle(.secondary)
+        Text(MeetingLanguage.uiNames(model: "qwen").isEmpty ? String(localized: "正式轉錄選「Qwen3-ASR」時用，2.5 GB。")
+             : String(localized: "正式轉錄選「Qwen3-ASR」時用；\(MeetingLanguage.uiNames(model: "qwen"))會議一律用。2.5 GB。"))
+            .font(.caption).foregroundStyle(.secondary)
         ModelRow(title: ModelStore.japanese.name, state: model.models.state(.japanese),
                  start: { model.models.start(.japanese) }, pause: { model.models.pause(.japanese) },
                  delete: { model.models.delete(.japanese); model.refreshEnvironment() }, deleteDisabled: transcribing)
-        Text("日文會議用，574 MB。第一次轉錄日文會議時會自動下載。").font(.caption).foregroundStyle(.secondary)
+        Text("\(MeetingLanguage.uiNames(model: "turbo"))會議用，574 MB。第一次轉錄這些語言的會議時會自動下載。").font(.caption).foregroundStyle(.secondary)
         ModelRow(title: ModelStore.languageDetection.name, state: model.models.state(.languageDetection),
                  start: { model.models.start(.languageDetection) }, pause: { model.models.pause(.languageDetection) },
                  delete: { model.models.delete(.languageDetection); model.refreshEnvironment() }, deleteDisabled: model.recorder.isRecording)

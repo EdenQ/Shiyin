@@ -109,17 +109,20 @@ extension AppModel {
         let language = meeting.meetingLanguage
         let names = Dictionary(uniqueKeysWithValues: ((try? db.speakers(id)) ?? []).map { ($0.idx, $0.name) })
         let lines = ((try? db.segments(id)) ?? []).map { s in
-            let speaker = s.speaker.map { (names[$0] ?? language.text(zh: "說話者 \($0)", en: "Speaker \($0)", ja: "話者 \($0)")) + language.text(zh: "：", en: ": ", ja: "：") } ?? ""
+            let speaker = s.speaker.map { (names[$0] ?? language.defaultSpeaker($0)) + language.text(zh: "：", en: ": ", ja: "：") } ?? ""
             return "[\(TimeFormat.string(s.start))] \(speaker)\(s.text)"
         }
         let history = meetingQuestions.suffix(3).compactMap { q in q.decoded.map { (q.question, $0.answer) } }
-        let prompt = AskPrompt.meetingPrompt(meeting: meeting, notes: meeting.decodedNotes, lines: lines, history: history, question: question)
-        let system = AskPrompt.meetingSystem(language)
+        let documents = ((try? db.documents(id)) ?? []).map(DocumentText.init)
+        let prompt = AskPrompt.meetingPrompt(meeting: meeting, notes: meeting.decodedNotes, lines: lines, history: history, question: question,
+                                             documents: documents)
+        let system = AskPrompt.meetingSystem(language, documents: !documents.isEmpty)
         run(.meeting(id)) {
             let raw = try await AskPrompt.generate(AskPrompt.Answer.self, provider: provider, model: model, system: system,
                                                    prompt: prompt, format: AskPrompt.meetingFormat, onStart: { self.askProcess = $0 })
             return QuestionRecord(meetingId: id, question: question,
-                                  answer: Self.json(AskPrompt.validate(raw, meetingIds: nil)), provider: provider.rawValue)
+                                  answer: Self.json(AskPrompt.validate(raw, meetingIds: nil, documentCitations: !documents.isEmpty)),
+                                  provider: provider.rawValue)
         }
     }
 
@@ -191,7 +194,7 @@ extension AppModel {
             }
             let lines = wanted.sorted().map { i -> String in
                 let s = segments[i]
-                let speaker = s.speaker.map { (names[$0] ?? language.text(zh: "說話者 \($0)", en: "Speaker \($0)", ja: "話者 \($0)")) + language.text(zh: "：", en: ": ", ja: "：") } ?? ""
+                let speaker = s.speaker.map { (names[$0] ?? language.defaultSpeaker($0)) + language.text(zh: "：", en: ": ", ja: "：") } ?? ""
                 return "[\(TimeFormat.string(s.start))] \(speaker)\(s.text)"
             }
             var block = AskPrompt.MeetingBlock(id: id, title: meeting.displayTitle, date: meeting.meetingDate, summary: summary, lines: lines)

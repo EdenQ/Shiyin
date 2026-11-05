@@ -60,7 +60,7 @@ struct TranscriptionOptions: Codable {
     init() {}
 
     /// 寫進 meetings.transcribed_with（design §21.17）
-    var transcribedWith: String { engine == .system ? "system" : engine == .qwen ? "qwen" : language == .ja ? "japanese" : "breeze" }
+    var transcribedWith: String { engine == .system ? "system" : engine == .qwen ? "qwen" : language.usesTurbo ? "japanese" : "breeze" }
 
     /// local：使用者在這一場按了「改在這台電腦轉錄」（R50.5），不用企業伺服器
     @MainActor
@@ -69,13 +69,14 @@ struct TranscriptionOptions: Codable {
         var options = TranscriptionOptions()
         options.minSpeakers = minSpeakers
         // 這個語言的模型還沒下載好時，這一場先用 macOS 內建辨識（design §21.17、D35）；
-        // 中文、英文選了 Qwen3-ASR（design §32.3）而還沒下載好、已經有 Breeze 時先用 Breeze（R43.7）
+        // 中文、英文選了 Qwen3-ASR（design §32.3）而還沒下載好、已經有 Breeze 時先用 Breeze（R43.7）；
+        // 固定用 Qwen3-ASR 的語言（粵語）不用 Breeze，先用內建（design §41.3）
         let wanted = ModelStore.transcription(for: language)
         // 企業伺服器（R50.1）：登入失效時也照樣選它，工作停著等重新登入（R49.4）
         if AppSettings.usesEnterpriseTranscription && !local { options.engine = .server }
         else if AppSettings.useSystemTranscriber { options.engine = .system }
         else if ModelStore.isDownloaded(wanted) { options.engine = wanted == .qwen ? .qwen : .breeze }
-        else if wanted == .qwen && ModelStore.isDownloaded(.breeze) { options.engine = .breeze }
+        else if wanted == .qwen && language.profile.transcription.engineSetting && ModelStore.isDownloaded(.breeze) { options.engine = .breeze }
         else { options.engine = .system }
         options.language = language
         options.glossary = glossary
@@ -131,7 +132,7 @@ struct TranscriptionPipeline {
     var options: TranscriptionOptions
     /// whisper 模型檔（engine 是 breeze 時用）：評估時可以指定，平常依會議語言選。不看引擎設定：設定是 Qwen 時 transcription(for:) 回 qwen，
     /// 但 whisper 這條路只認 Breeze 和 large-v3-turbo（2026-10-24 評估時 Breeze 跑去載 GGUF 而失敗）
-    var modelPath: String { options.model ?? ModelStore.path(options.language == .ja ? .japanese : .breeze).path }
+    var modelPath: String { options.model ?? ModelStore.path(options.language.usesTurbo ? .japanese : .breeze).path }
     /// 目前在做哪一步（顯示在會議列表）
     var stage: (String) -> Void = { _ in }
     /// 整體進度 0～1，會從背景執行緒呼叫

@@ -150,6 +150,39 @@
         }
       }
     },
+    "%@會議一律用 Qwen3-ASR。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ meetings always use Qwen3-ASR."
+          }
+        }
+      }
+    },
+    "%@會議改用 Whisper large-v3-turbo（574 MB）。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ meetings use Whisper large-v3-turbo (574 MB) instead."
+          }
+        }
+      }
+    },
+    "%@會議用，574 MB。第一次轉錄這些語言的會議時會自動下載。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Used for %@ meetings, 574 MB. Downloaded automatically the first time a meeting in one of these languages is transcribed."
+          }
+        }
+      }
+    },
     "%@正在說話：標記現在這幾秒，錄完會套到他的說話者": {
       "extractionState": "manual",
       "localizations": {
@@ -161,6 +194,28 @@
         }
       }
     },
+    "%@轉錄模型": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ transcription model"
+          }
+        }
+      }
+    },
+    "%@轉錄模型 Whisper large-v3-turbo（q5_0）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ transcription model Whisper large-v3-turbo (q5_0)"
+          }
+        }
+      }
+    },
     "%@（%@）": {
       "extractionState": "manual",
       "localizations": {
@@ -168,6 +223,52 @@
           "stringUnit": {
             "state": "translated",
             "value": "%1$@ (%2$@)"
+          }
+        }
+      }
+    },
+    "%@（%lld 張投影片）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%@ (%lld slide)"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%@ (%lld slides)"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%@（%lld 頁）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%@ (%lld page)"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%@ (%lld pages)"
+                }
+              }
+            }
           }
         }
       }
@@ -324,6 +425,29 @@
                 "stringUnit": {
                   "state": "translated",
                   "value": "%lld people"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld 份文件": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld document"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld documents"
                 }
               }
             }
@@ -624,6 +748,28 @@
     "Claude": {
       "extractionState": "manual"
     },
+    "Claude Code 的用量額度用完了，等恢復後再試，或到設定 → 整理工具先換成 Codex 或 API。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude Code is out of usage until it resets. Try again then, or switch to Codex or an API in Settings → Summarizer."
+          }
+        }
+      }
+    },
+    "Claude Code 的訊息：%@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude Code says: %@"
+          }
+        }
+      }
+    },
     "Claude Code 還沒登入或登入已過期，請重新登入後再試一次（終端機指令：claude auth login）。": {
       "extractionState": "manual",
       "localizations": {
@@ -664,6 +810,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "Claude (claude CLI)"
+          }
+        }
+      }
+    },
+    "Codex 的用量額度用完了，等恢復後再試，或到設定 → 整理工具先換成 Claude Code 或 API。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Codex is out of usage until it resets. Try again then, or switch to Claude Code or an API in Settings → Summarizer."
+          }
+        }
+      }
+    },
+    "Codex 的訊息：%@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Codex says: %@"
           }
         }
       }
@@ -1060,6 +1228,39 @@
         }
       }
     },
+    "「%@」不是 UTF-8 的文字檔。請另存成 UTF-8 再加入。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” isn't a UTF-8 text file. Save it as UTF-8 and add it again."
+          }
+        }
+      }
+    },
+    "「%@」已經加過了": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” has already been added"
+          }
+        }
+      }
+    },
+    "「%@」有密碼保護，會議助手讀不了。請先移除密碼再加入。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” is password-protected, so Meeting Assistant can't read it. Remove the password and add it again."
+          }
+        }
+      }
+    },
     "「%@」裡沒有可以用的逐字稿內容": {
       "extractionState": "manual",
       "localizations": {
@@ -1067,6 +1268,39 @@
           "stringUnit": {
             "state": "translated",
             "value": "“%@” has no usable transcript content"
+          }
+        }
+      }
+    },
+    "「%@」裡讀不到文字。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No text could be read from “%@”."
+          }
+        }
+      }
+    },
+    "「%@」讀不出來，檔案可能壞了。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” couldn't be read. The file may be damaged."
+          }
+        }
+      }
+    },
+    "「%@」超過 200 MB，會議助手不讀這麼大的文件。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” is larger than 200 MB. Meeting Assistant doesn't read documents that large."
           }
         }
       }
@@ -1353,6 +1587,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Not this person"
+          }
+        }
+      }
+    },
+    "不用": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not Now"
           }
         }
       }
@@ -2029,6 +2274,17 @@
         }
       }
     },
+    "先選一場會議，再把文件拖進來": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select a meeting first, then drag the documents in"
+          }
+        }
+      }
+    },
     "內容": {
       "extractionState": "manual",
       "localizations": {
@@ -2338,6 +2594,17 @@
         }
       }
     },
+    "出自這場會議的參考文件": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "From this meeting's reference documents"
+          }
+        }
+      }
+    },
     "分享…": {
       "extractionState": "manual",
       "localizations": {
@@ -2588,6 +2855,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "Add Name"
+          }
+        }
+      }
+    },
+    "加入文件": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add Documents"
+          }
+        }
+      }
+    },
+    "加入文件…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add Documents…"
           }
         }
       }
@@ -3675,6 +3964,17 @@
         }
       }
     },
+    "封包裡的文件不正確": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "the documents in the package are invalid"
+          }
+        }
+      }
+    },
     "封包裡的錄音檔不正確": {
       "extractionState": "manual",
       "localizations": {
@@ -3807,13 +4107,47 @@
         }
       }
     },
+    "已加入 %lld 份文件": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Added %lld document"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Added %lld documents"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "已加入「%@」": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Joined %@"
+            "value": "Added “%@”"
+          }
+        }
+      }
+    },
+    "已加入「%@」，用文字辨識讀出文字": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Added “%@” (text read with text recognition)"
           }
         }
       }
@@ -4089,6 +4423,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Moved to Trash. You can restore it within 30 days."
+          }
+        }
+      }
+    },
+    "已移除「%@」": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Removed “%@”"
           }
         }
       }
@@ -4558,6 +4903,17 @@
         }
       }
     },
+    "打開": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open"
+          }
+        }
+      }
+    },
     "打開 %@ 登入": {
       "extractionState": "manual",
       "localizations": {
@@ -4675,6 +5031,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "No results for “%@”"
+          }
+        }
+      }
+    },
+    "找不到「%@」的原始檔": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The original file of “%@” is missing"
           }
         }
       }
@@ -4878,13 +5245,13 @@
         }
       }
     },
-    "按「停止並轉錄」後，會議助手會在這台 Mac 上重新轉錄（中文、英文用 Breeze ASR 25，日文用 Whisper large-v3-turbo），並分辨不同的說話者。等待的時候，會議紀錄會先用即時逐字稿整理一份草稿，正式版好了會自動換掉。逐字稿上點「說話者 1」可以改成人名，整場都會跟著改；會議助手會記住這個人的聲音，之後的會議自動帶入名字（標「自動」，認錯了點一下就能改）。": {
+    "按「停止並轉錄」後，會議助手會在這台 Mac 上重新轉錄（中文、英文用 Breeze ASR 25，%@用 Whisper large-v3-turbo，%@用 Qwen3-ASR），並分辨不同的說話者。等待的時候，會議紀錄會先用即時逐字稿整理一份草稿，正式版好了會自動換掉。逐字稿上點「說話者 1」可以改成人名，整場都會跟著改；會議助手會記住這個人的聲音，之後的會議自動帶入名字（標「自動」，認錯了點一下就能改）。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "After you press Stop & Transcribe, Meeting Assistant re-transcribes the recording on this Mac (Breeze ASR 25 for Chinese and English, Whisper large-v3-turbo for Japanese) and tells the speakers apart. While you wait, the notes are drafted from the live transcript and replaced automatically once the final version is ready. Click \"Speaker 1\" in the transcript to give them a name and it changes throughout the meeting; Meeting Assistant remembers their voice and fills in the name in later meetings (marked \"auto\"; one click fixes a wrong guess)."
+            "value": "After you press Stop & Transcribe, Meeting Assistant re-transcribes the recording on this Mac (Breeze ASR 25 for Chinese and English, Whisper large-v3-turbo for %@, Qwen3-ASR for %@) and tells the speakers apart. While you wait, the notes are drafted from the live transcript and replaced automatically once the final version is ready. Click \"Speaker 1\" in the transcript to give them a name and it changes throughout the meeting; Meeting Assistant remembers their voice and fills in the name in later meetings (marked \"auto\"; one click fixes a wrong guess)."
           }
         }
       }
@@ -4940,6 +5307,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Click “Record” (⌘R) in the toolbar to start. Click the arrow next to it to choose the source and microphone; for online meetings choose “Microphone + computer audio (online meetings)” so the other side is recorded too. While recording, the microphone in use is shown next to the level meter; click it to switch. When Bluetooth headphones are connected, macOS may switch to their microphone, so for in-person meetings switch back to this Mac’s microphone. If you already have a recording, drag it into the window, click “Import” (⌘O), or drop it on the Meeting Assistant icon in the Dock."
+          }
+        }
+      }
+    },
+    "掃描的 PDF、圖片用 macOS 的文字辨識讀出文字。一場會議的文件合計最多 4 萬字，太長的只送前面的部分。Keynote、Pages 請先匯出成 PDF。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Text in scanned PDFs and images is read with macOS text recognition. A meeting's documents can total up to 40,000 characters; for longer ones only the beginning is sent. Export Keynote and Pages files as PDF first."
           }
         }
       }
@@ -5331,13 +5709,13 @@
         }
       }
     },
-    "整理、回答待確認、提問、猜說話者時，會把逐字稿文字、你的筆記和詞彙表送到你選的整理工具，錄音檔不會送出。選「不整理」就完全離線。": {
+    "整理、回答待確認、提問、猜說話者時，會把逐字稿文字、你的筆記、加入的文件讀出來的文字和詞彙表送到你選的整理工具，錄音檔和文件的原始檔不會送出。選「不整理」就完全離線。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "When summarizing, revising, answering questions or guessing speaker names, the transcript text, your notes and the glossary are sent to the summarizer you chose. The recording is never sent. Choose “Don't summarize” to stay fully offline."
+            "value": "When writing notes, answering questions to confirm, asking questions, or guessing speakers, the transcript text, your notes, the text read from added documents, and the glossary are sent to the summarizer you chose. Recordings and the original document files are never sent. Choose “Don't summarize” to stay fully offline."
           }
         }
       }
@@ -5694,6 +6072,17 @@
         }
       }
     },
+    "整理會議紀錄、提問時，文件讀出來的文字會一起送給整理工具，幫忙看懂討論、寫對數字和名稱。紀錄還是以會議中講的為準，用到文件的地方會註明出處，會議說的跟文件不一樣時會列成待確認。已經整理好的會議加了文件，按紀錄上方的「重新整理會議紀錄」。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When writing notes or answering questions, the text read from the documents is sent along to the summarizer to help it follow the discussion and get numbers and names right. The notes still follow what was said in the meeting: where a document is used, the source is cited, and where the meeting and a document disagree, it becomes a question to confirm. If the meeting already has notes, click “Summarize Again” above the notes after adding documents."
+          }
+        }
+      }
+    },
     "整理草稿": {
       "extractionState": "manual",
       "localizations": {
@@ -5701,6 +6090,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Drafting notes"
+          }
+        }
+      }
+    },
+    "文件有變動，會議紀錄還沒用上。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Documents changed. The notes don't use them yet."
           }
         }
       }
@@ -5833,39 +6233,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "New Folder…"
-          }
-        }
-      }
-    },
-    "日文會議用，574 MB。第一次轉錄日文會議時會自動下載。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Used for Japanese meetings, 574 MB. Downloaded automatically the first time a Japanese meeting is transcribed."
-          }
-        }
-      }
-    },
-    "日文轉錄模型": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Japanese transcription model"
-          }
-        }
-      }
-    },
-    "日文轉錄模型 Whisper large-v3-turbo（q5_0）": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Japanese transcription model Whisper large-v3-turbo (q5_0)"
           }
         }
       }
@@ -6134,24 +6501,24 @@
         }
       }
     },
-    "會參考詞彙表，中英夾雜、專有名詞比較準；聯發科開源的台灣模型，需要下載約 1.7 GB。日文會議改用 Whisper large-v3-turbo（574 MB）。": {
+    "會參考詞彙表，中英夾雜、專有名詞比較準；聯發科開源的台灣模型，需要下載約 1.7 GB。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Uses your glossary, so mixed Chinese-English and proper nouns come out better; MediaTek's open-source Taiwanese model, about 1.7 GB to download. Japanese meetings use Whisper large-v3-turbo (574 MB) instead."
+            "value": "Uses your glossary, so mixed Chinese-English and proper nouns come out better; MediaTek's open-source Taiwanese model, about 1.7 GB to download."
           }
         }
       }
     },
-    "會參考詞彙表，多人會議的漏字和同音字比 Breeze 少、速度快三成；阿里巴巴開源的模型，全程在這台 Mac 上跑、不連網，輸出會轉成台灣繁體；需要下載約 2.5 GB 的模型。日文會議改用 Whisper large-v3-turbo（574 MB）。": {
+    "會參考詞彙表，多人會議的漏字和同音字比 Breeze 少、速度快三成；阿里巴巴開源的模型，全程在這台 Mac 上跑、不連網，輸出會轉成台灣繁體；需要下載約 2.5 GB 的模型。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Uses your glossary; drops fewer words in multi-speaker meetings and confuses fewer homophones than Breeze, about 30% faster. An open-source model from Alibaba that runs entirely on this Mac with no network access; Chinese output is converted to Taiwanese Traditional. Requires a 2.5 GB model download. Japanese meetings use Whisper large-v3-turbo (574 MB) instead."
+            "value": "Uses your glossary; drops fewer words in multi-speaker meetings and confuses fewer homophones than Breeze, about 30% faster. An open-source model from Alibaba that runs entirely on this Mac with no network access; Chinese output is converted to Taiwanese Traditional. Requires a 2.5 GB model download."
           }
         }
       }
@@ -6185,6 +6552,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "Meeting.%@"
+          }
+        }
+      }
+    },
+    "會議中一起討論的文件（簡報、規格書、報價單…）。整理會議紀錄、提問時會一起參考；也可以把文件拖進視窗": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Documents discussed in the meeting (slides, specs, quotes…). Used when writing notes and answering questions. You can also drag documents into the window"
+          }
+        }
+      }
+    },
+    "會議中一起討論的文件（簡報、規格書、報價單、白板照片）可以加進會議：會議標題下迴紋針圖示的選單（還沒有文件時寫「加入文件」）選「加入文件…」，或把 PDF、Word、PowerPoint、圖片拖進視窗。純文字、Markdown 要從「加入文件…」選（拖進來的 txt 會當成逐字稿、md 會當成筆記）。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Documents discussed in a meeting (slides, specs, quotes, whiteboard photos) can be added to it: in the paperclip menu below the meeting title (“Add Documents” when there are none yet), choose “Add Documents…”, or drag PDF, Word, PowerPoint, or image files into the window. Plain text and Markdown files have to be chosen with “Add Documents…” (a dragged txt file becomes a transcript, an md file becomes notes)."
           }
         }
       }
@@ -6321,6 +6710,72 @@
         }
       }
     },
+    "會議助手讀不了 .%@ 檔。請先匯出成 PDF 再加入。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meeting Assistant can't read .%@ files. Export it as PDF and add that instead."
+          }
+        }
+      }
+    },
+    "會議助手讀不了 Keynote 檔。請先在 Keynote 匯出成 PDF 再加入。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meeting Assistant can't read Keynote files. Export it as PDF in Keynote and add that instead."
+          }
+        }
+      }
+    },
+    "會議助手讀不了 Numbers 檔。請先在 Numbers 匯出成 PDF 再加入。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meeting Assistant can't read Numbers files. Export it as PDF in Numbers and add that instead."
+          }
+        }
+      }
+    },
+    "會議助手讀不了 Pages 檔。請先在 Pages 匯出成 PDF 再加入。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meeting Assistant can't read Pages files. Export it as PDF in Pages and add that instead."
+          }
+        }
+      }
+    },
+    "會議助手讀不了沒有副檔名的檔案。請先匯出成 PDF 再加入。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meeting Assistant can't read files without an extension. Export it as PDF and add that instead."
+          }
+        }
+      }
+    },
+    "會議助手讀不了舊版的 Word 檔（.doc）。請另存成 docx 或 PDF 再加入。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meeting Assistant can't read old Word files (.doc). Save it as docx or PDF and add that instead."
+          }
+        }
+      }
+    },
     "會議助手：正在打開瀏覽器登入 %@。登入完成後，回到會議助手按「重試」或「測試整理工具」。": {
       "extractionState": "manual",
       "localizations": {
@@ -6383,6 +6838,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Meeting title"
+          }
+        }
+      }
+    },
+    "會議的參考文件": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reference documents"
           }
         }
       }
@@ -7104,6 +7570,28 @@
         }
       }
     },
+    "正在讀取「%@」…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reading “%@”…"
+          }
+        }
+      }
+    },
+    "正在讀取文件…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reading Documents…"
+          }
+        }
+      }
+    },
     "正在轉錄，完成後才能刪除模型": {
       "extractionState": "manual",
       "localizations": {
@@ -7199,6 +7687,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Used when final transcription is set to Qwen3-ASR, 2.5 GB."
+          }
+        }
+      }
+    },
+    "正式轉錄選「Qwen3-ASR」時用；%@會議一律用。2.5 GB。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Used when final transcription is set to Qwen3-ASR; %@ meetings always use it. 2.5 GB."
           }
         }
       }
@@ -8273,6 +8772,17 @@
         }
       }
     },
+    "移除": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove"
+          }
+        }
+      }
+    },
     "稍後": {
       "extractionState": "manual",
       "localizations": {
@@ -8504,13 +9014,13 @@
         }
       }
     },
-    "約 1.7 GB 給模型（轉錄 1.66 GB、說話者辨識 21 MB；開日文會議另外 574 MB、自動偵測語言 60 MB），另外加上錄音：轉錄完會壓縮成 m4a，每小時約 10～30 MB": {
+    "約 1.7 GB 給模型（轉錄 1.66 GB、說話者辨識 21 MB；開%@會議另外 574 MB、自動偵測語言 60 MB），另外加上錄音：轉錄完會壓縮成 m4a，每小時約 10～30 MB": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "About 1.7 GB for models (transcription 1.66 GB, speaker recognition 21 MB; another 574 MB for Japanese meetings and 60 MB for language detection), plus recordings: they're compressed to m4a after transcription, about 10–30 MB per hour"
+            "value": "About 1.7 GB for models (transcription 1.66 GB, speaker recognition 21 MB; another 574 MB for %@ meetings and 60 MB for language detection), plus recordings: they're compressed to m4a after transcription, about 10–30 MB per hour"
           }
         }
       }
@@ -10167,13 +10677,24 @@
         }
       }
     },
-    "這場會議是在模型下載好之前，用 macOS 內建辨識轉錄的。可以用日文轉錄模型重新轉錄，通常比較準。": {
+    "這場會議是在模型下載好之前，用 macOS 內建辨識轉錄的。可以用 Qwen3-ASR 重新轉錄，通常比較準。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "This meeting was transcribed with macOS built-in recognition before the model finished downloading. Transcribing it again with the Japanese transcription model is usually more accurate."
+            "value": "This meeting was transcribed with macOS built-in recognition before the model finished downloading. Transcribing it again with Qwen3-ASR is usually more accurate."
+          }
+        }
+      }
+    },
+    "這場會議是在模型下載好之前，用 macOS 內建辨識轉錄的。可以用%@轉錄模型重新轉錄，通常比較準。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This meeting was transcribed with macOS built-in recognition before the model finished downloading. Transcribing it again with the %@ transcription model is usually more accurate."
           }
         }
       }
@@ -10487,6 +11008,17 @@
         }
       }
     },
+    "選擇會議中一起討論的文件（PDF、Word、PowerPoint、純文字、圖片）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose documents discussed in the meeting (PDF, Word, PowerPoint, plain text, images)"
+          }
+        }
+      }
+    },
     "還原": {
       "extractionState": "manual",
       "localizations": {
@@ -10554,13 +11086,13 @@
         }
       }
     },
-    "還沒下載，第一次轉錄日文會議時會自動下載": {
+    "還沒下載，第一次轉錄%@會議時會自動下載": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Not downloaded. Downloads automatically the first time a Japanese meeting is transcribed"
+            "value": "Not downloaded. Downloads automatically the first time it is needed for %@ meetings"
           }
         }
       }
@@ -11622,13 +12154,13 @@
         }
       }
     },
-    "開始錄音後聽約 10 秒，判斷是中文、英文還是日文；跟會議語言不同而且有把握時會自動切換，錄音畫面可以改回來。需要 60 MB 的語言偵測模型。": {
+    "開始錄音後聽約 10 秒，判斷是哪一種語言（%@）；跟會議語言不同而且有把握時會自動切換，錄音畫面可以改回來。需要 60 MB 的語言偵測模型。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "After recording starts, listens for about 10 seconds to tell Chinese, English or Japanese apart. If it differs from the meeting language and the result is confident, it switches automatically; you can switch back on the recording screen. Needs the 60 MB language detection model."
+            "value": "After recording starts, listens for about 10 seconds to tell which language is spoken (%@). If it differs from the meeting language and the result is confident, it switches automatically; you can switch back on the recording screen. Needs the 60 MB language detection model."
           }
         }
       }
@@ -12080,6 +12612,63 @@
           "stringUnit": {
             "state": "translated",
             "value": ", %@"
+          }
+        }
+      }
+    },
+    "，太長，只用前 %lld 張": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": ", too long, only the first %lld slide is used"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": ", too long, only the first %lld slides are used"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "，太長，只用前 %lld 頁": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": ", too long, only the first %lld page is used"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": ", too long, only the first %lld pages are used"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "，太長，只用前面的部分": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ", too long, only the beginning is used"
           }
         }
       }

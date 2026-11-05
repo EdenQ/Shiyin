@@ -350,7 +350,7 @@ public static class OtherWindows
         [
             (L.T("錄音或匯入"), L.T("按側欄上方的「錄音」（Ctrl+R）開始錄；點按鈕旁的箭頭可以選錄音來源和麥克風，線上會議請選「麥克風＋電腦聲音（線上會議）」，對方的聲音也會錄進來。錄音畫面會寫出正在用哪一支麥克風，點一下可以換；藍牙耳機連著時 Windows 可能自動改用耳機的麥克風，拾音會提醒你。已經有錄音檔的話，拖進視窗、按「匯入」（Ctrl+O），或在檔案總管按右鍵用拾音開啟都可以。")),
             (L.T("邊錄邊看、邊記"), L.T("錄音中畫面左邊是即時逐字稿，講完幾秒內就會出現；右邊「我的筆記」每換一行會自動記下當時的錄音時間（錄完在逐字稿分頁頂部的「我的筆記」還能改）。重要的地方按「標記重點」（Ctrl+B），在其他 app 裡也可以按 Ctrl+Alt+Shift+B。需要中斷時按「暫停」（Ctrl+Shift+P），暫停的時間不會錄進去。")),
-            (L.T("正式轉錄、分辨說話者"), L.T("按「停止並轉錄」後，拾音會在這台電腦上重新轉錄（中文、英文用 Breeze ASR 25，日文用 Whisper large-v3-turbo），並分辨不同的說話者。等待的時候，會議紀錄會先用即時逐字稿整理一份草稿，正式版好了會自動換掉。逐字稿上點「說話者 1」可以改成人名，整場都會跟著改；拾音會記住這個人的聲音，之後的會議自動帶入名字（標「自動」，認錯了點一下就能改）。")),
+            (L.T("正式轉錄、分辨說話者"), L.F("按「停止並轉錄」後，拾音會在這台電腦上重新轉錄（中文、英文用 Breeze ASR 25，%@用 Whisper large-v3-turbo，%@用 Qwen3-ASR），並分辨不同的說話者。等待的時候，會議紀錄會先用即時逐字稿整理一份草稿，正式版好了會自動換掉。逐字稿上點「說話者 1」可以改成人名，整場都會跟著改；拾音會記住這個人的聲音，之後的會議自動帶入名字（標「自動」，認錯了點一下就能改）。", MeetingLanguages.UiNames("turbo"), MeetingLanguages.UiNames("qwen"))),
             (L.T("看會議紀錄"), L.T("轉錄完會自動整理。「紀錄」分頁由上而下是摘要、決議、待辦、未決問題和依議題分段的討論；每一條後面的時間點點一下，就從錄音那裡開始播放。範本選單可以換成一對一、訪談、課堂／演講、腦力激盪等格式，換完從「更多 → 重新處理」選「重新整理會議紀錄」。想找某件事，可以在「提問」分頁直接問，回答會附上時間點；側欄上方的提問按鈕可以一次問所有會議。")),
             (L.T("回答待確認、修改"), L.T("整理時沒把握的人名、專有名詞、負責人和期限會列成待確認的題目。紀錄裡有疑問的那一條旁邊會有「？」，點了就能當場回答；紀錄頂部的「還有 N 題待確認」點開可以一次看完。能用是或否回答的直接按「是」「不是」（按「是」不用等整理工具），其他的在「你的回答」欄位回答，按「送出」，會議紀錄就會依你的答案修正；看不懂或不重要的按「略過」，或一次「全部略過」。也可以按「編輯」直接改。改錯了按「編輯」旁的「復原上一版」。")),
             (L.T("匯出、分享"), L.T("按右上角的「匯出」（Ctrl+E）：會議紀錄可以存成 Markdown、PDF、Word；逐字稿可以存成 txt、srt、vtt、Word；錄音可以存成 m4a、wav；「整場會議（.shiyin）」可以傳給同事，對方雙擊就能匯入（Mac 版也可以）。「匯出」旁邊的箭頭可以直接複製會議紀錄，貼到 Notion、Slack 或郵件。")),
@@ -383,10 +383,15 @@ public static class OtherWindows
             L.T("說話者分錯了：同一個人被分成兩位，點說話者的名字選「合併到…」；某幾句分錯人，在逐字稿按右鍵選「這句是誰說的」。改錯了，點說話者的名字或按右鍵選「復原」。"),
             L.T("開 Zoom、Teams、Google Meet 等線上會議時，拾音會提醒你開始錄音；會議好像結束時提醒停止。"),
             L.T("遇到問題，可以從設定的「進階」選「回報問題…」，會附上版本和環境（不含會議內容）。")));
+        // 會議的參考文件（M§39.6、R61.10）
+        column.Children.Add(Section(L.T("會議的參考文件"),
+            L.T("會議中一起討論的文件（簡報、規格書、報價單、白板照片）可以加進會議：會議標題下迴紋針圖示的選單（還沒有文件時寫「加入文件」）選「加入文件…」，或把 PDF、Word、PowerPoint、圖片拖進視窗。純文字、Markdown 要從「加入文件…」選（拖進來的 txt 會當成逐字稿、md 會當成筆記）。"),
+            L.T("整理會議紀錄、提問時，文件讀出來的文字會一起送給整理工具，幫忙看懂討論、寫對數字和名稱。紀錄還是以會議中講的為準，用到文件的地方會註明出處，會議說的跟文件不一樣時會列成待確認。已經整理好的會議加了文件，按紀錄上方的「重新整理會議紀錄」。"),
+            L.T("掃描的 PDF、圖片用 Windows 的文字辨識讀出文字（要有會議語言的辨識：設定 → 時間與語言 → 語言與地區）。一場會議的文件合計最多 4 萬字，太長的只送前面的部分。Keynote、Pages 請先匯出成 PDF。")));
         column.Children.Add(Section(L.T("資料與隱私"),
             L.T("錄音、逐字稿和會議紀錄都只存在這台電腦上（%LOCALAPPDATA%\\Shiyin），不會跟著帳號漫遊。"),
             L.T("即時逐字稿、正式轉錄、說話者辨識都在本機進行，不需要網路。"),
-            L.T("整理、回答待確認、提問、猜說話者時，會把逐字稿文字、你的筆記和詞彙表送到你選的整理工具，錄音檔不會送出。選「不整理」就完全離線。"),
+            L.T("整理、回答待確認、提問、猜說話者時，會把逐字稿文字、你的筆記、加入的文件讀出來的文字和詞彙表送到你選的整理工具，錄音檔和文件的原始檔不會送出。選「不整理」就完全離線。"),
             L.T("聲紋（說話者的聲音特徵，一組數字，不是錄音）只存在這台電腦，不會放進匯出的 .shiyin 封包。"),
             L.T("API key 存在 Windows 的認證管理員，不會寫進任何檔案。"),
             // 企業伺服器（R52.1）：登入了才寫，沒登入的人照原本的說明
@@ -414,7 +419,7 @@ public static class OtherWindows
     public static Window Report(AppHost host)
     {
         var window = new Window { Title = L.T("回報問題") };
-        var text = ProblemReport.Text(host.Db, host.Settings, SystemInfo.Collect(host.Version, host.Version, Whisper.WhisperEngine.GpuDevice),
+        var text = ProblemReport.Text(host.Db, host.Settings, SystemInfo.Collect(host.Version, host.Version, host.Gpu.WhisperBackend(Whisper.WhisperEngine.GpuDevice)),
             host.Enterprise.Account, host.Enterprise.IsSignedIn);
         // AcceptsReturn 要在 Text 之前設：單行的 TextBox 設 Text 時只留第一行
         var content = new TextBox { AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, Text = text, IsReadOnly = true, FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas") };

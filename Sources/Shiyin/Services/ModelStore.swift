@@ -45,7 +45,7 @@ final class ModelStore: NSObject {
 
     /// whisper.cpp 官方轉檔的 Whisper large-v3-turbo q5_0，固定 commit（design §18.2、D19）
     nonisolated static let japanese = ModelInfo(
-        name: String(localized: "日文轉錄模型 Whisper large-v3-turbo（q5_0）"),
+        name: String(localized: "\(MeetingLanguage.uiNames(model: "turbo"))轉錄模型 Whisper large-v3-turbo（q5_0）"),
         filename: "ggml-large-v3-turbo-q5_0.bin",
         url: URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-large-v3-turbo-q5_0.bin")!,
         size: 574_041_195,
@@ -84,10 +84,15 @@ final class ModelStore: NSObject {
         }
     }
 
-    /// 正式轉錄用哪個模型：日文會議用 large-v3-turbo；中文、英文依設定用 Breeze（預設）或 Qwen3-ASR（design §32.3）
+    /// 正式轉錄用哪個模型（design §32.3、§41.3）：語言檔的 transcription.model；engineSetting 的語言（中文、英文）依設定用
+    /// Breeze（預設）或 Qwen3-ASR。`.japanese` 就是 Whisper large-v3-turbo（日文以外的語言也用）
     nonisolated static func transcription(for language: MeetingLanguage) -> Model {
-        if language == .ja { return .japanese }
-        return AppSettings.transcriptionEngine == "qwen" ? .qwen : .breeze
+        let t = language.profile.transcription
+        switch t.model {
+        case "turbo": return .japanese
+        case "qwen": return .qwen
+        default: return t.engineSetting && t.qwen != nil && AppSettings.transcriptionEngine == "qwen" ? .qwen : .breeze
+        }
     }
 
     /// 這個模型要的檔案：Qwen3-ASR 是語言模型加音訊編碼器兩個檔，一起下載、一起算裝好

@@ -111,6 +111,17 @@
         }
       }
     },
+    "AMD、Intel 顯示卡加速（Vulkan）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AMD and Intel GPU acceleration (Vulkan)"
+          }
+        }
+      }
+    },
     "API key 存在 Windows 的認證管理員，不會寫進任何檔案。": {
       "extractionState": "manual",
       "localizations": {
@@ -133,6 +144,28 @@
         }
       }
     },
+    "CPU（Intel 顯示卡沒通過檢查）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CPU (the Intel GPU didn’t pass the check)"
+          }
+        }
+      }
+    },
+    "CPU（Intel 顯示卡還沒檢查）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CPU (the Intel GPU hasn’t been checked yet)"
+          }
+        }
+      }
+    },
     "Claude Code（這台電腦已經裝了 claude CLI）": {
       "extractionState": "manual",
       "localizations": {
@@ -151,6 +184,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Codex (the codex CLI is installed on this PC)"
+          }
+        }
+      }
+    },
+    "Intel 顯示卡加速下載好了，重新開啟拾音後，下一次轉錄會先檢查顯示卡是不是比較快，是的話就改用顯示卡": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Intel GPU acceleration is ready. Reopen Shiyin and the next transcription will first check whether the GPU is faster, and use it if it is."
           }
         }
       }
@@ -294,6 +338,39 @@
           "stringUnit": {
             "state": "translated",
             "value": "macOS didn’t let Shiyin read the API key from the keychain. Try again, and when macOS asks, enter this Mac’s login password (not the API key) and click “Always Allow”. Or paste the key again in Settings → Summarizer."
+          }
+        }
+      }
+    },
+    "「%@」有密碼保護，拾音讀不了。請先移除密碼再加入。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” is password-protected, so Shiyin can't read it. Remove the password and add it again."
+          }
+        }
+      }
+    },
+    "「%@」裡讀不到文字。這台電腦沒有%@的文字辨識：到「設定 → 時間與語言 → 語言與地區」加入%@再試。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No text could be read from “%@”. This PC has no text recognition for %@: add %@ in Settings → Time & language → Language & region, then try again."
+          }
+        }
+      }
+    },
+    "「%@」超過 200 MB，拾音不讀這麼大的文件。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” is larger than 200 MB. Shiyin doesn't read documents that large."
           }
         }
       }
@@ -459,6 +536,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Optional engine for Chinese and English (open-sourced by Alibaba), about 2.5 GB including the llama.cpp program; used only when selected under Final transcription."
+          }
+        }
+      }
+    },
+    "中文、英文可選的引擎（阿里巴巴開源），約 2.5 GB，含 llama.cpp 的執行檔；「正式轉錄」選了它才會用，%@會議一律用。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Optional engine for Chinese and English (open-sourced by Alibaba), about 2.5 GB including the llama.cpp program; used when selected under Final transcription, and always for %@ meetings."
           }
         }
       }
@@ -1256,6 +1344,72 @@
         }
       }
     },
+    "拾音讀不了 .%@ 檔。請先匯出成 PDF 再加入。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shiyin can't read .%@ files. Export it as PDF and add that instead."
+          }
+        }
+      }
+    },
+    "拾音讀不了 Keynote 檔。請先在 Keynote 匯出成 PDF 再加入。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shiyin can't read Keynote files. Export it as PDF in Keynote and add that instead."
+          }
+        }
+      }
+    },
+    "拾音讀不了 Numbers 檔。請先在 Numbers 匯出成 PDF 再加入。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shiyin can't read Numbers files. Export it as PDF in Numbers and add that instead."
+          }
+        }
+      }
+    },
+    "拾音讀不了 Pages 檔。請先在 Pages 匯出成 PDF 再加入。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shiyin can't read Pages files. Export it as PDF in Pages and add that instead."
+          }
+        }
+      }
+    },
+    "拾音讀不了沒有副檔名的檔案。請先匯出成 PDF 再加入。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shiyin can't read files without an extension. Export it as PDF and add that instead."
+          }
+        }
+      }
+    },
+    "拾音讀不了舊版的 Word 檔（.doc）。請另存成 docx 或 PDF 再加入。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shiyin can't read old Word files (.doc). Save it as docx or PDF and add that instead."
+          }
+        }
+      }
+    },
     "拾音：正在打開 %@。在那裡登入之後，回到拾音按「重新檢查」。": {
       "extractionState": "manual",
       "localizations": {
@@ -1318,6 +1472,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "After you press Stop & Transcribe, Shiyin re-transcribes the recording on this Mac (Breeze ASR 25 for Chinese and English, Whisper large-v3-turbo for Japanese) and tells the speakers apart. While you wait, the notes are drafted from the live transcript and replaced automatically once the final version is ready. Click \"Speaker 1\" in the transcript to give them a name and it changes throughout the meeting; Shiyin remembers their voice and fills in the name in later meetings (marked \"auto\"; one click fixes a wrong guess)."
+          }
+        }
+      }
+    },
+    "按「停止並轉錄」後，拾音會在這台電腦上重新轉錄（中文、英文用 Breeze ASR 25，%@用 Whisper large-v3-turbo，%@用 Qwen3-ASR），並分辨不同的說話者。等待的時候，會議紀錄會先用即時逐字稿整理一份草稿，正式版好了會自動換掉。逐字稿上點「說話者 1」可以改成人名，整場都會跟著改；拾音會記住這個人的聲音，之後的會議自動帶入名字（標「自動」，認錯了點一下就能改）。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "After you click Stop and transcribe, Shiyin transcribes again on this PC (Breeze ASR 25 for Chinese and English, Whisper large-v3-turbo for %@, Qwen3-ASR for %@) and tells the speakers apart. While you wait, a draft of the notes is written from the live transcript and replaced automatically when the final version is ready. Click “Speaker 1” in the transcript to give a real name and the whole meeting updates; Shiyin remembers that voice and fills in the name in later meetings (marked Auto — click it if it's wrong)."
           }
         }
       }
@@ -1395,6 +1560,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Click “Record” (⌘R) in the toolbar to start. Click the arrow next to it to choose the source; for online meetings choose “Microphone + computer audio (online meetings)” so the other side is recorded too. If you already have a recording, drag it into the window, click “Import” (⌘O), or drop it on the Shiyin icon in the Dock."
+          }
+        }
+      }
+    },
+    "掃描的 PDF、圖片用 Windows 的文字辨識讀出文字（要有會議語言的辨識：設定 → 時間與語言 → 語言與地區）。一場會議的文件合計最多 4 萬字，太長的只送前面的部分。Keynote、Pages 請先匯出成 PDF。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Text in scanned PDFs and images is read with Windows text recognition (it needs recognition for the meeting language: Settings → Time & language → Language & region). A meeting's documents can total up to 40,000 characters; for longer ones only the beginning is sent. Export Keynote and Pages files as PDF first."
           }
         }
       }
@@ -1531,6 +1707,17 @@
         }
       }
     },
+    "會參考詞彙表，多人會議的漏字和同音字比 Breeze 少；阿里巴巴開源的模型，全程在這台電腦上跑、不連網，輸出會轉成台灣繁體；需要下載約 2.5 GB 的模型和 llama.cpp 的執行檔。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uses your glossary; fewer dropped words and homophone errors than Breeze in multi-speaker meetings. An open-source model from Alibaba that runs entirely on this PC without network access; output is converted to Taiwanese Traditional Chinese. Downloads about 2.5 GB of model files plus the llama.cpp program."
+          }
+        }
+      }
+    },
     "會參考詞彙表，多人會議的漏字和同音字比 Breeze 少；阿里巴巴開源的模型，全程在這台電腦上跑、不連網，輸出會轉成台灣繁體；需要下載約 2.5 GB 的模型和 llama.cpp 的執行檔。日文會議改用 Whisper large-v3-turbo（574 MB）。": {
       "extractionState": "manual",
       "localizations": {
@@ -1630,6 +1817,17 @@
         }
       }
     },
+    "有 Intel 顯示卡時自動下載。第一次正式轉錄時，先用這場錄音的一段比對顯示卡和 CPU，結果一樣、顯示卡又比較快才改用顯示卡。%@，解開約 %@（拾音用同一版 whisper.cpp 建的 Vulkan 版）。刪除後不會再自動下載。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Downloaded automatically when this PC has an Intel GPU. The first final transcription compares the GPU with the CPU on part of that recording, and switches to the GPU only if the results match and the GPU is faster. %@, about %@ unpacked (a Vulkan build Shiyin makes from the same whisper.cpp version). Once deleted, it won’t be downloaded again automatically."
+          }
+        }
+      }
+    },
     "有 NVIDIA 顯示卡、選了 Qwen3-ASR 時自動下載，Qwen 的轉錄會快很多。272 MB，解開約 610 MB（llama.cpp 官方的 CUDA 版，要先有上面的 NVIDIA 顯示卡加速）。刪除後不會再自動下載。": {
       "extractionState": "manual",
       "localizations": {
@@ -1674,6 +1872,17 @@
         }
       }
     },
+    "檢查通過：正式轉錄用顯示卡。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check passed: final transcription runs on the GPU."
+          }
+        }
+      }
+    },
     "歡迎使用拾音": {
       "extractionState": "manual",
       "localizations": {
@@ -1703,6 +1912,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Downloading the update. Shiyin will reopen when it's done."
+          }
+        }
+      }
+    },
+    "正在檢查顯示卡。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Checking the GPU."
           }
         }
       }
@@ -2499,6 +2719,17 @@
         }
       }
     },
+    "這台電腦的顯示卡沒有通過檢查（沒有比 CPU 快、結果跟 CPU 不一樣，或出錯）：正式轉錄用 CPU。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This PC’s GPU didn’t pass the check (it wasn’t faster than the CPU, its results didn’t match, or it hit an error): final transcription runs on the CPU."
+          }
+        }
+      }
+    },
     "這場會議是在模型下載好之前，用快速辨識轉錄的。可以用 Breeze 重新轉錄，通常比較準。": {
       "extractionState": "manual",
       "localizations": {
@@ -2506,6 +2737,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "This meeting was transcribed with Quick recognition before the model finished downloading. Re-transcribing with Breeze is usually more accurate."
+          }
+        }
+      }
+    },
+    "這場會議是在模型下載好之前，用快速辨識轉錄的。可以用 Qwen3-ASR 重新轉錄，通常比較準。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This meeting was transcribed with Quick recognition before the model finished downloading. Re-transcribing with Qwen3-ASR is usually more accurate."
+          }
+        }
+      }
+    },
+    "這場會議是在模型下載好之前，用快速辨識轉錄的。可以用%@轉錄模型重新轉錄，通常比較準。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This meeting was transcribed with Quick recognition before the model finished downloading. Re-transcribing with the %@ transcription model is usually more accurate."
           }
         }
       }
@@ -2605,6 +2858,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "No one yet. Click “Speaker 1” in a transcript and give them a name, and Shiyin will remember that person."
+          }
+        }
+      }
+    },
+    "還沒檢查：下一次正式轉錄時檢查。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not checked yet: it will be checked during the next final transcription."
           }
         }
       }
@@ -2825,6 +3089,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "When you join a Zoom, Teams, Google Meet or other online meeting, Shiyin asks whether to start recording, and reminds you to stop when the meeting seems to be over. To stop the reminders for an app, click “Don't Ask for This App” on the reminder."
+          }
+        }
+      }
+    },
+    "開始錄音後聽約 10 秒，判斷是哪一種語言（%@）；跟會議語言不同而且有把握時會自動切換，錄音畫面可以改回來。需要 60 MB 的語言偵測模型。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "After recording starts, listens for about 10 seconds to tell which language is spoken (%@). If it differs from the meeting language and the result is confident, it switches automatically; you can switch back on the recording screen. Needs the 60 MB language detection model."
           }
         }
       }

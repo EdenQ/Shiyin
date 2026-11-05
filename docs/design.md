@@ -1634,7 +1634,7 @@ Windows 的做法在 design-windows §11.7。
 
 ### 38.1 麥克風的資訊（R58）
 
-- `AudioDevices.Device` 加 `transport`（`kAudioDevicePropertyTransportType`）、`isBluetooth`（`kAudioDeviceTransportTypeBluetooth`、`BluetoothLE`）、`isBuiltIn`（`kAudioDeviceTransportTypeBuiltIn`）。加 `defaultInput()`（`kAudioHardwarePropertyDefaultInputDevice`）、`device(id:)`。
+- `AudioDevices.Device` 加 `transport`（`kAudioDevicePropertyTransportType`）、`dataSource`（輸入的 `kAudioDevicePropertyDataSource`）、`isBluetooth`（`kAudioDeviceTransportTypeBluetooth`、`BluetoothLE`）、`isBuiltIn`（`kAudioDeviceTransportTypeBuiltIn`，而且 data source 不是 `emic`：耳機孔的「外接麥克風」連接方式也是內建，4.2.3 插著有線耳機時藍牙提示的按鈕變成「改用 外接麥克風」；內建的麥克風是 `imic`）。加 `defaultInput()`（`kAudioHardwarePropertyDefaultInputDevice`）、`device(id:)`。
 - `MicrophoneMonitor`（`@Observable`、`@MainActor`、單例）：在系統物件上監聽 `kAudioHardwarePropertyDevices`、`kAudioHardwarePropertyDefaultInputDevice`，回到主執行緒重讀 `inputs`、`defaultInput`；值真的變了才設（§25）。錄音按鈕的選單、錄音畫面、設定頁的「麥克風」都用它，不再各自在 `onAppear` 讀一次。
 - `MicrophoneSource.deviceUID` 改成可以改（換麥克風時先改再 `restart()`）；`start()` 成功後讀 `inputNode.auAudioUnit.deviceID`，存成 `current: AudioDevices.Device?`（真正在收音的那支：指定的不在時是系統預設）。
 
@@ -1682,6 +1682,265 @@ Windows 的做法在 design-windows §11.7。
 - `state` 的 `recorder` 多 `micDevice`（名稱、uid、bluetooth）、`micHint`；`micswitch <uid|default>` 等於在錄音畫面選一支；`michint dismiss` 等於按「知道了」。
 - 測完 `defaults read com.weiwei.shiyin` 比對：`inputDeviceUID`、`contentTextSize` 不能留下測試的值。
 
+## 39. 會議的參考文件（R61，D133～D136）
+
+Windows 的做法在 design-windows §11.8。
+
+### 39.1 資料（migration `v10`）
+
+```sql
+CREATE TABLE documents (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  meeting_id INTEGER NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+  name       TEXT NOT NULL,               -- 加入時的檔名（含副檔名）
+  file       TEXT NOT NULL,               -- documents/ 底下的路徑：<id>/<檔名>
+  kind       TEXT NOT NULL,               -- pdf / docx / pptx / text / image
+  pages      TEXT NOT NULL,               -- JSON 字串陣列：每一頁（投影片）讀出來的文字；沒有頁的格式只有一項
+  ocr        INTEGER NOT NULL DEFAULT 0,  -- 有沒有用文字辨識
+  created_at TEXT NOT NULL
+);
+CREATE INDEX documents_meeting ON documents(meeting_id, id);
+```
+
+- 原始檔放 `Paths.documentsDir`（`SHIYIN_HOME/documents`）的 `<id>/<檔名>`：每份一個資料夾，用原本的檔名，「打開」時預覽程式的標題才是原本的名字。
+- `MeetingDocument`（`Model/Records.swift`）；`AppDatabase.documents(meetingId)`、`addDocument(meetingId:name:kind:pages:ocr:)`（同一個寫入交易裡先插入、再用 id 填 `file`）、`deleteDocument(id)`（回傳刪掉的那筆）。文件不進搜尋索引（R61 不做）。
+- 會議永久刪除（清空垃圾桶、垃圾桶過期、`purge`）前先讀出這場的文件，刪掉 `documents/<id>/`；資料表的列跟著 `ON DELETE CASCADE` 刪掉。
+- `MeetingDetail.documents`，載入會議時一起讀；`documentUse`：照 §39.3 分配後每一份用了多少（選單顯示「太長，只用前 N 頁」）。
+
+### 39.2 讀出文字（`IO/DocumentReader.swift`，D134、D136）
+
+- 副檔名決定種類（小寫）：pdf → `pdf`；docx → `docx`；pptx → `pptx`；txt、md、markdown → `text`；png、jpg、jpeg、heic → `image`。
+- 拖進主視窗時當成文件的（R61.3）：pdf、docx、pptx、png、jpg、jpeg、heic，加上讀不了但看得出是文件的 key、pages、numbers、doc、rtf、ppt、xls、xlsx（給它們專門的說明）。txt、md 不算（照舊是逐字稿、筆記）。
+- 讀不了的原因（`DocumentError`，訊息都寫檔名）：
+  - Keynote、Pages、Numbers：「拾音讀不了 Keynote 檔。請先在 Keynote 匯出成 PDF 再加入。」（Pages、Numbers 同樣寫法）；doc：「拾音讀不了舊版的 Word 檔（.doc）。請另存成 docx 或 PDF 再加入。」；其他：「拾音讀不了 .xls 檔。請先匯出成 PDF 再加入。」
+  - 超過 200 MB：「「<檔名>」超過 200 MB，拾音不讀這麼大的文件。」
+  - 有密碼的 PDF：「「<檔名>」有密碼保護，拾音讀不了。請先移除密碼再加入。」
+  - 壞掉、解不開：「「<檔名>」讀不出來，檔案可能壞了。」
+  - 讀不到任何文字：「「<檔名>」裡讀不到文字。」
+  - 不是 UTF-8、UTF-16 的文字檔：「「<檔名>」不是 UTF-8 的文字檔。請另存成 UTF-8 再加入。」
+- **整理文字**（每一頁都做，Windows 照同樣的規則，標準答案比對）：`\r\n`、`\r` 換成 `\n`；每行去掉行尾的空白（空格、tab、U+00A0、U+3000）；連續三個以上的換行變成兩個；整頁去掉頭尾的空白和換行。
+- **PDF**：PDFKit。`PDFDocument(url:)` 失敗是壞掉；`isLocked` 是有密碼。每一頁 `page.string`。一頁的文字（不算空白）少於 20 個字、而且這份辨識過的頁數還不到 50 頁時，當成掃描的頁面：`thumbnail(of:for: .mediaBox)` 畫成長邊 2000 px 的圖，用文字辨識；辨識出來比原本長才用，`ocr` 記成 1。超過 50 頁的掃描頁面是空的（R61.7）。
+- **圖片**：`CGImageSource` 讀第一張（照 EXIF 的方向），文字辨識，`ocr` 是 1。
+- **文字辨識**：Vision 的 `VNRecognizeTextRequest`，`.accurate`、`usesLanguageCorrection`；語言依會議語言：中文 `zh-Hant`、`zh-Hans`、`en-US`，英文 `en-US`，日文 `ja-JP`、`en-US`。每個結果取第一個候選，照 Vision 的順序一行一個。
+- **docx、pptx**：`/usr/bin/unzip -p` 只取要讀的 XML（參數陣列；不解出圖片，解出來超過 64 MB 就停，防壓縮炸彈），`XMLParser` 處理命名空間、只看元素的本地名稱、不解析外部實體：
+  - docx 讀 `word/document.xml`；pptx 讀 `ppt/presentation.xml` 的 `sldIdLst`（每個 `sldId` 的 `r:id`，照順序）→ `ppt/_rels/presentation.xml.rels` 對到 `Target`（相對於 `ppt/`；`/` 開頭的是從根算；有 `..`、英數字和 `_./-` 以外的字元的不讀：unzip 的參數是萬用字元的樣式）→ 每張投影片的 XML 是一頁。備忘稿不讀。
+  - 同一套規則讀 Word 和投影片的文字：`t` 的父元素是 `r` 或 `fld` 時收文字；`tab`（父元素是 `r`）是 `\t`；`br`（父元素是 `r` 或 `p`）、`cr`（父元素是 `r`）是 `\n`；`p` 結束換行。表格（`tbl`）：最外層表格裡的段落結束時接一個空格，`tc` 結束時把這格的文字（去頭尾空白）收起來，`tr` 結束時把這列的格子用「 | 」接起來成一行；表格裡的表格攤平到外層的格子。`delText`、`instrText` 不收；`Fallback`（markup compatibility，同一個文字方塊的舊版寫法）裡的內容整個跳過，不然文字方塊會重複。
+- **文字檔**：開頭是 UTF-8 的 BOM 就去掉；UTF-16 的 BOM 用 UTF-16；其他照 UTF-8 嚴格解碼，失敗就是編碼錯誤。md 照原文。
+- 頁數：PDF 每頁一項、pptx 每張投影片一項（空的也算），其他一項。全部的頁都是空的就是「讀不到文字」。
+- 讀檔在背景（`Task.detached`）：文字辨識一頁約 0.5～1 秒。
+
+### 39.3 送給整理工具（`Notes/DocumentPrompt.swift`，D133、D135）
+
+- `DocumentText`：名稱（去掉副檔名；去掉後是空的就用原名）、種類、每頁的文字。照加入的順序。
+- **長度分配**（R61.7）：上限 40,000 字（Swift 的 `Character`，Windows 用字形叢集）。每份的長度是各頁字數的和。平均分配：照長度由短到長（一樣長照加入的順序），每份拿「剩下的額度 ÷ 還沒分到的份數」（整數除法）和自己的長度取小的。截斷：照頁的順序整頁放進去，放不下的那一頁取前面的字，後面的頁不送；`includedPages` 是有送到的頁數（含被截的那頁），`truncated` 是有沒有被截。
+- **提示詞裡的區塊**：放在重點標記之後、逐字稿之前；沒有文件時沒有這一段（R61.5：提示詞跟現在一字不差）。
+
+  ```
+  會議參考資料（使用者加入的文件，[第 N 頁] 是頁碼）：
+  《報價單》
+  [第 1 頁]
+  …
+  [第 2 頁]
+  …
+
+  《規格書》（文件太長，只附上前 12 頁，共 40 頁）
+  …
+  ```
+
+  - 頁碼只有 PDF（「[第 N 頁]」）和投影片（「[第 N 張投影片]」）有；空的頁不寫（頁碼照原本的算）。英文 `[Page N]`／`[Slide N]`，日文 `[N ページ]`／`[スライド N]`。
+  - 文件名稱：中文《名稱》、日文『名稱』、英文 `Document: 名稱`。
+  - 截斷的說明：有頁碼、而且後面還有整頁沒送的「（文件太長，只附上前 N 頁，共 M 頁）」「（文件太長，只附上前 N 張投影片，共 M 張）」；沒有頁碼、或截在最後一頁裡的「（文件太長，只附上前 X 字，共 Y 字）」；英文、日文各一份（`DocumentPrompt`）。選單的「太長，只用前 N 頁」同一個規則，用字數時寫「太長，只用前面的部分」。
+- **整理的規則**：`NotesPrompt.system(language, documents:)`，有文件時在原本的規則後面接（中文、英文 12～16，日文 13～17）：
+  1. 「會議參考資料」是會議中一起討論的文件，用來看懂逐字稿：指的是哪一頁、哪個方案，數字、名稱、專有名詞的正確寫法。
+  2. 紀錄以會議中實際討論的為準；文件有、會議沒討論的不寫。
+  3. 用到文件的資訊（數字、規格、日期、條文）時句尾註明出處「（《報價單》第 3 頁）」，投影片寫「第 3 張投影片」，沒有頁碼只寫《名稱》；`time` 照舊填逐字稿裡討論到它的時間。
+  4. 會議的說法跟文件不一樣時照會議寫，列進 reviewItems。
+  5. 專有名詞、人名在文件裡找得到寫法的照文件寫，不用列進 reviewItems（規則 2 的例外）。
+- `NotesContext.documents`（預設空的）；`JobRunner.summarize` 從資料庫讀這場的文件放進去，`system` 帶 `documents: !context.documents.isEmpty`。草稿、校稿（`revise` 用 `summarize` 組）都一樣帶。逐字稿校正、猜說話者、問所有會議不帶。
+- **提問**（R61.6）：`AskPrompt.meetingPrompt(…, documents:)` 把同一個區塊放在會議紀錄之後、逐字稿之前；`meetingSystem(language, documents:)` 有文件時加一條：文件也可以拿來回答，但要說清楚是會議中說的、還是只有文件裡寫的；根據文件的重點放進 citations 時 `time` 填空字串，`quote` 開頭寫出處（「《報價單》第 3 頁：…」）。`validate(_:meetingIds:documentCitations:)`：有文件時保留 `time` 是空的、`quote` 不是空的引用；沒有文件時照舊丟掉。提問分頁的引用 `time` 是空的就不放時間按鈕，前面放文件的圖示。
+
+### 39.4 畫面（R61.1、R61.4、R61.8）
+
+- `DocumentsMenu`：會議標題下資訊列的選單，放在會議語言之後（錄音中也有；垃圾桶裡的會議不放）。標籤：沒有文件「加入文件」、有文件「N 份文件」、讀取中「正在讀取文件…」，圖示 `paperclip`。滑鼠提示「會議中一起討論的文件（簡報、規格書、報價單…）。整理會議紀錄、提問時會一起參考；也可以把文件拖進視窗」。
+- 選單內容：每一份是一個子選單，標題「<檔名>（N 頁）」（只有 PDF、投影片寫頁數），被截掉的接「，太長，只用前 N 頁」（沒有頁碼的「，太長，只用前面的部分」）；子選單「打開」（`NSWorkspace.open`）、「移除」。讀取中的「正在讀取「<檔名>」…」（停用）。分隔線後「加入文件…」。
+- 「加入文件…」：`NSOpenPanel`，可以多選，類型 pdf、docx、pptx、純文字、Markdown、png、jpeg、heic。
+- `AppModel.addDocuments(_ urls:, to meetingId:)`：一份一份依序讀（加入的順序固定），讀取中記在 `readingDocuments[meetingId]`。這場已經有同一份（檔名和讀出來的文字都一樣）就不加，提示「「<檔名>」已經加過了」（送給整理工具會重複）。讀完複製原始檔、寫資料庫、重新載入；提示「已加入「<檔名>」」（用了文字辨識加「，用文字辨識讀出文字」）。失敗：`errorMessage` 寫 §39.2 的原因。
+- 拖放：`requestImport` 先挑出 §39.2 的文件，加到選取中的會議；沒有選取、在垃圾桶時提示「先選一場會議，再把文件拖進來」。其他檔案照舊匯入。Dock、Finder 打開的檔案（`importDirectly`）走同一條。
+- 移除：刪資料庫的列和 `documents/<id>/`，提示「已移除「<檔名>」」。不另外確認（重新加入就回來了）。
+- **文件有變動**（R61.8）：加入、移除時這場會議已經有會議紀錄（含草稿），就把 id 放進 `AppModel.documentsChanged`（只在記憶體）。紀錄分頁頂部（待確認條的上面）顯示 `DocumentsBanner`：「文件有變動，會議紀錄還沒用上。」，按鈕「重新整理會議紀錄」（`resummarize()`）、「不用」。`resummarize()` 排了工作就把這場拿掉。
+
+### 39.5 封包（R61.9）
+
+- 匯出：有文件時封包多 `documents.json` 和 `documents/` 資料夾。`documents.json` 是陣列，每項 `name`、`file`（`documents/<序號>-<檔名>`，序號從 1）、`kind`、`pages`、`ocr`；`manifest` 的格式版本不變（1），舊版拾音不認得這兩個就略過。`ExportBundle.documents`。
+- 匯入：有 `documents.json` 就讀，讀不出來、`kind` 不認得、`file` 不是 `documents/<一般的檔名>`（不能有其他 `/`、`..`、`.` 開頭）、不是一般檔案或是符號連結，都當成封包不正確（「封包裡的文件不正確」），同錄音檔的檢查。檔名只取最後一段，不能是空的、不能 `.` 開頭。
+
+### 39.6 使用說明、隱私（R61.10）
+
+- 使用說明在「找會議、播放」之後加一段「會議的參考文件」：怎麼加（「文件」選單、拖進視窗；純文字、Markdown 從「加入文件…」選）；整理、提問時會一起送、紀錄以會議中講的為準、會註明出處、整理好的會議加了文件要按「重新整理會議紀錄」；掃描的 PDF、圖片用文字辨識，一場最多 4 萬字，Keynote、Pages 先匯出成 PDF。
+- 「資料與隱私」的整理那一條加上「加入的文件讀出來的文字」。
+
+### 39.7 DEBUG、驗證
+
+- `shiyinctl adddoc <會議 id> <檔案>`（同拖放加入，非同步；看 `state`）、`removedoc <文件 id>`、`docread <檔案> <zh|en|ja> <輸出.json>`（只讀出文字，不寫資料庫：`kind`、`pages`、`ocr`，或 `error`）、`docbanner <會議 id> dismiss|resummarize`。
+- `state` 多 `documents`（選取中的會議：`id`、`name`、`kind`、`pages`（頁數）、`ocr`、`includedPages`、`truncated`）、`readingDocuments`、`documentsChanged`。
+- 標準答案（design-windows §4）：
+  - `fixtures.json` 的三場會議各加 `documents`（直接給每頁的文字），提示詞多 `notes-system-documents.txt`、`summarize-general-documents.txt`、`revise-documents.txt`、`ask-meeting-system-documents.txt`、`ask-meeting-prompt-documents.txt`；沒有文件的檔案不變（R61.5）。
+  - `documentBudget`：幾組文件長度和上限 → `documents/budget.json`（每份的 `includedPages`、`includedChars`、`truncated`）和組好的區塊。
+  - `shared/golden/documents/` 放小的 docx、pptx（含表格、文字方塊、`Fallback`、`tab`、`br`）、UTF-8 有／沒有 BOM、UTF-16 的 txt、md，讀出來的結果 → `documents/read/<檔名>.json`。PDF、文字辨識兩邊用的引擎不同，不比標準答案。
+  - 資料庫：`schema.sql` 多 `documents`；`db` 的步驟多加入文件、列出、刪除文件、刪除會議時一起刪。
+  - 封包：有文件的會議多 `documents.json`。
+
+## 40. 額度用完認得出來、說清楚（R62，D137）
+
+### 40.1 認得出來（R62.1）
+
+- `LLMError.isLimitProblem(_:)`（Windows `LLMException.IsLimitProblem`）：轉小寫後含下面任一個就是用量上限：
+  - 原本的：`usage limit`、`rate limit`、`rate_limit`、`limit reached`（「Claude AI usage limit reached」「5-hour limit reached」「You've hit your usage limit」）
+  - Claude Code 的新說法：`hit your … limit`（`hit your` 和 `limit` 之間最多 30 個字、不跨句：「hit your limit」「hit your weekly limit」「hit your Opus limit」）、`limit · resets`（`limit` 和 `resets` 之間只有空白和符號）
+  - 餘額不足、請求太多：`credit balance is too low`、`insufficient_quota`、`exceeded your current quota`、`too many requests`
+- 判斷的順序不變：先看是不是登入問題（`isLoginProblem`），再看是不是用量上限，都不是才算 `failed`。
+- 統計照 §34.5 記成 `limited`，沒有新欄位。
+
+### 40.2 說清楚（R62.2）
+
+- `LLMError.cliLimited(_ provider: LLMProvider, output: String)`（Windows `LLMException.CliLimited`）回傳 `.limited(訊息)`。`ClaudeCLI`、`CodexCLI` 原本拋 `.limited(原文)` 的三個地方改用它（Windows 的 `ClaudeCli`、`CodexCli` 一樣）。
+- 訊息兩行：
+  - 第一行：「Claude Code 的用量額度用完了，等恢復後再試，或到設定 → 整理工具先換成 Codex 或 API。」（Codex：「Codex 的用量額度用完了，……先換成 Claude Code 或 API。」）中文不超過 60 個字，通知放得下整句。
+  - 第二行：「Claude Code 的訊息：<原文>」。原文是輸出裡**最後一行**符合 `isLimitProblem` 的（codex 的 stderr 前面可能有別的 log，錯誤在最後），去掉前後空白、最多 300 字；找不到這一行時沒有第二行。
+- 通知（`Notifier.jobFinished`，Windows `Notifier.JobFinished`）：失敗的通知內容改成只取錯誤訊息的**第一行**，再取前 60 個字（原本是整段的前 60 個字，第二行的開頭會被擠進來）。額度用完的通知就是第一行整句，點通知打開會議，橫幅有第二行。其他錯誤大多只有一行，不受影響。
+- 不自己換算恢復時間（D137）。訊息裡沒有「auth login」這類字，`isLoginMessage` 不會把它當成登入問題（橫幅不會出現「重新登入」）。
+- API 的 429（`APIRequest`）不變（R62.4）。
+
+### 40.3 DEBUG、驗證
+
+- `-debugToolDirectory <資料夾>`（只在 DEBUG）：`Paths.locateTool` 找 claude、codex 時先找這個資料夾，用假的 CLI 測，不動 `~/.local/bin` 裡真的 claude。
+- 假的 claude：`auth status --json` 回 `{"loggedIn": true, …}`；`-p` 讀完 stdin、印出 `{"type":"result","is_error":true,"result":"You've hit your weekly limit · resets Nov 2 at 9pm (Asia/Taipei)"}`、結束代碼 1。假的 codex：`login status` 回已登入；`exec` 在 stderr 印幾行 log、最後一行是「ERROR: You've hit your usage limit. … try again in 4 days 2 hours.」、結束代碼 1。
+- 驗證（Mac）：DEBUG 版、暫存 `SHIYIN_HOME`、`-debugToolDirectory` 指到假的 CLI，`llmprovider claude` 匯入一場：`jobs.error_kind` 是 `LLMError.limited`，失敗橫幅（`screencapture -l`）照 §40.2 兩行、有「重試」、沒有「重新登入」，通知（`state` 的 `notifications`）是第一行整句，`shiyinctl usage` 的 `errorDetail` 是 `limited`（DEBUG 版要先 `usageurl http://127.0.0.1:<埠>/…` 才會記統計）；英文介面看一次；`llmprovider codex` 再一次。
+- 驗證（Windows）：`ServicesTests` 列出 R62.1 的各種說法（含不該算的：一般的失敗、登入問題），`LLMTests` 用假的 claude、codex 腳本（Mac 上跑）確認拋 `Limited`、訊息兩行。
+
+## 41. 更多會議語言：語言檔、粵語、韓文（R63～R65，D139～D142）
+
+Windows 的做法在 design-windows §11.9。
+
+### 41.1 語言檔（`Resources/languages.json`，D139）
+
+Mac 的 app 帶一份（`build-app.sh` 複製到 bundle 的 Resources；直接跑建置輸出時讀原始碼樹的那份），Windows 內嵌在 Shiyin.Core（同 `Resources/opencc`）。陣列的順序就是選單的順序。每一筆：
+
+| 欄位 | 內容 | 例 |
+|---|---|---|
+| `code` | 存在資料庫 `meetings.language` 的代碼 | `zh`、`en`、`ja`、`yue`、`ko` |
+| `name` | 選單上的名稱（用那個語言自己的寫法，兩種介面都一樣） | `中文`、`廣東話`、`한국어` |
+| `uiName` | 介面提到這個語言時的名稱：`{"zh": …, "en": …}` | `{"zh": "韓文", "en": "Korean"}` |
+| `tier` | `tuned`（精調）或 `general`（一般，選單名稱後面接「（實驗性）」） | |
+| `base` | 用哪一份手寫的提示詞、標籤：`zh`、`en`、`ja` | 粵語 `zh`、韓文 `en` |
+| `outputName` | 一般語言：通用提示詞裡「用 … 寫」的語言名稱（英文） | `Korean` |
+| `transcriptNote` | 精調語言共用別的語言的提示詞時，補一段說明逐字稿的語言（整理、校正的 system 各一段） | 粵語：逐字稿是粵語口語… |
+| `locale` | 日期、星期的寫法 | `zh_TW`、`ko_KR`、`zh_HK` |
+| `live.mac`／`live.windows`／`live.windowsConvert` | 即時逐字稿：SpeechAnalyzer 的語系；SenseVoice 的語言；SenseVoice 的輸出要做的 OpenCC 轉換（null 是不轉） | 粵語 `zh_HK`／`yue`／`s2tw` |
+| `transcription.model` | 正式轉錄預設的模型：`breeze`、`turbo`（Whisper large-v3-turbo，原本只給日文）、`qwen` | |
+| `transcription.engineSetting` | 跟著設定的「Breeze／Qwen3-ASR」（只有中文、英文是 true） | |
+| `transcription.whisper`／`qwen` | whisper.cpp 的 `language`、Qwen3-ASR 的語言名稱；沒有就是 null（那個引擎不能用） | `yue`／`Cantonese` |
+| `transcription.traditional` | Qwen3-ASR 的輸出轉台灣繁體（§32.5） | 中文、粵語 true |
+| `scriptFixes` | 簡轉繁之後的修正（選填）：`from` 換成 `to`，除非那個字落在 `keep` 的詞裡；套在 Qwen3-ASR 的輸出和 Windows 的 SenseVoice 上（§41.3） | 粵語：`系`→`係`（`系統`、`體系`…不換） |
+| `text.spaced` | 用空格分詞（英文類）：詞彙表的分隔、上限、幻覺防線的字數算法 | 英文 true |
+| `whisperPrompt` | `base`、`glossary`（`%@` 是詞彙）、`separator`、`limit`、`natural`（評估用的口語寫法，選填） | |
+| `detect` | 自動偵測時 Whisper base 的語言代碼；null 是不能偵測 | 粵語 null |
+| `family` | 語系：同一個語系的語言自動偵測時不互相切換 | 中文、粵語 `zh` |
+| `ocr.mac`／`ocr.windows` | 參考文件的文字辨識語言（§39.2、design-windows §11.8） | |
+| `fonts` | 會議內容的字形（`typesetting`）、標題字型（`titleMac`、`titleWindows`）、匯出 HTML 的字型（`htmlMac`、`htmlWindows` 各有 `body`、`heading`）、Word 的字型（`docx`：`ascii`、`eastAsia`）、HTML 的 `lang` | 韓文 `ko`、`AppleMyungjo` |
+| `speaker` | 預設的說話者名稱，`%lld` 是編號 | `說話者 %lld`、`화자 %lld` |
+| `strings` | 一般語言的字串表：鍵是英文那一份的字（含 `%@`、`%lld`），值是這個語言的寫法 | `"Summary": "요약"` |
+
+- 中文、英文、日文的值照現在程式裡寫死的字一個字一個字搬過去（R63.3），標準答案證明沒變。
+- `MeetingLanguage` 從 enum 改成以 `code` 為身分的型別：`MeetingLanguage.zh` 這些常數留著（呼叫的地方不用改），`allCases` 是語言檔的順序，`MeetingLanguage(rawValue:)` 不認得的代碼回 nil（資料庫裡讀到不認得的代碼照舊當成中文）。語言的做法一律問 `profile`，不再寫 `language == .ja`。
+- 字串的兩個入口（D140）：
+  - `text(zh:en:ja:)`：給人看的字（匯出、預設名稱、待確認的是非題）。`base` 是中文、日文就用那一份；`base` 是英文時查 `strings`，查不到用英文。
+  - `prompt(zh:en:ja:)`：提示詞裡的字，只看 `base`，不查字串表（一般語言的提示詞維持英文）。`Notes/` 底下組提示詞的地方都改用這個。
+  - 有插值的字（長度「1 hr 5 min」、括號、是非題）改成格式字串：`format(zh:en:ja:, 參數…)`，一般語言查 `strings` 的格式。
+  - 預設的說話者名稱只有一個地方：`language.defaultSpeaker(idx)`（原本散在 12 個地方）；`isDefaultSpeakerName` 認語言檔裡所有語言的 `speaker`。整理的提示詞裡沒有名字的說話者也用它（原本是提示詞標籤裡另一份「Speaker N」）：韓文會議的紀錄才會寫「화자 2」，改名時換得到（§21.6）。中文、英文、日文兩份的字一樣，提示詞不變。
+
+### 41.2 兩級（R63.2、D140、D141）
+
+- **精調語言**：`NotesPrompt`、`AskPrompt`、`TranscriptCorrection`、`SpeakerNaming`、`DocumentPrompt` 照 `base` 選那一份。`transcriptNote` 有值時（粵語），整理和逐字稿校正的 system 最後空一行接上那一段（不編號，不跟參考文件的規則 12～16 撞號）：
+  - 整理：「注意：逐字稿是粵語（廣東話）的口語，常見「係」「唔」「咗」「嘅」「佢哋」「喺」這些字。會議紀錄要寫成繁體中文的書面語，不要照抄口語；人名、專有名詞照逐字稿的寫法。」
+  - 逐字稿校正：「注意：逐字稿是粵語（廣東話）的口語，「係」「唔」「咗」「嘅」「佢哋」「喺」「冇」是正確的寫法，不要改成普通話。」
+- **一般語言**：用英文那一份，改兩個地方（`NotesPrompt.system`）：「written entirely in English」改成「written entirely in Korean」、「translated into English if it is not in English」改成「translated into Korean if it is not in Korean」；最後空一行接「Output language: Korean. Every text value in the JSON (title, summary, decisions, action items, open questions, topics, custom sections, review questions) must be in Korean; keep the JSON keys and the time format as they are.」。提問照舊「用提問的語言回答」；逐字稿校正、猜說話者的理由照英文（給介面的使用者看）。範本用英文版（`definition(for:)` 依 `base`）。
+- 選單、設定頁的名稱：一般語言是「한국어（實驗性）」（英文介面「한국어 (Experimental)」）。
+
+### 41.3 轉錄（R64.2、R65.2、D142）
+
+- `ModelStore.transcription(for:)`：`transcription.model` 是 `turbo` → `.japanese`；是 `breeze`、`engineSetting` 是 true → 照設定 Breeze 或 Qwen；`qwen` → `.qwen`。`transcribedWith` 照實際用的模型寫（`japanese` 照舊表示 turbo，資料庫的值不改）。
+- 評估後（§41.7、D142）：粵語 `qwen`、韓文 `turbo`。「正式轉錄」的設定（Breeze／Qwen3-ASR）只管 `engineSetting` 的語言（中文、英文）；設定成 macOS 內建（`useSystemTranscriber`）時所有語言都用內建，語系是 `live.mac`。
+- 模型還沒下載好時（§21.17、D35）：中文、英文選了 Qwen 而已經有 Breeze 時先用 Breeze（R43.7）；固定用 Qwen 的語言（粵語）**不用 Breeze**（Breeze 是台灣華語的模型），先用 macOS 內建（Windows 用快速辨識，SenseVoice 認得粵語），模型好了可以重新轉錄。
+- 介面上的模型名稱從語言檔列出用它的語言：turbo 是「日文和韓文轉錄模型 Whisper large-v3-turbo（q5_0）」，設定頁的說明「日文和韓文會議改用 Whisper large-v3-turbo（574 MB）。廣東話會議一律用 Qwen3-ASR。」，重新轉錄的提示依 `transcription(for:)` 寫 Breeze、Qwen3-ASR 或「日文和韓文轉錄模型」。
+- `WhisperEngine.prompt` 讀 `whisperPrompt`；whisper 的 `language` 用 `transcription.whisper`。Qwen 的語言名稱、繁體轉換、詞彙表的分隔和上限讀 `transcription.qwen`、`traditional`、`whisperPrompt`。
+- 粵語的簡轉繁（`scriptFixes`）：Qwen3-ASR 的粵語輸出是簡體，OpenCC 的字表不認得粵語的「系」（是）：單獨的「系」照字表留著、「唔系好」被詞表轉成「唔繫好」、「唔該晒」的「晒」被轉成「曬」。轉完再把「系」「繫」換成「係」、「曬」換成「晒」，落在 `keep` 的詞（系統、系列、體系、聯繫、維繫、曬太陽…）裡的不換。
+
+### 41.4 即時逐字稿、自動偵測（R63.5、R64.4、R65.5）
+
+- 即時逐字稿的 `SpeechTranscriber(locale:)` 用 `live.mac`；系統還沒有這個語系的模型時照舊先下載（§5.3）。粵語用 `zh_HK`（香港的粵語，輸出繁體、「係」「啲」照粵語寫）：`yue_CN` 認得的字一樣，但輸出簡體（2026-11-04 用 `yue-synth` 比過）。
+- 自動偵測：Whisper base 的機率只取語言檔裡 `detect` 不是 null 的語言（中文、英文、日文、韓文），加總成 1 後最高的超過門檻、而且**語系**跟目前的會議語言不同才切換。粵語的會議偵測到中文、中文的會議偵測到中文都不切。
+- 取捨：多了韓文，中文、英文、日文的機率加總的分母多一項。韓文的語音在中文、英文、日文的錄音裡幾乎是 0，判斷結果不變；用現有的偵測評估資料驗證（§41.7）。
+
+### 41.5 顯示、匯出、文字辨識
+
+- 會議內容的字形 `fonts.typesetting`、標題字型 `fonts.titleMac`（Windows `titleWindows`），取代 `language == .ja ? … : …`。
+- 匯出的 HTML（PDF 用）字型、`lang` 讀 `fonts.htmlMac`、`fonts.lang`；Windows 讀 `htmlWindows`、Word 讀 `docx`。
+- 參考文件的文字辨識語言讀 `ocr.mac`（Windows `ocr.windows`）。
+- 日期、星期用 `locale`。
+
+### 41.6 選單、設定、統計
+
+- 錄音按鈕的選單、匯入對話框、會議頁的語言選單、設定的預設會議語言：列 `MeetingLanguage.allCases`（名稱見 §41.2）。
+- 預設會議語言：macOS 的第一個語言是韓文時用韓文（同日文的做法）；香港的中文（zh-HK）仍然預設中文，粵語要自己選。
+- 匿名統計：`meetingLanguages` 照代碼記（原本固定三個鍵）。後台（`workers/usage`）加 `lang_yue`、`lang_ko` 兩欄和 migration；多的鍵後台本來就略過，後台還沒部署也不會讓統計失敗。
+
+### 41.7 評估（R63.6、D142）
+
+- 資料：`scripts/dev/make-eval-data-langs.py` 產生 `yue-fleurs`、`ko-fleurs`（FLEURS 測試集前 60 句，各約 11、13 分鐘）和 `yue-synth`、`ko-synth`（macOS 語音合成的開發週會，夾英文產品名、人名，有詞彙表和關鍵詞）。`asr-score.swift`：粵語跟中文一樣先轉簡體再算 CER；韓文一個音節一個單位（CER）。
+- 比較：Whisper large-v3-turbo、Qwen3-ASR 1.7B、macOS 內建（`live.mac` 的語系）。選錯字率低、關鍵詞抓得到的當 `transcription.model`。
+- 自動偵測：用現有的偵測資料（中文、英文、日文）確認加了韓文之後結果不變，再用韓文、粵語的資料確認韓文偵測得到、粵語不會被切成中文。
+- 結果（2026-11-04，M3 Pro，`runs/4.4-*`；字錯率，合成會議的括號是關鍵詞抓到幾個／7）：
+
+  | | Whisper large-v3-turbo | Qwen3-ASR 1.7B | macOS 內建 |
+  |---|---|---|---|
+  | `yue-synth` | 19.7%（6）：寫成書面語（我是、我們） | **2.4%**（5）：照粵語寫（我係、我哋） | 7.2%（1） |
+  | `yue-fleurs` | 8.8% | **4.1%** | 7.8% |
+  | `ko-synth` | **5.9%**（4） | 24.2%（6）：把詞彙表當成一句話吐出來、幾句聽成亂碼 | 23.7%（1） |
+  | `ko-fleurs` | 5.9% | **2.6%** | 3.6% |
+
+  粵語選 Qwen3-ASR：兩組都最低，也是唯一照粵語口語寫的（R64.2）。韓文選 turbo：合成會議（最像真的會議：夾英文、有詞彙表）Qwen3-ASR 不穩，turbo 兩組都在 6% 左右；FLEURS 是唸稿，Qwen 好但不代表會議。
+- 自動偵測（2026-11-04，`shiyinctl detect-eval`，每段錄音取 2～5 個起點、共 39 次；同一次的機率只取中文、英文、日文重新加總就是加韓文之前的判斷）：中文（AISHELL-4、台灣的課程錄音、合成會議）、英文（AMI）、日文（國會、FLEURS、合成會議）、粵語共 32 次，加了韓文前後判斷完全相同，韓文的機率都在 0.01 以下（AMI 有一個起點沒有語音，不算）。韓文 7 次都判成韓文（0.97～1.00）；加之前會判成英文或日文，FLEURS 第一段英文 0.81，中文會議講韓文時會被切成英文。粵語都判成中文（0.98～1.00），同一個語系不切。
+
+### 41.8 DEBUG、驗證
+
+- 標準答案：`fixtures.json` 加一場粵語、一場韓文的測試會議（提示詞、匯出、封包），`util/` 加語言檔的整理結果（每種語言的名稱、預設說話者、whisper 提示詞、偵測代碼）；原本三種語言的檔案一個字都不能變。
+- `shiyinctl language <id> <代碼>`、`import lang=<代碼>`、`transcribe-eval` 的 `language` 都接受新的代碼。
+
+### 41.9 台語的評估（R66）
+
+- 模型：聯發科 Breeze-ASR-26（Whisper large-v2 微調、約 1 萬小時合成的台語語音、Apache-2.0，輸出華語文字）。評估用社群轉的 GGML q8_0（`doggy8088/Breeze-ASR-26-GGML`，1.66 GB，SHA256 `e878f611…`），放 `~/Library/Caches/ShiyinSpike/models/`，用 `transcribe-eval` 的 `model` 指定，跟 Breeze 25 走同一條 whisper 流程（`language` 給 `zh`）。
+- 資料：`scripts/dev/make-eval-data-taigi.py`。來源跟聯發科的 Breeze Taigi 評測一樣（arXiv 2603.19259 §3.2）：行政院的廣播公益廣告月包（10 個月、去掉重複後 38 則），同一則有華語、臺語版，正確答案是華語腳本（自動拿掉角色名、音效、舞台指示）。三組各 20 分鐘：`taigi-psa`（台語版）、`taigi-psa-zh`（同樣廣告的華語版）、`taigi-mix`（一則華語一則台語交替）。華語錄音對華語腳本的錯字率（Breeze 25 5.9%）就是正確答案本身的誤差上限；台語的數字只拿來比高低。
+- 國語有沒有變差：同一個模型也跑現有的國語資料 AISHELL-4（真人會議）和合成的中英夾雜會議（有詞彙表）。這兩組已經看得出結論，TaiMECS、台大課程、Formosa 沒有再跑。
+- 結果（2026-11-05，M3 Pro，`runs/tw-*`；字錯誤率，括號是關鍵詞抓到幾個）：
+
+  | | Breeze 25 | Qwen3-ASR | macOS 內建 | Breeze-ASR-26（整段） | Breeze-ASR-26（20 秒一段） |
+  |---|---|---|---|---|---|
+  | `taigi-psa`（台語） | 56.2%（20 秒一段 53.7%） | 55.3% | 64.5% | 51.5% | **47.3%** |
+  | `taigi-psa-zh`（同樣的華語） | **5.9%**（20 秒一段 6.1%） | 10.5% | 9.4% | | 17.4% |
+  | `taigi-mix`（交替） | 27.6% | 31.7% | 35.6% | | 27.4% |
+  | `aishell`（國語真人會議） | **29.4%**（20 秒一段 29.6%） | | | 36.9% | 39.0% |
+  | `synth`（中英夾雜會議，有詞彙表） | **5.2%（5/6）** | | | 7.2%（1/6） | 8.0%（1/6） |
+
+  台語錄音是華語腳本的翻譯（用詞、語序不同），字錯誤率也把翻譯的差異算進去；另外算「正確答案的兩字詞有幾成出現在轉錄裡」：Breeze 25 43.9%、Qwen3-ASR 40.3%（輸出台語漢字，像「囝」「攏」，對不上華語）、macOS 內建 29.4%、Breeze-ASR-26（20 秒一段）51.5%。
+- 發現：
+  - **整段轉錄會掉內容**：Breeze-ASR-26 幾乎不輸出時間戳，whisper.cpp 一個 30 秒的視窗變成一段，有的視窗只轉出 2 秒、後面 28 秒不見（20 分鐘只有 41 段，Breeze 25 是 536 段），漏字從 155 變 1193。用 20 秒一段（`chunkSeconds: 20`，分段點選最安靜的地方，每段都短於 30 秒）就不會掉；Breeze 25 用 20 秒一段結果一樣（6.1%、29.6%），所以分段不影響比較。要接進 app，這個模型一定要切短段轉，逐字稿的時間只到「段」（10～30 秒）。
+  - **台語只好一些**：字錯誤率 54%→47%、兩字詞 44%→52%，大約還有一半的內容不對；論文的 30% 是人工核過的正確答案、一則一則轉，數字不能直接比：這裡 Breeze 25 比論文高 6 點（論文 50%），Breeze-ASR-26 高 17 點，差多的部分可能來自正確答案（華語腳本 vs 人工核過的華語錄音）、社群轉的 q8_0，或我們的提示詞（這個模型不吃詞彙表，可能也不習慣提示詞），但排名跟論文一樣。
+  - **國語變差很多**：同樣的華語廣告 6%→17%，真人會議 29%→39%；**不吃詞彙表**（Redis 變 Redux、FonPay 變 phone pay、Queue Gate 變 QGet），所以不能當中文會議的引擎，也不適合國語為主的會議。
+  - 比 Breeze 25 慢（20 秒一段時約 5 倍速，Breeze 25 約 6 倍速；整段時 AISHELL-4 慢 3.7 倍）。
+  - 即時逐字稿兩邊都沒有台語（macOS 內建、SenseVoice），錄音中只能看華語辨識的結果。
+- 建議（待使用者決定，R66.2）：不換掉中文會議的 Breeze 25。要給「主要講台語的會議」用的話，可以加成「台語（實驗性）」會議語言：紀錄寫成華語（用中文提示詞，同粵語的做法），模型 1.66 GB 另外下載、固定 20 秒一段轉、詞彙表沒有作用要在介面上說明；但內容大約只對一半，整理出來的紀錄會比較粗。台語會議不多的話，先不做，等更好的台語模型。
+
 ## F1. Fork 名稱（F1）
 
 - `CFBundleName`（含繁中在地化）設為 `MA`，提供應用程式選單的短名稱；`CFBundleDisplayName` 英文為 `Meeting Assistant`，繁中為「會議助手」。
@@ -1697,7 +1956,8 @@ Windows 的做法在 design-windows §11.7。
 ### F2.1 資料模型（migration `ma_speaker_tags_v1`）
 
 - 合併 4.0.0：上游的 `v8`／`v9` 保留原樣。Fork 舊版也叫 `v8`，但建立的是 `speaker_tags`；在 `v9` 後以獨立的 `ma_speaker_tags_v1` 補上缺少的 `min_speakers`，並以 `IF NOT EXISTS` 建立標記表及索引。全新、上游 v8/v9、Fork v8 資料庫都走同一流程，既有標記不刪除。
-- 回歸檢查：DEBUG 建置後執行 `python3 scripts/dev/check-fork-migrations.py`。使用實際 migrator 與隔離的暫存資料庫，驗證全新、v7、Fork v8、上游 v8/v9 的升級、重新開啟與既有會議／錄音連結／逐字稿／說話者標記保留；同時測試標記比對規則，不開啟使用者的資料庫。
+- 合併 4.5.0：保留 `ma_speaker_tags_v1`，接著執行上游參考文件的 `v10`；已經有上游 v10 的資料庫只補 fork 標記表，不重建文件表。
+- 回歸檢查：DEBUG 建置後執行 `python3 scripts/dev/check-fork-migrations.py`。使用實際 migrator 與隔離的暫存資料庫，驗證全新、v7、Fork v8、上游 v8/v9/v10 的升級、重新開啟與既有會議／錄音連結／逐字稿／說話者標記／參考文件保留；同時測試標記比對規則，不開啟使用者的資料庫。
 
 ```sql
 CREATE TABLE speaker_tags (id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1899,6 +2159,15 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 | D130 | 錄音中換麥克風、藍牙提醒的「改用」都存成設定，之後的錄音也用這支；藍牙只在「只錄麥克風」、麥克風是系統預設時提醒（R58、§38.3、§38.4；2026-10-30 使用者決定做提醒） | 換的只用在這一場：下一場藍牙耳機還連著，又會錄到耳機；設定頁、錄音選單、錄音畫面三個地方是同一個設定，比較好懂。一連上藍牙就自動改用內建麥克風：線上會議戴耳機說話、刻意選藍牙麥克風的人會被改掉（D104）。線上會議（有電腦聲音）也提醒：戴耳機開線上會議本來就用耳機的麥克風，每場都跳會煩 |
 | D131 | 文字大小自己縮放（environment 的倍率乘上 macOS 的字級），只放大會議內容，七段 85%～200%（R59、§38.5） | `dynamicTypeSize`：macOS 的 SwiftUI 不理它（實測）。整個視窗放大（`scaleEffect`）：字會糊、點擊位置會錯。連側欄、按鈕一起放大：系統元件的字級改不了，放大一半很怪；看不清楚的是要讀的內容 |
 | D132 | 匯出用工具列的分割按鈕（按下匯出、箭頭複製），放在「更多」左邊（R60、§38.6；2026-10-30 使用者選的） | 系統的分享按鈕（`ShareLink`）：要先決定分享哪個檔案、什麼格式，跟匯出對話框重複。只放在紀錄分頁的最底下：要捲到底才看得到，逐字稿、提問分頁也找不到。「更多」裡也留一份：同一件事兩個地方，R44 的減法就是要拿掉這種重複 |
+| D133 | 文件是「會議參考資料」，跟使用者筆記分開，規則只在有文件時加進提示詞（R61.5、§39.3；2026-11-02） | 貼進「我的筆記」：筆記的規則是「必須納入紀錄」，文件會被整段搬進紀錄、看起來像會議上講過。規則一律加在提示詞裡：沒有文件的會議也多一段用不到的規則，提示詞跟現在不同，整理的結果可能跟著變 |
+| D134 | 拾音自己讀出文字（PDFKit、Vision、自己解 docx／pptx），整理工具只收到文字（§39.2） | 把檔案交給整理工具：claude CLI 刻意不給工具（`--tools ""`），codex 是唯讀沙盒；API 各家上傳檔案的方式都不同（Anthropic 的 PDF、OpenAI 的 files、Gemini 的 file API），OpenAI 相容 API 和企業伺服器沒有；換整理工具結果就不一樣。直接送 PDF 給有視覺能力的模型：只有部分 API 支援，費用高很多 |
+| D135 | 一場會議的文件合計 40,000 字，超過時平均分配、截掉每份的後面（R61.7、§39.3） | 不設上限：本機模型（Ollama）的長度很短，雲端的費用跟著文件長度漲，一份 200 頁的規格書可能比逐字稿長十倍。先來先送：一份很長的規格書會把後面加的議程擠掉。先請 AI 挑出跟會議有關的段落：準一點，但多一次呼叫、多等一段時間；先看實際用的人會不會碰到上限 |
+| D136 | docx、pptx 用 `unzip -p` 取出 XML、自己讀，不用 `NSAttributedString`（§39.2） | `NSAttributedString` 讀 docx：讀不了 pptx，表格、文字方塊的寫法不受控制，Windows（OpenXml）的結果對不上，標準答案就比不了；自己讀的規則兩邊一樣，用同一組測試檔比對 |
+| D137 | 額度用完時附上 CLI 的原文，不自己換算恢復時間（R62.2、§40；2026-11-04） | 解析「resets Nov 2 at 9pm (Asia/Taipei)」換成「11/2 晚上 9 點恢復」：Claude Code、Codex 的說法常改（這次就是新說法沒認出來），日期、時區的寫法不一，解析失敗反而少了資訊。只寫「額度用完了」：看不出要等多久、要不要先換整理工具 |
+| D139 | 語言的做法放在一份 JSON 語言檔（Mac、Windows 共用），`MeetingLanguage` 改成以代碼為身分的型別（§41.1；2026-11-04 使用者要通用架構） | 照舊用 enum、每加一種語言加一個 case：每一層都要改 switch，Mac、Windows 各改一次，「通用」只是名義上的。每個平台各寫一份設定：兩邊會慢慢不一樣，標準答案也比不到設定本身 |
+| D140 | 語言分精調、一般兩級；一般語言用英文的提示詞加「用某語言寫」，給人看的字查字串表，提示詞的字不查（§41.2） | 每種語言都手寫一份提示詞：一種語言要寫、調五份提示詞，加語言的成本跟現在一樣高。提示詞也翻成那個語言：模型讀英文的規則最穩，翻譯的規則會走樣、沒辦法逐字檢查。字串表連提示詞一起查：英文提示詞裡夾著韓文的欄位名稱，結果難以預測 |
+| D141 | 粵語的會議紀錄用中文那份提示詞，寫成繁體中文的書面語，加一段說明逐字稿是粵語口語（§41.2） | 寫成粵語口語：讀紀錄的人多半習慣書面語，口語的紀錄不好轉寄。當成一般語言用英文提示詞：中文的規則（台灣用語、繁體、期限換算）已經調過，粵語的紀錄本來就要寫成中文 |
+| D142 | 粵語正式轉錄固定用 Qwen3-ASR、還沒下載好時先用 macOS 內建（Windows 快速辨識），不用 Breeze；韓文用 Whisper large-v3-turbo；粵語的即時逐字稿用 `zh_HK`（§41.3、§41.7；2026-11-04 評估） | 粵語用 turbo：設 `yue` 也寫成書面語（我是、我們），合成會議的錯字率 19.7%，失去 R64.2 的口語。粵語用 macOS 內建當正式轉錄：錯字率 7%～8%、關鍵詞只抓到 1 個（不參考詞彙表）。韓文用 Qwen3-ASR：唸稿最好，但會議錄音會把詞彙表吐出來、整句聽錯（24%）。粵語沒下載 Qwen 時先用 Breeze：Breeze 是台灣華語的模型，粵語會被聽成華語。即時逐字稿用 `yue_CN`：辨識結果一樣，但輸出簡體 |
 
 | DF1 | 錄音中只記使用者的標記，錄完依時間套到離線辨識分出的說話者；對不上或有矛盾就不套用 | 錄音中即時分辨說話者（FluidAudio 的 Sortformer、LS-EEND）：AMI 上錯誤率 26～34%，錄完的離線辨識是 12%，Sortformer 最多 4 人，錄音中的編號跟錄完的結果還要再對一次，也要多下載模型。標記直接當成一段一段的說話者（不經過說話者辨識）：只有標過的幾段有名字。對不上也取最接近的說話者：標錯或說話者辨識把兩個人併成一位時會套錯名字，還會學到錯的聲紋（D29：寧可少、不能錯）。代價：錄音中只有標過的那幾行看得到名字 |
 | DF2 | 標記帶入的名字當成「自動」的名字：畫面上標「標記」、可以說不是他；說話者辨識可能把人併在一起的會議不存聲紋；重新辨識說話者、合併時跟重新轉錄一樣重算（F2.9～F2.11，2026-10-29） | 當成手動改名（2026-10-22 的做法）：按錯人、或說話者辨識把兩個人併成一位而只標了其中一人時，錯的聲紋直接進聲紋庫，之後的會議會以 ≥ 0.88 的相似度自動帶入錯的名字，使用者在畫面上也看不出這個名字不是自己取的。完全不從標記學聲紋：每個人標一次就能讓之後的會議認得，是標記最大的好處。只看每位說話者自己的凝聚度：FluidAudio 只給整場的品質，沒有每位的 |

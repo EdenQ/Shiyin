@@ -49,7 +49,7 @@ public sealed class ModelStore
         $"{HuggingFace}/shdennlin/breeze-asr-25-ggml/resolve/36c726093efe1760d1dd39c3cfe8b6a7282437d1/ggml-breeze-asr-25-q8_0.bin",
         1_656_129_691, "d4b187c40ffbf1f620734b77821e2ca8a97c8ecf5754d02b2a175069348cafcf")]);
 
-    public static readonly ModelInfo Japanese = new(L.T("日文轉錄模型 Whisper large-v3-turbo（q5_0）"), [new("ggml-large-v3-turbo-q5_0.bin",
+    public static readonly ModelInfo Japanese = new(L.F("%@轉錄模型 Whisper large-v3-turbo（q5_0）", MeetingLanguages.UiNames("turbo")), [new("ggml-large-v3-turbo-q5_0.bin",
         $"{HuggingFace}/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-large-v3-turbo-q5_0.bin",
         574_041_195, "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2")]);
 
@@ -109,10 +109,10 @@ public sealed class ModelStore
     ];
 
     /// <summary>
-    /// AMD 顯示卡加速（R27 R4.7、design-windows §8、D127）：拾音自己在 CI 用同一個 commit 建的 whisper Vulkan 版（windows-gpu-pack.yml），
+    /// AMD、Intel 顯示卡加速（R27 R4.7、R4.8、design-windows §8、D127、D138）：拾音自己在 CI 用同一個 commit 建的 whisper Vulkan 版（windows-gpu-pack.yml），
     /// 放在 GitHub 的 prerelease（官網、Windows 的檢查更新都跳過 prerelease）。整套 whisper 都用這裡的，shim 用安裝資料夾的（同 CUDA）
     /// </summary>
-    public static readonly ModelInfo GpuVulkan = new(L.T("AMD 顯示卡加速（Vulkan）"), [new("gpu-vulkan/whisper-vulkan.zip",
+    public static readonly ModelInfo GpuVulkan = new(L.T("AMD、Intel 顯示卡加速（Vulkan）"), [new("gpu-vulkan/whisper-vulkan.zip",
         "https://github.com/juinwei7/Shiyin/releases/download/win-gpu-vulkan-b5454/whisper-vulkan-x64.zip",
         19_779_448, "34e2f79a224f0b9f0edcaaca442732246230f2556435743761fad167490621af", [.. VulkanFiles.Select(f => new ArchiveEntry(f.Name, "gpu-vulkan/" + f.Name, f.Size))])], Folder: "gpu-vulkan");
 
@@ -200,12 +200,26 @@ public sealed class ModelStore
         _ => Diarization,
     };
 
-    /// <summary>正式轉錄用哪個模型：日文會議用 large-v3-turbo，中文、英文用 Breeze</summary>
-    public static Model Transcription(MeetingLanguage language) => language == MeetingLanguage.Ja ? Model.Japanese : Model.Breeze;
+    /// <summary>whisper 這條路用的模型：large-v3-turbo（日文、韓文…）或 Breeze，不看引擎設定</summary>
+    public static Model Transcription(MeetingLanguage language) => language.UsesTurbo() ? Model.Japanese : Model.Breeze;
 
-    /// <summary>依設定的引擎（transcriptionEngine：breeze、qwen、system）：日文一律 large-v3-turbo，中文、英文選了 Qwen 就是 Qwen（M§32.3）</summary>
-    public static Model Transcription(MeetingLanguage language, string engine) =>
-        language == MeetingLanguage.Ja ? Model.Japanese : engine == "qwen" ? Model.Qwen : Model.Breeze;
+    /// <summary>
+    /// 正式轉錄用哪個模型（M§32.3、§41.3）：語言檔的 transcription.model；engineSetting 的語言（中文、英文）
+    /// 依設定的引擎（transcriptionEngine：breeze、qwen、system）用 Breeze 或 Qwen。Japanese 就是 large-v3-turbo（日文以外的語言也用）
+    /// </summary>
+    public static Model Transcription(MeetingLanguage language, string engine)
+    {
+        var t = language.Profile.Transcription;
+        return t.Model switch
+        {
+            "turbo" => Model.Japanese,
+            "qwen" => Model.Qwen,
+            _ => t.EngineSetting && t.Qwen is not null && engine == "qwen" ? Model.Qwen : Model.Breeze,
+        };
+    }
+
+    /// <summary>Qwen 還沒下載好時能不能先用 Breeze（R43.7）：只有自己選了 Qwen 的中文、英文；固定用 Qwen 的語言（粵語）先用快速辨識（M§41.3）</summary>
+    public static bool BreezeStandsInForQwen(MeetingLanguage language) => language.Profile.Transcription.EngineSetting;
 
     readonly string root;
     readonly HttpClient http;

@@ -7,11 +7,28 @@
 > - 新任務照 SDD：先寫進 `requirements.md`、改 `design.md`，再加到這裡
 > - 需求見 `requirements.md`，設計見 `design.md`（以下簡稱 §）
 
+## 更多會議語言：語言檔、粵語、韓文（R63～R65，design §41、design-windows §11.9、D139～D142；2026-11-04 使用者新需求）
+
+- [~] **LANG6 後台的統計欄位**（R63.7）：程式完成（`lang_yue`、`lang_ko`、`migrate-languages.sql`）。還差：使用者先跑 `migrate-languages.sql`、再部署 worker（同 E6）
+
+## Safari 開 Google Meet 時麥克風收不到聲音（R57；2026-10-29 Threads 的使用者回饋）
+
+- [ ] **R57 設計**：先寫 design（新的一節＋決策紀錄）：怎麼判斷「低到一般錄音環境不會出現」、找出正在用麥克風的 app（同偵測會議 R19.4）、跟「聲音有點小」（R24.3）的關係
+  - 驗證：用使用者的會議錄音和公開語料（AMI、AISHELL-4）算音量分布，門檻在安靜的會議、外接麥克風都不會誤報；實驗工具 `scripts/dev/vpio-hold.swift`、`mic-level.swift`
+- [ ] **R57 Mac 實作**（R57.1～R57.5）：錄音中 10 秒內提示、提示列、通知、選單列圖示、同一場只提醒一次、使用說明的常見問題
+  - 驗證：DEBUG 版用 `vpio-hold.swift` 對內建麥克風開語音處理時錄音（要使用者在電腦前，會用到麥克風），10 秒內出現提示、寫出 app 的名稱；關掉後提示收起；安靜的會議錄音用 `record-sim` 不誤報
+
+## 會議的參考文件（R61，design §39、design-windows §11.8、D133～D136；2026-11-02 使用者新需求）
+
+- [~] **DOC3 Mac 畫面的按鈕**（§39.4）：選單的標籤（「加入文件」「N 份文件」）、提示條、英文介面、提問分頁文件出處的圖示都在真的視窗截圖看過（2026-11-02）；加入、移除、提示條的「不用」「重新整理會議紀錄」用 DEBUG 指令驗過。還差：螢幕醒著時用 AX 按「文件」選單的「打開」「移除」「加入文件…」（選檔視窗會出現在畫面上）和提示條的兩個按鈕；真的拖一個 PDF 進視窗
+- [~] **DOC8 Windows**（design-windows §11.8）：程式完成、Mac 上 182 個測試全過、虛擬機驗過（2026-11-02，見 commit 訊息）。還差（要使用者的 Windows 電腦）：
+  - 英文（沒有中文辨識）的 Windows 加掃描的 PDF：說明要加入中文的語言；檔案總管真的拖一個 PDF 進視窗；「加入文件…」的選檔視窗（虛擬機裡用 UI Automation 操作選檔視窗不穩）
+
 ## 麥克風、文字大小、匯出（R58～R60，design §38、design-windows §11.7、D130～D132；2026-10-30 Threads 的使用者回饋＋使用者的建議）
 
 - [~] **MT3 真的麥克風**（要使用者）：真的 AirPods（或其他藍牙耳機）連著時按錄音：提示列出現，按「改用 MacBook Pro 的麥克風」後錄到現場的聲音、錄音不中斷；錄音中在麥克風名稱的清單換來換去，錄音檔沒有斷掉、長度對
 - [~] **MT6 Windows**（R58～R60、design-windows §11.7）：程式完成、虛擬機驗過（2026-11-02，見 commit 訊息）。還差（要使用者的 Windows 電腦）：
-  - 真的藍牙耳機當預設麥克風時提示列出現、內建麥克風認得出來（`PKEY_Device_EnumeratorName`、`PKEY_AudioEndpoint_FormFactor` 的判斷，看 `state` 的 `recorder.micDevice`）；錄音中在錄音列換麥克風，錄音不中斷、長度對
+  - 真的藍牙耳機當預設麥克風時提示列出現、內建麥克風認得出來（`PKEY_Device_EnumeratorName`、`PKEY_AudioEndpoint_FormFactor` 的判斷，看 `state` 的 `recorder.micDevice`）；插著有線耳機（耳機孔的麥克風）時，「改用」的按鈕不能指到耳機孔的麥克風（Mac 4.2.3 有這個問題，用 data source 排除）；錄音中在錄音列換麥克風，錄音不中斷、長度對
   - 系統匣右鍵選單裡的藍牙提示（虛擬機沒有打開系統匣看，寫法同收音提醒）
 
 ## Codex、Claude 的桌面版（R55、R56，design §37、design-windows §10、D128；2026-10-29 Threads 的使用者回饋）
@@ -97,13 +114,15 @@
 - [~] **W-AMD3 真的 AMD 電腦**（要使用者）：有 Radeon 獨顯或內顯（780M、860M）的 Windows 電腦，啟動後自動下載、重新開啟後轉錄一場 Breeze 和 Qwen
   - 驗證：log 有「whisper will load from the pack」、回報問題的顯示卡是 Radeon；同一段錄音的逐字稿跟 CPU 版相同；記下倍速（跟 CPU 比）寫進 R4.7
 
-### Teams 的聲音、轉錄失敗的種類（R54，§6、§12.7、D129；2026-10-28 GitHub issue #2）
+### Intel 顯示卡加速（R27 R4.8、§8、D138；2026-11-04 使用者決定不等實機）
 
-- [~] **電腦聲音改錄預設輸出裝置**（R54.1～R54.3；要 issue #2 的回報者或使用者）：真的 Windows 電腦上，Teams 會議裡別人的聲音、YouTube 都錄得到，錄音中換預設輸出裝置、拔耳機會接著錄
+- [~] **W-INTEL 真的 Intel 電腦**：程式完成，Mac 上測試過（見 commit 訊息）；沒有在 Intel 的 Windows 電腦上跑過
+  - 驗證：發布後一週，統計裡 CPU 名稱是 Intel 的 x64 電腦，新版的轉錄倍速（`transcribed_seconds ÷ transcribe_wall_seconds`）跟舊版比；有 Intel 筆電時：第一次轉錄的 log 有 `gpu check:`，回報問題的 whisper 欄、設定的模型清單寫出結果；Core Ultra（Arc）、11～13 代（Iris Xe）各一台
+  - 量到數字之後再改官網（`site/src/content.mjs` 的 Windows 效能、FAQ 還寫「Intel 顯示卡只用 CPU」；website.md §16.1「電腦效能」那一列只寫量過的事）
 
 ### 要使用者的 Windows 電腦
 
-- [~] **錄音中換麥克風**（R18.2、§6）：錄音中換預設的麥克風，錄音不中斷、接到新的麥克風（W0.3、W4.2）；換輸出裝置見上面「Teams 的聲音」那一節
+- [~] **錄音中換裝置**（R18.2、R54、§6）：錄音中換預設的麥克風，錄音不中斷、接到新的麥克風（W0.3、W4.2）；錄音中換預設輸出裝置、拔耳機，電腦聲音接著錄（Teams 的聲音 issue #2 已經由回報者確認、結案）
 - [~] **麥克風權限被關掉**（R27 R1.8、§6）：在有麥克風的電腦上關掉「設定 → 隱私權與安全性 → 麥克風」，按「錄音」：說明拾音沒有麥克風權限，「打開設定」打開那一頁；打開權限後照常錄音
 - [~] **偵測會議**（T-W8、§12.4、D55）：開 Teams、Zoom、Chrome 的會議，5 秒內有沒有提醒；ConsentStore 在真的電腦上讀得到（W0.9、W1.4、W7.3 的真的 app）
 - [~] **自動偵測語言**（R16、W4.5）：要真的麥克風錄一次（WASAPI 的聲音經過重新取樣）：講的語言跟會議語言不同時，約 10 秒後自動換過去（R16.1）

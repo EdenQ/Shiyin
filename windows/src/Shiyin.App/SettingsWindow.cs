@@ -80,6 +80,15 @@ public sealed class SettingsWindow : Window
 
     static TextBlock Note(string text) => Ui.Text(text, 12, color: Ui.Secondary);
 
+    /// <summary>不跟著「正式轉錄」設定的語言（M§41.3）：「日文和韓文會議改用 Whisper large-v3-turbo（574 MB）。廣東話會議一律用 Qwen3-ASR。」</summary>
+    static string OtherEngines()
+    {
+        var space = MeetingLanguages.Ui("", " ");
+        var text = space + L.F("%@會議改用 Whisper large-v3-turbo（574 MB）。", MeetingLanguages.UiNames("turbo"));
+        var qwen = MeetingLanguages.UiNames("qwen");
+        return qwen.Length == 0 ? text : text + space + L.F("%@會議一律用 Qwen3-ASR。", qwen);
+    }
+
     static FrameworkElement Section(string title, params UIElement[] children)
     {
         var column = Ui.Column(10, Ui.Text(title, 15, bold: true));
@@ -564,7 +573,7 @@ public sealed class SettingsWindow : Window
             language.Children.Add(Ui.Bar(null, Ui.Text(busy ? L.T("正在下載語言偵測模型…") : L.T("語言偵測模型還沒下載，下載好之前錄音不會自動偵測"), 12, color: Ui.Signal),
                 busy ? null : Ui.Button(L.T("下載"), () => host.Models.Start(ModelStore.Model.LanguageDetection))));
         }
-        language.Children.Add(Note(L.T("開始錄音後聽約 10 秒，判斷是中文、英文還是日文；跟會議語言不同而且有把握時會自動切換，錄音畫面可以改回來。需要 60 MB 的語言偵測模型。")));
+        language.Children.Add(Note(L.F("開始錄音後聽約 10 秒，判斷是哪一種語言（%@）；跟會議語言不同而且有把握時會自動切換，錄音畫面可以改回來。需要 60 MB 的語言偵測模型。", MeetingLanguages.UiNames(MeetingLanguages.Detectable))));
 
         var transcription = Ui.Column(12);
         // 正式轉錄引擎（R4.1、M§32.3；Qwen3-ASR 見 design-windows §8.4）
@@ -587,8 +596,8 @@ public sealed class SettingsWindow : Window
         {
             "server" => L.F("錄音會送到 %@（公司的伺服器）轉錄，轉完就刪；說話者辨識也在伺服器上做，聲紋只存在這台電腦。會參考詞彙表。連不上時會等，也可以改在這台電腦轉錄。", host.Enterprise.Host),
             "system" => L.T("速度快很多，下載也小；但不參考詞彙表，英文專有名詞、人名比較容易錯。"),
-            "qwen" => L.T("會參考詞彙表，多人會議的漏字和同音字比 Breeze 少；阿里巴巴開源的模型，全程在這台電腦上跑、不連網，輸出會轉成台灣繁體；需要下載約 2.5 GB 的模型和 llama.cpp 的執行檔。日文會議改用 Whisper large-v3-turbo（574 MB）。"),
-            _ => L.T("會參考詞彙表，中英夾雜、專有名詞比較準；聯發科開源的台灣模型，需要下載約 1.7 GB。日文會議改用 Whisper large-v3-turbo（574 MB）。"),
+            "qwen" => L.T("會參考詞彙表，多人會議的漏字和同音字比 Breeze 少；阿里巴巴開源的模型，全程在這台電腦上跑、不連網，輸出會轉成台灣繁體；需要下載約 2.5 GB 的模型和 llama.cpp 的執行檔。") + OtherEngines(),
+            _ => L.T("會參考詞彙表，中英夾雜、專有名詞比較準；聯發科開源的台灣模型，需要下載約 1.7 GB。") + OtherEngines(),
         }));
         transcription.Children.Add(Ui.Toggle(L.T("轉錄時辨識說話者"), S.Diarize, on => S.Set(AppSettings.DiarizeKey, on)));
         transcription.Children.Add(Ui.Toggle(L.T("錄音中顯示即時逐字稿"), S.LiveTranscription, on => S.Set(AppSettings.LiveTranscriptionKey, on)));
@@ -627,8 +636,10 @@ public sealed class SettingsWindow : Window
         foreach (var (model, note) in new[]
                  {
                      (ModelStore.Model.Breeze, ""),
-                     (ModelStore.Model.Qwen, L.T("中文、英文可選的引擎（阿里巴巴開源），約 2.5 GB，含 llama.cpp 的執行檔；「正式轉錄」選了它才會用。")),
-                     (ModelStore.Model.Japanese, L.T("日文會議用，574 MB。第一次轉錄日文會議時會自動下載。")),
+                     (ModelStore.Model.Qwen, MeetingLanguages.UiNames("qwen").Length == 0
+                         ? L.T("中文、英文可選的引擎（阿里巴巴開源），約 2.5 GB，含 llama.cpp 的執行檔；「正式轉錄」選了它才會用。")
+                         : L.F("中文、英文可選的引擎（阿里巴巴開源），約 2.5 GB，含 llama.cpp 的執行檔；「正式轉錄」選了它才會用，%@會議一律用。", MeetingLanguages.UiNames("qwen"))),
+                     (ModelStore.Model.Japanese, L.F("%@會議用，574 MB。第一次轉錄這些語言的會議時會自動下載。", MeetingLanguages.UiNames("turbo"))),
                      (ModelStore.Model.FastRecognition, L.T("即時逐字稿和快速辨識用，約 240 MB。")),
                      (ModelStore.Model.Diarization, L.T("說話者辨識用，約 46 MB。")),
                      (ModelStore.Model.LanguageDetection, L.T("自動偵測會議語言用，60 MB。")),
@@ -651,8 +662,8 @@ public sealed class SettingsWindow : Window
                 inUse ? L.T("轉錄正在用這個元件，重新開啟拾音後才能刪除") : null));
             models.Children.Add(Note(L.T("有 NVIDIA 顯示卡時自動下載，轉錄會快很多。685 MB，解開約 1.1 GB（whisper.cpp 官方的 CUDA 版）。刪除後不會再自動下載。")));
         }
-        // AMD 顯示卡加速（R27 R4.7）：只在有 AMD 顯示卡（沒有 NVIDIA）的 x64 電腦（或已經下載過）顯示
-        if (host.Gpu.Kind == GpuAcceleration.Pack.Vulkan || host.Models.StateOf(ModelStore.Model.QwenVulkan) is not ModelStore.State.Missing)
+        // AMD 顯示卡加速（R27 R4.7）：只在有 AMD 顯示卡（沒有 NVIDIA）的 x64 電腦（或已經下載過）顯示；Qwen 的 Intel 版先不做（R4.8）
+        if ((host.Gpu.Kind == GpuAcceleration.Pack.Vulkan && !host.Gpu.CheckFirst) || host.Models.StateOf(ModelStore.Model.QwenVulkan) is not ModelStore.State.Missing)
         {
             models.Children.Add(ModelRow(ModelStore.Model.QwenVulkan, transcribing));
             models.Children.Add(Note(L.F("有 AMD 顯示卡、選了 Qwen3-ASR 時自動下載，Qwen 改用顯示卡轉錄。%@，解開約 %@（llama.cpp 官方的 Vulkan 版）。刪除後不會再自動下載。",
@@ -663,8 +674,20 @@ public sealed class SettingsWindow : Window
             var inUse = PackInUse(ModelStore.Model.GpuVulkan);
             models.Children.Add(ModelRow(ModelStore.Model.GpuVulkan, transcribing || inUse,
                 inUse ? L.T("轉錄正在用這個元件，重新開啟拾音後才能刪除") : null));
-            models.Children.Add(Note(L.F("有 AMD 顯示卡時自動下載，正式轉錄改用顯示卡。%@，解開約 %@（拾音用同一版 whisper.cpp 建的 Vulkan 版）。刪除後不會再自動下載。",
-                Recorder.ByteCount(ModelStore.GpuVulkan.Size), Recorder.ByteCount(Unpacked(ModelStore.GpuVulkan)))));
+            // Intel：先檢查才用顯示卡，寫出規則和結果（R4.8）
+            models.Children.Add(Note(host.Gpu.CheckFirst
+                ? L.F("有 Intel 顯示卡時自動下載。第一次正式轉錄時，先用這場錄音的一段比對顯示卡和 CPU，結果一樣、顯示卡又比較快才改用顯示卡。%@，解開約 %@（拾音用同一版 whisper.cpp 建的 Vulkan 版）。刪除後不會再自動下載。",
+                    Recorder.ByteCount(ModelStore.GpuVulkan.Size), Recorder.ByteCount(Unpacked(ModelStore.GpuVulkan)))
+                : L.F("有 AMD 顯示卡時自動下載，正式轉錄改用顯示卡。%@，解開約 %@（拾音用同一版 whisper.cpp 建的 Vulkan 版）。刪除後不會再自動下載。",
+                    Recorder.ByteCount(ModelStore.GpuVulkan.Size), Recorder.ByteCount(Unpacked(ModelStore.GpuVulkan)))));
+            if (host.Gpu.CheckFirst && host.Models.IsInstalled(ModelStore.Model.GpuVulkan))
+                models.Children.Add(Note(host.Gpu.CheckState switch
+                {
+                    GpuAcceleration.CheckGpu => L.T("檢查通過：正式轉錄用顯示卡。"),
+                    GpuAcceleration.CheckCpu => L.T("這台電腦的顯示卡沒有通過檢查（沒有比 CPU 快、結果跟 CPU 不一樣，或出錯）：正式轉錄用 CPU。"),
+                    GpuAcceleration.CheckRunning => L.T("正在檢查顯示卡。"),
+                    _ => L.T("還沒檢查：下一次正式轉錄時檢查。"),
+                }));
         }
         return models;
     }

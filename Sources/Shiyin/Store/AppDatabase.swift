@@ -26,9 +26,12 @@ struct SearchHit: Identifiable, Hashable {
 
 final class AppDatabase: @unchecked Sendable {
     let pool: DatabasePool
+    /// 參考文件原始檔的資料夾（design §39.1）；nil 時刪除會議、文件不碰檔案（標準答案的暫存資料庫）
+    let documentsRoot: URL?
 
     /// 開啟資料庫；有待執行的 migration 時，先把舊檔備份到 backups/（N3）
-    init(path: String) throws {
+    init(path: String, documentsRoot: URL? = nil) throws {
+        self.documentsRoot = documentsRoot
         var config = Configuration()
         config.foreignKeysEnabled = true
         pool = try DatabasePool(path: path, configuration: config)
@@ -258,6 +261,22 @@ final class AppDatabase: @unchecked Sendable {
                 CREATE INDEX IF NOT EXISTS speaker_tags_meeting ON speaker_tags(meeting_id);
                 """)
         }
+        // 會議的參考文件（design §39.1、R61）
+        migrator.registerMigration("v10") { db in
+            try db.execute(sql: """
+                CREATE TABLE documents (
+                  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                  meeting_id INTEGER NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+                  name       TEXT NOT NULL,
+                  file       TEXT NOT NULL,
+                  kind       TEXT NOT NULL,
+                  pages      TEXT NOT NULL,
+                  ocr        INTEGER NOT NULL DEFAULT 0,
+                  created_at TEXT NOT NULL
+                );
+                CREATE INDEX documents_meeting ON documents(meeting_id, id);
+                """)
+        }
         return migrator
     }
 
@@ -365,14 +384,17 @@ final class AppDatabase: @unchecked Sendable {
         }
     }
 
-    /// 永久刪除（垃圾桶清除或使用者確認）
+    /// 永久刪除（垃圾桶清除或使用者確認）；參考文件的原始檔一起刪（design §39.1）
     func deleteMeeting(_ id: Int64) throws {
-        try pool.write { db in
+        let files = try pool.write { db -> [String] in
+            let files = try MeetingDocument.filter(Column("meeting_id") == id).fetchAll(db).map(\.file)
             // 段落會跟著會議刪掉（ON DELETE CASCADE），所以先刪索引
             try Self.unindexSegments(db, meetingId: id)
             try Self.unindexMeeting(db, meetingId: id)
             _ = try Meeting.deleteOne(db, key: id)
+            return files
         }
+        files.forEach(removeDocumentFile)
     }
 
     /// 移到垃圾桶或還原（R9.3）
@@ -419,8 +441,17 @@ final class AppDatabase: @unchecked Sendable {
 
     /// 「說話者 1」「Speaker 1」「話者 1」這種預設名稱
     static func isDefaultSpeakerName(_ name: String) -> Bool {
-        (try? #/^(說話者|Speaker|話者) \d+$/#.wholeMatch(in: name)) != nil
+        (try? defaultSpeakerPattern.wholeMatch(in: name)) != nil
     }
+
+    /// 語言檔裡每種語言的預設說話者名稱（design §41.1）：「說話者 %lld」→「說話者 \d+」，接成一個樣式
+    private static let defaultSpeakerPattern: Regex<AnyRegexOutput> = {
+        let forms = LanguageProfiles.all.map { profile -> String in
+            let parts = profile.speaker.components(separatedBy: "%lld")
+            return parts.map { NSRegularExpression.escapedPattern(for: $0) }.joined(separator: "\\d+")
+        }
+        return try! Regex("^(?:" + forms.joined(separator: "|") + ")$")
+    }()
 
     /// 寫入正式逐字稿：取代舊的正式版，並刪掉即時預覽（design §5.3）
     /// voices：每位說話者的聲紋、說話秒數、收音（design §21.4），寫進 speakers
@@ -446,7 +477,7 @@ final class AppDatabase: @unchecked Sendable {
             try SpeakerName.filter(Column("meeting_id") == meetingId).deleteAll(db)
             for idx in stride(from: 1, through: speakerCount, by: 1) {
                 var speaker = SpeakerName(meetingId: meetingId, idx: idx,
-                                          name: language.text(zh: "說話者 \(idx)", en: "Speaker \(idx)", ja: "話者 \(idx)"))
+                                          name: language.defaultSpeaker(idx))
                 if let old = named[idx] {
                     speaker.name = old.name
                     speaker.nameSource = old.nameSource == "default" ? "manual" : old.nameSource
@@ -605,6 +636,46 @@ final class AppDatabase: @unchecked Sendable {
 
     // MARK: 重點與筆記
 
+    // MARK: 參考文件（design §39.1、R61）
+
+    func document(_ id: Int64) throws -> MeetingDocument? {
+        try pool.read { db in try MeetingDocument.fetchOne(db, key: id) }
+    }
+
+    func documents(_ meetingId: Int64) throws -> [MeetingDocument] {
+        try pool.read { db in try MeetingDocument.filter(Column("meeting_id") == meetingId).order(Column("id")).fetchAll(db) }
+    }
+
+    /// 先插入、再用 id 填 file（documents/<id>/<檔名>），同一個交易
+    func addDocument(_ meetingId: Int64, name: String, kind: DocumentKind, pages: [String], ocr: Bool) throws -> MeetingDocument {
+        try pool.write { db in
+            var document = MeetingDocument(meetingId: meetingId, name: name, kind: kind.rawValue,
+                                           pages: MeetingDocument.encodePages(pages), ocr: ocr)
+            try document.insert(db)
+            document.file = "\(document.id!)/\(name)"
+            try document.update(db)
+            return document
+        }
+    }
+
+    /// 刪掉一份文件，連同原始檔；回傳刪掉的那筆
+    @discardableResult
+    func deleteDocument(_ id: Int64) throws -> MeetingDocument? {
+        let document = try pool.write { db -> MeetingDocument? in
+            guard let document = try MeetingDocument.fetchOne(db, key: id) else { return nil }
+            _ = try MeetingDocument.deleteOne(db, key: id)
+            return document
+        }
+        if let document { removeDocumentFile(document.file) }
+        return document
+    }
+
+    /// 原始檔放在 documents/<id>/ 底下，整個資料夾刪掉。標準答案的暫存資料庫不碰檔案（documentsRoot 是 nil）
+    private func removeDocumentFile(_ file: String) {
+        guard let documentsRoot, let folder = file.split(separator: "/").first, Int64(folder) != nil else { return }
+        try? FileManager.default.removeItem(at: documentsRoot.appendingPathComponent(String(folder), isDirectory: true))
+    }
+
     func bookmarks(_ meetingId: Int64) throws -> [Bookmark] {
         try pool.read { db in try Bookmark.filter(Column("meeting_id") == meetingId).order(Column("time")).fetchAll(db) }
     }
@@ -711,7 +782,7 @@ final class AppDatabase: @unchecked Sendable {
             let language = try Meeting.fetchOne(db, key: meetingId)?.meetingLanguage ?? .zh
             for idx in try Int.fetchAll(db, sql: "SELECT idx FROM speakers WHERE meeting_id = ? AND name_source = 'tag'", arguments: [meetingId]) {
                 try db.execute(sql: "UPDATE speakers SET name = ?, name_source = 'default', person_id = NULL WHERE meeting_id = ? AND idx = ?",
-                               arguments: [language.text(zh: "說話者 \(idx)", en: "Speaker \(idx)", ja: "話者 \(idx)"), meetingId, idx])  // l10n-skip
+                               arguments: [language.defaultSpeaker(idx), meetingId, idx])  // l10n-skip
             }
         }
     }
@@ -1102,7 +1173,7 @@ final class AppDatabase: @unchecked Sendable {
             for term in accepted where term.contains(where: { $0.isASCII && $0.isLetter }) { add(term, .correction) }
             // 中文、日文會議標題裡的英文詞通常是產品名、專案名；英文會議的標題就不拆了
             let word = #/[A-Za-z][A-Za-z0-9.+\-]{2,}/#
-            for meeting in meetings where meeting.meetingLanguage != .en {
+            for meeting in meetings where !meeting.meetingLanguage.profile.spaced {
                 for match in meeting.title.matches(of: word) { add(String(match.output), .title) }
             }
             let existing = Set(try String.fetchAll(db, sql: "SELECT term FROM glossary").map { $0.lowercased() })

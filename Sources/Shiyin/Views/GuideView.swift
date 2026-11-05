@@ -16,7 +16,7 @@ struct GuideView: View {
         Step(symbol: "text.bubble", title: String(localized: "邊錄邊看、邊記"),
              body: String(localized: "錄音中畫面左邊是即時逐字稿，講完幾秒內就會出現；右邊「我的筆記」每換一行會自動記下當時的錄音時間（錄完在逐字稿分頁頂部的「我的筆記」還能改）。重要的地方按「標記重點」（⌘B），在其他 app 裡也可以按 ⌃⌥⌘B。需要中斷時按「暫停」（⇧⌘P），暫停的時間不會錄進去。")),
         Step(symbol: "waveform", title: String(localized: "正式轉錄、分辨說話者"),
-             body: String(localized: "按「停止並轉錄」後，會議助手會在這台 Mac 上重新轉錄（中文、英文用 Breeze ASR 25，日文用 Whisper large-v3-turbo），並分辨不同的說話者。等待的時候，會議紀錄會先用即時逐字稿整理一份草稿，正式版好了會自動換掉。逐字稿上點「說話者 1」可以改成人名，整場都會跟著改；會議助手會記住這個人的聲音，之後的會議自動帶入名字（標「自動」，認錯了點一下就能改）。")),
+             body: String(localized: "按「停止並轉錄」後，會議助手會在這台 Mac 上重新轉錄（中文、英文用 Breeze ASR 25，\(MeetingLanguage.uiNames(model: "turbo"))用 Whisper large-v3-turbo，\(MeetingLanguage.uiNames(model: "qwen"))用 Qwen3-ASR），並分辨不同的說話者。等待的時候，會議紀錄會先用即時逐字稿整理一份草稿，正式版好了會自動換掉。逐字稿上點「說話者 1」可以改成人名，整場都會跟著改；會議助手會記住這個人的聲音，之後的會議自動帶入名字（標「自動」，認錯了點一下就能改）。")),
         Step(symbol: "doc.text", title: String(localized: "看會議紀錄"),
              body: String(localized: "轉錄完會自動整理。「紀錄」分頁由上而下是摘要、決議、待辦、未決問題和依議題分段的討論；每一條後面的時間點點一下，就從錄音那裡開始播放。右上角的範本選單可以換成一對一、訪談、課堂／演講、腦力激盪等格式，換完從「更多 → 重新處理」選「重新整理會議紀錄」。想找某件事，可以在「提問」分頁直接問，例如「預算最後決定多少？」，回答會附上時間點；工具列的「提問」可以一次問所有會議。")),
         Step(symbol: "questionmark.bubble", title: String(localized: "回答待確認、修改"),
@@ -75,6 +75,13 @@ struct GuideView: View {
                 GuideBullet(String(localized: "遇到問題，可以從「輔助說明」選單選「回報問題…」，會附上版本和環境（不含會議內容）。"))
             }
 
+            // 會議的參考文件（design §39.6、R61.10）
+            GuideSection(title: String(localized: "會議的參考文件")) {
+                GuideBullet(String(localized: "會議中一起討論的文件（簡報、規格書、報價單、白板照片）可以加進會議：會議標題下迴紋針圖示的選單（還沒有文件時寫「加入文件」）選「加入文件…」，或把 PDF、Word、PowerPoint、圖片拖進視窗。純文字、Markdown 要從「加入文件…」選（拖進來的 txt 會當成逐字稿、md 會當成筆記）。"))
+                GuideBullet(String(localized: "整理會議紀錄、提問時，文件讀出來的文字會一起送給整理工具，幫忙看懂討論、寫對數字和名稱。紀錄還是以會議中講的為準，用到文件的地方會註明出處，會議說的跟文件不一樣時會列成待確認。已經整理好的會議加了文件，按紀錄上方的「重新整理會議紀錄」。"))
+                GuideBullet(String(localized: "掃描的 PDF、圖片用 macOS 的文字辨識讀出文字。一場會議的文件合計最多 4 萬字，太長的只送前面的部分。Keynote、Pages 請先匯出成 PDF。"))
+            }
+
             GuideSection(title: String(localized: "設定（⌘,）")) {
                 GuideBullet(String(localized: "「整理工具」：選 Claude、Codex（需要先安裝並登入對應的 CLI），或填 Anthropic、OpenAI 的 API key。覺得整理太慢，可以在「模型」填比較快的模型，例如 sonnet。最下面的「範本」內建五種；也可以複製一份來改，或自己新增段落與指示。"))
                 GuideBullet(String(localized: "「錄音與轉錄」：錄音來源和麥克風、會議語言、正式轉錄的引擎和模型、要不要即時逐字稿和說話者辨識、線上會議的提醒和快捷鍵。「正式轉錄」可以選 Breeze ASR 25（建議，聯發科的台灣模型，會參考詞彙表）、Qwen3-ASR（阿里巴巴開源，多人會議漏字少，全程本機）或 macOS 內建（不用下載模型、速度快，但英文專有名詞比較容易錯）。"))
@@ -88,7 +95,7 @@ struct GuideView: View {
             GuideSection(title: String(localized: "資料與隱私")) {
                 GuideBullet(String(localized: "錄音、逐字稿和會議紀錄都只存在這台 Mac 上（~/Library/Application Support/Shiyin），不會被 iCloud 同步。"))
                 GuideBullet(String(localized: "即時逐字稿、正式轉錄、說話者辨識都在本機進行，不需要網路。"))
-                GuideBullet(String(localized: "整理、回答待確認、提問、猜說話者時，會把逐字稿文字、你的筆記和詞彙表送到你選的整理工具，錄音檔不會送出。選「不整理」就完全離線。"))
+                GuideBullet(String(localized: "整理、回答待確認、提問、猜說話者時，會把逐字稿文字、你的筆記、加入的文件讀出來的文字和詞彙表送到你選的整理工具，錄音檔和文件的原始檔不會送出。選「不整理」就完全離線。"))
                 GuideBullet(String(localized: "聲紋（說話者的聲音特徵，一組數字，不是錄音）只存在這台 Mac，不會放進匯出的 .shiyin 封包。"))
                 GuideBullet(String(localized: "API key 存在 macOS 鑰匙圈，不會寫進任何檔案。"))
                 // 企業伺服器（R52.1）：登入了才寫，沒登入的人照原本的說明
@@ -106,7 +113,7 @@ struct GuideView: View {
                     requirement(String(localized: "晶片"), String(localized: "Apple Silicon（M1 以上）"))
                     requirement(String(localized: "系統"), String(localized: "macOS 26 以上"))
                     requirement(String(localized: "記憶體"), String(localized: "8 GB 以上。轉錄加說話者辨識時最高約 2.9 GB，長錄音分段轉錄，會議長短影響不大（4 小時的會議 2.9 GB，M3 Pro 實測）"))
-                    requirement(String(localized: "磁碟空間"), String(localized: "約 1.7 GB 給模型（轉錄 1.66 GB、說話者辨識 21 MB；開日文會議另外 574 MB、自動偵測語言 60 MB），另外加上錄音：轉錄完會壓縮成 m4a，每小時約 10～30 MB"))
+                    requirement(String(localized: "磁碟空間"), String(localized: "約 1.7 GB 給模型（轉錄 1.66 GB、說話者辨識 21 MB；開\(MeetingLanguage.uiNames(model: "turbo"))會議另外 574 MB、自動偵測語言 60 MB），另外加上錄音：轉錄完會壓縮成 m4a，每小時約 10～30 MB"))
                     requirement(String(localized: "先安裝"), String(localized: "不需要另外安裝任何工具。要整理會議紀錄的話，安裝並登入 claude 或 codex，或準備 Anthropic、OpenAI 的 API key"))
                     requirement(String(localized: "網路"), String(localized: "第一次使用下載模型時需要（約 1.7 GB）；整理會議紀錄時需要。錄音、轉錄不需要"))
                 }

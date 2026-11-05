@@ -125,6 +125,7 @@ Mac 的 DEBUG 控制通道加 `shiyinctl dump-golden <fixtures.json> <輸出資�
 | `pipeline/` | 合成訊號的分段點、語言偵測收集的結果、接縫和回音的比對、說話者編號、分不準的判斷、重新辨識的名字沿用 |
 | `db/` | `schema.sql`（跑完 migration v1～v9 後 `sqlite_master` 的 SQL）、每一步資料庫操作後的資料表和回傳值（含搜尋、詞彙建議、聲紋比對） |
 | `util/` | 時間、日期、檔名、匯入、模型回傳的檢查等小工具的結果 |
+| `documents/` | 參考文件（M§39.7）：長度分配和組好的區塊、整理文字、檔名、封包裡的路徑、pptx 的 Target、`shared/golden/documents/` 測試檔讀出來的文字 |
 | `llm/mac-requests.jsonl` | Mac 的 DEBUG 版接假伺服器（`scripts/dev/fake-llm-server.py`）實際送出的四種 API 請求；Windows 送同樣的提示詞，body 要解析後相同 |
 
 ### 4.2 Windows 比對
@@ -207,8 +208,22 @@ Mac 改完重跑 `dump-golden`、commit 新的 `shared/golden/`，Windows 的測
   - 建置：`windows-gpu-pack.yml`（手動執行）在 windows-latest 裝固定版本的 Vulkan SDK，`build-whisper.ps1 -Arch x64 -Vulkan` 從同一個 commit `d1be6fd`、同一份 CMake 設定建（`GGML_BACKEND_DL`＋`GGML_CPU_ALL_VARIANTS`＋`GGML_VULKAN`）；只打包 whisper、ggml、ggml-base、ggml-cpu-*、ggml-vulkan 成 `whisper-vulkan-x64.zip`（shim 不放：跟 CUDA 一樣用安裝資料夾的那一份），上傳到 GitHub 的 prerelease `win-gpu-vulkan-b5454`。官網（website.md §7）和 Windows 的檢查更新（D94）都跳過 prerelease，Mac 的更新網址是 latest，所以這個 release 不會被當成新版。app 固定網址、大小、SHA-256；whisper 升版才重建。2026-10-29 建的：下載 19.8 MB、解開 59.2 MB（`ggml-vulkan.dll` 45.6 MB）；zip 裡另外有 `parakeet.dll`（whisper 沒有用到），不解出來。
   - CI 沒有顯示卡：裝 Mesa 的 lavapipe（軟體實作的 Vulkan，固定版本），用 Vulkan 版跑一次語言偵測，跟 CPU 版判斷出同一個語言、中英日三個機率差 ≤ 0.03，確認建出來的 ggml-vulkan 算得對。Vulkan 用 fp16 算、CPU 用 fp32，本來就有一點差（Mac 的 Metal、NVIDIA 的 CUDA 也是 fp16；2026-10-29 lavapipe 英文 0.985、CPU 0.998）；算錯的話會判斷錯語言或機率亂掉。lavapipe 要登記到登錄（GitHub 的機器是系統管理員權限，Vulkan 載入器不看 `VK_DRIVER_FILES`）、`GGML_VK_VISIBLE_DEVICES=0`（ggml-vulkan 預設只用獨顯、內顯，lavapipe 是 CPU 類型），Vulkan 的載入器（`vulkan-1.dll`）從 LunarG 的執行階段拿（使用者的電腦是顯示卡驅動附的）。真的 AMD 顯示卡的速度要使用者的電腦量。
   - 解到 `models\gpu-vulkan\`，載入同 CUDA（複製 shim、`SetDllDirectory`、`WhisperEngine.NativeDirectory`；`GpuAcceleration` 依 `Pack` 處理兩種）。Vulkan 的執行階段（`vulkan-1.dll`）是顯示卡驅動附的，不另外帶；驅動太舊、沒有 Vulkan 裝置時 ggml-vulkan 沒有裝置，whisper 用 CPU。
-  - 只開 AMD：Intel 內顯也有 Vulkan，但 ggml-vulkan 在 Intel 內顯的速度和正確性還沒量過，先不下載（R4.7）；量過再改成也給 Intel。
+  - Intel 內顯也用這一包，但要先通過檢查才用顯示卡（見下面的「Intel 顯示卡加速」、R4.8、D138）。
   - 自動下載只做一次（設定的 `gpuVulkanOffered`），使用者刪掉後不再下載；轉錄用企業伺服器時不下載（R50.7）。回報問題的「whisper 用的顯示卡」是 ggml 的裝置名稱（例如 `Vulkan0 (AMD Radeon 780M Graphics)`）。
+- **Intel 顯示卡加速**（R27 R4.8，D138）：x64、顯示卡驅動的登錄裡 `MatchingDeviceId` 有 `VEN_8086`（Intel）、沒有 NVIDIA 和 AMD 時，`GpuAcceleration.PackFor(x64, nvidia, amd, intel)` 也是 `Pack.Vulkan`，`CheckFirst = true`。下載同 AMD（`ModelStore.Model.GpuVulkan`、同一個 `gpuVulkanOffered`、企業伺服器時不下載）。ggml-vulkan 在 Intel 內顯算得對不對、快不快沒有在實機量過，靠第一次正式轉錄時的檢查決定。
+  - 檢查的狀態：設定 `gpuVulkanCheck`：沒有值（還沒檢查）、`running`（檢查中）、`gpu`（通過）、`cpu`（沒通過）。`GpuVulkan` 下載好（`ModelStore.Installed`）時清掉，重新下載就重新檢查。
+  - 啟動（`GpuAcceleration.Start`）：`running` 改成 `cpu`（上次檢查到一半拾音當掉，例如顯示卡驅動出錯，log `gpu check: crashed last time`）；`cpu` 不載入 Vulkan 版（從安裝資料夾載入 CPU 版，跟沒有元件一樣）；其他照 AMD 載入 Vulkan 版，`WhisperEngine.UseGpu = 狀態是 gpu`。所以通過之前語言偵測、轉錄都用 Vulkan 版裡的 CPU 後端（同一次建置的 `ggml-cpu-*`）。
+  - 第一次載入（`GpuAcceleration.ProbeFirstLoad`，AppHost 在 `Gpu.Start()` 之後、`Controller.Start()` 之前呼叫）：還沒檢查、這次要從 Vulkan 版載入時，先寫 `running`、讀一次 `WhisperEngine.GpuDevice`（shim 一載入就 `ggml_backend_load_all`，ggml-vulkan 會建立 Vulkan instance、列出裝置，`use_gpu=0` 也一樣），讀完清回還沒檢查。驅動在這裡當掉時下次開啟就是 `cpu`，不會之後每次語言偵測、轉錄都當掉；丟出例外（例如少了 DLL）記 `cpu`。只有還沒檢查時才多這一步，在 UI 執行緒，約 1 秒內。
+  - 什麼時候檢查（`SpeechEngines.WhisperFile`、`WhisperSamples` → `GpuCheckFlow.Run`）：`CheckFirst`、whisper 從 Vulkan 版載入（`WhisperEngine.NativeDirectory`、`LoadedDirectory` 是元件資料夾）、還沒檢查。whisper 的顯示卡是空的（驅動沒有 Vulkan 裝置）直接記 `cpu`。Qwen 不檢查。
+  - 怎麼檢查：從錄音開頭讀最多 180 秒（分聲道轉錄用已經解碼好的那一聲道），每 5 秒一格找平方和最大的 30 秒（`GpuCheckRules.LoudestWindow`）。`WhisperEngine.TimedTranscribe` 用同一個模型、提示詞、語言、參數（beam 5…）開一個 context 轉這 30 秒、計時（不含載入）：**CPU 先**（電腦還沒熱起來時量 CPU，對顯示卡偏保守），再用顯示卡；顯示卡那次先用開頭 2 秒暖機一次、不計時（ggml-vulkan 第一次用到才編譯 pipeline）。讀過的取樣用 `ReplayStream` 接回串流前面，正式轉錄照樣從頭，`CountingStream` 的長度不變。開始前先寫 `running`。
+  - 判斷（`GpuCheckRules.Decide`）：CPU 的文字去掉空白少於 10 個字 → 判斷不了，清回還沒檢查（下一場再試）；兩邊的相似度（`QwenRules.Similarity`，difflib 的 ratio）< 0.8 → `cpu`；顯示卡的時間 > CPU 的 0.8 倍 → `cpu`（只快一點點時寧可用 CPU）；其他 → `gpu`。CPU 那次出錯（例如模型壞了）→ 不是顯示卡的問題，清回還沒檢查、照原樣丟出（這一場照一般的轉錄失敗處理）；顯示卡那次出錯（載入失敗、轉錄失敗、驅動丟出的其他例外）→ `cpu`，這一場接著用 CPU 轉；取消 → 清回還沒檢查、照樣取消。
+  - 結束拾音時：工作被取消，檢查停得下來就清回還沒檢查；超過 `StopWork` 的等待（顯示卡卡住）留下 `running`，下次開啟當成沒通過。
+  - 結果：`gpu` → `UseGpu = true`，這一場接著用顯示卡；`cpu` → `UseGpu = false`，這一場用 Vulkan 版的 CPU 後端，下次開啟改從安裝資料夾載入。log：`gpu check: gpu|cpu|inconclusive similarity=… gpu=…s cpu=…s`（沒有文字內容）。檢查時進度停在 0，這一場多花約 1～2 分鐘（30 秒用 CPU 轉一次，加上顯示卡的暖機和轉錄）。
+  - Qwen 的 Vulkan 版只給 AMD：`QwenRuntime`、`OfferQwenGpu`、模型清單都看 `CheckFirst`。
+  - 還沒處理：Intel 內顯＋AMD 獨顯的電腦照 AMD（不檢查），ggml-vulkan 用第一個裝置，可能是 Intel 內顯（R4.7 就這樣）。
+  - 畫面：模型清單的名稱改「AMD、Intel 顯示卡加速（Vulkan）」；Intel 的說明寫檢查的規則和結果（還沒檢查、用顯示卡、用 CPU）；下載好要重新開啟的提示 Intel 另外一句。回報問題的 whisper 欄：Intel 還沒通過時寫「CPU（Intel 顯示卡還沒檢查）」或「CPU（Intel 顯示卡沒通過檢查）」。
+  - DEBUG：`--set debugIntel=YES` 當成有 Intel 顯示卡（同 `debugAmd`）。
+  - 驗證：Mac 上的測試（判斷規則、啟動時的狀態、第一次載入、檢查流程用假的轉錄：CPU 先、兩邊各種失敗、取消、分聲道、`ReplayStream`）；`shiyin-eval gpu-check` 用 Mac 的 dylib（Metal 對 CPU）跑一段真的錄音。真的 Intel 電腦（tasks W-INTEL）：發布後看統計裡 Intel 的轉錄倍速、回報問題的 whisper 欄。
 - **shim**（D56）：約 100 行的 C，匯出 `shiyin_whisper_full(ctx, const ShiyinParams*, 進度 callback, 取消 callback, …)`，在 C 這邊填好 `whisper_full_params`。不在 C# 複製這個 struct：它用傳值的方式傳、C 的 `bool` 是 1 byte、裡面有巢狀 struct 和 callback，很容易對錯而且不會報錯。其他簡單的函式（`whisper_full_n_segments`、`whisper_full_get_segment_*`、`whisper_full_get_token_p`、`whisper_pcm_to_mel`、`whisper_lang_auto_detect`、`whisper_lang_id`…）直接 P/Invoke，跟 `WhisperEngine.swift`、`LanguageDetector.swift` 用的一樣。
 - **參數**同 Mac：beam 5、best_of 5、執行緒數 clamp(核心數 − 2, 2, 8)、`suppress_blank`、有顯卡時用 GPU。只有 CPU 時要不要改（beam、執行緒）等 CI 量完速度再定（tasks 的「速度和記憶體」），改了寫進決策紀錄、設定頁顯示。
 - **分段、提示詞、接縫、過濾、低信心**：同 M§21.16、M§6.2，程式在 Core，用 §4 的 `pipeline/` 比對。
@@ -283,6 +298,7 @@ sherpa-onnx 的說話者分段是凝聚式分群（`FastClusteringConfig` 只有
 - 引導的整理工具這一步、設定視窗的整理工具頁、會議頁的提示和失敗橫幅照 M§34.3、M§34.4；沒安裝的 CLI 在下拉選單裡 `IsEnabled = false`。
 - `LLMError` 多 `Rejected`、`Limited`、`Unreachable`、`NotConfigured`；暫停只在記憶體，指紋是 provider、模型、OpenAI 相容 API 的網址、認證管理員的寫入次數。
 - 統計的 `errorDetail` 同 M§34.5（`UsageStats.cs`），測試比對 Mac 產生的 JSON 鍵。
+- 額度用完（R62、M§40）：`LLMException.IsLimitProblem` 的說法、`LLMException.CliLimited` 的兩行訊息同 Mac；`ServicesTests` 列出各種說法，`LLMTests` 用假的 claude、codex 腳本測。
 
 ## 11. 介面
 
@@ -363,6 +379,7 @@ sherpa-onnx 的說話者分段是凝聚式分群（`FastClusteringConfig` 只有
 
 - 麥克風的資訊（R58）：`Services.Capture.MicrophoneDevice`（`Id`、`Name`、`IsBluetooth`、`IsBuiltIn`）。Platform 的 `Microphones.All()`（Capture、Active 的端點）、`Microphones.Default()`（Capture、Console 角色的預設，同 §6）。每次要用時才列（打開下拉選單的 `Opening`、設定頁建畫面時），不另外常駐監聽：下拉選單打開時就是當下的裝置。
 - 藍牙、內建的判斷看端點的屬性（`MMDevice.Properties`）：`PKEY_Device_EnumeratorName`（`{a45c254e-df1c-4efd-8020-67d146a850e0}`,24）是 `BTHENUM`、`BTHHFENUM`、`BTHLE`、`BTHLEDEVICE`（`BTH` 開頭）算藍牙；`PKEY_AudioEndpoint_FormFactor`（`{1da5d803-d492-4edd-8c23-e0c0ffee7f0e}`,0）是 `Microphone`（4）、而且 enumerator 不是 USB、藍牙、`ROOT`（虛擬的音效驅動程式）算內建。讀不到屬性就當成都不是（不提醒，比誤報好）。虛擬機沒有音效裝置，判斷方法要在真的電腦上確認（MT6 的 `[~]`）。
+- 內建麥克風：有麥克風陣列（`PKEY_AudioEndpoint_JackSubType` 是 KSNODETYPE_MICROPHONE_ARRAY、PROCESSING_MICROPHONE_ARRAY）時只有陣列算內建，耳機孔的麥克風（也是 HDAUDIO、外型可能是麥克風）不算；沒有陣列時照上面的規則（Mac 4.2.3 插著有線耳機時，「改用」按鈕指到耳機孔的麥克風，M§38.1）。要真的電腦確認。
 - `WasapiSource`：麥克風的端點 ID 改成可以改的 `DeviceId`；開始（含重新開始）時記下實際開的端點 `Current`（指定的不在時是系統預設）。`IMicrophoneSource`（`IAudioSource` 加 `DeviceId`、`Current`）讓 Recorder 拿得到。
 - `Recorder`（Core，用標準的單元測試測）：`MicDevice`（`Begin`、`RestartSource(0)` 之後更新；模擬錄音時照設定從 `Hooks.Microphones` 找，找不到用 `Hooks.DefaultMicrophone`）、`MicHint`（條件同 M§38.4）、`MicHintAppeared`（第一次出現，App 照 R42 送通知）、`SwitchMicrophone(id)`（寫 `inputDeviceUID`、改 `DeviceId`、`RestartSource(0)`，模擬錄音時 FileSource 從停下的位置接著送）、`DismissMicHint()`。`Hooks` 加 `Microphones`、`DefaultMicrophone`（預設值是空的，原本的測試不用改）。
 - 錄音按鈕的下拉選單（R58.1）：來源、語言之間加子選單「麥克風：<目前的選擇>」，裡面是「系統預設（<名稱>）」、每一支、存的 ID 不在時的「之前選的麥克風（沒有接上，會用系統預設）」；子選單在 `MenuFlyout.Opening` 才建，接上、拔掉耳機後打開就是新的清單。錄音來源是「只錄電腦聲音」時不放。
@@ -371,6 +388,30 @@ sherpa-onnx 的說話者分段是凝聚式分群（`FastClusteringConfig` 只有
 - 文字大小（R59）：設定 `contentTextSize`（−1～5，同 Mac），`TextSizes.Scales` 在 Services。`Ui.ContentScale`（啟動和設定改了時設）、`Ui.C(size)` 乘上倍率；會議內容的元件（紀錄、待確認的題目、逐字稿的段落和欄寬、提問、錄音中的即時逐字稿、我的筆記、紀錄的編輯器）建的時候用 `Ui.C`，側欄、按鈕、提示列、搜尋列不用。設定改了：主視窗整個重畫、逐字稿重綁看得到的那幾段、錄音中的即時逐字稿重建。快捷鍵在主視窗的 `PreviewKeyDown` 處理（不用 `KeyboardAccelerator`：游標在輸入框時 TextBox 把 `Ctrl+-` 當成「插入選擇性連字號」吃掉，加速鍵收不到，2026-11-02 虛擬機發現；PreviewKeyDown 比輸入框先收到，處理完設 Handled，輸入框也不會多一個連字號）：`Ctrl+=`、`Ctrl+Shift+=`（加號）、數字鍵盤的 `Ctrl++` 放大，`Ctrl+-`、數字鍵盤的 `Ctrl+-` 縮小，`Ctrl+0`、數字鍵盤的 `Ctrl+0` 實際大小；Windows 沒有選單列，按了在下方提示「會議內容的文字大小：130%」。設定頁「進階」加「顯示」一組（介面語言之後）。
 - 匯出（R60）：會議頁右上角「更多」左邊加 `SplitButton`（分享圖示加「匯出」，按下打開匯出對話框，箭頭是複製會議紀錄的三種格式）；`MoreMenu` 剩重新處理、移到資料夾、移到垃圾桶。條件同「更多」（不在垃圾桶、不是錄音中的那場）。
 - DEBUG 控制通道（M§38.7）：`fakemic <名稱> <bluetooth 0|1> [內建的名稱]`（假的麥克風只在記憶體，當成系統預設，排在真的裝置前面；`fakemic off` 清掉）、`micswitch <id|default>`、`michint dismiss`、`textsize <−1～5>`；`state` 的 `recorder` 多 `micDevice`、`micHint`，最外層多 `textSize`。
+
+### 11.8 會議的參考文件（R61，M§39）
+
+- **Core**（跟 Mac 逐字相同，標準答案比對）：`Model/Records.cs` 的 `DocumentKind`、`MeetingDocument`（頁的文字用 `SwiftJsonWriter` 寫成跟 Mac 一樣的 JSON）；`Notes/DocumentPrompt.cs`（`DocumentText`、長度分配、區塊、截斷的說明、整理和提問的規則；字數用 `SwiftText.Count`、截斷用 `SwiftText.Prefix`）；`NotesPrompt.System(language, documents)`、`NotesContext.Documents`、`AskPrompt.MeetingSystem(l, documents)`、`MeetingPrompt(…, documents)`、`Validate(…, documentCitations)`。
+- **讀出文字**：`Core/IO/DocumentReader.cs`：種類、拖放算不算文件、整理文字（M§39.2 的規則）、純文字的編碼、docx／pptx（`System.IO.Compression.ZipArchive` 只讀要的那幾個檔，一個檔解出來超過 64 MB 就停；`XmlReader` 不解析 DTD，規則同 M§39.2，只看本地名稱；pptx 的 Target 同 `OfficeText.resolve`）、`DocumentError`（`Code` 同 Mac，訊息用 Mac 的同一句中文查表）。
+- **PDF**：PdfPig（`PdfPig` 0.1.16，Apache-2.0，純 C#，Mac 上的測試也跑得到）在 Services 的 `Documents.cs`：每頁用 `ContentOrderTextExtractor` 取文字，康熙部首（U+2F00～U+2FD5）換回一般的漢字（macOS 用蘋方輸出的 PDF，字型的對照表把「音」「一」對到部首，PdfPig 照表取出「拾⾳」，2026-11-02 虛擬機發現；Mac 的 PDFKit 會換掉）；要密碼的 PDF（`PdfDocumentEncryptedException`）是 `locked`；打不開是 `unreadable`。文字少於 20 字的頁、圖片交給 `IDocumentOcr`（Platform）；沒有實作（Mac 上的測試）時當成辨識不出文字。
+- **文字辨識**（Platform 的 `WindowsOcr`）：`Windows.Media.Ocr.OcrEngine`，語言依會議語言（中文 `zh-Hant-TW`→`zh-TW`→`zh-Hans-CN`、英文 `en-US`、日文 `ja-JP`），都沒有就用 `TryCreateFromUserProfileLanguages`。PDF 的頁用 `Windows.Data.Pdf` 畫成長邊 2000 px（同 Mac），圖片用 `BitmapDecoder`（照 EXIF 方向），超過 `OcrEngine.MaxImageDimension` 先縮小。每一行把 `Words` 接起來：前後兩個字都不是中日文、不是數字接數字（或接 `/ . : , - %`）、而且兩個 word 的框之間的空隙超過字高的四分之一才加空格（Windows 的中文辨識一個字一個 word，直接用 `Line.Text` 會變成「會 議 議 程」，數字也會變成「1 2 / 1 5」）。辨識的品質比 Mac 的 Vision 差一點（「一、」的「一」常常漏掉）。這台電腦沒有可以用的辨識語言時，掃描的頁和圖片是空的，整份讀不到字時說明「「<檔名>」裡讀不到文字。這台電腦沒有<語言>的文字辨識：到「設定 → 時間與語言 → 語言與地區」加入<語言>再試。」（Windows 才有的字串）。
+- **資料庫**：migration `v10` 的 SQL 從 Mac 照抄（`MigrationSql.V10`）；`AppDatabase` 建構時多 `documentsRoot`（同 Mac：null 時不碰檔案），`Documents`、`Document`、`AddDocument`、`DeleteDocument`、`DeleteMeeting` 先讀出文件的 `file` 再刪資料夾。`Paths.DocumentsDir`（`SHIYIN_HOME\documents`）；檔名照 Mac 的 `safeName`，另外把 Windows 檔名不能用的字元（`<>:"/\\|?*`、控制字元）換成 `-`（標準答案的檔名都沒有這些字元），`file` 是 `<id>/<檔名>`（資料庫裡用 `/`，組路徑時用 `Path.Combine` 拆開）。
+- **Services**：`AppController.AddDocuments(paths, meetingId)`（依序讀、同一份不重複加、讀取中記在 `ReadingDocuments`、完成後 `DocumentsChanged`）、`RemoveDocument`、`DismissDocumentsChanged`、`Resummarize` 清掉提示；`MeetingDetail.Documents`、`DocumentUse`；`JobRunner` 整理時帶文件；`Asking` 單場提問帶文件；`MeetingPackage` 匯出、匯入 `documents.json`（路徑檢查同 Mac 的 `isSafeDocumentPath`；Mac 的封包裡檔名有 Windows 不能用的字元時，存檔時照上面換掉）。
+- **畫面**：會議標題下資訊列的 `DropDownButton`（迴紋針圖示，文字同 Mac：「加入文件」「N 份文件」「正在讀取文件…」），選單每一份是子選單（打開、移除），最後「加入文件…」用 `FileOpenPicker`（多選，pdf、docx、pptx、txt、md、png、jpg、jpeg、heic）。打開用 `Shell` 的預設程式（`ShellExecute`，參數不經過 cmd.exe）。拖放：`RequestImport` 先挑出文件加到選取中的會議（同 M§39.4）。紀錄分頁頂部的提示列「文件有變動，會議紀錄還沒用上。」（不用、重新整理會議紀錄）。提問的出處 `Time` 是空的時候不放時間按鈕，放迴紋針圖示。使用說明照 Mac 加一段、改隱私那一條（「macOS 的文字辨識」改成「Windows 的文字辨識」，Windows 才有的字串）。
+- **DEBUG 控制通道**：`adddoc <會議 id> <檔案>…`、`drop <檔案>…`、`removedoc <文件 id>`、`docread <檔案> <zh|en|ja> <輸出.json>`、`docbanner <會議 id> dismiss|resummarize`；`state` 多 `documents`、`readingDocuments`、`documentsChanged`（同 M§39.7）。
+- **標準答案**：`documents/`（分配、整理文字、檔名、路徑、pptx 的 Target、`shared/golden/documents/` 測試檔讀出來的結果）、提示詞的 `*-documents`、`db/`、`package/` 的 `documents.json`。PDF、文字辨識兩邊引擎不同，不比標準答案：Windows 的測試用 Mac 上也跑得到的 PdfPig 讀測試用的 PDF，檢查每頁的文字有沒有讀到。
+
+### 11.9 更多會議語言（R63～R65，M§41）
+
+- 語言檔 `Resources/languages.json` 內嵌在 Shiyin.Core（`LogicalName="languages.json"`，同 opencc 的字表），`LanguageProfiles` 讀一次。`MeetingLanguage` 從 enum 改成以代碼為身分的 `readonly struct`（`default` 等於中文，原本 enum 的預設值就是中文）：`MeetingLanguage.Zh／En／Ja` 這些靜態欄位留著，`switch` 的常數比對都改成問 `Profile`。擴充方法照舊（`Code`、`Parse`、`Text`、`Name`、`UiName`、`WhisperCode`、`DefaultSpeaker`），加上 `Prompt`、`Format`、`Base`、`UsesTurbo`，意思同 Mac（M§41.1）。
+- 跟 Mac 不同的地方：
+  - 即時逐字稿、快速辨識是 SenseVoice（§7）：語言用 `live.windows`（粵語 `yue`、韓文 `ko`），輸出照 `live.windowsConvert` 轉（中文 `s2twp`、粵語 `s2tw`）再套 `scriptFixes`。粵語的 Qwen 還沒下載好時用快速辨識（Mac 是 macOS 內建）。
+  - 匯出：HTML 的字型讀 `fonts.htmlWindows`（`ExportFonts.Mac`／`Windows` 改成從語言檔挑哪一組），Word 讀 `fonts.docx`；標題字型 `fonts.titleWindows`、內容的語言 `fonts.contentWindows`。
+  - 文字辨識讀 `ocr.windows`，`windowsUserProfile` 是 true 的語言（英文）找不到時用使用者的語言設定。
+  - 星期幾：中文、英文、日文照舊用寫死的表（跟 Mac 的系統格式相同）；一般語言用 `locale` 的 `CultureInfo`（韓文「목요일」，跟 Mac 一樣）。
+  - 預設會議語言：英文介面而且 Windows 的語言是語言檔裡中文、英文以外的語言時用那個語言（`TwoLetterISOLanguageName` 比對代碼）。
+- 標準答案：`util/languages.json`（每種語言推出來的名稱、說話者、提示詞、長度、星期、字串表、簡轉繁的修正）由 `UtilTests.LanguageProfiles` 逐項比；粵語、韓文的測試會議走跟中文、英文、日文同樣的提示詞、匯出、封包測試。
+- `sync.sh` 同步到虛擬機時要帶 `Resources/languages.json`（漏了 Shiyin.Core 建置不過）。
 
 ## 12. 系統整合
 
@@ -584,3 +625,4 @@ sherpa-onnx 的說話者分段是凝聚式分群（`FastClusteringConfig` 只有
 | D95 | Windows 的 Qwen3-ASR 用 llama.cpp 官方的 `llama-server.exe` 當子程序（HTTP），不做 shim DLL（§8.4） | 同程序載入 llama 的 DLL：跟 whisper 同名的 ggml DLL，載入器只認名稱，兩個版本不能並存；side-by-side manifest 可以但複雜、出錯時只會靜默用錯版本。自己建 llama.cpp 把 DLL 改名：每次升級要重建 cpu／cuda 兩種後端兩種架構，CI 時間和出錯的地方都多。用跟 llama 同版的 ggml 重建 whisper：whisper 固定在 d1be6fd 才跟 Mac 結果一致（R28.4）。取捨：多一個程序、每次轉錄多幾秒啟動（Mac 也是每次載入模型）、音訊要 base64 走 localhost（15 秒一段約 0.6 MB，可忽略）、要自己管子程序的生命週期（Job Object） |
 | D127 | AMD 顯示卡用 Vulkan：拾音自己在 CI 建 whisper 的 Vulkan 版、放在 prerelease，app 偵測到 AMD 才下載；Qwen 用 llama.cpp 官方的 Vulkan 版（R4.7、§8、§8.4；2026-10-29 使用者要求） | 放進 x64 的安裝檔（§8 原本的寫法）：沒有 AMD 的人也要下載，使用者要「只有部分電腦要的元件讓 app 自己下載」。ROCm／HIP：Windows 的 HIP SDK 只支援部分獨顯，Radeon 內顯（拾音的使用者裡有 780M、860M）多半不支援，元件也大很多。DirectML、ONNX：whisper.cpp 沒有，要換引擎，結果跟 Mac 不一致（R28.4）。直接用 llama.cpp 官方的 ggml-vulkan.dll：ggml 版本不同（b11840 對 whisper 的 d1be6fd），不能混用。Intel 也一起開：還沒量過內顯會不會比 CPU 快。取捨：要在 CI 裝 Vulkan SDK、自己放檔案；沒有顯示卡的 CI 只能用 lavapipe 確認算得對，真的速度要使用者的 AMD 電腦 |
 | D129 | Windows 的電腦聲音改錄預設輸出裝置（endpoint loopback），跟著預設裝置換（R54、§6；2026-10-28 GitHub issue #2） | 照舊用 process loopback 排除拾音自己：新版 Teams（ms-teams.exe）的聲音收到的全是 0，開始、收音都回報成功（排除和只錄某個程序兩種模式都一樣；Microsoft 的 ApplicationLoopback 範例 microsoft/Windows-classic-samples#414、OBS 的應用程式音訊擷取一樣）。process loopback 為主，偵測到「自己收到靜音、輸出裝置卻有聲音」才改錄整個裝置：Teams 跟別的聲音同時在播時偵測不到，還要一直讀每個裝置的音量、切換時兩邊銜接。process loopback 和 endpoint loopback 一起錄再混：別的 app 的聲音兩邊都有，會疊兩次。取捨：錄音中在拾音裡播放錄音會錄進去（Mac 排除自己，R54.3）；Teams 的喇叭指定了不是預設的裝置時錄不到。後續：issue #2 的回報者 Windows 預設的輸出和 Teams 的喇叭是同一台裝置，R54 就錄得到（2026-10-29 回覆）；「也錄 Teams 指定的裝置」先不做，有人回報再做（§6） |
+| D138 | Intel 內顯不等實機量過就開，第一次正式轉錄時用同一段錄音讓顯示卡和 CPU 各轉一次，文字幾乎一樣、顯示卡又比較快才用（R4.8、§8；2026-11-04 使用者決定不等實機） | 等實機量過再開：手邊沒有 Intel 的 Windows 筆電，Intel 是 Windows 使用者的 3/4，統計裡多數 Intel 筆電轉錄比錄音還慢。直接全開：ggml-vulkan 在某些 Intel 內顯、驅動上算錯或比 CPU 慢時，使用者看不出來，只會覺得逐字稿變差或變慢。只比語言偵測的機率（CI 的 lavapipe 那樣）：快，但只跑到編碼器和一步解碼，解碼器算錯看不出來，也量不到真的轉錄速度。換 OpenVINO：whisper.cpp 的 OpenVINO 只加速編碼器、要另外轉模型，結果跟 Mac 對不上（R28.4）。取捨：每台 Intel 電腦第一次正式轉錄多花 1～2 分鐘，還沒檢查時啟動多約 1 秒（先載入一次 Vulkan 版，載入就當掉時才不會每次都當）；顯示卡要快到 CPU 的 8 成以內才用（偏保守，只快一點點時寧可用 CPU）；判斷不了時下一場再試 |

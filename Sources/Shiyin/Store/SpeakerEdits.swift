@@ -122,7 +122,7 @@ extension AppDatabase {
                 target = (try Int.fetchOne(db, sql: "SELECT MAX(idx) FROM speakers WHERE meeting_id = ?", arguments: [meetingId]) ?? 0) + 1
                 let language = try Meeting.fetchOne(db, key: meetingId)?.meetingLanguage ?? .zh
                 var speaker = SpeakerName(meetingId: meetingId, idx: target,
-                                          name: language.text(zh: "說話者 \(target)", en: "Speaker \(target)", ja: "話者 \(target)"))
+                                          name: language.defaultSpeaker(target))
                 if let name {
                     speaker.name = name
                     speaker.nameSource = "manual"
