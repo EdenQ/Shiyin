@@ -12,7 +12,7 @@ export const content = {
     ogLocale: 'zh_TW',
     prefix: '',
     images: '/images',
-    og: 'og.png?v=3',
+    og: 'og.png?v=4',
     ogAlt: 'Mac 和 Windows 的會議紀錄 app',
     notesLang: 'zh',
     appName: '拾音',
@@ -52,6 +52,7 @@ export const content = {
       summary: '拾音的會議紀錄畫面：摘要、決議、待辦，每一條後面都有時間點',
       recording: '錄音中的畫面：左邊是即時逐字稿，右邊是我的筆記',
       transcript: '逐字稿畫面：每一段都標上說話者和時間點',
+      mindmap: '心智圖：會議標題在中間，議題、決議、待辦、未決問題往兩邊展開；下面的播放條標出每個議題從哪裡講到哪裡',
       credit: `逐字稿截圖的示範錄音取自 <a href="${AMI}">AMI Meeting Corpus</a>（ES2004a，CC BY 4.0）`,
     },
     live: {
@@ -75,7 +76,7 @@ export const content = {
         'AI 不確定的人名、專有名詞、負責人和期限，會列在「待確認」讓你回答，回答後再依你的答案修正紀錄。逐字稿裡可能聽錯的字也會標出來，你按「接受」才會改。',
         '想找某件事，可以直接問會議：「預算最後決定多少？」回答會附上時間點；也可以一次問所有會議。',
       ],
-      note: '範本有一般會議、一對一、訪談、課堂／演講、腦力激盪，也可以自己做。紀錄可以直接編輯，每次修改都留版本。',
+      note: '範本有一般會議、一對一、訪談、課堂／演講、腦力激盪，也可以自己做。紀錄可以直接編輯，每次修改都留版本；也可以切換成心智圖，匯出成圖片。播放條上會標出每個議題從哪裡講到哪裡，點了就從那裡開始聽。',
     },
     privacy: {
       h2: '錄音不會離開你的 Mac',
@@ -144,6 +145,7 @@ export const content = {
         summary: '拾音 Windows 版的會議紀錄畫面：摘要、決議、待辦，每一條後面都有時間點',
         recording: '拾音 Windows 版錄音中的畫面：左邊是即時逐字稿，右邊是我的筆記',
         transcript: '拾音 Windows 版的逐字稿畫面：每一段都標上說話者和時間點',
+        mindmap: '拾音 Windows 版的心智圖：會議標題在中間，議題、決議、待辦、未決問題往兩邊展開；下面的播放條標出每個議題從哪裡講到哪裡',
       },
       live: {
         h2: '開會時，邊錄邊看逐字稿',
@@ -252,7 +254,7 @@ export const content = {
     ogLocale: 'en_US',
     prefix: '/en',
     images: '/images/en',
-    og: 'og-en.png?v=3',
+    og: 'og-en.png?v=4',
     ogAlt: 'A meeting-notes app for Mac and Windows',
     notesLang: 'en',
     appName: 'Shiyin',
@@ -291,6 +293,7 @@ export const content = {
       summary: 'Meeting notes in Shiyin: summary, decisions and action items, each with a timestamp',
       recording: 'Recording: the live transcript on the left, my notes on the right',
       transcript: 'The transcript: every segment labeled with its speaker and time',
+      mindmap: 'The mind map: the meeting title in the middle, with topics, decisions, action items and open questions branching out; the playback bar below shows where each topic starts and ends',
       credit: `The demo meetings in these screenshots are excerpts from the <a href="${AMI}">AMI Meeting Corpus</a> (ES2004a, CC BY 4.0).`,
     },
     live: {
@@ -314,7 +317,7 @@ export const content = {
         'Names, terms, owners and due dates the summarizer isn’t sure about are listed under “To confirm”. Answer them and the notes are revised. Words in the transcript that were probably misheard are marked too, and nothing changes until you click Accept.',
         'Looking for something? Ask the meeting, like “What budget did we settle on?”, and the answer comes with timestamps. You can ask all your meetings at once, too.',
       ],
-      note: 'Templates: General meeting, One-on-one, Interview, Lecture / talk, Brainstorm, or your own. You can edit the notes directly, and every change is versioned.',
+      note: 'Templates: General meeting, One-on-one, Interview, Lecture / talk, Brainstorm, or your own. You can edit the notes directly, and every change is versioned. Switch to a mind map and export it as an image. The playback bar marks where each topic starts and ends; click one to listen from there.',
     },
     privacy: {
       h2: 'Your recordings stay on your Mac',
@@ -380,6 +383,7 @@ export const content = {
         summary: 'Meeting notes in Shiyin for Windows: summary, decisions and action items, each with a timestamp',
         recording: 'Recording in Shiyin for Windows: the live transcript on the left, My notes on the right',
         transcript: 'The transcript in Shiyin for Windows: every line has a speaker and a timestamp',
+        mindmap: 'The mind map in Shiyin for Windows: the meeting title in the middle, with topics, decisions, action items and open questions branching out; the playback bar below shows where each topic starts and ends',
       },
       live: {
         h2: 'Follow the transcript while you record',
@@ -488,7 +492,7 @@ export const content = {
     ogLocale: 'ja_JP',
     prefix: '/ja',
     images: '/images/en',
-    og: 'og-ja.png?v=3',
+    og: 'og-ja.png?v=4',
     ogAlt: 'Mac と Windows の議事録アプリ',
     notesLang: 'en',
     appName: '拾音',
@@ -527,6 +531,7 @@ export const content = {
       summary: '拾音の議事録画面：要約、決定事項、ToDo の各項目にタイムスタンプが付いている',
       recording: '録音中の画面：左がリアルタイムの文字起こし、右が自分のメモ',
       transcript: '文字起こしの画面：段落ごとに話者と時間が付いている',
+      mindmap: 'マインドマップ：中央に会議名、まわりに議題・決定事項・ToDo・未解決の問題が広がる。下の再生バーには議題ごとの区間が表示される',
       credit: `画面のデモ会議は <a href="${AMI}">AMI Meeting Corpus</a>（ES2004a、CC BY 4.0）の抜粋です`,
     },
     live: {
@@ -550,7 +555,7 @@ export const content = {
         'AI が確信を持てない人名、固有名詞、担当者、期限は「To confirm」に一覧され、答えるとその内容で議事録が修正されます。聞き間違えた可能性のある語も文字起こしに印が付き、「Accept」を押すまで変更されません。',
         '探したいことがあれば、「予算はいくらに決まった？」のように会議に質問できます（「Ask」タブ）。答えにはタイムスタンプが付き、すべての会議にまとめて質問することもできます。',
       ],
-      note: 'テンプレートは一般的な会議、1on1、インタビュー、講義・講演、ブレインストーミングのほか、自分で作ることもできます。議事録は直接編集でき、変更のたびに版が残ります。',
+      note: 'テンプレートは一般的な会議、1on1、インタビュー、講義・講演、ブレインストーミングのほか、自分で作ることもできます。議事録は直接編集でき、変更のたびに版が残ります。マインドマップに切り替えて画像として書き出すこともできます。再生バーには議題ごとの区間が表示され、クリックするとその議題から聞けます。',
     },
     privacy: {
       h2: '録音は Mac の外に出ません',
@@ -617,6 +622,7 @@ export const content = {
         summary: '拾音 Windows 版の議事録の画面：要約、決定事項、ToDo。各項目にタイムスタンプが付きます',
         recording: '拾音 Windows 版の録音中の画面：左がリアルタイムの文字起こし、右が自分のメモ',
         transcript: '拾音 Windows 版の文字起こしの画面：各段落に話者とタイムスタンプが付きます',
+        mindmap: '拾音 Windows 版のマインドマップ：中央に会議名、まわりに議題・決定事項・ToDo・未解決の問題が広がります。下の再生バーには議題ごとの区間が表示されます',
       },
       live: {
         h2: '会議中は、文字起こしを見ながら録音',

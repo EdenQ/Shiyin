@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-拾音 Shiyin 是 macOS 原生的會議紀錄 app（SwiftUI，macOS 26）。目前是 4.5.0（4.1 加上三個分頁的減法、待確認就地回答、收音提醒送通知、可選的 Qwen3-ASR 引擎，Windows 同步；4.1.1 整理工具設定好才用、失敗說清楚怎麼修；4.1.2 忘了停止錄音時提醒、自動停止；4.2 可以連公司的企業伺服器（在公司的伺服器轉錄、整理，公司詞彙表、加入連結）；4.2.1 企業伺服器的安全強化；4.2.2 只裝 Codex 桌面版也能整理、只有 Claude 桌面版時說明怎麼裝 Claude Code，Windows 加上 AMD 顯示卡加速、錄得到 Teams 的聲音；4.2.3 錄音按鈕和錄音畫面可以選、換麥克風，藍牙耳機的麥克風錄現場會議時提醒，會議內容的文字大小（⌘＋／⌘－），右上角的匯出按鈕；4.3 會議的參考文件（加入 PDF、Word、PowerPoint、圖片，整理和提問時一起參考、註明出處）、整理工具的額度用完時說清楚，Windows 只有 Intel 顯示卡的電腦也試著用顯示卡轉錄；4.5 會議語言加廣東話、韓文（實驗性），每種語言的做法寫在共用的語言檔（台語評估過、還沒加，design §41.9）；第三版加上英文版、開源準備、轉錄準確度、日文、更多整理工具、穩定性修正；3.5 加上草稿紀錄、聲紋、猜說話者、對會議提問、偵測會議；3.6 加上重新辨識說話者、合併和改句子的說話者、分不準的提醒、收音提醒，修正錄音中畫面卡住；4.0 加上 Windows 版、待確認的是非題、聲紋沒把握時先問、短句的說話者、沒有 claude／codex 時先不整理）：
+拾音 Shiyin 是 macOS 原生的會議紀錄 app（SwiftUI，macOS 26）。目前是 4.6.0（4.1 加上三個分頁的減法、待確認就地回答、收音提醒送通知、可選的 Qwen3-ASR 引擎，Windows 同步；4.1.1 整理工具設定好才用、失敗說清楚怎麼修；4.1.2 忘了停止錄音時提醒、自動停止；4.2 可以連公司的企業伺服器（在公司的伺服器轉錄、整理，公司詞彙表、加入連結）；4.2.1 企業伺服器的安全強化；4.2.2 只裝 Codex 桌面版也能整理、只有 Claude 桌面版時說明怎麼裝 Claude Code，Windows 加上 AMD 顯示卡加速、錄得到 Teams 的聲音；4.2.3 錄音按鈕和錄音畫面可以選、換麥克風，藍牙耳機的麥克風錄現場會議時提醒，會議內容的文字大小（⌘＋／⌘－），右上角的匯出按鈕；4.3 會議的參考文件（加入 PDF、Word、PowerPoint、圖片，整理和提問時一起參考、註明出處）、整理工具的額度用完時說清楚，Windows 只有 Intel 顯示卡的電腦也試著用顯示卡轉錄；4.5 會議語言加廣東話、韓文（實驗性），每種語言的做法寫在共用的語言檔（台語評估過、還沒加，design §41.9）；4.6 會議紀錄可以切換成心智圖（匯出 PNG、PDF、SVG、複製圖片；design §42）、播放條上的議題時間軸（design §43）；第三版加上英文版、開源準備、轉錄準確度、日文、更多整理工具、穩定性修正；3.5 加上草稿紀錄、聲紋、猜說話者、對會議提問、偵測會議；3.6 加上重新辨識說話者、合併和改句子的說話者、分不準的提醒、收音提醒，修正錄音中畫面卡住；4.0 加上 Windows 版、待確認的是非題、聲紋沒把握時先問、短句的說話者、沒有 claude／codex 時先不整理）：
 
 - 錄音：AVAudioEngine 收麥克風、Core Audio process tap 收電腦聲音，寫成雙聲道 WAV（`Sources/Shiyin/Capture/`）
 - 即時逐字稿：系統的 SpeechAnalyzer（語系依會議語言，寫在語言檔的 `live.mac`：zh_TW、en_US、ja_JP、zh_HK（粵語）、ko_KR）
@@ -13,7 +13,7 @@
 
 不需要 Python、Homebrew、ffmpeg。選型的理由在 design.md 的決策紀錄（D#）。已經刪掉的舊文件（第二版的規格 `docs/archive/v2/`、選型實驗 `docs/spikes/`、3.4.0 以前完整的 `docs/tasks.md`）用 `git show b621ed6:<路徑>` 看。
 
-**Windows 版**（2026-10-20 起開發，4.0.0 跟 Mac 一起發布）：C# .NET 10＋WinUI 3，程式放 `windows/`，功能對齊 Mac 4.5.0；需求在 requirements 第 22 節（R26～R28），設計在 `docs/design-windows.md`，任務在 tasks.md 的「Windows 版」。見下面的「Windows 版」一節。
+**Windows 版**（2026-10-20 起開發，4.0.0 跟 Mac 一起發布）：C# .NET 10＋WinUI 3，程式放 `windows/`，功能對齊 Mac 4.6.0；需求在 requirements 第 22 節（R26～R28），設計在 `docs/design-windows.md`，任務在 tasks.md 的「Windows 版」。見下面的「Windows 版」一節。
 
 ## 開發流程：SDD（規格驅動）
 
@@ -75,6 +75,7 @@ sqlite3 ~/Library/Application\ Support/Shiyin/shiyin.sqlite # 看資料
 - 外部程式一律用 `ProcessStartInfo.ArgumentList`，**不能經過 cmd.exe**（npm 的 `.cmd`）：參數會被截斷、改寫。
 - 建置輸出放到 repo 外（`Directory.Build.props` 的 ArtifactsPath），不要放進專案。
 - 虛擬機（UTM，Windows 11 ARM64，design-windows §15.2）：工具在 `scripts/windows/vm/`（`sync.sh` 同步原始碼到 `C:\src`、`ssh.sh`／`run.sh` 建置和測試、`ctl.sh` 控制通道、`insession.sh`／`uia.sh` 在桌面開 app 和按按鈕、`shot.sh` 截圖），金鑰、IP 在 `~/Library/Caches/ShiyinBuild-win/vm`。使用者在用拾音錄會議時（Mac 的 `audio/recording/` 有檔案）不開、不跑重的工作；`diskguard.sh` 在背景跑（Mac 剩不到 10 GB 就停掉虛擬機），虛擬機裡刪了大檔案後跑 `Optimize-Volume -DriveLetter C -ReTrim` 才會還空間給 Mac。從 SSH 開的 app 不會出現在桌面，要用 `insession.sh`（§15.4）。虛擬機沒有音效裝置，錄音用 `record-sim`。 開虛擬機用 `utmctl start "Shiyin Windows"`（`~/Applications/UTM.app/Contents/MacOS/utmctl`）；UTM 開很久之後 AppleScript 會沒回應（`start` 卡住、-1712 逾時），虛擬機沒在跑的話 `kill` UTM 再 `open -g -a UTM` 就好；開機後約 3 分鐘 SSH 才連得上。2026-10-28 UTM 在背景跑約 5 分鐘就被 macOS 的自動結束關掉兩次（log 有「would be terminated by TAL」、launchd 回報 SIGTERM），虛擬機跟著斷電；要不要關掉 UTM 的自動結束由使用者決定。虛擬機沒有瀏覽器：測企業伺服器的登入用 `ctl enterprise pending` 拿登入頁網址，在 Mac 走完登入後用 `insession.sh` 的 `Start-Process '<shiyin://auth…>'` 交回 app；`uia.sh show <視窗> <名稱>` 把元件捲進畫面再截圖。
+- WinUI 的粗體一律用 `FontWeights.Bold`，不要用 `SemiBold`：微軟正黑體只有 Bold，指定 SemiBold 時中文會被換成新細明體的假粗體，縮小時糊成一團（2026-10-22、2026-11-06 兩次在虛擬機上才看到）。`Border` 的框線畫在內距裡面、會佔掉內容的寬度（SwiftUI 的框線疊在上面不佔），尺寸照 Mac 算的元件要把內距扣掉框線。
 - 有中文的 `.ps1` 存成有 BOM 的 UTF-8：Windows 內建的 PowerShell 5.1 會把沒有 BOM 的檔案當成 Big5，整個腳本解析失敗。
 - PowerShell 傳給外部程式的 `-D名稱=$變數`、`--名稱=$變數` 要整串加雙引號（`"-DFOO=$x"`）：「-」開頭的參數裡的變數不會展開，程式拿到的是 `$x` 這串字（2026-10-22 CI 建 whisper 時，x64 因此去找 Vulkan）。
 - 測安裝檔（design-windows §14）：`pack.ps1` 打包、`Setup.exe --silent` 安裝、`%LOCALAPPDATA%\ShiyinApp\Update.exe --uninstall --silent` 移除；移除後等 20 秒再重裝（Velopack 會延後刪安裝資料夾，會把剛裝好的刪掉）。測 app 內更新用 `pack.ps1 -UpdateTest`（§14.2）。安裝版跟 DEBUG 版共用通知的 AppUserModelID，移除安裝版會把通知中心裡 DEBUG 版的通知一起清掉。
@@ -145,16 +146,18 @@ Shiyin 3.3.0: Japanese meetings and automatic language detection
 - `AVAudioFile` 關檔後 `length` 會變 0，不能用它判斷錄了多久（曾經因此刪掉整場錄音）。
 - zsh 內建的 `log` 會蓋掉系統指令，要用 `/usr/bin/log`；zsh 不會依 IFS 切字串；`rm -f *.wav` 沒有符合的檔案時會報錯。
 - bash 腳本裡，變數後面緊接全形字時要寫成 `${VAR}`，否則全形字的位元組會被吃進變數名稱。
+- 桌面有 iCloud 同步：短時間內改寫的檔案會冒出「MindMap 2.swift」這種衝突副本（舊內容、沒進 git），Mac 的 SwiftPM、Windows 的 dotnet 都會把它當成程式編進去，重複定義、建置失敗（2026-11-06 同步到虛擬機時才發現）。建置、`sync.sh`、發布前用 `git status` 看有沒有「 2.」結尾的檔案，確認內容是舊版本再刪（虛擬機的 `C:\src` 也要刪，tar 解開不會刪舊檔）。
 - 用腳本做大段替換後，檢查檔案的行數和結尾：曾經因為替換腳本漏接後半段，把整個檔案截斷。
 - 整理工具（3.4）：測 API 用假伺服器 `scripts/dev/fake-llm-server.py` 加上 `shiyinctl llmurl`；key、整理工具、模型用只放記憶體的 `llmkey`、`llmprovider`。DEBUG 版（3.4.1 起）預設不讀真的鑰匙圈，要測時加 `-debugRealKeychain YES`（會讀使用者存的 key，可能跳出確認視窗）。**不要用 `setkey` 和 `defaults write` 測**：鑰匙圈項目綁定建立它的 app 簽章，ad-hoc 重建後或使用者自己的拾音去讀都會跳出系統的存取確認；整理工具設定跟使用者的拾音共用。
 - 使用者的拾音可能也開著（`~/Desktop/Shiyin.app`），跟測試用的 DEBUG 版共用設定和視窗狀態。DEBUG 版用 `open -g -n … --args -ApplePersistenceIgnoreState YES` 啟動，否則可能照上次被 `pkill` 時的狀態還原成一個視窗都沒有；設定值可以用啟動參數帶（`-llmProvider gemini`），只在這次執行有效。
 - 開關類設定的啟動參數（`-autoSummarize NO`、`-correctTranscript NO`）在 3.4.1 以前的建置沒有作用：讀進來是字串 "NO"，`as? Bool` 轉不成功就用預設值（開）。3.5 起 `AppSettings` 改用 `bool(forKey:)`。測舊版時不要以為加了參數就不會整理；`-llmProvider none` 一直有效。
 - 要跟舊版比對（例如匯出格式）時，用 `git worktree` 建置舊版的 DEBUG 版。3.4.0 以前的 DEBUG 版啟動時就讀真的鑰匙圈，會在使用者畫面上一直跳出存取確認、app 卡住（2026-10-19），建置前先把 worktree 裡的 `Keychain.get` 改成直接 `return nil`；啟動後確認 log 有「debug control installed」。`shiyinctl` 會廣播給所有 DEBUG 版，同時只能開一個，3.4.0 的 `quit` 不會結束 app，要 `kill` 並確認程序真的不在了（曾經因為舊版沒結束，兩個版本同時寫同一個匯出檔）。
 - 螢幕上鎖時 AX 列不出視窗。筆記輸入框可以用 `shiyinctl notestype`、`notesvalue` 直接操作背後的 NSTextView。
-- SwiftUI 的 `Menu` 在畫面上只畫標題的文字（標籤裡的背景、膠囊標記會被拿掉），`shiyinctl snapshot` 卻畫得出來；HStack 裡的 Text 加 `.fixedSize(horizontal: false, vertical: true)`，量最小高度時會用很窄的寬度，整個視窗的內容被往上推（3.5 驗收時都是在真的畫面上才發現）。ScrollView、popover 裡的 Text 才可以用 fixedSize。
+- SwiftUI 的 `Menu` 在畫面上只畫標題的文字（標籤裡的背景、膠囊標記會被拿掉），`shiyinctl snapshot` 卻畫得出來；HStack 裡的 Text 加 `.fixedSize(horizontal: false, vertical: true)`，量最小高度時會用很窄的寬度，整個視窗的內容被往上推（3.5 驗收時都是在真的畫面上才發現；2026-11-05 在 VStack 裡也發生：逐字稿分頁「我的筆記」的說明文字）。ScrollView、popover 裡的 Text 才可以用 fixedSize。會變很高的內容（展開的待確認）也不能放在捲動外面，同樣會把整個視窗往上推、甚至整個空白（心智圖模式）。
 - 錄音中的效能（3.5.1）：SwiftUI 裡任何一個 view 變了，整個視窗都要重新排版、重算最小尺寸，所以一直在變的東西（音量條）不要用 SwiftUI 觀察的屬性（改用 AppKit 的 `LevelMeter` 自己定時讀），`@Observable` 的屬性只在值真的變了才設。量 CPU：用使用者的錄音 `record-sim` 1 倍速，暖機 30 秒後取 `ps -o time` 的差；`metrics` 的 `maxMainGapMs` 是主執行緒最長卡住多久、`volatileUpdate` 是即時文字更新幾次；`livescroll <0～1>` 捲即時逐字稿（等於拖捲軸）。視窗不在目前的桌面時，程式內的輔助使用元件樹是空的，`press` 找不到按鈕。
 - 說話者的修正（3.6）：`mergespeaker`、`reassign`、`undospeaker`、`speakerhint <id> dismiss`；`voiceprint-eval` 的設定加 `dump` 會倒出每個片段的聲紋，用 numpy 離線試判斷方法（分群時同一個片段的說話者會被強制分開，所以碰撞率只在分出 1 群時有用）。收音提醒（3.7）：state 的 `recorder.levelCheck`；用 afconvert 轉成 16 kHz、numpy 照同樣的算法先離線算，再用 `record-sim` 驗證。視窗在別的桌面時 AX 列不出它的元件（小視窗、popover、右鍵選單都按不到），`shiyinctl summon` 把視窗移到目前的桌面（會出現在使用者的畫面上，先確認使用者不在電腦前）。
 - 要按真的畫面上的按鈕時用 `scripts/dev/axpress.swift`（`axpress <pid> list|press <role> <name> [第幾個]|focus|setvalue|insert <role> <placeholder 或現值> <第幾個> [文字]`，直接對 pid 走 AX API，只碰標題是示範會議的視窗）。改 SwiftUI 的 TextField 要用 `insert`（給焦點後設 AXSelectedText，會換掉整個欄位的字、綁定會更新）；`setvalue` 設 AXValue 綁定不會動。不要用 CGEvent 送文字：會經過使用者的輸入法，跳出候選字視窗。按下 `Menu` 之後開著的選單掛在 app 的 AXMenu 底下，`list`／`press AXMenuItem <名稱>` 也看得到、按得到（選單會出現在使用者畫面上，按完用 Escape 關）。**不要用 System Events 的 `whose unix id`**：使用者自己的拾音也叫 Shiyin，兩個同名的 process 會抓錯（2026-10-23 抓到使用者正在看的會議）。程式內的 `shiyinctl press` 看不到 SwiftUI 內容列裡的按鈕（時間點、待確認的標記），只有系統的 AX 看得到。視窗要在目前的桌面：`summon` 後依 pid 啟用（`NSRunningApplication(processIdentifier:).activate`）讓它到最前面，`screencapture -l` 的視窗編號要重新找（選單列的 1728×33 不是主視窗）。**不要用 `open <DEBUG 的 app 路徑>` 拉到前面**：DEBUG 版剛好不在時（2026-10-29 summon 遇到 preview 視窗當掉，已修），`open` 會開出一份沒有 `SHIYIN_HOME`、沒有測試參數的新 DEBUG 版，直接用使用者正式的資料（design §37.4）。
+- 視窗所在的桌面不是目前的桌面、又叫不過來時（使用者在全螢幕的 app，`summon` 也搬不過去；2026-11-06 使用者在全螢幕的 cmux），用 `shiyinctl clickat <x> <y> [視窗 id]` 在視窗裡點一下（點，左上原點、含標題列，座標從 `screencapture -l` 的圖量，Retina 除以 2）：直接交給 `NSWindow.sendEvent`，走正常的點擊判斷，不碰使用者的滑鼠。從外面 `CGEvent.postToPid` 送給別的桌面的視窗沒有作用。
 - 用 AX 操作的小技巧：設定頁要捲動時，設垂直捲軸的 `AXValue`（0～1）；選單的「設定⋯」用的是 ⋯（U+22EF）；只想按某個視窗裡的按鈕時，從那個視窗（`AXWindows` 裡標題相符的）往下找，不然會按到別的視窗裡同名的按鈕。
 - 官網截圖（website.md §16.4）：Mac 用 `shiyinctl windowsize 960 672` 調視窗、`screencapture -l` 在別的桌面也截得到；Windows 在虛擬機 150%、深色，點過時間點要再點一次分頁讓提示框消失。
 - 設定頁、引導在背景打不開又不想搶前景時，用 `shiyinctl preview <settings [分頁編號]|onboarding [步驟]> [front]` 開在桌面層（被所有視窗蓋住；設定的分頁 0 整理工具、1 錄音與轉錄、2 說話者與詞彙、3 進階；引導的步驟 0～2），再 `screencapture -l` 截。桌面層的視窗 AX 看不到，要按裡面的按鈕就加 `front`（一般視窗層，會出現在使用者畫面上），用 `AXPRESS_TITLE=onboarding-preview axpress …`。設定頁打開時可能把欄位寫回共用設定，測完 `defaults read` 比對。

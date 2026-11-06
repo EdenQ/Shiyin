@@ -7,9 +7,10 @@
 > - 新任務照 SDD：先寫進 `requirements.md`、改 `design.md`，再加到這裡
 > - 需求見 `requirements.md`，設計見 `design.md`（以下簡稱 §）
 
-## 更多會議語言：語言檔、粵語、韓文（R63～R65，design §41、design-windows §11.9、D139～D142；2026-11-04 使用者新需求）
+## 心智圖（R67，design §42、design-windows §11.10、D143～D144；2026-11-05 使用者新需求）
 
-- [~] **LANG6 後台的統計欄位**（R63.7）：程式完成（`lang_yue`、`lang_ko`、`migrate-languages.sql`）。還差：使用者先跑 `migrate-languages.sql`、再部署 worker（同 E6）
+- [~] **MM2 Mac 畫面、匯出**（§42.4）：程式完成、畫面和匯出驗過，時間點用 `clickat` 點過（2026-11-06：議題的 01:05、條目的 00:58 都從那裡播放，點空白不會跳）。還差：「複製心智圖」後貼到別的程式（測試時不蓋掉使用者的剪貼簿）
+- [~] **MM3 Windows**（design-windows §11.10）：程式完成，dotnet test 209/209；2026-11-06 虛擬機看過畫面（淺色、深色、英文）、匯出 PNG、PDF、SVG，時間連結按得到。還差：「複製心智圖（圖片）」貼到別的程式（UTM 可能跟 Mac 共用剪貼簿，測試時不蓋掉使用者的剪貼簿）
 
 ## Safari 開 Google Meet 時麥克風收不到聲音（R57；2026-10-29 Threads 的使用者回饋）
 

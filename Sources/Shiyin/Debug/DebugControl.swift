@@ -30,6 +30,9 @@ enum DebugControl {
         let id = args.count > 1 ? Int64(args[1]) : nil
         switch name {
         case "select": model.showTrash = false; model.selection = id
+        // notesview list|mindmap：紀錄分頁切換成條列或心智圖（design §42.5；寫進共用設定，測完 defaults delete com.weiwei.shiyin notesView）
+        case "notesview":
+            UserDefaults.standard.set(args.count > 1 && args[1].lowercased() == "mindmap" ? "mindMap" : "list", forKey: AppSettings.notesViewKey)
         case "tab":   // tab <summary|transcript|ask>；舊名稱 topics、review、notes 當別名（review 順便展開待確認、notes 展開我的筆記，design §33.1）
             if let r = DetailTab.resolve(args[1]) {
                 model.tab = r.tab
@@ -363,6 +366,19 @@ enum DebugControl {
             let index = args.count > 2 ? Int(args[2]) ?? 0 : 0
             let pressed = matches.indices.contains(index) && matches[index].accessibilityPerformPress()
             if args.count > 3 { write(["found": matches.count, "pressed": pressed], to: args[3]) }
+        // clickat <x> <y> [視窗 id]：在視窗裡點一下（點，左上原點，含標題列；預設主視窗）。直接交給 NSWindow.sendEvent，
+        // 走 AppKit、SwiftUI 正常的點擊判斷，視窗在別的桌面（例如使用者在全螢幕的 app）也點得到，不碰使用者的滑鼠
+        case "clickat":
+            let target = args.count > 3 ? args[3] : "main"
+            guard let x = Double(args[1]), let y = Double(args[2]),
+                  let window = NSApp.windows.first(where: { $0.isVisible && $0.identifier?.rawValue == target }) else { break }
+            let point = NSPoint(x: x, y: window.frame.height - y)
+            for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
+                if let event = NSEvent.mouseEvent(with: type, location: point, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                                  windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1) {
+                    window.sendEvent(event)
+                }
+            }
         case "bookmark": model.addBookmark(at: Double(args[2]) ?? 0, meetingId: id)
         case "tagspeaker":   // tagspeaker now <名字> | line <第幾行> <名字|-> | add <會議 id> <開始> <結束> <名字> | delete <標記 id> | only <會議 id> <標記 id>（design §24.5）
             let count = ["now": 3, "line": 4, "add": 6, "delete": 3, "only": 4][args.count > 1 ? args[1] : ""] ?? Int.max
@@ -457,7 +473,9 @@ enum DebugControl {
         case "docbanner":
             model.selection = id
             if args.count > 2, args[2] == "dismiss" { model.dismissDocumentsChanged() } else { model.resummarize() }
-        case "copy": model.copyNotes(args.count > 1 && args[1] == "plain" ? .plain : args.count > 1 && args[1] == "md" ? .markdown : .rich)
+        case "copy":   // copy [plain|md|mindmap]
+            if args.count > 1 && args[1] == "mindmap" { model.copyMindMap() }
+            else { model.copyNotes(args.count > 1 && args[1] == "plain" ? .plain : args.count > 1 && args[1] == "md" ? .markdown : .rich) }
         case "search": model.searchQuery = args.count > 1 ? args[1] : ""
         case "openhit": if let index = Int(args[1]), model.searchResults.indices.contains(index) { model.openSearchHit(model.searchResults[index]) }
         case "model":   // model start|pause|delete [breeze|japanese|languageDetection|qwen]（qwen 是兩個檔一起）
@@ -665,6 +683,12 @@ enum DebugControl {
         var out: [String: Any] = [
             "selection": model.selection ?? -1,
             "tab": model.tab.rawValue, "reviewExpanded": model.reviewExpanded, "userNotesExpanded": model.userNotesExpanded,
+            "notesView": UserDefaults.standard.string(forKey: AppSettings.notesViewKey) ?? "list",
+            // 播放條上的議題帶（design §43.3）：選取中的會議，長度同播放條
+            "topicRanges": model.detail.flatMap { d in
+                d.notes.map { MindMap.topicRanges(notes: $0, duration: max(model.player.duration, Double(d.meeting.durationSeconds ?? 0)),
+                                                  untitled: MindMap.topicLabel(.interface)) }
+            }.map { $0.map { ["branch": $0.branch, "title": $0.title, "start": $0.start, "end": $0.end] } } ?? [],
             // 會議的參考文件（design §39.7）：選取中的會議
             "documents": (model.detail?.documents ?? []).map { d -> [String: Any] in
                 let use = model.detail?.documentUse[d.id ?? 0]
