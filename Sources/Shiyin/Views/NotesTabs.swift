@@ -26,24 +26,84 @@ struct ReadingColumn<Content: View>: View {
     }
 }
 
+/// 紀錄的一段（fork F4.1、F4.3，design §F4.4）：標題、條數、滑過才出現的「複製這一段」；`accent` 有給時左邊一條色條
 struct NotesSection<Content: View>: View {
     let title: String
+    var count: Int? = nil
+    var accent: Color? = nil
+    var copy: NotesSectionScope? = nil
     @ViewBuilder var content: Content
+    @State private var hovering = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(title).contentTitleFont(18)
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text(title).contentTitleFont(18)
+                if let count { Text(verbatim: String(count)).contentFont(.callout, monospacedDigit: true).foregroundStyle(.secondary) }
+                Spacer(minLength: 0)
+                if let copy { SectionCopyButton(scope: copy, help: String(localized: "複製這一段（純文字）")).opacity(hovering ? 1 : 0) }
+            }
             content
         }
+        .padding(.leading, accent == nil ? 0 : 14)
+        .overlay(alignment: .leading) {
+            if let accent { Rectangle().fill(accent).frame(width: 3) }
+        }
+        .onHover { hovering = $0 }
     }
 }
 
-/// 一條紀錄：內容加上時間點（R6.4：點時間點就跳到錄音那裡）。
-/// `ref` 給每一條在會議紀錄裡的位置（R41.1）：有對到待確認的題目時，時間點後面顯示標記，點了在下面展開題目就地回答
+/// 「複製這一段」「複製這個議題」（fork F4.1）：從會議紀錄產生純文字，跟著會議語言；按鈕不跟著文字大小（R59.2）
+struct SectionCopyButton: View {
+    @Environment(AppModel.self) private var model
+    let scope: NotesSectionScope
+    let help: String
+
+    var body: some View {
+        Button { model.copyNotesSection(scope) } label: {
+            Image(systemName: "doc.on.doc")
+        }
+        .buttonStyle(.borderless)
+        .font(.callout)
+        .foregroundStyle(Color.celadon)
+        .help(help)
+        .accessibilityLabel(help)
+    }
+}
+
+/// 一條紀錄：符號、內容、待確認的標記、時間點（R6.4：點時間點就跳到錄音那裡）。
+/// 時間點平常淡色、在行尾對齊成一欄，滑過這一條才變青瓷綠（fork F4.2）；「？」放在時間點前面，照舊琥珀色
+struct NoteRow: View {
+    let item: MeetingNotes.Item
+    let symbol: String
+    var symbolColor: Color? = nil
+    var ref: NoteItemRef? = nil
+    var detail: MeetingDetail? = nil
+    @State private var hovering = false
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(verbatim: symbol)
+                .foregroundStyle(symbolColor.map { AnyShapeStyle($0) } ?? AnyShapeStyle(.secondary))
+                .frame(minWidth: 10, alignment: .leading)
+            Text(item.text).meetingText()
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if let ref, let detail { ReviewMarker(ref: ref, count: detail.reviewCount(ref)) }
+            if !item.time.isEmpty { TimeButton(time: item.time, subdued: true, highlighted: hovering) }
+        }
+        .contentShape(Rectangle())
+        .onHover { hovering = $0 }
+    }
+}
+
+/// 一段紀錄的條目。`ref` 給每一條在會議紀錄裡的位置（R41.1）：有對到待確認的題目時顯示標記，點了在下面展開題目就地回答
 struct ItemList: View {
     @Environment(AppModel.self) private var model
     let items: [MeetingNotes.Item]
     var detail: MeetingDetail? = nil
+    var symbol = "•"
+    var symbolColor: Color? = nil
     var ref: (Int) -> NoteItemRef? = { _ in nil }
 
     var body: some View {
@@ -51,14 +111,7 @@ struct ItemList: View {
             ForEach(Array(items.enumerated()), id: \.offset) { index, item in
                 let ref = ref(index)
                 VStack(alignment: .leading, spacing: 8) {
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text("•").foregroundStyle(.secondary)
-                        (Text(item.text)).meetingText()
-                            .textSelection(.enabled)
-                            .fixedSize(horizontal: false, vertical: true)
-                        if !item.time.isEmpty { TimeButton(time: item.time).font(.caption.monospacedDigit()) }
-                        if let ref, let detail { ReviewMarker(ref: ref, count: detail.reviewCount(ref)) }
-                    }
+                    NoteRow(item: item, symbol: symbol, symbolColor: symbolColor, ref: ref, detail: detail)
                     if let ref, let detail, model.reviewDraft?.expanded == ref {
                         InlineReviewCard(detail: detail, indexes: detail.reviewLinks[ref] ?? [])
                     }
@@ -66,6 +119,112 @@ struct ItemList: View {
             }
         }
         .lineSpacing(3)
+    }
+}
+
+/// 一個議題（fork F4.5、F4.7、F4.11，design §F4.4）：左邊心智圖那一支的色條；標題列可以收合，
+/// 寫重點幾條、待確認幾題、議題重回時有幾段；正在播放時底色淡淡的那一支顏色
+struct TopicBlock: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.colorScheme) private var colorScheme
+    let index: Int
+    let topic: MeetingNotes.Topic
+    let branch: Int?
+    let segments: [MindMap.TopicRange]
+    let expanded: Bool
+    let detail: MeetingDetail
+    let onToggle: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        let color = branch.map { Color(hex: MindMap.color($0, dark: colorScheme == .dark)) } ?? Color.secondary
+        let isCurrent = branch != nil && model.currentTopicBranch == branch
+        let reviewRefs = topic.points.indices.map { NoteItemRef.topicPoint(index, $0) }
+        let reviewTotal = reviewRefs.reduce(0) { $0 + detail.reviewCount($1) }
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Image(systemName: expanded ? "chevron.down" : "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 12)
+                TimeButton(time: topic.start)
+                Text(topic.title).contentTitleFont(16)
+                Text("\(topic.points.count) 條").contentFont(.callout).foregroundStyle(.secondary)
+                if reviewTotal > 0, let first = reviewRefs.first(where: { detail.reviewCount($0) > 0 }) {
+                    ReviewMarker(ref: first, count: reviewTotal)
+                }
+                if segments.count > 1 {
+                    HStack(spacing: 4) {
+                        Text("\(segments.count) 段：").contentFont(.callout).foregroundStyle(.secondary)
+                        ForEach(Array(segments.enumerated()), id: \.offset) { k, segment in
+                            if k > 0 { Text(verbatim: MeetingLanguage.ui(zh: "、", en: ",")).contentFont(.callout).foregroundStyle(.secondary) }
+                            TimeButton(time: TimeFormat.string(segment.start), seek: segment.start)
+                        }
+                    }
+                }
+                if isCurrent {
+                    Text("目前播放位置").contentFont(.caption, weight: .semibold).foregroundStyle(Color.celadon)
+                }
+                Spacer(minLength: 0)
+                SectionCopyButton(scope: .topic(index), help: String(localized: "複製這個議題（純文字）"))
+                    .opacity(hovering ? 1 : 0)
+            }
+            .contentShape(Rectangle())
+            .onTapGesture { onToggle() }
+            .accessibilityAddTraits(.isButton)
+            .accessibilityHint(expanded ? String(localized: "收合這個議題") : String(localized: "展開這個議題"))
+            if expanded {
+                ItemList(items: topic.points, detail: detail) { .topicPoint(index, $0) }
+                    .padding(.leading, 22)
+            }
+        }
+        .padding(.vertical, 4)
+        .padding(.leading, 12)
+        .background(isCurrent ? color.opacity(0.08) : .clear)
+        .overlay(alignment: .leading) { Rectangle().fill(color).frame(width: 3) }
+        .onHover { hovering = $0 }
+    }
+}
+
+/// 議題 > 5 個時紀錄上方一列議題的膠囊（fork F4.8）：點了展開並捲到那個議題；不跟著文字大小（同編輯列）
+struct TopicChips: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.snapshotMode) private var snapshotMode
+    let topics: [(index: Int, title: String, branch: Int?, segments: Int)]
+    let onSelect: (Int) -> Void
+
+    var body: some View {
+        if snapshotMode {
+            HStack(spacing: 6) { chips }.environment(\.textScale, 1)
+        } else {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) { chips }.padding(.vertical, 2)
+            }
+        }
+    }
+
+    private var chips: some View {
+        ForEach(topics, id: \.index) { topic in
+            let color = topic.branch.map { Color(hex: MindMap.color($0, dark: colorScheme == .dark)) } ?? Color.secondary
+            let isCurrent = topic.branch != nil && model.currentTopicBranch == topic.branch
+            Button { onSelect(topic.index) } label: {
+                HStack(spacing: 6) {
+                    RoundedRectangle(cornerRadius: 2).fill(color).frame(width: 8, height: 8)
+                    Text(topic.title).lineLimit(1)
+                    if topic.segments > 1 {
+                        Text(verbatim: "×\(topic.segments)").font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
+                    }
+                }
+                .font(.callout)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 3)
+                .background(Capsule().fill(Color(nsColor: .controlBackgroundColor)))
+                .overlay(Capsule().strokeBorder(isCurrent ? Color.celadon : Color.secondary.opacity(0.3), lineWidth: isCurrent ? 1.5 : 1))
+            }
+            .buttonStyle(.plain)
+            .help(String(localized: "捲到「\(topic.title)」"))
+        }
     }
 }
 
@@ -196,38 +355,80 @@ struct NotesPage: View {
         } else if let notes = detail.notes, !notes.isEmpty, notesView == "mindMap" {
             mindMapPage(notes)
         } else if let notes = detail.notes, !notes.isEmpty {
+            listPage(notes)
+        } else {
+            NotesPlaceholder(detail: detail)
+        }
+    }
+
+    /// 條列模式（fork F4，design §F4.4）：摘要 → 決議 → 待辦 → 未決問題 → 自訂段落 → 議題（自訂段落在議題前面，同匯出）
+    private func listPage(_ notes: MeetingNotes) -> some View {
+        let duration = max(model.player.duration, Double(detail.meeting.durationSeconds ?? 0))
+        let segments = MindMap.topicSegments(notes: notes, duration: duration, untitled: MindMap.topicLabel(.interface))
+        let branches = MindMap.topicBranches(notes)
+        let collapsed = collapsedTopics(notes)
+        return ScrollViewReader { proxy in
             ReadingColumn {
                 header(notes)
+                if notes.topics.count > 5 {
+                    TopicChips(topics: notes.topics.indices.map { t in
+                        (index: t, title: notes.topics[t].title.isEmpty ? MindMap.topicLabel(.interface) : notes.topics[t].title,
+                         branch: branches[t], segments: branches[t].map { b in segments.filter { $0.branch == b }.count } ?? 0)
+                    }) { reveal($0, proxy: proxy) }
+                }
                 if !notes.summary.isEmpty {
-                    NotesSection(title: String(localized: "摘要")) { ItemList(items: notes.summary, detail: detail) { .summary($0) } }
+                    NotesSection(title: String(localized: "摘要"), count: notes.summary.count, accent: .slate, copy: .summary) {
+                        ItemList(items: notes.summary, detail: detail, symbolColor: .slate) { .summary($0) }
+                    }
                 }
                 if !notes.decisions.isEmpty {
-                    NotesSection(title: String(localized: "決議")) { ItemList(items: notes.decisions, detail: detail) { .decisions($0) } }
+                    NotesSection(title: String(localized: "決議"), count: notes.decisions.count, accent: .celadon, copy: .decisions) {
+                        ItemList(items: notes.decisions, detail: detail, symbol: "✓", symbolColor: .celadon) { .decisions($0) }
+                    }
                 }
                 if !notes.actionItems.isEmpty {
-                    NotesSection(title: String(localized: "待辦")) { ActionItemsTable(items: notes.actionItems, detail: detail) { .actionItems($0) } }
+                    NotesSection(title: String(localized: "待辦"), count: notes.actionItems.count, accent: .actionBlue, copy: .actionItems) {
+                        ActionItemsTable(items: notes.actionItems, detail: detail) { .actionItems($0) }
+                    }
                 }
                 if !notes.openQuestions.isEmpty {
-                    NotesSection(title: String(localized: "未決問題")) { ItemList(items: notes.openQuestions, detail: detail) { .openQuestions($0) } }
-                }
-                if !notes.topics.isEmpty {
-                    NotesSection(title: String(localized: "議題")) {
-                        VStack(alignment: .leading, spacing: 22) {
-                            ForEach(Array(notes.topics.enumerated()), id: \.offset) { t, topic in
-                                VStack(alignment: .leading, spacing: 10) {
-                                    HStack(alignment: .firstTextBaseline, spacing: 10) {
-                                        TimeButton(time: topic.start)
-                                        Text(topic.title).contentTitleFont(16)
-                                    }
-                                    ItemList(items: topic.points, detail: detail) { .topicPoint(t, $0) }
-                                }
-                            }
-                        }
+                    NotesSection(title: String(localized: "未決問題"), count: notes.openQuestions.count, accent: .signal, copy: .openQuestions) {
+                        ItemList(items: notes.openQuestions, detail: detail, symbol: "?", symbolColor: .signal) { .openQuestions($0) }
                     }
                 }
                 ForEach(Array(notes.custom.enumerated()), id: \.offset) { c, section in
                     if !section.items.isEmpty {
-                        NotesSection(title: section.title) { ItemList(items: section.items, detail: detail) { .custom(c, $0) } }
+                        NotesSection(title: section.title, count: section.items.count, copy: .custom(c)) {
+                            ItemList(items: section.items, detail: detail) { .custom(c, $0) }
+                        }
+                    }
+                }
+                if !notes.topics.isEmpty {
+                    // 議題段落本身不加色條：每個議題已經有自己的色條（design §F4.4）
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(alignment: .firstTextBaseline, spacing: 10) {
+                            Text("議題").contentTitleFont(18)
+                            Text(verbatim: String(notes.topics.count)).contentFont(.callout, monospacedDigit: true).foregroundStyle(.secondary)
+                            Spacer(minLength: 0)
+                            let allOpen = collapsed.isEmpty
+                            Button(allOpen ? "全部收合" : "全部展開") {
+                                model.notesCollapsedTopics = allOpen ? Set(notes.topics.indices) : []
+                            }
+                            .buttonStyle(.borderless)
+                            .foregroundStyle(Color.celadon)
+                            .font(.callout)   // 不跟著文字大小（同編輯列）
+                        }
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(Array(notes.topics.enumerated()), id: \.offset) { t, topic in
+                                let branch = branches[t]
+                                TopicBlock(index: t, topic: topic, branch: branch,
+                                           segments: branch.map { b in segments.filter { $0.branch == b } } ?? [],
+                                           expanded: !collapsed.contains(t) || reviewOpen(in: t), detail: detail) {
+                                    toggleTopic(t, notes: notes)
+                                }
+                                .id("topic-\(t)")
+                            }
+                        }
                     }
                 }
                 if let by = detail.meeting.notesBy {
@@ -236,8 +437,40 @@ struct NotesPage: View {
                         .foregroundStyle(.tertiary)
                 }
             }
-        } else {
-            NotesPlaceholder(detail: detail)
+            // 在紀錄分頁點播放條的議題帶：展開並捲到那個議題（F4.10）
+            .onChange(of: model.topicScrollRequest) { _, request in
+                guard let request, let t = branches.first(where: { $0.value == request.branch })?.key else { return }
+                reveal(t, proxy: proxy)
+            }
+        }
+    }
+
+    /// 議題 > 5 個時預設全部收起（F4.7）；收合狀態只記這次選取期間（`AppModel.notesCollapsedTopics`）
+    private func collapsedTopics(_ notes: MeetingNotes) -> Set<Int> {
+        model.notesCollapsedTopics ?? (notes.topics.count > 5 ? Set(notes.topics.indices) : [])
+    }
+
+    private func toggleTopic(_ t: Int, notes: MeetingNotes) {
+        var collapsed = collapsedTopics(notes)
+        if collapsed.contains(t) { collapsed.remove(t) } else { collapsed.insert(t) }
+        model.notesCollapsedTopics = collapsed
+    }
+
+    /// 就地回答展開在這個議題的重點下時，議題一定展開（不然卡片被藏起來）
+    private func reviewOpen(in t: Int) -> Bool {
+        if case .topicPoint(let topic, _) = model.reviewDraft?.expanded { return topic == t }
+        return false
+    }
+
+    /// 展開並捲到那個議題（膠囊、議題帶）
+    private func reveal(_ t: Int, proxy: ScrollViewProxy) {
+        if let notes = detail.notes {
+            var collapsed = collapsedTopics(notes)
+            collapsed.remove(t)
+            model.notesCollapsedTopics = collapsed
+        }
+        DispatchQueue.main.async {
+            withAnimation(.easeInOut(duration: 0.2)) { proxy.scrollTo("topic-\(t)", anchor: .top) }
         }
     }
 
@@ -369,18 +602,21 @@ struct EditBar: View {
     }
 }
 
+/// 待辦表（fork F4.4）：負責人、期限在左邊方便掃讀，事項在右邊、時間點在最後；三個文字欄都能選取
 struct ActionItemsTable: View {
     @Environment(AppModel.self) private var model
     let items: [MeetingNotes.ActionItem]
     var detail: MeetingDetail? = nil
     var ref: (Int) -> NoteItemRef? = { _ in nil }
+    @State private var hovered: Int?
 
     var body: some View {
-        Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 18, verticalSpacing: 9) {
+        Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 14, verticalSpacing: 9) {
             GridRow {
                 Text("負責人")
-                Text("事項")
                 Text("期限")
+                Text("事項")
+                Color.clear.frame(width: 1, height: 1)
             }
             .contentFont(.caption)
             .foregroundStyle(.secondary)
@@ -389,23 +625,30 @@ struct ActionItemsTable: View {
                 let ref = ref(index)
                 GridRow {
                     Text(item.owner.isEmpty ? String(localized: "未指定") : item.owner).meetingText()
+                        .fontWeight(item.owner.isEmpty ? .regular : .semibold)
                         .foregroundStyle(item.owner.isEmpty ? Color.signal : Color.primary)
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text(item.task).meetingText()
-                            .textSelection(.enabled)
-                            .fixedSize(horizontal: false, vertical: true)
-                        if !item.time.isEmpty { TimeButton(time: item.time).font(.caption.monospacedDigit()) }
-                        if let ref, let detail { ReviewMarker(ref: ref, count: detail.reviewCount(ref)) }
-                    }
-                    .gridColumnAlignment(.leading)
+                        .textSelection(.enabled)
                     Text(item.due.isEmpty ? "—" : item.due)
                         .monospacedDigit()
-                        .foregroundStyle(item.due.isEmpty ? .secondary : .primary)
+                        .foregroundStyle(item.due.isEmpty ? .tertiary : .primary)
+                        .textSelection(.enabled)
+                    Text(item.task).meetingText()
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .gridColumnAlignment(.leading)
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        if let ref, let detail { ReviewMarker(ref: ref, count: detail.reviewCount(ref)) }
+                        if !item.time.isEmpty { TimeButton(time: item.time, subdued: true, highlighted: hovered == index) }
+                    }
+                }
+                .onHover { inside in
+                    if inside { hovered = index } else if hovered == index { hovered = nil }
                 }
                 if let ref, let detail, model.reviewDraft?.expanded == ref {
                     GridRow {
                         InlineReviewCard(detail: detail, indexes: detail.reviewLinks[ref] ?? [])
-                            .gridCellColumns(3)
+                            .gridCellColumns(4)
                     }
                 }
             }
