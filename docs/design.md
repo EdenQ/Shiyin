@@ -1997,6 +1997,8 @@ Windows 的做法在 design-windows §11.11。
 
 ### 43.2 畫面（Mac，`PlayerBar`）
 
+- Fork：議題帶改用 `MindMap.topicSegments`（依每條重點的時間切段，同一個議題可以有好幾段），點了在紀錄分頁也捲到那個議題（§F4.2、§F4.3）。`topicRanges` 和它的標準答案不變。
+
 - 時間軸（`TimelineBar`）上面多一條 18 pt 高的議題帶，跟時間軸同樣的寬度、同樣的時間比例。每段是圓角 4 的色塊（那支的顏色，淡的底色），裡面寫議題名稱（11 pt，放不下用「…」截短；整個標題放不下、又不到 40 pt 寬（放不下一兩個字加「…」）就不寫，只留色塊，滑過去看得到名稱）。段與段之間空 2 pt。
 - 正在播放的那段：底色變深、字變粗。
 - 點一段：從那個議題的開始播放。滑過去：說明文字是「議題名稱　開始–結束」。每段是一個輔助使用的按鈕（名稱同說明文字）。
@@ -2289,6 +2291,65 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 - 收音提醒在靜音時不出現；快捷鍵只在 `both` 的錄音中註冊。
 - 畫面：`windowshot` 看錄音畫面、選單列的靜音狀態和提示列。真的畫面上按圖示、真的按 ⌃⌥⌘M 待使用者。
 
+## F4. 紀錄條列頁的閱讀與複製（F4，DF4）
+
+只改紀錄分頁的條列模式（`NotesPage` 的 `ReadingColumn` 那一支）和播放條的議題帶；心智圖模式、編輯器（`NotesEditor`）、匯出、資料、提示詞、標準答案都不變。只做 Mac，`windows/` 不動。
+
+### F4.1 分段複製（F4.1）
+
+- `NotesSectionScope`：`summary`、`decisions`、`actionItems`、`openQuestions`、`custom(Int)`、`topic(Int)`（`notes.topics` 的位置）。
+- `NotesExporter.plainSection(_ scope:, notes:, language:) -> String`：跟 `plain` 同一套固定文字（`ExportText`，會議語言）。
+  - 一般段落：第一行段落名稱（`x.section(id)`，自訂段落用它的 title），之後每條 `- 內容（時間）`（`x.paren`）。
+  - 待辦：第一行「待辦」，每條 `- 負責人：事項（期限 2026-11-11）（59:37）`；沒有負責人寫 `x.unassigned`，沒有期限就省略期限那段。英文是 `- Owner: task (Due 2026-11-11) (59:37)`。
+  - 議題：第一行 `[開始] 標題`（同 Markdown 匯出的 `### [start] title`），之後每條重點。
+  - 段落是空的時候回傳空字串（畫面上空段落本來就不顯示）。
+- `AppModel.copyNotesSection(_ scope:)`：從 `exportBundle()` 的 notes 和會議語言產生，放進剪貼簿（純文字），提示「已複製「段落名稱」」。不經過畫面的文字。
+- 按鈕：段落標題列右邊的 `doc.on.doc` 圖示按鈕（`.borderless`，滑鼠提示「複製這一段（純文字）」／「複製這個議題（純文字）」），滑鼠移到段落上才顯示（`.opacity`，不改排版；鍵盤、輔助使用照樣找得到）。按鈕不跟著文字大小（R59.2）。
+- 跟 D132 不衝突：右上角是整份複製（同一件事一個入口），這裡是「只複製這一段」，是不同的動作。
+
+### F4.2 議題帶依重點時間切段（F4.11）
+
+- 新函式 `MindMap.topicSegments(notes:duration:untitled:minSeconds: = 60) -> [TopicRange]`，`topicRanges` 和它的標準答案（`util/topic-ranges.json`）不動：Windows 也比這份標準答案，fork 只改 Mac。`TopicRange.branch` 同心智圖（`shownTopics` 的第幾個），顏色一樣。
+- 規則：
+  1. 每個議題的時間點：`start` 加上每條重點的 `time`（`TimeFormat.seconds`）；讀不到的、≥ 會議長度的丟掉。一個時間點都沒有的議題不畫。
+  2. 全部時間點依時間排序（同一秒照 branch），每個時間點開始一段、屬於它的議題；同一個議題相鄰的合成一段。
+  3. 每段到下一段的開始，最後一段到會議長度。
+  4. 短於 `minSeconds`、而且那個議題還有別的段：併進前一段（是第一段就併進後一段，開始時間取它的），再合併相鄰同議題的段，重複到沒有為止。議題的唯一一段不會被併掉。
+- 從重點的時間點開始算，不往前多算；早於議題 `start` 的重點照算（會在前面多一段）；議題內重點的順序不影響（全部重新排序）。
+- 重點時間都在自己議題的區間內（`start` 到下一個議題的 `start`）時，結果跟 `topicRanges` 一樣。
+- `MindMap.topicBranches(_ notes:) -> [Int: Int]`：`notes.topics` 的位置 → branch（沒畫出來的議題沒有）。條列頁的議題色條、膠囊、目前議題都用它對到同一支。
+
+### F4.3 播放條、目前議題（F4.9、F4.10）
+
+- `PlayerBar` 的議題帶改用 `topicSegments`。`TopicBand` 照舊（一段一個按鈕），點了 `onSeek(start)`，另外呼叫 `onTopic(branch)`。
+- 目前議題：`PlayerBar` 本來就每 0.1 秒隨播放時間重畫；在這裡算目前的 branch，`.onChange` 到 `model.currentTopicBranch`（`@Observable` 的 `Int?`，值變了才設）。紀錄頁只讀 `currentTopicBranch`，播放中不會每個 tick 重算整頁（§3.5.1 的效能原則）。換會議時設回 nil。
+- 點議題帶：`model.tab == .summary` 而且是條列模式時，`model.topicScrollRequest = TopicScrollRequest(branch:, id: UUID())`（每次點都不同，同一段連點也會捲）；`NotesPage` 用 `ScrollViewReader` 在 `onChange` 時展開那個議題、`scrollTo("topic-<位置>", anchor: .top)`。其他分頁照舊只播放。
+
+### F4.4 條列頁（F4.2～F4.8）
+
+- 順序：摘要 → 決議 → 待辦 → 未決問題 → 自訂段落 → 議題 → 「由 X 整理．範本」。
+- `NotesSection(title:count:accent:copy:)`：標題（18 pt）、條數（`.secondary`，caption）、複製按鈕；`accent` 不是 nil 時左邊一條 3 pt 的色條（`Rectangle` 在 `overlay(alignment: .leading)`，內容往右縮 14 pt）。
+  - 顏色（`Color` 的動態色，§9）：摘要 `slate` 淺 `#6B7A8F`／深 `#8E9CB0`（低飽和，跟待辦的藍、心智圖的 6 色分得開，對比 4.37:1／5.81:1）；決議 `celadon`；待辦 `MindMap.palette[1]`（藍 `#3E6FA8`／`#6E9BD6`）；未決問題 `signal`。議題段落本身不加段落級色條（每個議題已經有自己的色條，再加會變成兩條並排）。
+- `ItemList` 加 `symbol`（`•`、決議 `✓`、未決問題 `?`）、`symbolColor`。每一條是 `NoteRow`：`HStack(alignment: .firstTextBaseline)`：符號、文字（`.textSelection(.enabled)`、`maxWidth: .infinity, alignment: .leading`）、`ReviewMarker`、`TimeButton(style: .subdued)`。`NoteRow` 用 `.onHover` 記自己是不是被指著，傳給 `TimeButton`：平常 `.tertiary`、指著時 `celadon`。文字填滿中間，時間點就在行尾對齊成一欄。不加 `fixedSize`（CLAUDE.md），文字在 ScrollView 裡照舊換行。
+- `TimeButton` 加 `subdued: Bool`、`highlighted: Bool`（預設 false、行為不變，逐字稿、心智圖、提問不受影響）。
+- 待辦表 `ActionItemsTable`：`Grid` 四欄：負責人、期限、事項、時間點（含「？」）；三個文字欄都 `.textSelection(.enabled)`；負責人粗體，沒有時琥珀色「未指定」；期限等寬數字、沒有時「—」；就地回答的卡片照舊在那一列下面跨四欄。
+- 議題（`TopicBlock`）：左邊 3 pt 色條（`MindMap.color(branch, dark:)`），標題列一行：展開箭頭、開始時間（`TimeButton`）、標題（16 pt）、「N 條」、「？N」（這個議題各重點的待確認加總，`ReviewMarker` 同樣式、點了展開這個議題）、有好幾段時「N 段：時間、時間」（每個時間是 `TimeButton`）、目前播放時「● 正在播放」、複製按鈕。點標題列切換展開；展開時下面是重點的 `ItemList`（就地回答照舊）。目前議題的底色是那一支顏色的 8%。
+- 收合狀態：`NotesPage` 的 `@State collapsed: Set<Int>?`（nil＝用預設：議題 > 5 個全部收合，否則全部展開），換會議時 `NotesPage` 重建（`.id(meeting.id)`）回到預設。段落標題列右邊「全部展開」「全部收合」。有就地回答展開在某個議題的重點下時，那個議題強制展開（不然卡片被藏起來）。
+- 議題膠囊（議題 > 5 個）：編輯列下面一列 `ScrollView(.horizontal)`，每個議題一個膠囊（色點、標題、有好幾段時「×N」），目前議題外框青瓷綠；點了展開並捲到那個議題。
+- 文字大小（R59）：條目、時間點、議題標題跟著放大；複製按鈕、膠囊、「全部展開」不跟著（同編輯列）。
+
+### F4.5 DEBUG
+
+- `topicsegments <輸入.json> <輸出.json>`：輸入 `{"duration": 秒數, "cases": [{"name", "notes": MeetingNotes 的 JSON}]}`，每個 case 輸出 `segments`（branch、start、end）和 `ranges`（現在的 `topicRanges`），給驗證腳本比對。
+- `copysection <會議 id> <scope> <輸出.txt>`：`plainSection` 的結果寫到檔案（不碰剪貼簿）。scope：`summary`、`decisions`、`actionItems`、`openQuestions`、`custom:N`、`topic:N`。
+- `state` 加 `currentTopicBranch`、`notesTopicsCollapsed`（目前收合的議題位置）。
+- `topicscroll <branch>`：等於在紀錄分頁點議題帶的那一支。
+
+### F4.6 驗證
+
+- `scripts/dev/f4-check.py`：產生 `topicsegments` 的輸入（無重回的會議＝舊規則、模擬重回、短於 60 秒的片段、議題內時間亂序、讀不到的時間、早於議題開始的重點、空議題），跑 DEBUG 的 `topicsegments`，比對預期；再對示範會議（中、英、日）跑 `copysection` 比對預期文字。
+- 畫面：`windowshot` 看議題 ≤ 5 個（展開）、> 5 個（收合、膠囊）、深色、文字大小 150%、播放中目前議題、`topicscroll` 後捲到的位置。真的畫面上的滑過變色、點按、複製後貼上待使用者。
+
 ## 14. 決策紀錄
 
 | # | 決策 | 不採用的方案與原因 |
@@ -2379,7 +2440,7 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 | D142 | 粵語正式轉錄固定用 Qwen3-ASR、還沒下載好時先用 macOS 內建（Windows 快速辨識），不用 Breeze；韓文用 Whisper large-v3-turbo；粵語的即時逐字稿用 `zh_HK`（§41.3、§41.7；2026-11-04 評估） | 粵語用 turbo：設 `yue` 也寫成書面語（我是、我們），合成會議的錯字率 19.7%，失去 R64.2 的口語。粵語用 macOS 內建當正式轉錄：錯字率 7%～8%、關鍵詞只抓到 1 個（不參考詞彙表）。韓文用 Qwen3-ASR：唸稿最好，但會議錄音會把詞彙表吐出來、整句聽錯（24%）。粵語沒下載 Qwen 時先用 Breeze：Breeze 是台灣華語的模型，粵語會被聽成華語。即時逐字稿用 `yue_CN`：辨識結果一樣，但輸出簡體 |
 | D143 | 心智圖從已經整理好的會議紀錄直接畫，不另外呼叫整理工具（§42.1；2026-11-05 使用者要心智圖） | 請整理工具另外產生心智圖：要花額度、等幾十秒，內容會跟紀錄對不上（紀錄改了心智圖不會跟著），還要再設計一份提示詞、三種語言。紀錄本身就是分好層的（議題 → 重點、待辦的負責人和期限），直接畫就夠 |
 | D144 | 心智圖的排版自己算，文字寬度用估的，Mac、Windows 同一套、比標準答案；畫面上兩邊各自畫，SVG 是同一份（§42.2、§42.3） | 用 markmap 之類的 JavaScript 函式庫在網頁元件裡畫：排版好看、可以縮放，但畫面要放一個網頁元件、多兩個要帶進 app 的函式庫，點時間點播放要接 JavaScript，兩邊也沒辦法比標準答案。量真的字型寬度：比較準，但兩個平台量出來不一樣，排版就對不上；估的寬度框留一點空間就好 |
-| D145 | 議題時間軸的每段用下一個議題的開始當結束，不請整理工具判斷每個議題講到哪裡（§43.1；2026-11-06） | 請整理工具另外給每個議題的結束時間：要改提示詞、三種語言、舊的紀錄都沒有，還要花額度；會議裡議題是一個接一個講的，下一個開始就是上一個結束，誤差只有中間的閒聊。回頭講前面的議題時，那一小段會算進後面的議題，可以接受 |
+| D145 | 議題時間軸的每段用下一個議題的開始當結束，不請整理工具判斷每個議題講到哪裡（§43.1；2026-11-06） | 請整理工具另外給每個議題的結束時間：要改提示詞、三種語言、舊的紀錄都沒有，還要花額度；會議裡議題是一個接一個講的，下一個開始就是上一個結束，誤差只有中間的閒聊。回頭講前面的議題時，那一小段會算進後面的議題，可以接受（fork 的 Mac 版改用 `topicSegments` 依重點時間切段，DF4、§F4.2） |
 | D146 | 本地 MCP 是同一個執行檔加 `--mcp`、stdio、只讀資料庫（§44.1；2026-11-09 使用者要本地 MCP） | 另外做一個小的輔助程式（`Contents/Helpers`）：比較乾淨，但 `AppDatabase`、匯出、會議紀錄的型別都在 app 的執行檔裡，要先拆成 library、大改 Package.swift；也要另外簽章、Gatekeeper 另外放行。在 app 裡開 localhost 的 HTTP：要拾音開著、要處理認證和埠號；寫入雖然方便（直接走 `AppModel`），這一版不做寫入 |
 | D147 | MCP 的協定自己寫（一行一個 JSON-RPC），不用官方的 Swift、C# SDK（§44.1） | 官方 SDK：協定細節（版本協商、通知、取消）不用自己顧，但 Swift 版多帶 swift-log、swift-system 等套件，C# 版要 Microsoft.Extensions.Hosting；這裡只用到五個方法、沒有串流和通知，兩邊各一百多行，回傳的內容又要用標準答案比，協定這層越薄越好 |
 | D148 | Mac 在 `SHIYIN_HOME/bin/shiyin-mcp` 放一個啟動檔，AI 工具登記的都是它，拾音每次啟動時改寫成目前的路徑（§44.3） | 直接登記 app 裡的執行檔：使用者把拾音拖到別的資料夾（例如桌面）後設定就斷了。符號連結指到執行檔：`Bundle.main` 會變成連結所在的資料夾，讀不到 app 的設定（UserDefaults 的網域）。做成 Claude Desktop 的 `.mcpb` 擴充：只有 Claude Desktop 用得到，裡面還是要指到 app 的路徑 |
@@ -2389,5 +2450,6 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 | DF1 | 錄音中只記使用者的標記，錄完依時間套到離線辨識分出的說話者；對不上或有矛盾就不套用 | 錄音中即時分辨說話者（FluidAudio 的 Sortformer、LS-EEND）：AMI 上錯誤率 26～34%，錄完的離線辨識是 12%，Sortformer 最多 4 人，錄音中的編號跟錄完的結果還要再對一次，也要多下載模型。標記直接當成一段一段的說話者（不經過說話者辨識）：只有標過的幾段有名字。對不上也取最接近的說話者：標錯或說話者辨識把兩個人併成一位時會套錯名字，還會學到錯的聲紋（D29：寧可少、不能錯）。代價：錄音中只有標過的那幾行看得到名字 |
 | DF2 | 標記帶入的名字當成「自動」的名字：畫面上標「標記」、可以說不是他；說話者辨識可能把人併在一起的會議不存聲紋；重新辨識說話者、合併時跟重新轉錄一樣重算（F2.9～F2.11，2026-10-29） | 當成手動改名（2026-10-22 的做法）：按錯人、或說話者辨識把兩個人併成一位而只標了其中一人時，錯的聲紋直接進聲紋庫，之後的會議會以 ≥ 0.88 的相似度自動帶入錯的名字，使用者在畫面上也看不出這個名字不是自己取的。完全不從標記學聲紋：每個人標一次就能讓之後的會議認得，是標記最大的好處。只看每位說話者自己的凝聚度：FluidAudio 只給整場的品質，沒有每位的 |
 | DF3 | 錄音中靜音麥克風時，麥克風那一聲道直接寫成 0（F3，2026-11-03） | 照錄、只記下靜音的時間範圍，轉錄和即時逐字稿時才拿掉：選錯了救得回來，但正式轉錄、說話者辨識、壓縮、匯出、封包、重新轉錄都要跟著處理這些範圍，錄音檔裡也還是有會議室的閒聊（使用者要的就是不錄）。跟 Teams 的靜音一樣「靜音就是沒錄」，最好懂；代價是忘了打開的那段救不回來，所以加上忘了打開的提醒（F3.4） |
+| DF4 | 紀錄條列頁先做分段複製、時間點降噪、色條、議題收合與目錄，議題帶改用新函式依重點時間切段（F4，2026-11-10 使用者看過預覽後確認） | 整頁換成一份文字（唯讀 NSTextView）讓原頁可以任意拖選：待確認的就地回答要改成彈出視窗、待辦表要重排、焦點與捲動都要重做，先用分段複製滿足「貼到 Slack／郵件」的實際需求。直接改 `topicRanges`：Windows 也比對它的標準答案，fork 只做 Mac，所以另寫 `topicSegments`。修正 D145「回頭講前面的議題算進後面的議題可以接受」：使用者想看出重回；整理工具給的每條重點時間已經夠用，不必請整理工具另給結束時間。最小片段 60 秒：一條時間填錯或順口提一句時，議題帶上會切出點不到的細線、目前議題來回跳；60 秒在一小時的會議約 1.6% 寬，差不多是點得到的寬度。重回的段不往前多算：沒有依據，會吃掉前一個議題。議題膠囊目錄不是 D109 拒絕的側邊欄：只在議題 > 5 個時出現、放在紀錄上方一列、只做導覽不放要處理的內容，不佔寬度。重點先行、摘要收合：使用者看過預覽後不要。播放時自動捲動：使用者在讀別段時會被拉走，只標出 |
 
 沿用 v2 的決策：資料放 Application Support（v2 D3）、GRDB（v2 D5）、會議紀錄存 JSON 加版本（v2 D6）、DEBUG 控制通道（v2 §13）。
