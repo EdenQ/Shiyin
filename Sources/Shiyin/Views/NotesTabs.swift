@@ -142,37 +142,59 @@ struct TopicBlock: View {
         let reviewRefs = topic.points.indices.map { NoteItemRef.topicPoint(index, $0) }
         let reviewTotal = reviewRefs.reduce(0) { $0 + detail.reviewCount($1) }
         VStack(alignment: .leading, spacing: 8) {
+            // 展開／收合只由箭頭和「標題＋條數」兩個按鈕觸發；時間、「？」、複製是旁邊獨立的按鈕，父層沒有點擊手勢（design §F4.4）
             HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Image(systemName: expanded ? "chevron.down" : "chevron.right")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 12)
+                Button(action: onToggle) {
+                    Image(systemName: expanded ? "chevron.down" : "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 12)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(expanded ? String(localized: "收合這個議題") : String(localized: "展開這個議題"))
                 TimeButton(time: topic.start)
-                Text(topic.title).contentTitleFont(16)
-                Text("\(topic.points.count) 條").contentFont(.callout).foregroundStyle(.secondary)
+                Button(action: onToggle) {
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        // 標題太長時換行，不截斷（在 ScrollView 裡，可以用 fixedSize）
+                        Text(topic.title).contentTitleFont(16)
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text("\(topic.points.count) 條").contentFont(.callout).foregroundStyle(.secondary)
+                            .fixedSize()
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint(expanded ? String(localized: "收合這個議題") : String(localized: "展開這個議題"))
                 if reviewTotal > 0, let first = reviewRefs.first(where: { detail.reviewCount($0) > 0 }) {
                     ReviewMarker(ref: first, count: reviewTotal)
-                }
-                if segments.count > 1 {
-                    HStack(spacing: 4) {
-                        Text("\(segments.count) 段：").contentFont(.callout).foregroundStyle(.secondary)
-                        ForEach(Array(segments.enumerated()), id: \.offset) { k, segment in
-                            if k > 0 { Text(verbatim: MeetingLanguage.ui(zh: "、", en: ",")).contentFont(.callout).foregroundStyle(.secondary) }
-                            TimeButton(time: TimeFormat.string(segment.start), seek: segment.start)
-                        }
-                    }
-                }
-                if isCurrent {
-                    Text("目前播放位置").contentFont(.caption, weight: .semibold).foregroundStyle(Color.celadon)
                 }
                 Spacer(minLength: 0)
                 SectionCopyButton(scope: .topic(index), help: String(localized: "複製這個議題（純文字）"))
                     .opacity(hovering ? 1 : 0)
             }
-            .contentShape(Rectangle())
-            .onTapGesture { onToggle() }
-            .accessibilityAddTraits(.isButton)
-            .accessibilityHint(expanded ? String(localized: "收合這個議題") : String(localized: "展開這個議題"))
+            // 議題重回的段、目前播放位置：另一行，段很多或字很大時自動換行（FlowLayout），不擠壓標題
+            if segments.count > 1 || isCurrent {
+                FlowLayout(spacing: 4, lineSpacing: 2) {
+                    if segments.count > 1 {
+                        Text("\(segments.count) 段：").contentFont(.callout).foregroundStyle(.secondary)
+                        ForEach(Array(segments.enumerated()), id: \.offset) { k, segment in
+                            HStack(spacing: 0) {
+                                TimeButton(time: TimeFormat.string(segment.start), seek: segment.start)
+                                if k < segments.count - 1 {
+                                    Text(verbatim: MeetingLanguage.ui(zh: "、", en: ",")).contentFont(.callout).foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+                    if isCurrent {
+                        Text("目前播放位置").contentFont(.caption, weight: .semibold).foregroundStyle(Color.celadon)
+                            .padding(.leading, segments.count > 1 ? 8 : 0)
+                    }
+                }
+                .padding(.leading, 22)
+            }
             if expanded {
                 ItemList(items: topic.points, detail: detail) { .topicPoint(index, $0) }
                     .padding(.leading, 22)
@@ -364,7 +386,7 @@ struct NotesPage: View {
     /// 條列模式（fork F4，design §F4.4）：摘要 → 決議 → 待辦 → 未決問題 → 自訂段落 → 議題（自訂段落在議題前面，同匯出）
     private func listPage(_ notes: MeetingNotes) -> some View {
         let duration = max(model.player.duration, Double(detail.meeting.durationSeconds ?? 0))
-        let segments = MindMap.topicSegments(notes: notes, duration: duration, untitled: MindMap.topicLabel(.interface))
+        let segments = model.topicSegments(notes: notes, duration: duration)
         let branches = MindMap.topicBranches(notes)
         let collapsed = collapsedTopics(notes)
         return ScrollViewReader { proxy in
@@ -828,5 +850,46 @@ extension Binding where Value: MutableCollection & RangeReplaceableCollection, V
 
     func move(_ index: Int, to target: Int) {
         if wrappedValue.indices.contains(index) && wrappedValue.indices.contains(target) { wrappedValue.swapAt(index, target) }
+    }
+}
+
+/// 由左到右排、放不下就換行（議題列的「N 段：時間…」，fork F4.11）：段很多、字很大或視窗很窄時往下換行，不擠壓、不超出
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 4
+    var lineSpacing: CGFloat = 2
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let rows = arrange(width: proposal.width ?? .infinity, subviews: subviews)
+        let width = rows.map(\.width).max() ?? 0
+        let height = rows.reduce(0) { $0 + $1.height } + lineSpacing * CGFloat(max(rows.count - 1, 0))
+        return CGSize(width: proposal.width.map { min($0, width) } ?? width, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var y = bounds.minY
+        for row in arrange(width: bounds.width, subviews: subviews) {
+            var x = bounds.minX
+            for index in row.items {
+                let size = subviews[index].sizeThatFits(.unspecified)
+                subviews[index].place(at: CGPoint(x: x, y: y + (row.height - size.height) / 2), proposal: ProposedViewSize(size))
+                x += size.width + spacing
+            }
+            y += row.height + lineSpacing
+        }
+    }
+
+    private func arrange(width: CGFloat, subviews: Subviews) -> [(items: [Int], width: CGFloat, height: CGFloat)] {
+        var rows: [(items: [Int], width: CGFloat, height: CGFloat)] = []
+        for index in subviews.indices {
+            let size = subviews[index].sizeThatFits(.unspecified)
+            if let last = rows.last, last.width + spacing + size.width <= width {
+                rows[rows.count - 1].items.append(index)
+                rows[rows.count - 1].width += spacing + size.width
+                rows[rows.count - 1].height = max(last.height, size.height)
+            } else {
+                rows.append(([index], size.width, size.height))
+            }
+        }
+        return rows
     }
 }

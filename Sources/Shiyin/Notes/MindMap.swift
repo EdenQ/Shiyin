@@ -113,37 +113,51 @@ enum MindMap {
     static func topicSegments(notes: MeetingNotes, duration: Double, untitled: String, minSeconds: Double = 60) -> [TopicRange] {
         guard duration > 0 else { return [] }
         let shown = shownTopics(notes)
-        // 1～2. 每個議題的 start 和各重點的時間，依時間排序（同一秒照 branch）
-        var marks: [(time: Double, branch: Int)] = []
+        // 1～2. 每個議題的 start 和各重點的時間，依時間排序（同一秒照 branch）；包含自己 start 的段是開始段
+        var marks: [(time: Double, branch: Int, isStart: Bool)] = []
         for (branch, topic) in shown.enumerated() {
-            for text in [topic.start] + topic.points.map(\.time) {
-                if let t = TimeFormat.seconds(text), t < duration { marks.append((t, branch)) }
+            if let t = TimeFormat.seconds(topic.start), t < duration { marks.append((t, branch, true)) }
+            for point in topic.points {
+                if let t = TimeFormat.seconds(point.time), t < duration { marks.append((t, branch, false)) }
             }
         }
         marks.sort { ($0.time, $0.branch) < ($1.time, $1.branch) }
-        var segments: [TopicRange] = []
-        for mark in marks where segments.last?.branch != mark.branch {
-            let name = clean(shown[mark.branch].title)
-            segments.append(TopicRange(branch: mark.branch, title: name.isEmpty ? untitled : name, start: mark.time, end: 0))
+        var segments: [(range: TopicRange, isStart: Bool)] = []
+        for mark in marks {
+            if let last = segments.last, last.range.branch == mark.branch {
+                segments[segments.count - 1].isStart = last.isStart || mark.isStart
+            } else {
+                let name = clean(shown[mark.branch].title)
+                segments.append((TopicRange(branch: mark.branch, title: name.isEmpty ? untitled : name, start: mark.time, end: 0), mark.isStart))
+            }
         }
         // 3. 每段到下一段的開始，最後一段到會議長度
-        for k in segments.indices { segments[k].end = k + 1 < segments.count ? segments[k + 1].start : duration }
+        for k in segments.indices { segments[k].range.end = k + 1 < segments.count ? segments[k + 1].range.start : duration }
         func mergeAdjacent() {
-            var merged: [TopicRange] = []
+            var merged: [(range: TopicRange, isStart: Bool)] = []
             for s in segments {
-                if let last = merged.last, last.branch == s.branch { merged[merged.count - 1].end = s.end } else { merged.append(s) }
+                if let last = merged.last, last.range.branch == s.range.branch {
+                    merged[merged.count - 1].range.end = s.range.end
+                    merged[merged.count - 1].isStart = last.isStart || s.isStart
+                } else {
+                    merged.append(s)
+                }
             }
             segments = merged
         }
-        // 4. 太短、而且那個議題還有別段的：併進前一段（第一段併進後一段）
+        // 4. 零長度的段（同一秒好幾個議題）不算一段：先拿掉，再合併因此相鄰的同議題段
+        segments.removeAll { $0.range.end <= $0.range.start }
+        mergeAdjacent()
+        // 5. 太短、不是開始段、而且那個議題還有別段的：併進前一段（第一段併進後一段）
         while let k = segments.indices.first(where: { k in
-            segments[k].end - segments[k].start < minSeconds && segments.filter { $0.branch == segments[k].branch }.count > 1
+            let s = segments[k]
+            return !s.isStart && s.range.end - s.range.start < minSeconds && segments.contains { $0.range.branch == s.range.branch && $0.range.start != s.range.start }
         }) {
-            if k > 0 { segments[k - 1].end = segments[k].end } else { segments[1].start = segments[0].start }
+            if k > 0 { segments[k - 1].range.end = segments[k].range.end } else { segments[1].range.start = segments[0].range.start }
             segments.remove(at: k)
             mergeAdjacent()
         }
-        return segments.filter { $0.start < $0.end }
+        return segments.map(\.range)
     }
 
     /// `notes.topics` 的位置 → 心智圖的第幾支（議題帶、條列頁的議題色條用；沒畫出來的議題沒有）

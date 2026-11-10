@@ -259,6 +259,15 @@ final class AppModel {
     var topicScrollRequest: TopicScrollRequest?
     /// 紀錄條列頁收起來的議題（`notes.topics` 的位置，fork F4.7）；nil 是預設（議題 > 5 個全部收起）。只記這次選取期間
     var notesCollapsedTopics: Set<Int>?
+    /// 議題帶切段的快取（design §F4.3）：會議紀錄或長度變了才重算；播放條每 0.1 秒重畫時只查表
+    @ObservationIgnored private var topicSegmentsCache: (notes: MeetingNotes, duration: Double, segments: [MindMap.TopicRange])?
+
+    func topicSegments(notes: MeetingNotes, duration: Double) -> [MindMap.TopicRange] {
+        if let cache = topicSegmentsCache, cache.duration == duration, cache.notes == notes { return cache.segments }
+        let segments = MindMap.topicSegments(notes: notes, duration: duration, untitled: MindMap.topicLabel(.interface))
+        topicSegmentsCache = (notes, duration, segments)
+        return segments
+    }
     /// 正在讀取的參考文件：會議 id → 檔名（design §39.4）
     var readingDocuments: [Int64: [String]] = [:]
     /// 已經有會議紀錄、之後才加入或移除文件的會議（R61.8）：紀錄分頁頂部提示重新整理。只記在記憶體

@@ -9,9 +9,7 @@ struct PlayerBar: View {
         let player = model.player
         let duration = max(player.duration, Double(detail.meeting.durationSeconds ?? 0))
         // fork：依每條重點的時間切段，議題重回時同一個議題有好幾段（F4.11，design §F4.2）
-        let topics = detail.notes.map {
-            MindMap.topicSegments(notes: $0, duration: duration, untitled: MindMap.topicLabel(.interface))
-        } ?? []
+        let topics = detail.notes.map { model.topicSegments(notes: $0, duration: duration) } ?? []
         // 目前議題：只在換了議題時寫進 model，紀錄頁不用隨播放時間重算（F4.9，design §F4.3）
         let currentBranch = player.isLoaded ? topics.first { player.currentTime >= $0.start && player.currentTime < $0.end }?.branch : nil
         HStack(alignment: .timelineCenter, spacing: 14) {
@@ -33,8 +31,10 @@ struct PlayerBar: View {
                     TopicBand(ranges: topics, duration: duration, currentTime: player.currentTime,
                               onSeek: { seconds in player.seek(to: seconds, play: true) },
                               onTopic: { branch in
-                                  // 在紀錄分頁點：紀錄頁捲到那個議題（F4.10）；其他分頁只播放
-                                  if model.tab == .summary { model.topicScrollRequest = TopicScrollRequest(branch: branch) }
+                                  // 在紀錄分頁的條列模式點：紀錄頁捲到那個議題（F4.10）；其他分頁、心智圖只播放
+                                  if model.tab == .summary, (UserDefaults.standard.string(forKey: AppSettings.notesViewKey) ?? "list") == "list" {
+                                      model.topicScrollRequest = TopicScrollRequest(branch: branch)
+                                  }
                               })
                 }
                 TimelineBar(segments: detail.segments,

@@ -2312,9 +2312,10 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 - 新函式 `MindMap.topicSegments(notes:duration:untitled:minSeconds: = 60) -> [TopicRange]`，`topicRanges` 和它的標準答案（`util/topic-ranges.json`）不動：Windows 也比這份標準答案，fork 只改 Mac。`TopicRange.branch` 同心智圖（`shownTopics` 的第幾個），顏色一樣。
 - 規則：
   1. 每個議題的時間點：`start` 加上每條重點的 `time`（`TimeFormat.seconds`）；讀不到的、≥ 會議長度的丟掉。一個時間點都沒有的議題不畫。
-  2. 全部時間點依時間排序（同一秒照 branch），每個時間點開始一段、屬於它的議題；同一個議題相鄰的合成一段。
+  2. 全部時間點依時間排序（同一秒照 branch），每個時間點開始一段、屬於它的議題；同一個議題相鄰的合成一段。包含那個議題自己 `start` 的段標成**開始段**。
   3. 每段到下一段的開始，最後一段到會議長度。
-  4. 短於 `minSeconds`、而且那個議題還有別的段：併進前一段（是第一段就併進後一段，開始時間取它的），再合併相鄰同議題的段，重複到沒有為止。議題的唯一一段不會被併掉。
+  4. 拿掉長度 ≤ 0 的段（同一秒有好幾個議題時，前面的議題只會切出零長度的段），再合併因此相鄰的同議題段。零長度段不算「另一段」，也不受保護。
+  5. 短於 `minSeconds`、不是開始段、而且那個議題還有別的段：併進前一段（是第一段就併進後一段，開始時間取它的），再合併相鄰同議題的段，重複到沒有為止。開始段再短也保留（議題列的開始時間在議題帶上一定找得到，預覽 report-v2 的承諾）；議題的唯一一段也不會被併掉。早於 `start` 的重點切出的段不是開始段，照 60 秒的規則處理。
 - 從重點的時間點開始算，不往前多算；早於議題 `start` 的重點照算（會在前面多一段）；議題內重點的順序不影響（全部重新排序）。
 - 重點時間都在自己議題的區間內（`start` 到下一個議題的 `start`）時，結果跟 `topicRanges` 一樣。
 - `MindMap.topicBranches(_ notes:) -> [Int: Int]`：`notes.topics` 的位置 → branch（沒畫出來的議題沒有）。條列頁的議題色條、膠囊、目前議題都用它對到同一支。
@@ -2322,19 +2323,24 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 ### F4.3 播放條、目前議題（F4.9、F4.10）
 
 - `PlayerBar` 的議題帶改用 `topicSegments`。`TopicBand` 照舊（一段一個按鈕），點了 `onSeek(start)`，另外呼叫 `onTopic(branch)`。
-- 目前議題：`PlayerBar` 本來就每 0.1 秒隨播放時間重畫；在這裡算目前的 branch，`.onChange` 到 `model.currentTopicBranch`（`@Observable` 的 `Int?`，值變了才設）。紀錄頁只讀 `currentTopicBranch`，播放中不會每個 tick 重算整頁（§3.5.1 的效能原則）。換會議時設回 nil。
-- 點議題帶：`model.tab == .summary` 而且是條列模式時，`model.topicScrollRequest = TopicScrollRequest(branch:, id: UUID())`（每次點都不同，同一段連點也會捲）；`NotesPage` 用 `ScrollViewReader` 在 `onChange` 時展開那個議題、`scrollTo("topic-<位置>", anchor: .top)`。其他分頁照舊只播放。
+- 切段的結果快取在 `AppModel.topicSegments(notes:duration:)`（`@ObservationIgnored`，會議紀錄或長度變了才重算；比對用 `==`，同一份紀錄是同一塊記憶體，比對很快）。`PlayerBar`、紀錄頁都用它，`PlayerBar` 每 0.1 秒重畫時只查目前的 branch，不重新切段。
+- 目前議題：`PlayerBar` 本來就每 0.1 秒隨播放時間重畫；在這裡查目前的 branch，`.onChange` 到 `model.currentTopicBranch`（`@Observable` 的 `Int?`，值變了才設）。紀錄頁只讀 `currentTopicBranch`，播放中不會每個 tick 重算整頁（§3.5.1 的效能原則）。暫停時也標出（標示寫「目前播放位置」）。換會議時設回 nil。
+- 點議題帶：`model.tab == .summary` 而且是條列模式（`notesView` 是 `list`）時才發送`model.topicScrollRequest = TopicScrollRequest(branch:, id: UUID())`（每次點都不同，同一段連點也會捲）；`NotesPage` 用 `ScrollViewReader` 在 `onChange` 時展開那個議題、`scrollTo("topic-<位置>", anchor: .top)`。其他分頁照舊只播放。
 
 ### F4.4 條列頁（F4.2～F4.8）
 
 - 順序：摘要 → 決議 → 待辦 → 未決問題 → 自訂段落 → 議題 → 「由 X 整理．範本」。
-- `NotesSection(title:count:accent:copy:)`：標題（18 pt）、條數（`.secondary`，caption）、複製按鈕；`accent` 不是 nil 時左邊一條 3 pt 的色條（`Rectangle` 在 `overlay(alignment: .leading)`，內容往右縮 14 pt）。
+- `NotesSection(title:count:accent:copy:)`：標題（18 pt）、條數（`.secondary`，callout）、複製按鈕；`accent` 不是 nil 時左邊一條 3 pt 的色條（`Rectangle` 在 `overlay(alignment: .leading)`，內容往右縮 14 pt）。
   - 顏色（`Color` 的動態色，§9）：摘要 `slate` 淺 `#6B7A8F`／深 `#8E9CB0`（低飽和，跟待辦的藍、心智圖的 6 色分得開，對比 4.37:1／5.81:1）；決議 `celadon`；待辦 `MindMap.palette[1]`（藍 `#3E6FA8`／`#6E9BD6`）；未決問題 `signal`。議題段落本身不加段落級色條（每個議題已經有自己的色條，再加會變成兩條並排）。
 - `ItemList` 加 `symbol`（`•`、決議 `✓`、未決問題 `?`）、`symbolColor`。每一條是 `NoteRow`：`HStack(alignment: .firstTextBaseline)`：符號、文字（`.textSelection(.enabled)`、`maxWidth: .infinity, alignment: .leading`）、`ReviewMarker`、`TimeButton(style: .subdued)`。`NoteRow` 用 `.onHover` 記自己是不是被指著，傳給 `TimeButton`：平常 `.tertiary`、指著時 `celadon`。文字填滿中間，時間點就在行尾對齊成一欄。不加 `fixedSize`（CLAUDE.md），文字在 ScrollView 裡照舊換行。
 - `TimeButton` 加 `subdued: Bool`、`highlighted: Bool`（預設 false、行為不變，逐字稿、心智圖、提問不受影響）。
 - 待辦表 `ActionItemsTable`：`Grid` 四欄：負責人、期限、事項、時間點（含「？」）；三個文字欄都 `.textSelection(.enabled)`；負責人粗體，沒有時琥珀色「未指定」；期限等寬數字、沒有時「—」；就地回答的卡片照舊在那一列下面跨四欄。
-- 議題（`TopicBlock`）：左邊 3 pt 色條（`MindMap.color(branch, dark:)`），標題列一行：展開箭頭、開始時間（`TimeButton`）、標題（16 pt）、「N 條」、「？N」（這個議題各重點的待確認加總，`ReviewMarker` 同樣式、點了展開這個議題）、有好幾段時「N 段：時間、時間」（每個時間是 `TimeButton`）、目前播放時「● 正在播放」、複製按鈕。點標題列切換展開；展開時下面是重點的 `ItemList`（就地回答照舊）。目前議題的底色是那一支顏色的 8%。
-- 收合狀態：`NotesPage` 的 `@State collapsed: Set<Int>?`（nil＝用預設：議題 > 5 個全部收合，否則全部展開），換會議時 `NotesPage` 重建（`.id(meeting.id)`）回到預設。段落標題列右邊「全部展開」「全部收合」。有就地回答展開在某個議題的重點下時，那個議題強制展開（不然卡片被藏起來）。
+- 議題（`TopicBlock`）：左邊 3 pt 色條（`MindMap.color(branch, dark:)`）。
+  - 第一行：展開箭頭、開始時間（`TimeButton`）、標題（16 pt，太長時換行，不截斷）、「N 條」、「？N」（這個議題各重點的待確認加總，`ReviewMarker` 同樣式，點了展開那一條的題目）、複製按鈕。
+  - 有好幾段或是目前議題時多一行（縮排對齊標題）：「N 段：」和每段的開始時間（`TimeButton`），用會自動換行的 `FlowLayout` 排，段很多、字很大、視窗很窄時往下換行，不擠壓也不超出；目前議題時接著寫「目前播放位置」。
+  - 展開／收合只由兩個按鈕觸發：展開箭頭、標題加條數（`.plain` 的 `Button`）。時間、「？」、複製按鈕是旁邊獨立的按鈕，父層沒有點擊手勢，點它們不會收合。
+  - 展開時下面是重點的 `ItemList`（就地回答照舊）。目前議題的底色是那一支顏色的 8%。
+- 收合狀態：`AppModel.notesCollapsedTopics: Set<Int>?`（nil＝用預設：議題 > 5 個全部收合，否則全部展開）。換會議（`selection` 的 `didSet`）設回 nil；切到逐字稿、提問分頁再回來不會丟。段落標題列右邊「全部展開」「全部收合」。有就地回答展開在某個議題的重點下時，那個議題強制展開（不然卡片被藏起來）。
 - 議題膠囊（議題 > 5 個）：編輯列下面一列 `ScrollView(.horizontal)`，每個議題一個膠囊（色點、標題、有好幾段時「×N」），目前議題外框青瓷綠；點了展開並捲到那個議題。
 - 文字大小（R59）：條目、時間點、議題標題跟著放大；複製按鈕、膠囊、「全部展開」不跟著（同編輯列）。
 
@@ -2450,6 +2456,6 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 | DF1 | 錄音中只記使用者的標記，錄完依時間套到離線辨識分出的說話者；對不上或有矛盾就不套用 | 錄音中即時分辨說話者（FluidAudio 的 Sortformer、LS-EEND）：AMI 上錯誤率 26～34%，錄完的離線辨識是 12%，Sortformer 最多 4 人，錄音中的編號跟錄完的結果還要再對一次，也要多下載模型。標記直接當成一段一段的說話者（不經過說話者辨識）：只有標過的幾段有名字。對不上也取最接近的說話者：標錯或說話者辨識把兩個人併成一位時會套錯名字，還會學到錯的聲紋（D29：寧可少、不能錯）。代價：錄音中只有標過的那幾行看得到名字 |
 | DF2 | 標記帶入的名字當成「自動」的名字：畫面上標「標記」、可以說不是他；說話者辨識可能把人併在一起的會議不存聲紋；重新辨識說話者、合併時跟重新轉錄一樣重算（F2.9～F2.11，2026-10-29） | 當成手動改名（2026-10-22 的做法）：按錯人、或說話者辨識把兩個人併成一位而只標了其中一人時，錯的聲紋直接進聲紋庫，之後的會議會以 ≥ 0.88 的相似度自動帶入錯的名字，使用者在畫面上也看不出這個名字不是自己取的。完全不從標記學聲紋：每個人標一次就能讓之後的會議認得，是標記最大的好處。只看每位說話者自己的凝聚度：FluidAudio 只給整場的品質，沒有每位的 |
 | DF3 | 錄音中靜音麥克風時，麥克風那一聲道直接寫成 0（F3，2026-11-03） | 照錄、只記下靜音的時間範圍，轉錄和即時逐字稿時才拿掉：選錯了救得回來，但正式轉錄、說話者辨識、壓縮、匯出、封包、重新轉錄都要跟著處理這些範圍，錄音檔裡也還是有會議室的閒聊（使用者要的就是不錄）。跟 Teams 的靜音一樣「靜音就是沒錄」，最好懂；代價是忘了打開的那段救不回來，所以加上忘了打開的提醒（F3.4） |
-| DF4 | 紀錄條列頁先做分段複製、時間點降噪、色條、議題收合與目錄，議題帶改用新函式依重點時間切段（F4，2026-11-10 使用者看過預覽後確認） | 整頁換成一份文字（唯讀 NSTextView）讓原頁可以任意拖選：待確認的就地回答要改成彈出視窗、待辦表要重排、焦點與捲動都要重做，先用分段複製滿足「貼到 Slack／郵件」的實際需求。直接改 `topicRanges`：Windows 也比對它的標準答案，fork 只做 Mac，所以另寫 `topicSegments`。修正 D145「回頭講前面的議題算進後面的議題可以接受」：使用者想看出重回；整理工具給的每條重點時間已經夠用，不必請整理工具另給結束時間。最小片段 60 秒：一條時間填錯或順口提一句時，議題帶上會切出點不到的細線、目前議題來回跳；60 秒在一小時的會議約 1.6% 寬，差不多是點得到的寬度。重回的段不往前多算：沒有依據，會吃掉前一個議題。議題膠囊目錄不是 D109 拒絕的側邊欄：只在議題 > 5 個時出現、放在紀錄上方一列、只做導覽不放要處理的內容，不佔寬度。重點先行、摘要收合：使用者看過預覽後不要。播放時自動捲動：使用者在讀別段時會被拉走，只標出 |
+| DF4 | 紀錄條列頁先做分段複製、時間點降噪、色條、議題收合與目錄，議題帶改用新函式依重點時間切段（F4，2026-11-10 使用者看過預覽後確認） | 整頁換成一份文字（唯讀 NSTextView）讓原頁可以任意拖選：待確認的就地回答要改成彈出視窗、待辦表要重排、焦點與捲動都要重做，先用分段複製滿足「貼到 Slack／郵件」的實際需求。直接改 `topicRanges`：Windows 也比對它的標準答案，fork 只做 Mac，所以另寫 `topicSegments`。修正 D145「回頭講前面的議題算進後面的議題可以接受」：使用者想看出重回；整理工具給的每條重點時間已經夠用，不必請整理工具另給結束時間。最小片段 60 秒：一條時間填錯或順口提一句時，議題帶上會切出點不到的細線、目前議題來回跳；60 秒在一小時的會議約 1.6% 寬，差不多是點得到的寬度。開始段例外保留（2026-11-10 審查後決定）：併掉時議題列寫 00:00、議題帶上卻在一小時後才出現，議題列的開始時間、點開始時間播放、目前議題對不上；代價是議題帶上可能有很細的色塊（不寫字，滑過看名稱）。保護「包含 `start` 的段」而不是「最早的段」：早於 `start` 的重點可能是時間填錯，不該永久保留。零長度段（同一秒好幾個議題）不算一段，不然唯一有效的短段會被當成「還有別段」併掉。重回的段不往前多算：沒有依據，會吃掉前一個議題。議題膠囊目錄不是 D109 拒絕的側邊欄：只在議題 > 5 個時出現、放在紀錄上方一列、只做導覽不放要處理的內容，不佔寬度。重點先行、摘要收合：使用者看過預覽後不要。播放時自動捲動：使用者在讀別段時會被拉走，只標出 |
 
 沿用 v2 的決策：資料放 Application Support（v2 D3）、GRDB（v2 D5）、會議紀錄存 JSON 加版本（v2 D6）、DEBUG 控制通道（v2 §13）。

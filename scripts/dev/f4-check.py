@@ -56,9 +56,27 @@ cases = [
     ("短於 60 秒的重回併進前一段", 1500,
      notes(topic("A", "00:00", ["01:40", mmss(1030)]), topic("B", "05:00", ["06:40", mmss(1000)]), topic("C", mmss(1050), [mmss(1100)])),
      [(0, 0, 300), (1, 300, 1050), (2, 1050, 1500)]),
-    ("第一段太短併進後一段", 3600,
+    ("議題自己的開始段再短也保留（第一段）", 3600,
      notes(topic("A", "00:00", [mmss(3000)]), topic("B", "00:10", ["00:20", "01:40"])),
-     [(1, 0, 3000), (0, 3000, 3600)]),
+     [(0, 0, 10), (1, 10, 3000), (0, 3000, 3600)]),
+    ("示範會議 zh：上線時程 00:00–00:04 保留", 3912,
+     notes(topic("上線時程", "00:00", ["1:02:05"]), {"title": "快取 & 部署", "start": "00:04", "points": []}),
+     [(0, 0, 4), (1, 4, 3725), (0, 3725, 3912)]),
+    ("開始段在中間再短也保留", 1200,
+     notes(topic("A", "00:00", ["01:00", mmss(400)]), topic("B", "05:00", [mmss(340)]), topic("C", mmss(360), [mmss(500)])),
+     [(0, 0, 300), (1, 300, 360), (2, 360, 400), (0, 400, 500), (2, 500, 1200)]),
+    ("早於議題開始的短段不受保護", 900,
+     notes(topic("A", "05:00", ["00:20", "06:00"]), topic("B", "00:00", ["00:40", "04:00"])),
+     [(1, 0, 300), (0, 300, 900)]),
+    ("審查反例：零長度段不算另一段", 600,
+     notes(topic("A", "00:00", ["01:40"]), topic("B", "00:30", []), topic("C", "01:40", [])),
+     [(0, 0, 30), (1, 30, 100), (2, 100, 600)]),
+    ("同一秒照議題順序：後面的議題接手、零長度段不算", 600,
+     notes(topic("A", "00:00", ["05:00"]), topic("B", "00:00", ["01:00"])),
+     [(1, 0, 300), (0, 300, 600)]),
+    ("零長度段與短段交錯", 1200,
+     notes(topic("A", "00:00", ["02:00", "02:30", "10:00"]), topic("B", "02:00", ["02:30", "15:00"])),
+     [(0, 0, 120), (1, 120, 600), (0, 600, 900), (1, 900, 1200)]),
     ("早於議題開始的重點照算、讀不到的時間丟掉", 900,
      notes(topic("A", "05:00", ["01:00", "bad", "10:00"]), topic("B", "08:00", ["09:00"])),
      [(0, 60, 480), (1, 480, 600), (0, 600, 900)]),
@@ -82,7 +100,10 @@ with tempfile.TemporaryDirectory() as tmp:
     result = json.load(open(out, encoding="utf-8"))
     if not result.get("ok"):
         failures.append("topicsegments：ok 不是 true")
-    for (name, _, _, expect), got in zip(cases, result.get("cases", [])):
+    got_cases = result.get("cases", [])
+    if [c["name"] for c in got_cases] != [c[0] for c in cases]:
+        failures.append(f"topicsegments：回傳 {len(got_cases)} 個案例、名稱或順序跟輸入的 {len(cases)} 個不一致")
+    for (name, _, _, expect), got in zip(cases, got_cases):
         segs = [(s["branch"], round(s["start"]), round(s["end"])) for s in got["segments"]]
         ranges = [(s["branch"], round(s["start"]), round(s["end"])) for s in got["ranges"]]
         want = ranges if expect == "ranges" else expect
@@ -90,8 +111,11 @@ with tempfile.TemporaryDirectory() as tmp:
         print(f"[{status}] topicSegments：{name}")
         if segs != want:
             failures.append(f"topicSegments「{name}」：得到 {segs}，應該是 {want}")
-    if result.get("cases"):
-        branches = {b["topic"]: b["branch"] for b in result["cases"][-1]["branches"]}
+    empty = [c for c in got_cases if c["name"].startswith("沒標題也沒重點的議題")]
+    if not empty:
+        failures.append("topicBranches：找不到空議題的案例")
+    else:
+        branches = {b["topic"]: b["branch"] for b in empty[0]["branches"]}
         if branches != {1: 0}:
             failures.append(f"topicBranches：得到 {branches}，應該是 {{1: 0}}")
 
