@@ -108,6 +108,68 @@ enum MindMap {
         return ranges
     }
 
+    /// 議題帶依每條重點的時間切段（fork F4.11，design §F4.2）：同一個議題可以有好幾段（議題重回討論）。
+    /// 重點時間都在自己議題區間內時，結果跟 `topicRanges` 一樣；`topicRanges` 和它的標準答案不動（DF4）
+    static func topicSegments(notes: MeetingNotes, duration: Double, untitled: String, minSeconds: Double = 60) -> [TopicRange] {
+        guard duration > 0 else { return [] }
+        let shown = shownTopics(notes)
+        // 1～2. 每個議題的 start 和各重點的時間，依時間排序（同一秒照 branch）
+        var marks: [(time: Double, branch: Int)] = []
+        var starts: [Int: Double] = [:]
+        for (branch, topic) in shown.enumerated() {
+            if let t = TimeFormat.seconds(topic.start), t < duration {
+                marks.append((t, branch))
+                starts[branch] = t
+            }
+            for point in topic.points {
+                if let t = TimeFormat.seconds(point.time), t < duration { marks.append((t, branch)) }
+            }
+        }
+        marks.sort { ($0.time, $0.branch) < ($1.time, $1.branch) }
+        var segments: [TopicRange] = []
+        for mark in marks where segments.last?.branch != mark.branch {
+            let name = clean(shown[mark.branch].title)
+            segments.append(TopicRange(branch: mark.branch, title: name.isEmpty ? untitled : name, start: mark.time, end: 0))
+        }
+        // 3. 每段到下一段的開始，最後一段到會議長度
+        for k in segments.indices { segments[k].end = k + 1 < segments.count ? segments[k + 1].start : duration }
+        func mergeAdjacent() {
+            var merged: [TopicRange] = []
+            for s in segments {
+                if let last = merged.last, last.branch == s.branch { merged[merged.count - 1].end = s.end } else { merged.append(s) }
+            }
+            segments = merged
+        }
+        // 4. 零長度的段（同一秒好幾個議題）不算一段：先拿掉，再合併因此相鄰的同議題段
+        segments.removeAll { $0.end <= $0.start }
+        mergeAdjacent()
+        // 開始段：區間確定之後，實際包含那個議題自己 start 的段（半開區間 start ≤ t < end，同播放條）。
+        // 不看「收過 start 這個時間點」：start 跟別的議題同一秒時，那一秒歸後面的議題，前面那段並不包含它
+        func isStart(_ s: TopicRange) -> Bool { starts[s.branch].map { s.start <= $0 && $0 < s.end } ?? false }
+        // 5. 太短、不是開始段、而且那個議題還有別段的：併進前一段（第一段併進後一段）
+        while let k = segments.indices.first(where: { k in
+            let s = segments[k]
+            return !isStart(s) && s.end - s.start < minSeconds && segments.contains { $0.branch == s.branch && $0.start != s.start }
+        }) {
+            if k > 0 { segments[k - 1].end = segments[k].end } else { segments[1].start = segments[0].start }
+            segments.remove(at: k)
+            mergeAdjacent()
+        }
+        return segments
+    }
+
+    /// `notes.topics` 的位置 → 心智圖的第幾支（議題帶、條列頁的議題色條用；沒畫出來的議題沒有）
+    static func topicBranches(_ notes: MeetingNotes) -> [Int: Int] {
+        var map: [Int: Int] = [:]
+        var branch = 0
+        for (i, topic) in notes.topics.enumerated()
+        where !clean(topic.title).isEmpty || topic.points.contains(where: { !clean($0.text).isEmpty }) {
+            map[i] = branch
+            branch += 1
+        }
+        return map
+    }
+
     // MARK: 文字寬度、換行（§42.2）
 
     /// 一個字元的寬度（em）：看第一個 scalar

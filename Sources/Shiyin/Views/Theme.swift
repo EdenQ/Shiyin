@@ -38,6 +38,10 @@ extension Color {
     static let celadon = Color(nsColor: .dynamic(light: 0x2D6A5D, dark: 0x6DB2A1))
     /// VU 琥珀：低信心、待確認、進行中
     static let signal = Color(nsColor: .dynamic(light: 0xB97F06, dark: 0xE2AD3B))
+    /// 紀錄條列頁的段落色條（fork F4.3，design §F4.4）：摘要用低飽和的灰藍，跟待辦的藍、心智圖的 6 色分得開
+    static let slate = Color(nsColor: .dynamic(light: 0x6B7A8F, dark: 0x8E9CB0))
+    /// 待辦的段落色條：心智圖調色盤的藍（MindMap.palette[1]）
+    static let actionBlue = Color(nsColor: .dynamic(light: 0x3E6FA8, dark: 0x6E9BD6))
 }
 
 extension Color {
@@ -147,6 +151,9 @@ struct TimeButton: View {
     let time: String
     /// 要跳到的秒數；沒給就照顯示的時間。逐字稿的段落給真正的開始時間（24.4 秒的段落顯示 00:24，跳到 24.0 高亮會落在上一段）
     var seek: Double? = nil
+    /// 紀錄條列頁（fork F4.2）：平常淡色，滑過那一條（highlighted）才變青瓷綠
+    var subdued = false
+    var highlighted = false
 
     var body: some View {
         // 沒有錄音的會議（例如匯入逐字稿）點了也沒辦法播，顯示成一般文字
@@ -154,7 +161,7 @@ struct TimeButton: View {
             Button(time) { model.player.seek(to: seconds) }
                 .buttonStyle(.plain)
                 .contentFont(.callout, monospacedDigit: true)   // 跟著文字大小（design §38.5）
-                .foregroundStyle(Color.celadon)
+                .foregroundStyle(subdued && !highlighted ? AnyShapeStyle(.tertiary) : AnyShapeStyle(Color.celadon))
                 .help("從 \(time) 開始播放")
         } else if !time.isEmpty {
             Text(time).contentFont(.callout, monospacedDigit: true).foregroundStyle(.secondary)

@@ -196,6 +196,13 @@ struct MeetingNotes: Codable, Hashable {
 }
 
 /// 一條紀錄的位置（design §31.1）：待確認的題目對應到哪一條
+/// 「複製這一段」的範圍（fork F4.1）：`topic`、`custom` 是 `notes` 裡的位置
+enum NotesSectionScope: Hashable {
+    case summary, decisions, actionItems, openQuestions
+    case custom(Int)
+    case topic(Int)
+}
+
 enum NoteItemRef: Hashable {
     case summary(Int), decisions(Int), actionItems(Int), openQuestions(Int)
     /// 第幾個議題的第幾個要點
@@ -321,4 +328,10 @@ enum DateText {
         guard let date = date(text) else { return "" }
         return date.formatted(Date.FormatStyle(locale: language.locale).weekday(.wide))
     }
+}
+
+/// 在紀錄分頁點播放條的議題帶時，請紀錄頁捲到那個議題（fork F4.10）
+struct TopicScrollRequest: Equatable {
+    let branch: Int
+    let id = UUID()
 }

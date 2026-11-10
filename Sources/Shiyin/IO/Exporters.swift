@@ -170,6 +170,36 @@ enum NotesExporter {
         markdown(b).replacingOccurrences(of: "## ", with: "").replacingOccurrences(of: "### ", with: "").replacingOccurrences(of: "# ", with: "")
     }
 
+    /// 只複製一段（fork F4.1，design §F4.1）：純文字，固定文字跟著會議語言（同匯出）；段落是空的時候回傳空字串
+    static func plainSection(_ scope: NotesSectionScope, notes: MeetingNotes, language: MeetingLanguage) -> String {
+        let x = ExportText(language)
+        func t(_ time: String) -> String { time.isEmpty ? "" : x.paren(time) }
+        func list(_ title: String, _ items: [MeetingNotes.Item]) -> String {
+            items.isEmpty ? "" : ([title] + items.map { "- \($0.text)\(t($0.time))" }).joined(separator: "\n") + "\n"
+        }
+        switch scope {
+        case .summary: return list(x.section("summary"), notes.summary)
+        case .decisions: return list(x.section("decisions"), notes.decisions)
+        case .openQuestions: return list(x.section("openQuestions"), notes.openQuestions)
+        case .custom(let c):
+            guard notes.custom.indices.contains(c) else { return "" }
+            return list(notes.custom[c].title, notes.custom[c].items)
+        case .topic(let i):
+            guard notes.topics.indices.contains(i) else { return "" }
+            let topic = notes.topics[i]
+            let head = topic.start.isEmpty ? topic.title : "[\(topic.start)] \(topic.title)"
+            return ([head] + topic.points.map { "- \($0.text)\(t($0.time))" }).joined(separator: "\n") + "\n"
+        case .actionItems:
+            guard !notes.actionItems.isEmpty else { return "" }
+            let lines = notes.actionItems.map { item -> String in
+                let owner = item.owner.isEmpty ? x.unassigned : item.owner
+                let due = item.due.isEmpty ? "" : x.paren("\(x.due) \(item.due)")
+                return "- \(owner)\(x.colon)\(item.task)\(due)\(t(item.time))"
+            }
+            return ([x.section("actionItems")] + lines).joined(separator: "\n") + "\n"
+        }
+    }
+
     static func html(_ b: ExportBundle) -> String {
         let m = b.meeting
         let x = b.text

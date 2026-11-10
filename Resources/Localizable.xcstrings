@@ -489,6 +489,52 @@
         }
       }
     },
+    "%lld 條": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld item"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld items"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld 段：": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld part:"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld parts:"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld 處": {
       "extractionState": "manual",
       "localizations": {
@@ -2450,6 +2496,17 @@
         }
       }
     },
+    "全部展開": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Expand All"
+          }
+        }
+      }
+    },
     "全部忽略": {
       "extractionState": "manual",
       "localizations": {
@@ -2468,6 +2525,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Accept All"
+          }
+        }
+      }
+    },
+    "全部收合": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Collapse All"
           }
         }
       }
@@ -4151,6 +4219,17 @@
         }
       }
     },
+    "展開這個議題": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Expand this topic"
+          }
+        }
+      }
+    },
     "已下載": {
       "extractionState": "manual",
       "localizations": {
@@ -4676,6 +4755,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Copied"
+          }
+        }
+      }
+    },
+    "已複製「%@」": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copied “%@”"
           }
         }
       }
@@ -5564,6 +5654,17 @@
         }
       }
     },
+    "捲到「%@」": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scroll to “%@”"
+          }
+        }
+      }
+    },
     "掃描的 PDF、圖片用 macOS 的文字辨識讀出文字。一場會議的文件合計最多 4 萬字，太長的只送前面的部分。Keynote、Pages 請先匯出成 PDF。": {
       "extractionState": "manual",
       "localizations": {
@@ -5826,6 +5927,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Collapse"
+          }
+        }
+      }
+    },
+    "收合這個議題": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Collapse this topic"
           }
         }
       }
@@ -8881,6 +8993,17 @@
         }
       }
     },
+    "目前播放位置": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Now playing here"
+          }
+        }
+      }
+    },
     "目前是 %@。更新時會議助手會結束並重新打開，會議資料都會保留。": {
       "extractionState": "manual",
       "localizations": {
@@ -9824,6 +9947,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "Copy Settings (JSON)"
+          }
+        }
+      }
+    },
+    "複製這一段（純文字）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy this section (plain text)"
+          }
+        }
+      }
+    },
+    "複製這個議題（純文字）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy this topic (plain text)"
           }
         }
       }

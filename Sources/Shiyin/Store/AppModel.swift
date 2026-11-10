@@ -239,6 +239,9 @@ final class AppModel {
             if oldValue != selection {
                 reviewExpanded = false
                 userNotesExpanded = false
+                currentTopicBranch = nil
+                topicScrollRequest = nil
+                notesCollapsedTopics = nil
                 reloadDetail()
             }
         }
@@ -250,6 +253,21 @@ final class AppModel {
     /// 紀錄頂部「還有 N 題待確認」、逐字稿頂部「我的筆記」展開了沒（design §33.1）：只記這次選取期間，換會議就收起
     var reviewExpanded = false
     var userNotesExpanded = false
+    /// 播放中的議題（fork F4.9，design §F4.3）：心智圖的第幾支。播放條在議題換了時才設，紀錄頁不用隨播放時間重算
+    var currentTopicBranch: Int?
+    /// 在紀錄分頁點議題帶：紀錄頁捲到那個議題（fork F4.10）；每次點都是新的 id，同一段連點也會捲
+    var topicScrollRequest: TopicScrollRequest?
+    /// 紀錄條列頁收起來的議題（`notes.topics` 的位置，fork F4.7）；nil 是預設（議題 > 5 個全部收起）。只記這次選取期間
+    var notesCollapsedTopics: Set<Int>?
+    /// 議題帶切段的快取（design §F4.3）：會議紀錄或長度變了才重算；播放條每 0.1 秒重畫時只查表
+    @ObservationIgnored private var topicSegmentsCache: (notes: MeetingNotes, duration: Double, segments: [MindMap.TopicRange])?
+
+    func topicSegments(notes: MeetingNotes, duration: Double) -> [MindMap.TopicRange] {
+        if let cache = topicSegmentsCache, cache.duration == duration, cache.notes == notes { return cache.segments }
+        let segments = MindMap.topicSegments(notes: notes, duration: duration, untitled: MindMap.topicLabel(.interface))
+        topicSegmentsCache = (notes, duration, segments)
+        return segments
+    }
     /// 正在讀取的參考文件：會議 id → 檔名（design §39.4）
     var readingDocuments: [Int64: [String]] = [:]
     /// 已經有會議紀錄、之後才加入或移除文件的會議（R61.8）：紀錄分頁頂部提示重新整理。只記在記憶體
@@ -1752,6 +1770,17 @@ final class AppModel {
     }
 
     /// 複製心智圖（design §42.4）：PNG 放進剪貼簿，貼到聊天軟體、簡報
+    /// 只複製一段（fork F4.1，design §F4.1）：從會議紀錄產生純文字，跟著會議語言
+    func copyNotesSection(_ scope: NotesSectionScope) {
+        guard let b = exportBundle(), let notes = b.notes else { return }
+        let text = NotesExporter.plainSection(scope, notes: notes, language: b.meeting.meetingLanguage)
+        guard !text.isEmpty else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+        let title = text.split(separator: "\n", maxSplits: 1).first.map(String.init) ?? ""
+        noticeMessage = String(localized: "已複製「\(title)」")
+    }
+
     func copyMindMap() {
         guard let b = exportBundle() else { return }
         guard let layout = MindMapExport.layout(b), let png = MindMapExport.png(layout, language: b.meeting.meetingLanguage) else {

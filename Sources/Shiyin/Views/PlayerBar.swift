@@ -8,9 +8,10 @@ struct PlayerBar: View {
     var body: some View {
         let player = model.player
         let duration = max(player.duration, Double(detail.meeting.durationSeconds ?? 0))
-        let topics = detail.notes.map {
-            MindMap.topicRanges(notes: $0, duration: duration, untitled: MindMap.topicLabel(.interface))
-        } ?? []
+        // fork：依每條重點的時間切段，議題重回時同一個議題有好幾段（F4.11，design §F4.2）
+        let topics = detail.notes.map { model.topicSegments(notes: $0, duration: duration) } ?? []
+        // 目前議題：只在換了議題時寫進 model，紀錄頁不用隨播放時間重算（F4.9，design §F4.3）
+        let currentBranch = player.isLoaded ? topics.first { player.currentTime >= $0.start && player.currentTime < $0.end }?.branch : nil
         HStack(alignment: .timelineCenter, spacing: 14) {
             Button { player.toggle() } label: {
                 Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
@@ -28,7 +29,13 @@ struct PlayerBar: View {
             VStack(spacing: 4) {
                 if !topics.isEmpty {
                     TopicBand(ranges: topics, duration: duration, currentTime: player.currentTime,
-                              onSeek: { seconds in player.seek(to: seconds, play: true) })
+                              onSeek: { seconds in player.seek(to: seconds, play: true) },
+                              onTopic: { branch in
+                                  // 在紀錄分頁的條列模式點：紀錄頁捲到那個議題（F4.10）；其他分頁、心智圖只播放
+                                  if model.tab == .summary, (UserDefaults.standard.string(forKey: AppSettings.notesViewKey) ?? "list") == "list" {
+                                      model.topicScrollRequest = TopicScrollRequest(branch: branch)
+                                  }
+                              })
                 }
                 TimelineBar(segments: detail.segments,
                             reviewTimes: (detail.notes?.reviewItems ?? []).compactMap { TimeFormat.seconds($0.time) },
@@ -65,6 +72,9 @@ struct PlayerBar: View {
         .background(.bar)
         .overlay(alignment: .top) { Divider() }
         .opacity(player.isLoaded ? 1 : 0.5)
+        .onChange(of: currentBranch, initial: true) { _, branch in
+            if model.currentTopicBranch != branch { model.currentTopicBranch = branch }
+        }
     }
 
     private func speedLabel(_ value: Float) -> String {
@@ -87,6 +97,8 @@ struct TopicBand: View {
     let duration: Double
     let currentTime: Double
     let onSeek: (Double) -> Void
+    /// 點了哪一支（fork F4.10）
+    var onTopic: ((Int) -> Void)? = nil
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
@@ -106,7 +118,7 @@ struct TopicBand: View {
         let color = Color(hex: MindMap.color(range.branch, dark: colorScheme == .dark))
         let isCurrent = currentTime >= range.start && currentTime < range.end
         let label = "\(range.title)　\(TimeFormat.string(range.start))–\(TimeFormat.string(range.end))"  // l10n-skip：名稱和時間，不用翻譯
-        return Button { onSeek(range.start) } label: {
+        return Button { onSeek(range.start); onTopic?(range.branch) } label: {
             ZStack(alignment: .leading) {
                 RoundedRectangle(cornerRadius: 4).fill(color.opacity(isCurrent ? 0.45 : 0.18))
                 // 整個標題放得下，或至少放得下一兩個字加「…」才寫字，不然只留色塊（只剩「…」看不出是什麼）
