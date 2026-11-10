@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-拾音 Shiyin 是 macOS 原生的會議紀錄 app（SwiftUI，macOS 26）。目前是 4.6.0（4.1 加上三個分頁的減法、待確認就地回答、收音提醒送通知、可選的 Qwen3-ASR 引擎，Windows 同步；4.1.1 整理工具設定好才用、失敗說清楚怎麼修；4.1.2 忘了停止錄音時提醒、自動停止；4.2 可以連公司的企業伺服器（在公司的伺服器轉錄、整理，公司詞彙表、加入連結）；4.2.1 企業伺服器的安全強化；4.2.2 只裝 Codex 桌面版也能整理、只有 Claude 桌面版時說明怎麼裝 Claude Code，Windows 加上 AMD 顯示卡加速、錄得到 Teams 的聲音；4.2.3 錄音按鈕和錄音畫面可以選、換麥克風，藍牙耳機的麥克風錄現場會議時提醒，會議內容的文字大小（⌘＋／⌘－），右上角的匯出按鈕；4.3 會議的參考文件（加入 PDF、Word、PowerPoint、圖片，整理和提問時一起參考、註明出處）、整理工具的額度用完時說清楚，Windows 只有 Intel 顯示卡的電腦也試著用顯示卡轉錄；4.5 會議語言加廣東話、韓文（實驗性），每種語言的做法寫在共用的語言檔（台語評估過、還沒加，design §41.9）；4.6 會議紀錄可以切換成心智圖（匯出 PNG、PDF、SVG、複製圖片；design §42）、播放條上的議題時間軸（design §43）；第三版加上英文版、開源準備、轉錄準確度、日文、更多整理工具、穩定性修正；3.5 加上草稿紀錄、聲紋、猜說話者、對會議提問、偵測會議；3.6 加上重新辨識說話者、合併和改句子的說話者、分不準的提醒、收音提醒，修正錄音中畫面卡住；4.0 加上 Windows 版、待確認的是非題、聲紋沒把握時先問、短句的說話者、沒有 claude／codex 時先不整理）：
+拾音 Shiyin 是 macOS 原生的會議紀錄 app（SwiftUI，macOS 26）。目前是 4.7.0（4.1 加上三個分頁的減法、待確認就地回答、收音提醒送通知、可選的 Qwen3-ASR 引擎，Windows 同步；4.1.1 整理工具設定好才用、失敗說清楚怎麼修；4.1.2 忘了停止錄音時提醒、自動停止；4.2 可以連公司的企業伺服器（在公司的伺服器轉錄、整理，公司詞彙表、加入連結）；4.2.1 企業伺服器的安全強化；4.2.2 只裝 Codex 桌面版也能整理、只有 Claude 桌面版時說明怎麼裝 Claude Code，Windows 加上 AMD 顯示卡加速、錄得到 Teams 的聲音；4.2.3 錄音按鈕和錄音畫面可以選、換麥克風，藍牙耳機的麥克風錄現場會議時提醒，會議內容的文字大小（⌘＋／⌘－），右上角的匯出按鈕；4.3 會議的參考文件（加入 PDF、Word、PowerPoint、圖片，整理和提問時一起參考、註明出處）、整理工具的額度用完時說清楚，Windows 只有 Intel 顯示卡的電腦也試著用顯示卡轉錄；4.5 會議語言加廣東話、韓文（實驗性），每種語言的做法寫在共用的語言檔（台語評估過、還沒加，design §41.9）；4.6 會議紀錄可以切換成心智圖（匯出 PNG、PDF、SVG、複製圖片；design §42）、播放條上的議題時間軸（design §43）；4.7 讓 AI 工具讀取會議（本地 MCP：Claude Code、Codex、Claude Desktop 可以列出、搜尋、讀會議，`Shiyin --mcp`、Windows 的 `shiyin-mcp.exe`；design §44）；第三版加上英文版、開源準備、轉錄準確度、日文、更多整理工具、穩定性修正；3.5 加上草稿紀錄、聲紋、猜說話者、對會議提問、偵測會議；3.6 加上重新辨識說話者、合併和改句子的說話者、分不準的提醒、收音提醒，修正錄音中畫面卡住；4.0 加上 Windows 版、待確認的是非題、聲紋沒把握時先問、短句的說話者、沒有 claude／codex 時先不整理）：
 
 - 錄音：AVAudioEngine 收麥克風、Core Audio process tap 收電腦聲音，寫成雙聲道 WAV（`Sources/Shiyin/Capture/`）
 - 即時逐字稿：系統的 SpeechAnalyzer（語系依會議語言，寫在語言檔的 `live.mac`：zh_TW、en_US、ja_JP、zh_HK（粵語）、ko_KR）
@@ -13,7 +13,7 @@
 
 不需要 Python、Homebrew、ffmpeg。選型的理由在 design.md 的決策紀錄（D#）。已經刪掉的舊文件（第二版的規格 `docs/archive/v2/`、選型實驗 `docs/spikes/`、3.4.0 以前完整的 `docs/tasks.md`）用 `git show b621ed6:<路徑>` 看。
 
-**Windows 版**（2026-10-20 起開發，4.0.0 跟 Mac 一起發布）：C# .NET 10＋WinUI 3，程式放 `windows/`，功能對齊 Mac 4.6.0；需求在 requirements 第 22 節（R26～R28），設計在 `docs/design-windows.md`，任務在 tasks.md 的「Windows 版」。見下面的「Windows 版」一節。
+**Windows 版**（2026-10-20 起開發，4.0.0 跟 Mac 一起發布）：C# .NET 10＋WinUI 3，程式放 `windows/`，功能對齊 Mac 4.7.0；需求在 requirements 第 22 節（R26～R28），設計在 `docs/design-windows.md`，任務在 tasks.md 的「Windows 版」。見下面的「Windows 版」一節。
 
 ## 開發流程：SDD（規格驅動）
 
@@ -144,7 +144,7 @@ Shiyin 3.3.0: Japanese meetings and automatic language detection
 - 設定頁是 `Form`，`shiyinctl snapshot` 畫不出來（一片空白）。 要測按鍵或右鍵時，用 `CGEvent.postToPid(拾音的 pid)` 只送給拾音（不經過最前面的 app）；輸入框和清單的焦點用 AX 的 `AXFocused` 設，不要靠點擊。座標點擊（`click at`）會點到當下最上層的視窗，點之前一定要確認拾音在最前面。測模型下載出錯用 `shiyinctl modelurl <模型> <網址>` 指到本機伺服器。要看真的畫面：把 app 拉到前景（System Events 的 `set frontmost`），用 AX 點 app 自己的選單和按鈕（設定的分頁是 `button "錄音與轉錄" of toolbar 1`；4.1 起設定只有整理工具、錄音與轉錄、說話者與詞彙、進階四頁，design §33.3），再 `screencapture -l <視窗編號>`；螢幕上鎖時截不到。選單裡的選項用 AX 點會寫進共用的 UserDefaults，測完要 `defaults delete`。
 - 示範資料夾的 `models` 是指到正式資料夾（`~/Library/Application Support/Shiyin/models`）的連結：在示範資料夾下載的模型會存進正式資料夾；設定頁的「模型」大小在示範資料夾會顯示 0（不跟著連結算）。
 - `AVAudioFile` 關檔後 `length` 會變 0，不能用它判斷錄了多久（曾經因此刪掉整場錄音）。
-- zsh 內建的 `log` 會蓋掉系統指令，要用 `/usr/bin/log`；zsh 不會依 IFS 切字串；`rm -f *.wav` 沒有符合的檔案時會報錯。
+- zsh 內建的 `log` 會蓋掉系統指令，要用 `/usr/bin/log`；zsh 不會依 IFS 切字串；`rm -f *.wav` 沒有符合的檔案時會報錯；`"$c:refs/heads/main"` 的 `:r` 會被當成變數的修飾符（2026-11-10 推送時參數壞掉），變數後面接冒號要寫 `${c}:`。
 - bash 腳本裡，變數後面緊接全形字時要寫成 `${VAR}`，否則全形字的位元組會被吃進變數名稱。
 - 桌面有 iCloud 同步：短時間內改寫的檔案會冒出「MindMap 2.swift」這種衝突副本（舊內容、沒進 git），Mac 的 SwiftPM、Windows 的 dotnet 都會把它當成程式編進去，重複定義、建置失敗（2026-11-06 同步到虛擬機時才發現）。建置、`sync.sh`、發布前用 `git status` 看有沒有「 2.」結尾的檔案，確認內容是舊版本再刪（虛擬機的 `C:\src` 也要刪，tar 解開不會刪舊檔）。
 - 用腳本做大段替換後，檢查檔案的行數和結尾：曾經因為替換腳本漏接後半段，把整個檔案截斷。
@@ -163,6 +163,7 @@ Shiyin 3.3.0: Japanese meetings and automatic language detection
 - 設定頁、引導在背景打不開又不想搶前景時，用 `shiyinctl preview <settings [分頁編號]|onboarding [步驟]> [front]` 開在桌面層（被所有視窗蓋住；設定的分頁 0 整理工具、1 錄音與轉錄、2 說話者與詞彙、3 進階；引導的步驟 0～2），再 `screencapture -l` 截。桌面層的視窗 AX 看不到，要按裡面的按鈕就加 `front`（一般視窗層，會出現在使用者畫面上），用 `AXPRESS_TITLE=onboarding-preview axpress …`。設定頁打開時可能把欄位寫回共用設定，測完 `defaults read` 比對。
 - 會議頁（4.1，design §33）只有三個分頁 summary（紀錄）、transcript、ask：`shiyinctl tab review`、`tab topics`、`tab notes` 是別名（review 切到紀錄並展開頂部的待確認條，notes 切到逐字稿並展開「我的筆記」）；state 的 `reviewExpanded`、`userNotesExpanded` 看展開狀態。紀錄分頁的 `snapshot` 畫得出來（ReadingColumn 在 snapshot 模式不用 ScrollView），待確認條的按鈕 AX 名稱是「待確認 N 題」。
 - 企業伺服器（design §36，伺服器是另外的私人專案）：DEBUG 版用 `shiyinctl enterprise login <網址> <信箱> <輸出.json>`（伺服器開發用的登入，不經過瀏覽器）、`enterprise logout|expire|local <會議 id>`，`state` 的 `enterprise`；伺服器在本機用開發用的設定跑，DEBUG 版連 `http://127.0.0.1:<埠>`。登入會寫進共用設定的 `enterpriseServerURL`、`enterpriseServerAccount`，測完 `defaults delete`；用啟動參數帶 `-transcriptionEngine server -llmProvider enterprise` 測，測前存一份 `defaults read`、測完 diff（登出曾經把使用者的 `llmProvider` 刪掉）。
+- 本地 MCP（4.7，design §44.6）：`Shiyin --mcp` 直接用 stdin 送 JSON-RPC 測（暫存的 `SHIYIN_HOME`，加 `-mcpEnabled YES`；`shiyinctl seedfixtures` 放示範會議）。測「加到…」時用暫存的 `CLAUDE_CONFIG_DIR`、`CODEX_HOME`、`SHIYIN_CLAUDE_DESKTOP_CONFIG`（使用者的終端機設了 `CLAUDE_CONFIG_DIR`，DEBUG 版會繼承）；Codex 可以用 `codex exec -c 'mcp_servers.shiyin.command=…'` 臨時帶入，不改設定檔。會議連結不要用 `open shiyin://…`（會交給使用者正式的拾音），用 `shiyinctl openlink` 或對 DEBUG 版的 pid 送 GURL Apple Event。改使用者真的 Claude Desktop 設定、拿掉隔離屬性這類改動會被權限系統擋，要使用者自己執行。
 - 轉錄引擎的評估（4.1，design §32）：`shiyinctl transcribe-eval` 的設定 JSON 用 `"engine": "qwen"`，`tuning` 可以加 `qwenChunkSeconds`、`qwenRetry`、`qwenGuard`、`qwenSplitMixed`、`qwenCutsAny`；`shiyinctl qwenchunks <錄音> <輸出.json> [秒數] [any] [mixed]` 只倒出說話者片段和分段；`shiyinctl s2tw <in.txt> <out.txt>` 簡轉繁；`shiyinctl model start|pause|delete qwen` 兩個檔一起。試新模型用 llama-server 的原型工具在 `~/Library/Caches/ShiyinSpike/qwen3asr/`（`qwen-eval.py`、`run-sets2.sh`、`batch-*.sh`；評估集 `eval32/datasets.json` 有 `tw-taimecs`、`tw-ntuml`）。**GPU 的工作一次只跑一個**：llama-server 跟 DEBUG 版的 whisper／Qwen 同時跑會互相拖慢 7 倍、asr-eval 超時；llama-server 跑幾小時會變慢到每個 token 20 秒，每批重開。長時間的背景評估用 `caffeinate -i` 包起來：2026-10-24 Mac 在 07:29 休眠到 12:26，背景工作全停。
 
 - 使用者可能直接把 `~/Library/Caches/ShiyinBuild/app` 裡的 app 當正式版在用，甚至正在錄音（先看 `audio/recording/` 有沒有檔案）：`build-app.sh` 會先結束從那個路徑啟動的 app。要測 DEBUG 版時，把建置腳本複製一份、`APP` 改到別的資料夾（例如 `app-debug`），用 `SHIYIN_HOME=… open --env SHIYIN_HOME=… -g -n` 啟動，啟動後用 `lsof -p <pid>` 確認開的是測試資料庫。加 `-debugQuietPrompts YES`：通知權限還沒決定時，測試版轉錄完會在使用者的畫面上跳出系統的詢問。

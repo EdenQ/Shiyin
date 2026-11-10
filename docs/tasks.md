@@ -7,6 +7,12 @@
 > - 新任務照 SDD：先寫進 `requirements.md`、改 `design.md`，再加到這裡
 > - 需求見 `requirements.md`，設計見 `design.md`（以下簡稱 §）
 
+## 讓 AI 工具讀取會議：本地 MCP（R69，design §44、design-windows §11.12、D146～D149；2026-11-09 使用者新需求）
+
+- [~] **MCP6 真的 Claude Desktop、Mac 的複製選單**（§44.3、design-windows §11.12）：其他都驗過了（見 commit 訊息）；Mac 的 Claude Desktop 2026-11-10 驗過（使用者執行的腳本暫時加上 shiyin、驗完還原：initialize、tools/list 都有回應）。剩下：
+  - Windows：裝了 Claude Desktop（MSIX）的電腦按「加到 Claude Desktop」後，重新開啟看得到 shiyin（虛擬機裡沒有 Claude Desktop，從外部下載安裝程式會被權限擋）
+  - Mac 設定頁的「複製」選單在真的畫面上點（拾音的視窗要在目前的桌面；選單的動作已經用同一段程式驗過，Windows 的選單是真的點過的）
+
 ## 心智圖（R67，design §42、design-windows §11.10、D143～D144；2026-11-05 使用者新需求）
 
 - [~] **MM2 Mac 畫面、匯出**（§42.4）：程式完成、畫面和匯出驗過，時間點用 `clickat` 點過（2026-11-06：議題的 01:05、條目的 00:58 都從那裡播放，點空白不會跳）。還差：「複製心智圖」後貼到別的程式（測試時不蓋掉使用者的剪貼簿）

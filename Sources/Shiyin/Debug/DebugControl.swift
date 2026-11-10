@@ -187,6 +187,26 @@ enum DebugControl {
         case "language": model.selection = id; model.setMeetingLanguage(MeetingLanguage(rawValue: args[2]) ?? .zh)
         case "transcribe-eval": transcribeEval(audio: args[1], options: args[2], output: args[3])   // design §17.1
         case "dump-golden": GoldenDump.run(fixtures: args[1], output: args[2])   // design-windows §4.1
+        case "seedfixtures": GoldenDump.seed(fixtures: args[1], keys: Array(args.dropFirst(2)), into: model)   // 本地 MCP 的示範會議（design §44.6）
+        case "mcpsetup":   // mcpsetup claudecode|codex|desktop <輸出.json>：等於按設定頁的「加到…」（design §44.6）
+            let output = args.count > 2 ? args[2] : nil
+            Task {
+                let r: MCPSetup.Outcome
+                switch args.count > 1 ? args[1] : "" {
+                case "claudecode": r = await MCPSetup.addToClaudeCode()
+                case "codex": r = await MCPSetup.addToCodex()
+                default: r = MCPSetup.addToClaudeDesktop()
+                }
+                if let output { write(["ok": r.ok, "message": r.message], to: output) }
+            }
+        case "mcpcopy":   // mcpcopy command|json：等於按設定頁「複製」選單的「複製 Claude Code 指令」「複製設定（JSON）」（design §44.6）
+            MCPSetup.copy(args.count > 1 && args[1] == "json" ? .configJSON : .claudeCodeCommand)
+        case "unquarantine":   // unquarantine <app 的路徑> <輸出.json>：對那個 bundle 跑拿掉隔離屬性（D150）
+            write(["removed": MCPSetup.removeQuarantine(in: URL(fileURLWithPath: args[1]))], to: args[2])
+        case "openlink":   // openlink <shiyin://open?…>：等於點了 AI 工具給的會議連結（design §44.5），不拉到前面
+            if let url = URL(string: args[1]), let target = MeetingLink.parse(url) {
+                model.openMeetingLink(target.meetingId, seconds: target.seconds, activate: false)
+            }
         case "segment-embed": segmentEmbed(audio: args[1], spans: args[2], output: args[3], batched: args.count > 4 ? Int(args[4]) : nil)   // design §6.3.2
         case "correct-eval": correctEval(input: args[1], options: args[2], output: args[3])          // design §17.4
         case "detect-eval": detectEval(audio: args[1], start: Double(args[2]) ?? 0, output: args[3])  // design §18.8
@@ -514,6 +534,17 @@ enum DebugControl {
             case "join":   // join <shiyin://join?server=…>：等於點了加入連結（會跳出確認，出現在使用者畫面上）
                 if let url = URL(string: args[2]) { Task { await EnterpriseJoin.handle(url) } }
             case "local": model.runner.transcribeLocally(meetingId: Int64(args[2]) ?? -1)
+            case "info":   // info <網址> <輸出.json>：只讀伺服器的 /api/v1/info、寫出解析結果，不改帳號和設定（本地 MCP 的 mcp 欄位，design §44.6）
+                let output = args[3]
+                Task {
+                    guard let url = EnterpriseServer.normalized(args[2]) else { write(["ok": false, "error": "bad url"], to: output); return }
+                    do {
+                        let info = try await EnterpriseServer.shared.fetchInfo(url)
+                        write(["ok": true, "name": info.name, "llm": info.llm, "mcp": info.mcp.map { $0 as Any } ?? NSNull()], to: output)
+                    } catch {
+                        write(["ok": false, "error": error.localizedDescription], to: output)
+                    }
+                }
             default: break
             }
         case "llmkey":   // llmkey <account> <key>：只放記憶體
@@ -684,6 +715,9 @@ enum DebugControl {
             "selection": model.selection ?? -1,
             "tab": model.tab.rawValue, "reviewExpanded": model.reviewExpanded, "userNotesExpanded": model.userNotesExpanded,
             "notesView": UserDefaults.standard.string(forKey: AppSettings.notesViewKey) ?? "list",
+            // 本地 MCP（design §44.6）：開關、啟動檔
+            "mcp": ["enabled": AppSettings.mcpEnabled, "launcher": MCPSetup.launcherURL.path,
+                    "launcherExists": FileManager.default.fileExists(atPath: MCPSetup.launcherURL.path)] as [String: Any],
             // 播放條上的議題帶（design §43.3）：選取中的會議，長度同播放條
             "topicRanges": model.detail.flatMap { d in
                 d.notes.map { MindMap.topicRanges(notes: $0, duration: max(model.player.duration, Double(d.meeting.durationSeconds ?? 0)),

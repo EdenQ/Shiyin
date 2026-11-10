@@ -692,6 +692,17 @@
         }
       }
     },
+    "AI 工具（MCP）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI tools (MCP)"
+          }
+        }
+      }
+    },
     "API key": {
       "extractionState": "manual"
     },
@@ -803,6 +814,28 @@
         }
       }
     },
+    "Claude Code、Claude Desktop、Codex 等支援 MCP 的 AI 工具可以搜尋、讀你的會議紀錄和逐字稿（只能讀、不能改），會議助手不用開著。讀到的內容會交給那個 AI 工具處理，跟整理會議紀錄一樣會離開這台電腦。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI tools that support MCP, such as Claude Code, Claude Desktop and Codex, can search and read your meeting notes and transcripts (read-only), even when Meeting Assistant isn't open. What they read is handled by that AI tool and leaves this Mac, just like when meeting notes are written."
+          }
+        }
+      }
+    },
+    "Claude Code、Claude Desktop、Codex 等支援 MCP 的 AI 工具可以直接讀會議助手的會議：到「設定 → 進階 → AI 工具（MCP）」打開「讓 AI 工具讀取會議」，再按「加到 Claude Code」「加到 Codex」或「加到 Claude Desktop」。其他工具用「複製」自己貼上設定。會議助手不用開著。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI tools that support MCP, such as Claude Code, Claude Desktop and Codex, can read your Meeting Assistant meetings directly: in Settings › Advanced › AI tools (MCP), turn on “Let AI tools read meetings”, then click “Add to Claude Code”, “Add to Codex” or “Add to Claude Desktop”. For other tools, use Copy and paste the settings yourself. Meeting Assistant doesn't need to be open."
+          }
+        }
+      }
+    },
     "Claude Code（這台 Mac 已經裝了 claude CLI）": {
       "extractionState": "manual",
       "localizations": {
@@ -810,6 +843,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Claude Code (claude CLI is installed on this Mac)"
+          }
+        }
+      }
+    },
+    "Claude Desktop 的設定檔不是拾音看得懂的格式，沒有改動：%@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shiyin couldn't read Claude Desktop's settings file, so it wasn't changed: %@"
           }
         }
       }
@@ -2307,6 +2351,17 @@
         }
       }
     },
+    "先把會議助手拖進「應用程式」資料夾再打開，AI 工具才找得到它。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move Meeting Assistant to the Applications folder and open it from there first, so AI tools can find it."
+          }
+        }
+      }
+    },
     "先選一場會議，再把文件拖進來": {
       "extractionState": "manual",
       "localizations": {
@@ -2457,6 +2512,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "If your company runs a Meeting Assistant enterprise server, enter the URL they gave you, click Sign In, and sign in with your company account on the page that opens. Recordings are then transcribed on the company's server — fast even without an NVIDIA graphics card — and summaries can use the company's model."
+          }
+        }
+      }
+    },
+    "公司的企業伺服器關掉了這個功能。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your company's Shiyin server has turned this off."
           }
         }
       }
@@ -2925,6 +2991,50 @@
         }
       }
     },
+    "加到 Claude Code": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add to Claude Code"
+          }
+        }
+      }
+    },
+    "加到 Claude Desktop": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add to Claude Desktop"
+          }
+        }
+      }
+    },
+    "加到 Codex": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add to Codex"
+          }
+        }
+      }
+    },
+    "加好之後在 AI 工具裡直接問，例如「列出我這週的會議」「上週所有會議的待辦有哪些」「找出提到預算的會議，整理成一段給主管」，也可以跟其他工具一起用（把待辦開成工單、寫週報）。回答裡的會議連結點了會打開會議助手、跳到那個時間點。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Then just ask in the AI tool, for example “List my meetings this week”, “What are the action items from last week's meetings?” or “Find the meetings that discussed the budget and summarize them for my manager”. It also works together with your other tools (turning action items into tickets, writing a weekly report). Meeting links in the answers open Meeting Assistant at that moment."
+          }
+        }
+      }
+    },
     "包含時間點": {
       "extractionState": "manual",
       "localizations": {
@@ -3331,6 +3441,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "You can only import audio, video, transcripts (srt, vtt, txt), Markdown or .shiyin files"
+          }
+        }
+      }
+    },
+    "只能讀、不能改；垃圾桶裡的會議、正在錄的會議讀不到。讀到的會議內容會交給那個 AI 工具處理，跟整理會議紀錄一樣會離開這台 Mac；關掉開關就讀不到了。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Read-only: AI tools can't change anything, and meetings in the Trash or still being recorded aren't available. The meeting content they read is handled by that AI tool and leaves this Mac, just like when meeting notes are written. Turn the switch off to stop access."
           }
         }
       }
@@ -4181,6 +4302,39 @@
           "stringUnit": {
             "state": "translated",
             "value": "Added “%@” (text read with text recognition)"
+          }
+        }
+      }
+    },
+    "已加到 Claude Code，開新的對話就能用。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Added to Claude Code. Start a new conversation to use it."
+          }
+        }
+      }
+    },
+    "已加到 Claude Desktop，重新開啟 Claude Desktop 後就能用。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Added to Claude Desktop. Quit and reopen Claude Desktop to use it."
+          }
+        }
+      }
+    },
+    "已加到 Codex，開新的對話就能用。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Added to Codex. Start a new conversation to use it."
           }
         }
       }
@@ -5079,6 +5233,28 @@
         }
       }
     },
+    "找不到 claude": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Can't find claude"
+          }
+        }
+      }
+    },
+    "找不到 codex": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Can't find codex"
+          }
+        }
+      }
+    },
     "找不到「%@」": {
       "extractionState": "manual",
       "localizations": {
@@ -5130,6 +5306,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "No output device found, so system audio can't be captured"
+          }
+        }
+      }
+    },
+    "找不到這場會議，可能已經刪掉了": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Can't find this meeting. It may have been deleted."
           }
         }
       }
@@ -7944,6 +8131,39 @@
         }
       }
     },
+    "沒有加到 Claude Code：%@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't add to Claude Code: %@"
+          }
+        }
+      }
+    },
+    "沒有加到 Claude Desktop：%@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't add to Claude Desktop: %@"
+          }
+        }
+      }
+    },
+    "沒有加到 Codex：%@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't add to Codex: %@"
+          }
+        }
+      }
+    },
     "沒有可以復原的說話者調整（改名、重新辨識說話者之後就不能復原之前的調整）": {
       "extractionState": "manual",
       "localizations": {
@@ -8039,6 +8259,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "No transcript."
+          }
+        }
+      }
+    },
+    "沒有錯誤訊息": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No error message"
           }
         }
       }
@@ -9509,6 +9740,17 @@
         }
       }
     },
+    "複製 Claude Code 指令": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy Claude Code Command"
+          }
+        }
+      }
+    },
     "複製心智圖（圖片）": {
       "extractionState": "manual",
       "localizations": {
@@ -9571,6 +9813,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Copy Notes: Plain Text (for Slack, Messages)"
+          }
+        }
+      }
+    },
+    "複製設定（JSON）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy Settings (JSON)"
           }
         }
       }
@@ -10011,6 +10264,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Couldn’t read the API key from the keychain (error %lld)"
+          }
+        }
+      }
+    },
+    "讓 AI 工具讀取會議": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Let AI tools read meetings"
           }
         }
       }
@@ -10607,6 +10871,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Who Said This Line?"
+          }
+        }
+      }
+    },
+    "這台 Mac 上找不到 %@；其他支援 MCP 的工具可以用「複製」自己貼上設定。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ not found on this Mac. For other tools that support MCP, use Copy and paste the settings yourself."
           }
         }
       }
