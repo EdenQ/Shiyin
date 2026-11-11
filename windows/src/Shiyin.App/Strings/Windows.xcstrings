@@ -1,17 +1,6 @@
 {
   "sourceLanguage": "zh-Hant",
   "strings": {
-    "%@ 還沒登入，登入之後才會用它整理。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ isn’t signed in. Shiyin will use it once you sign in."
-          }
-        }
-      }
-    },
     "%@失敗（錯誤代碼 %@）": {
       "extractionState": "manual",
       "localizations": {
@@ -19,17 +8,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "%1$@ failed (error %2$@)"
-          }
-        }
-      }
-    },
-    "%@失敗（錯誤代碼 %d）。請確認已允許拾音「錄製系統音訊」": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ failed (error %d). Make sure Shiyin is allowed to record system audio."
           }
         }
       }
@@ -52,17 +30,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "- Enterprise server: %@ (server %@)"
-          }
-        }
-      }
-    },
-    "- 拾音 %@（build %@）": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "- Shiyin %1$@ (build %2$@)"
           }
         }
       }
@@ -320,17 +287,6 @@
         }
       }
     },
-    "Zoom、Teams、Webex、Google Meet（瀏覽器）等開始用麥克風、拾音沒在錄音時提醒你；會議結束時提醒停止。只提醒，不會自動錄音。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "When Zoom, Teams, Webex, Google Meet (in a browser) or a similar app starts using the microphone and Shiyin isn't recording, Shiyin asks whether to record, and asks again when the meeting seems to end. It only asks; it never records on its own."
-          }
-        }
-      }
-    },
     "claude 沒有回傳結果（結束代碼 %lld）": {
       "extractionState": "manual",
       "localizations": {
@@ -353,28 +309,6 @@
         }
       }
     },
-    "macOS 沒有讓拾音讀取鑰匙圈裡的 API key。再試一次時，系統詢問就輸入這台 Mac 的登入密碼（不是 API key），按「永遠允許」；或到設定 → 整理工具重新貼上 key。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "macOS didn’t let Shiyin read the API key from the keychain. Try again, and when macOS asks, enter this Mac’s login password (not the API key) and click “Always Allow”. Or paste the key again in Settings → Summarizer."
-          }
-        }
-      }
-    },
-    "「%@」有密碼保護，拾音讀不了。請先移除密碼再加入。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "“%@” is password-protected, so Shiyin can't read it. Remove the password and add it again."
-          }
-        }
-      }
-    },
     "「%@」裡讀不到文字。這台電腦沒有%@的文字辨識：到「設定 → 時間與語言 → 語言與地區」加入%@再試。": {
       "extractionState": "manual",
       "localizations": {
@@ -382,17 +316,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "No text could be read from “%@”. This PC has no text recognition for %@: add %@ in Settings → Time & language → Language & region, then try again."
-          }
-        }
-      }
-    },
-    "「%@」超過 200 MB，拾音不讀這麼大的文件。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "“%@” is larger than 200 MB. Shiyin doesn't read documents that large."
           }
         }
       }
@@ -415,50 +338,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "“To confirm” lists the names, terms, owners and deadlines the summarizer wasn’t sure about. The note in question gets a “?” next to it: click it to answer right there, or open the “To confirm” tab to go through them all. Questions that take yes or no have “Yes” and “No” buttons (“Yes” confirms on the spot, no waiting for the summarizer); answer the others in “Your answer”, then click “Submit” and the notes are revised to match. Click “Skip” on anything unclear or unimportant, or “Skip all”. You can also edit the notes directly with “Edit” on the Summary tab. If something goes wrong, choose “Restore previous notes” from “More”."
-          }
-        }
-      }
-    },
-    "「說話者」：拾音認識的人和他們的聲紋，可以改名、刪除，或關掉記住聲音的功能。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "“Speakers”: the people Shiyin knows and their voiceprints. Rename or delete them, or turn off remembering voices."
-          }
-        }
-      }
-    },
-    "「說話者與詞彙」：拾音認識的人和他們的聲紋，可以改名、刪除，或關掉記住聲音的功能；詞彙表加入系統名、產品名、人名的正確寫法，這對專有名詞的正確率影響很大。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Speakers & Glossary: the people Shiyin recognizes and their voiceprints, which you can rename or delete, or turn off remembering voices; the glossary holds the correct spelling of system names, product names and people's names, which greatly improves proper-noun accuracy."
-          }
-        }
-      }
-    },
-    "「進階」：填更新網址、檢查更新；有新版時拾音會詢問，同意後自動下載、驗證並重新打開。也可以從「拾音」選單選「檢查更新…」。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "“Advanced”: enter the update URL and check for updates. When a new version is available, Shiyin asks, then downloads, verifies and reopens. You can also choose “Check for Updates…” from the Shiyin menu."
-          }
-        }
-      }
-    },
-    "「進階」：檢查更新（有新版時拾音會詢問，同意後自動下載、驗證並重新打開；也可以從「拾音」選單選「檢查更新…」）、環境檢查、錄音和模型佔用的空間。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Advanced: check for updates (when a new version is available Shiyin asks, then downloads, verifies and relaunches; also available from the Shiyin menu → Check for Updates…), environment check, and the space used by recordings and models."
           }
         }
       }
@@ -606,17 +485,6 @@
         }
       }
     },
-    "之後隨時可以從「輔助說明」選單（⌘?）或選單列的拾音圖示，再打開這份說明。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "You can open this guide again any time from the Help menu (⌘?) or the Shiyin icon in the menu bar."
-          }
-        }
-      }
-    },
     "之後隨時可以從系統匣或設定的「進階」再打開使用說明。": {
       "extractionState": "manual",
       "localizations": {
@@ -635,17 +503,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "You can also press Ctrl+Plus or Ctrl+Minus."
-          }
-        }
-      }
-    },
-    "人多、吵雜或手機放在桌上錄音時，先告訴拾音大約幾個人，說話者會分得比較準": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "With many people, noise, or a phone on the table, telling Shiyin roughly how many people there are helps it tell speakers apart"
           }
         }
       }
@@ -683,17 +540,6 @@
         }
       }
     },
-    "企業伺服器要求轉到別的網址（HTTP %lld），拾音不會跟著轉。請確認網址，或請公司的管理者檢查伺服器的設定。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The enterprise server asked to redirect to another address (HTTP %lld). Shiyin doesn't follow redirects. Check the URL, or ask your company's administrator to check the server settings."
-          }
-        }
-      }
-    },
     "企業伺服器辨識說話者": {
       "extractionState": "manual",
       "localizations": {
@@ -705,17 +551,6 @@
         }
       }
     },
-    "你有 Claude 桌面版：另外安裝 Claude Code（命令列版）之後，拾音就能用你的 Claude 訂閱（Pro 以上）整理。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "You have the Claude desktop app. Install Claude Code (the command-line version) as well, and Shiyin can summarize with your Claude subscription (Pro or higher)."
-          }
-        }
-      }
-    },
     "使用 %@ 附的 codex（這台電腦沒有另外安裝 Codex CLI）": {
       "extractionState": "manual",
       "localizations": {
@@ -723,17 +558,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Using the codex bundled with %@ (Codex CLI isn't installed separately on this PC)"
-          }
-        }
-      }
-    },
-    "例如：「上個月跟客戶談過哪些價格？」「寄信的機制最後怎麼決定的？」拾音會先找出相關的會議片段，再請整理工具回答，回答附上是哪一場會議、哪個時間點。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "For example: “What prices did we discuss with clients last month?” or “What did we decide about sending email?” Shiyin first finds the relevant parts of your meetings, then asks the summarizer. Answers show which meeting and what time each point comes from."
           }
         }
       }
@@ -767,17 +591,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Global shortcut Ctrl+Alt+Shift+R: start or stop recording from any app"
-          }
-        }
-      }
-    },
-    "公司有拾音的企業伺服器時，填入公司給的網址、按「登入」，在打開的網頁用公司帳號登入。登入後錄音交給公司的伺服器轉錄，沒有 NVIDIA 顯示卡的電腦也很快；整理也可以用公司提供的模型。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "If your company runs a Shiyin enterprise server, enter the URL they gave you, click Sign In, and sign in with your company account on the page that opens. Recordings are then transcribed on the company's server — fast even without an NVIDIA graphics card — and summaries can use the company's model."
           }
         }
       }
@@ -826,17 +639,6 @@
         }
       }
     },
-    "刪除所有認識的人的聲音特徵？": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Delete the voice samples of everyone Shiyin knows?"
-          }
-        }
-      }
-    },
     "到逐字稿改名": {
       "extractionState": "manual",
       "localizations": {
@@ -855,17 +657,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Then just ask in the AI tool, for example “List my meetings this week”, “What are the action items from last week's meetings?” or “Find the meetings that discussed the budget and summarize them for my manager”. It also works together with your other tools (turning action items into tickets, writing a weekly report). Meeting links in the answers open Shiyin at that moment."
-          }
-        }
-      }
-    },
-    "包含錄音、逐字稿、說話者、會議紀錄、筆記和重點標記。傳給同事後，對方雙擊就能匯入拾音。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Includes the recording, transcript, speakers, meeting notes, your notes and bookmarks. A colleague can double-click it to import into Shiyin."
           }
         }
       }
@@ -936,17 +727,6 @@
         }
       }
     },
-    "原因：%@\n\n你的資料沒有被改動。升級前的備份在：%@\n請把這個訊息截圖給維護拾音的人。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reason: %@\n\nYour data has not been changed. The backup made before the upgrade is in: %@\nPlease send a screenshot of this message to whoever maintains Shiyin."
-          }
-        }
-      }
-    },
     "只能讀、不能改；垃圾桶裡的會議、正在錄的會議讀不到。讀到的會議內容會交給那個 AI 工具處理，跟整理會議紀錄一樣會離開這台電腦；關掉開關就讀不到了。": {
       "extractionState": "manual",
       "localizations": {
@@ -958,17 +738,6 @@
         }
       }
     },
-    "只重新分辨誰在說話，逐字稿的文字不會變。人多、吵雜或手機遠距收音時，告訴拾音大約幾個人會分得比較準。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Only works out again who is speaking; the transcript text doesn't change. With many people, a noisy room or a phone recording from across the table, telling Shiyin roughly how many people there are helps."
-          }
-        }
-      }
-    },
     "在打開的網頁登入，登入完會回到拾音": {
       "extractionState": "manual",
       "localizations": {
@@ -976,28 +745,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sign in on the page that opened; you'll come back to Shiyin afterwards"
-          }
-        }
-      }
-    },
-    "執行這個工作時拾音意外結束了 2 次，已經停止自動重試。可以按「重試」再試一次。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Shiyin quit unexpectedly twice while running this task, so it won't retry automatically. Click “Retry” to try again."
-          }
-        }
-      }
-    },
-    "大約幾個人：人多、吵雜或手機放在桌上錄音時，先告訴拾音大約幾個人，說話者會分得比較準": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Roughly how many people: with many people, noise, or a phone on the table, telling Shiyin ahead of time helps it tell speakers apart"
           }
         }
       }
@@ -1157,17 +904,6 @@
         }
       }
     },
-    "打開拾音": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Open Shiyin"
-          }
-        }
-      }
-    },
     "打開設定": {
       "extractionState": "manual",
       "localizations": {
@@ -1201,50 +937,6 @@
         }
       }
     },
-    "拾音": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Shiyin"
-          }
-        }
-      }
-    },
-    "拾音 %@ 可以更新了": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Shiyin %@ is available"
-          }
-        }
-      }
-    },
-    "拾音使用說明": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Shiyin Guide"
-          }
-        }
-      }
-    },
-    "拾音幫你把會議變成逐字稿和會議紀錄：錄音時就能看到即時逐字稿，錄完會在這台 Mac 上正式轉錄（中文、英文用 Breeze ASR 25，日文用 Whisper）、分辨說話者，再用 Claude、Codex 或 API 整理成摘要、決議和待辦。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Shiyin turns meetings into transcripts and meeting notes. You see a live transcript while recording; afterwards, Shiyin transcribes on this Mac (Breeze ASR 25 for Chinese and English, Whisper for Japanese), identifies speakers, and uses Claude, Codex or an API to write the summary, decisions and action items."
-          }
-        }
-      }
-    },
     "拾音幫你把會議變成逐字稿和會議紀錄：錄音時就能看到即時逐字稿，錄完會在這台電腦上正式轉錄（中文、英文用 Breeze ASR 25，日文用 Whisper）、分辨說話者，再用 Claude、Codex 或 API 整理成摘要、決議和待辦。": {
       "extractionState": "manual",
       "localizations": {
@@ -1252,17 +944,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Shiyin turns meetings into transcripts and meeting notes: you see a live transcript while recording, then it transcribes on this PC (Breeze ASR 25 for Chinese and English, Whisper for Japanese), tells speakers apart, and uses Claude, Codex or an API to write a summary, decisions and action items."
-          }
-        }
-      }
-    },
-    "拾音把會議變成逐字稿和會議紀錄。錄音、轉錄、說話者辨識都在這台 Mac 上完成。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Shiyin turns meetings into transcripts and meeting notes. Recording, transcription and speaker recognition all happen on this Mac."
           }
         }
       }
@@ -1311,39 +992,6 @@
         }
       }
     },
-    "拾音正在轉錄或整理會議紀錄": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Shiyin is transcribing or summarizing meeting notes"
-          }
-        }
-      }
-    },
-    "拾音正在錄音": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Shiyin is recording"
-          }
-        }
-      }
-    },
-    "拾音沒有麥克風權限": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Shiyin doesn't have microphone access"
-          }
-        }
-      }
-    },
     "拾音沒有麥克風的使用權限": {
       "extractionState": "manual",
       "localizations": {
@@ -1355,116 +1003,6 @@
         }
       }
     },
-    "拾音沒辦法開啟資料庫": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Shiyin can't open its database"
-          }
-        }
-      }
-    },
-    "拾音的版本太舊，請先更新拾音": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This version of Shiyin is too old. Please update Shiyin first."
-          }
-        }
-      }
-    },
-    "拾音系統聲音": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Shiyin System Audio"
-          }
-        }
-      }
-    },
-    "拾音認出這個人的聲音，自動帶入名字。不對的話點名字": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Shiyin recognized this person's voice and filled in the name. Click the name if it's wrong."
-          }
-        }
-      }
-    },
-    "拾音讀不了 .%@ 檔。請先匯出成 PDF 再加入。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Shiyin can't read .%@ files. Export it as PDF and add that instead."
-          }
-        }
-      }
-    },
-    "拾音讀不了 Keynote 檔。請先在 Keynote 匯出成 PDF 再加入。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Shiyin can't read Keynote files. Export it as PDF in Keynote and add that instead."
-          }
-        }
-      }
-    },
-    "拾音讀不了 Numbers 檔。請先在 Numbers 匯出成 PDF 再加入。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Shiyin can't read Numbers files. Export it as PDF in Numbers and add that instead."
-          }
-        }
-      }
-    },
-    "拾音讀不了 Pages 檔。請先在 Pages 匯出成 PDF 再加入。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Shiyin can't read Pages files. Export it as PDF in Pages and add that instead."
-          }
-        }
-      }
-    },
-    "拾音讀不了沒有副檔名的檔案。請先匯出成 PDF 再加入。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Shiyin can't read files without an extension. Export it as PDF and add that instead."
-          }
-        }
-      }
-    },
-    "拾音讀不了舊版的 Word 檔（.doc）。請另存成 docx 或 PDF 再加入。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Shiyin can't read old Word files (.doc). Save it as docx or PDF and add that instead."
-          }
-        }
-      }
-    },
     "拾音：正在打開 %@。在那裡登入之後，回到拾音按「重新檢查」。": {
       "extractionState": "manual",
       "localizations": {
@@ -1472,17 +1010,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Shiyin: opening %@. After you sign in there, come back to Shiyin and click “Check Again”."
-          }
-        }
-      }
-    },
-    "拾音：正在打開瀏覽器登入 %@。登入完成後，回到拾音按「重試」或「測試整理工具」。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Shiyin: opening your browser to sign in to %@. When you’re done, go back to Shiyin and click “Retry” or “Test Summarizer”."
           }
         }
       }
@@ -1516,17 +1043,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Shiyin: recording %@, %@"
-          }
-        }
-      }
-    },
-    "按「停止並轉錄」後，拾音會在這台 Mac 上重新轉錄（中文、英文用 Breeze ASR 25，日文用 Whisper large-v3-turbo），並分辨不同的說話者。等待的時候，會議紀錄會先用即時逐字稿整理一份草稿，正式版好了會自動換掉。逐字稿上點「說話者 1」可以改成人名，整場都會跟著改；拾音會記住這個人的聲音，之後的會議自動帶入名字（標「自動」，認錯了點一下就能改）。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "After you press Stop & Transcribe, Shiyin re-transcribes the recording on this Mac (Breeze ASR 25 for Chinese and English, Whisper large-v3-turbo for Japanese) and tells the speakers apart. While you wait, the notes are drafted from the live transcript and replaced automatically once the final version is ready. Click \"Speaker 1\" in the transcript to give them a name and it changes throughout the meeting; Shiyin remembers their voice and fills in the name in later meetings (marked \"auto\"; one click fixes a wrong guess)."
           }
         }
       }
@@ -1608,28 +1124,6 @@
         }
       }
     },
-    "按工具列的「錄音」（⌘R）開始錄；點按鈕旁的箭頭可以選錄音來源和麥克風，線上會議請選「麥克風＋電腦聲音（線上會議）」，對方的聲音也會錄進來。錄音畫面的音量條旁寫著正在用哪一支麥克風，點一下可以換；藍牙耳機連著時，系統可能自動改用耳機的麥克風，現場會議記得換成這台 Mac 的麥克風。已經有錄音檔的話，拖進視窗、按「匯入」（⌘O），或拖到 Dock 上的拾音圖示都可以。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Click “Record” (⌘R) in the toolbar to start. Click the arrow next to it to choose the source and microphone; for online meetings choose “Microphone + computer audio (online meetings)” so the other side is recorded too. While recording, the microphone in use is shown next to the level meter; click it to switch. When Bluetooth headphones are connected, macOS may switch to their microphone, so for in-person meetings switch back to this Mac’s microphone. If you already have a recording, drag it into the window, click “Import” (⌘O), or drop it on the Shiyin icon in the Dock."
-          }
-        }
-      }
-    },
-    "按工具列的「錄音」（⌘R）開始錄；點按鈕旁的箭頭可以選錄音來源，線上會議請選「麥克風＋電腦聲音（線上會議）」，對方的聲音也會錄進來。已經有錄音檔的話，拖進視窗、按「匯入」（⌘O），或拖到 Dock 上的拾音圖示都可以。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Click “Record” (⌘R) in the toolbar to start. Click the arrow next to it to choose the source; for online meetings choose “Microphone + computer audio (online meetings)” so the other side is recorded too. If you already have a recording, drag it into the window, click “Import” (⌘O), or drop it on the Shiyin icon in the Dock."
-          }
-        }
-      }
-    },
     "掃描的 PDF、圖片用 Windows 的文字辨識讀出文字（要有會議語言的辨識：設定 → 時間與語言 → 語言與地區）。一場會議的文件合計最多 4 萬字，太長的只送前面的部分。Keynote、Pages 請先匯出成 PDF。": {
       "extractionState": "manual",
       "localizations": {
@@ -1674,17 +1168,6 @@
         }
       }
     },
-    "整場逐字稿和之後的會議紀錄都會用這個名字；拾音也會記住這個人的聲音，之後的會議自動帶入。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The whole transcript and future meeting notes use this name. Shiyin also remembers this person's voice and fills in the name in future meetings."
-          }
-        }
-      }
-    },
     "整理、提問、猜說話者時會把逐字稿文字、你的筆記、詞彙表和會議基本資料送到這台電腦上的服務（%@），不會離開電腦。錄音檔不會送出。": {
       "extractionState": "manual",
       "localizations": {
@@ -1692,17 +1175,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "When writing notes, answering questions and guessing speakers, the transcript text, your notes, the glossary and basic meeting info are sent to a service on this PC (%@) and never leave it. Recordings are never sent."
-          }
-        }
-      }
-    },
-    "新版的簽章跟目前的拾音不符，拒絕安裝（%@）": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The new version's signature doesn't match this Shiyin, so it wasn't installed (%@)"
           }
         }
       }
@@ -1718,17 +1190,6 @@
         }
       }
     },
-    "更新檔裡找不到拾音": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Shiyin wasn't found in the update"
-          }
-        }
-      }
-    },
     "更新金鑰不符": {
       "extractionState": "manual",
       "localizations": {
@@ -1736,17 +1197,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "the update key doesn't match"
-          }
-        }
-      }
-    },
-    "替說話者取名時，拾音會記下這個人的聲音特徵。之後的會議認出同一個人，就自動帶入名字並標「自動」，不對可以改。聲音特徵只存在這台 Mac 的資料庫，不會上傳，也不會放進匯出的 .shiyin 封包。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "When you name a speaker, Shiyin saves that person's voice features. When it recognizes the same person in a later meeting, it fills in the name and marks it “Auto”; you can change it if it's wrong. Voice features stay in the database on this Mac. They're never uploaded or included in exported .shiyin packages."
           }
         }
       }
@@ -1872,17 +1322,6 @@
         }
       }
     },
-    "有 Claude 桌面版，但拾音要另外安裝 Claude Code（命令列版）：在終端機執行 %@，再執行 claude 登入": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The Claude desktop app is installed, but Shiyin needs Claude Code (the command-line version): run %@ in Terminal, then sign in by running claude"
-          }
-        }
-      }
-    },
     "有 Intel 顯示卡時自動下載。第一次正式轉錄時，先用這場錄音的一段比對顯示卡和 CPU，結果一樣、顯示卡又比較快才改用顯示卡。%@，解開約 %@（拾音用同一版 whisper.cpp 建的 Vulkan 版）。刪除後不會再自動下載。": {
       "extractionState": "manual",
       "localizations": {
@@ -1949,17 +1388,6 @@
         }
       }
     },
-    "歡迎使用拾音": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Welcome to Shiyin"
-          }
-        }
-      }
-    },
     "正在下載%@": {
       "extractionState": "manual",
       "localizations": {
@@ -1971,13 +1399,24 @@
         }
       }
     },
-    "正在下載更新，完成後拾音會自動重新打開": {
+    "正在下載更新 %lld%%": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Downloading the update. Shiyin will reopen when it's done."
+            "value": "Downloading update %lld%%"
+          }
+        }
+      }
+    },
+    "正在下載更新 %lld%%…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Downloading update %lld%%…"
           }
         }
       }
@@ -2011,61 +1450,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Recording with this microphone. Click to switch."
-          }
-        }
-      }
-    },
-    "正在錄音，要結束拾音嗎？": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Recording in progress. Quit Shiyin?"
-          }
-        }
-      }
-    },
-    "每天送一份匿名的使用統計給拾音的開發者：版本、系統、錄音和轉錄了幾分鐘、用了哪些功能、失敗幾次。不會送會議標題、逐字稿、會議紀錄、人名、聲紋或任何檔案。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Once a day, Shiyin sends its developer an anonymous summary: version, system, minutes recorded and transcribed, which features were used, and how many tasks failed. It never sends meeting titles, transcripts, notes, names, voiceprints or any files."
-          }
-        }
-      }
-    },
-    "每天送一份匿名的使用統計給拾音的開發者：版本、系統、錄音和轉錄了幾分鐘、用了哪些功能、失敗幾次和哪一種失敗。不會送會議標題、逐字稿、會議紀錄、人名、聲紋或任何檔案。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Once a day, Shiyin sends its developer an anonymous summary: version, system, minutes recorded and transcribed, which features were used, and how many tasks failed and of what kind. It never sends meeting titles, transcripts, notes, names, voiceprints or any files."
-          }
-        }
-      }
-    },
-    "每天送一份匿名的使用統計（版本、系統、錄音和轉錄的分鐘數、用了哪些功能、失敗的次數和種類），不含任何會議內容。在設定 → 進階可以關掉。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Once a day, Shiyin sends an anonymous usage summary (version, system, minutes recorded and transcribed, which features were used, and how many tasks failed and of what kind) that never includes meeting content. You can turn it off in Settings → Advanced."
-          }
-        }
-      }
-    },
-    "沒有權限替換「%@」裡的拾音，已經打開下載好的 DMG，請把拾音拖進「應用程式」取代舊版": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Shiyin can't replace the app in “%@”. The downloaded DMG is open; drag Shiyin to Applications to replace the old version."
           }
         }
       }
@@ -2158,17 +1542,6 @@
         }
       }
     },
-    "發布拾音的人會給你這個網址（shiyin-update.json）。留空就用安裝版本內建的網址；都沒有的話不會檢查更新。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Whoever distributes Shiyin gives you this URL (shiyin-update.json). Leave it blank to use the one built into this version; if neither is set, Shiyin doesn't check for updates."
-          }
-        }
-      }
-    },
     "目前不整理：錄音、轉錄、逐字稿全部留在這台電腦。": {
       "extractionState": "manual",
       "localizations": {
@@ -2176,28 +1549,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Notes are off: recordings, transcription and transcripts all stay on this PC."
-          }
-        }
-      }
-    },
-    "目前是 %@。更新時拾音會結束並重新打開，會議資料都會保留。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "You have %@. Shiyin will quit and reopen to update; your meetings are kept."
-          }
-        }
-      }
-    },
-    "第一次錄音時會詢問；被拒絕的話到「系統設定 → 隱私權與安全性 → 麥克風」打開拾音": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "You'll be asked the first time you record. If denied, turn on Shiyin in System Settings → Privacy & Security → Microphone."
           }
         }
       }
@@ -2224,17 +1575,6 @@
         }
       }
     },
-    "結束拾音": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Quit Shiyin"
-          }
-        }
-      }
-    },
     "繼續錄音（Ctrl+Shift+P）": {
       "extractionState": "manual",
       "localizations": {
@@ -2253,17 +1593,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Voiceprints (a speaker's voice features: a list of numbers, not audio) stay on this PC and are never included in exported .shiyin packages."
-          }
-        }
-      }
-    },
-    "背景有點吵，說話者可能分不準。錄完可以用「重新辨識說話者」告訴拾音大約幾個人。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "It’s a bit noisy, so speakers may get mixed up. After recording, use “Identify Speakers Again” to tell Shiyin roughly how many people there were."
           }
         }
       }
@@ -2323,17 +1652,6 @@
         }
       }
     },
-    "認識的人": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "People Shiyin Knows"
-          }
-        }
-      }
-    },
     "說話者分得太少（人多、吵雜、手機放在桌上遠距收音）時，從「更多 → 重新處理」選「重新辨識說話者…」，告訴拾音大約幾個人。": {
       "extractionState": "manual",
       "localizations": {
@@ -2341,17 +1659,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "If too few speakers were found (many people, noisy room, a phone on the table far from the speakers), choose More → Reprocess → Re-identify Speakers… and tell Shiyin roughly how many people there were."
-          }
-        }
-      }
-    },
-    "說話者分得太少（人多、吵雜、手機放在桌上遠距收音）時，從「更多 → 重新處理」選「重新辨識說話者…」，告訴拾音大約幾個人。只會重新分辨誰在說話，逐字稿的文字不會變。錄音中（會議標題右邊的「人數」）或匯入時也可以先選。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Too few speakers detected (many people, noise, or a phone on the table far from everyone)? Choose More → Reprocess → Re-identify speakers… and tell Shiyin roughly how many people there were. Only the speaker labels change; the transcript text stays. You can also set the count while recording (the People control next to the meeting title) or when importing."
           }
         }
       }
@@ -2367,17 +1674,6 @@
         }
       }
     },
-    "說話者分得太少（人多、吵雜、手機放在桌上遠距收音）時，從「更多」選「重新辨識說話者…」，告訴拾音大約幾個人。只會重新分辨誰在說話，逐字稿的文字不會變。錄音中（會議標題右邊的「人數」）或匯入時也可以先選。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "If too few speakers were found (many people, noise, or a phone on the table), choose “Identify Speakers Again…” from More and tell Shiyin roughly how many people there were. Only who is speaking is worked out again; the transcript text stays the same. You can also pick the number while recording (“People” next to the meeting title) or when importing."
-          }
-        }
-      }
-    },
     "說話者分錯了：同一個人被分成兩位，點說話者的名字選「合併到…」；某幾句分錯人，在逐字稿按右鍵選「這句是誰說的」。": {
       "extractionState": "manual",
       "localizations": {
@@ -2385,17 +1681,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "If speakers are wrong: when one person was split into two, click the speaker's name and choose Merge into…; when a few lines have the wrong speaker, right-click them in the transcript and choose Who said this."
-          }
-        }
-      }
-    },
-    "說話者可能分得不夠：有些不同的人可能被當成同一位。人多、吵雜或手機放在桌上錄音時常發生，告訴拾音大約幾個人會分得比較準。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Some speakers may be missing: different people may have been treated as one. This often happens with many people, noise, or a phone on the table. Telling Shiyin roughly how many people there were helps."
           }
         }
       }
@@ -2433,17 +1718,6 @@
         }
       }
     },
-    "請到「系統設定 → 隱私權與安全性 → 麥克風」打開「拾音」，再重新開始錄音。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Turn on Shiyin in System Settings → Privacy & Security → Microphone, then start recording again."
-          }
-        }
-      }
-    },
     "請到「設定 → 隱私權與安全性 → 麥克風」打開「麥克風存取」和「讓傳統型應用程式存取您的麥克風」，再重新開始錄音。": {
       "extractionState": "manual",
       "localizations": {
@@ -2462,28 +1736,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Couldn't read the key from Credential Manager (error %lld)"
-          }
-        }
-      }
-    },
-    "貼上 API key 並按「儲存」後才會用 %@ 整理；沒有 key 的話可以選「先不用」。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Shiyin uses %@ after you paste an API key and click “Save”. No key? Choose “Not now”."
-          }
-        }
-      }
-    },
-    "超過 15 秒沒有收到系統聲音：請確認線上會議有聲音，並在「系統設定 → 隱私權與安全性 → 錄製螢幕與系統錄音」允許拾音": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No system audio for over 15 seconds. Check that the meeting is playing sound and that Shiyin is allowed in System Settings → Privacy & Security → Screen & System Audio Recording."
           }
         }
       }
@@ -2653,39 +1905,6 @@
         }
       }
     },
-    "這不是有效的拾音封包：%@": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This isn't a valid Shiyin package: %@"
-          }
-        }
-      }
-    },
-    "這個名字是拾音認出聲音後自動帶入的。不對的話直接改名，或按「不是他」。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Shiyin filled in this name after recognizing the voice. If it's wrong, rename the speaker or click “Not this person”."
-          }
-        }
-      }
-    },
-    "這個封包是新版拾音匯出的（格式 %lld），請先更新拾音再匯入": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This package was exported by a newer Shiyin (format %lld). Update Shiyin first, then import it."
-          }
-        }
-      }
-    },
     "這個格式在這裡不能匯出": {
       "extractionState": "manual",
       "localizations": {
@@ -2704,17 +1923,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "This build has no update key (development build), so it doesn't check for updates."
-          }
-        }
-      }
-    },
-    "這個網址不是拾音的企業伺服器": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This URL is not a Shiyin enterprise server"
           }
         }
       }
@@ -2906,17 +2114,6 @@
         }
       }
     },
-    "進行中的轉錄或整理會中斷，下次開啟時從頭重跑。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Transcription or summarizing in progress will stop and start over the next time you open Shiyin."
-          }
-        }
-      }
-    },
     "逾時": {
       "extractionState": "manual",
       "localizations": {
@@ -2935,28 +2132,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "If something goes wrong, choose Report a problem… in Settings → Advanced; it includes the version and environment (no meeting content)."
-          }
-        }
-      }
-    },
-    "還有工作在進行，要結束拾音嗎？": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Work is still in progress. Quit Shiyin?"
-          }
-        }
-      }
-    },
-    "還沒有認識的人。在逐字稿點「說話者 1」改成名字，拾音就會記住這個人。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No one yet. Click “Speaker 1” in a transcript and give them a name, and Shiyin will remember that person."
           }
         }
       }
@@ -3038,28 +2213,6 @@
         }
       }
     },
-    "錄音中 15 分鐘沒人說話時提醒你；再 15 分鐘還是沒人說話就自動停止，只轉錄到最後有人說話的地方，錄音檔完整保留。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Shiyin reminds you after 15 minutes with nobody talking. After 15 more minutes of silence it stops recording and transcribes only up to the last speech; the full recording is kept."
-          }
-        }
-      }
-    },
-    "錄音中很久沒人說話，拾音自動停止了錄音。要轉錄全部的話，用「更多 → 重新處理 → 重新轉錄」。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nobody spoke for a long time, so Shiyin stopped recording. To transcribe everything, use More → Reprocess → Transcribe Again."
-          }
-        }
-      }
-    },
     "錄音中按 Ctrl+Alt+Shift+B 標記重點（在其他 app 裡也能用）": {
       "extractionState": "manual",
       "localizations": {
@@ -3104,17 +2257,6 @@
         }
       }
     },
-    "錄音寫不進磁碟（可能是空間不足），已經停止錄音。停止前錄到的部分有保留，會照常轉錄。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Shiyin couldn't write the recording to disk (the disk may be full), so recording has stopped. Everything recorded before that is kept and will be transcribed as usual."
-          }
-        }
-      }
-    },
     "錄音按鈕旁的箭頭、錄音畫面的麥克風名稱也可以換麥克風。藍牙耳機連著時，Windows 可能自動改用耳機的麥克風，人不在旁邊就錄不到現場的聲音。": {
       "extractionState": "manual",
       "localizations": {
@@ -3122,17 +2264,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "You can also switch microphones from the arrow next to Record or by clicking the microphone name while recording. If a Bluetooth headset is connected, Windows may switch to its microphone, which won't pick up the room if you're not near it."
-          }
-        }
-      }
-    },
-    "錄音會先存好，下次開啟拾音時開始轉錄。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The recording will be saved and transcribed the next time you open Shiyin."
           }
         }
       }
@@ -3148,28 +2279,6 @@
         }
       }
     },
-    "錄音會送到 %@（公司的伺服器）轉錄，轉完就刪；說話者辨識和聲紋在這台 Mac 上做，聲紋不會送出。會參考詞彙表。連不上時會等，也可以改在這台 Mac 轉錄。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Recordings are sent to %@ (your company's server) for transcription and deleted afterwards; speaker identification and voiceprints stay on this Mac. Uses the glossary. If the server can't be reached, Shiyin waits, or you can transcribe on this Mac instead."
-          }
-        }
-      }
-    },
-    "鑰匙圈裡已經有舊的 key，macOS 沒有讓拾音取代它。請打開「鑰匙圈存取」，刪除「拾音 API key（%@）」後再存一次。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The keychain already has an older key, and macOS didn’t let Shiyin replace it. Open Keychain Access, delete “Shiyin API key (%@)”, then save again."
-          }
-        }
-      }
-    },
     "開 Zoom、Teams、Google Meet 等線上會議時，拾音會提醒你開始錄音；會議好像結束時提醒停止。": {
       "extractionState": "manual",
       "localizations": {
@@ -3177,17 +2286,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "When an online meeting starts in Zoom, Teams, Google Meet and so on, Shiyin reminds you to record, and reminds you to stop when it seems to have ended."
-          }
-        }
-      }
-    },
-    "開 Zoom、Teams、Google Meet 等線上會議時，拾音會提醒你開始錄音；會議好像結束時提醒停止。不想被某個 app 提醒，在提醒上按「不要再提醒」。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "When you join a Zoom, Teams, Google Meet or other online meeting, Shiyin asks whether to start recording, and reminds you to stop when the meeting seems to be over. To stop the reminders for an app, click “Don't Ask for This App” on the reminder."
           }
         }
       }
@@ -3247,17 +2345,6 @@
         }
       }
     },
-    "電腦聲音的擷取中斷了，重新連接失敗：%@。會繼續重試，錄音沒有停": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Computer audio capture stopped and couldn't reconnect: %@. Shiyin will keep trying; recording continues."
-          }
-        }
-      }
-    },
     "顯示": {
       "extractionState": "manual",
       "localizations": {
@@ -3265,17 +2352,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Display"
-          }
-        }
-      }
-    },
-    "麥克風沒有送出聲音，重新連接失敗：%@。會繼續重試，錄音沒有停": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The microphone stopped sending audio and couldn't reconnect: %@. Shiyin will keep trying; recording continues."
           }
         }
       }

@@ -1593,6 +1593,17 @@
         }
       }
     },
+    "下載好會自動重新開啟": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shiyin will reopen when it's done"
+          }
+        }
+      }
+    },
     "下載的模型檔驗證失敗（SHA-256 不符），請重新下載": {
       "extractionState": "manual",
       "localizations": {
@@ -3718,6 +3729,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ask this meeting, e.g. Who's handling the email part?"
+          }
+        }
+      }
+    },
+    "回傳的回答格式不正確：%@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The answer came back in the wrong format: %@"
           }
         }
       }
@@ -6789,6 +6811,17 @@
         }
       }
     },
+    "更新的下載會中斷，之後再按一次「下載並更新」就好。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The update download will stop. You can start it again later."
+          }
+        }
+      }
+    },
     "更新網址": {
       "extractionState": "manual",
       "localizations": {
@@ -6829,6 +6862,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "The update information has the wrong format"
+          }
+        }
+      }
+    },
+    "更新還在下載，要結束會議助手嗎？": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "An update is still downloading. Quit Meeting Assistant?"
           }
         }
       }
@@ -7688,6 +7732,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "Welcome to Meeting Assistant"
+          }
+        }
+      }
+    },
+    "正在下載 %@　%lld%%（%@ / %@）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Downloading %1$@  %2$lld%% (%3$@ of %4$@)"
+          }
+        }
+      }
+    },
+    "正在下載 %@　已下載 %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Downloading %1$@  %2$@ so far"
           }
         }
       }
