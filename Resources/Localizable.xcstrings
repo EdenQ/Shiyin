@@ -899,7 +899,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Shiyin couldn't read Claude Desktop's settings file, so it wasn't changed: %@"
+            "value": "Meeting Assistant couldn't read Claude Desktop's settings file, so it wasn't changed: %@"
           }
         }
       }
@@ -1599,7 +1599,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Shiyin will reopen when it's done"
+            "value": "Meeting Assistant will reopen when it's done"
           }
         }
       }
@@ -2601,7 +2601,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Your company's Shiyin server has turned this off."
+            "value": "Your company's enterprise server has turned this off."
           }
         }
       }
