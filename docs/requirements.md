@@ -9,6 +9,7 @@
 - F1.2 Finder、Dock 與介面顯示「會議助手」（英文 `Meeting Assistant`）。
 - F1.3 「關於 MA」使用系統標準關於視窗，名稱顯示 `MA — Meeting Assistant`，保留版本、圖示與第三方授權。
 - F1.4 沿用既有 Bundle Identifier、設定、鑰匙圈 service、資料目錄與 `.shiyin` 格式，既有會議可繼續使用。
+- F1.5 「回報問題」打開 fork 的 GitHub issues（`https://github.com/EdenQ/Shiyin/issues`），不送到原作者的 repo（2026-11-11 使用者決定）。
 
 ## 2. 使用者與發布方式（2026-10-15 已確認）
 

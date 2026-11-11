@@ -806,7 +806,7 @@ CREATE TABLE drafts (meeting_id INTEGER NOT NULL REFERENCES meetings(id) ON DELE
 
 - 「說明」選單「回報問題…」打開對話框，上面是要附上的資訊（唯讀文字），下面三個按鈕：「在 GitHub 回報」「複製」「取消」。
 - 內容：版本和 build、macOS 版本、晶片、記憶體、介面語言、轉錄引擎、說話者辨識和聲紋開關、整理工具種類（不含模型、網址、key）、最近 5 個失敗的工作（種類、`error_kind`、日期）。`error_kind` 在工作失敗時寫入（`Error.logSummary`），不讀 `jobs.error`（可能含內容）。
-- 「在 GitHub 回報」打開 `<issues 網址>/new?title=&body=<內容>`。網址在 Info.plist `ShiyinIssuesURL`（預設 `https://github.com/juinwei7/Shiyin/issues`），fork 的人可以改。
+- 「在 GitHub 回報」打開 `<issues 網址>/new?title=&body=<內容>`。網址在 Info.plist `ShiyinIssuesURL`（預設 `https://github.com/juinwei7/Shiyin/issues`），fork 的人可以改。這個 fork 設成 `https://github.com/EdenQ/Shiyin/issues`（F1.5）；程式裡的預設常數保留上游的值，減少跟上游合併時的衝突。
 
 ### 21.10 全域快捷鍵標記重點（R19.5）
 

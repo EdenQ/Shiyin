@@ -100,7 +100,7 @@
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Meeting Assistant creates a live transcript on this Mac while recording. Nothing is uploaded.</string>
 	<key>ShiyinIssuesURL</key>
-	<string></string>
+	<string>https://github.com/EdenQ/Shiyin/issues</string>
 	<key>ShiyinUpdateURL</key>
 	<string></string>
 	<key>ShiyinUsageURL</key>
