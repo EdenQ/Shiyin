@@ -1,5 +1,5 @@
-拾音 Shiyin 使用了下列開源軟體，以下是各軟體附的授權條款原文。
-Shiyin uses the following open-source software. Their license terms follow, verbatim.
+會議助手 Meeting Assistant 使用了下列開源軟體，以下是各軟體附的授權條款原文。
+Meeting Assistant uses the following open-source software. Their license terms follow, verbatim.
 
 - whisper.cpp b5454 (MIT) https://github.com/ggml-org/whisper.cpp
 - llama.cpp b11840 (MIT) https://github.com/ggml-org/llama.cpp

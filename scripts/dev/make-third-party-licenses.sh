@@ -37,8 +37,8 @@ section() {
 }
 
 {
-  echo "拾音 Shiyin 使用了下列開源軟體，以下是各軟體附的授權條款原文。"
-  echo "Shiyin uses the following open-source software. Their license terms follow, verbatim."
+  echo "會議助手 Meeting Assistant 使用了下列開源軟體，以下是各軟體附的授權條款原文。"
+  echo "Meeting Assistant uses the following open-source software. Their license terms follow, verbatim."
   echo
   echo "- whisper.cpp ${WHISPER_TAG} (MIT) https://github.com/ggml-org/whisper.cpp"
   echo "- llama.cpp ${LLAMA_TAG} (MIT) https://github.com/ggml-org/llama.cpp"

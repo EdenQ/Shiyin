@@ -347,8 +347,8 @@ CREATE VIRTUAL TABLE search USING fts5(meeting_id UNINDEXED, kind UNINDEXED, ref
 ### 12.1 第三方授權與更新網址（3.1.1，R13）
 
 - `scripts/dev/make-third-party-licenses.sh` 組出 `Resources/ThirdPartyLicenses.txt`：whisper.cpp 取 `Package.swift` 固定版本的 LICENSE，GRDB、FluidAudio 取 `Package.resolved` 版本的 checkout 裡的 LICENSE，FluidAudio 另外附的 `ThirdPartyLicenses/` 全部照貼（它把 TTS、文字正規化的程式也編進同一個 module）。原文不改、不合併重複的 Apache 條文。產生的檔案 commit 進 repo，建置時不需要網路；更新套件版本後要重跑。
-- `build-app.sh` 把它放進 `Contents/Resources/`，另外包成 `Credits.html`：系統標準的「關於拾音」視窗會自動顯示，可以捲動。
-- 贊助連結（R13.3）：`Credits.html` 最上面一行是 Ko-fi 的連結（中文「覺得拾音好用的話，可以請我喝杯咖啡。」、英文「Enjoying Shiyin? Buy me a coffee.」），所以分成兩份放在 `zh-Hant.lproj`、`en.lproj`，系統依介面語言挑。`Resources/` 底下不能再放一份：系統找資源時先找沒有分語言的那份。連結用系統的文字元件，點了用預設瀏覽器打開，不在 app 裡開網頁。
+- `build-app.sh` 把它放進 `Contents/Resources/`，另外包成 `Credits.html`：系統標準的「關於拾音」視窗（fork 是「關於 MA」，F1.3）會自動顯示，可以捲動。
+- 贊助連結（R13.3）：`Credits.html` 最上面一行是 Ko-fi 的連結（fork 寫明本 app 改自原作者的拾音，連結是請原作者喝咖啡：中文「會議助手改自 juinwei7 的開源專案拾音 Shiyin。喜歡的話，可以請原作者喝杯咖啡。」、英文「Meeting Assistant is based on Shiyin, an open-source app by juinwei7. Enjoying it? Buy the original author a coffee.」；授權清單的開場白也寫「會議助手 Meeting Assistant 使用了下列開源軟體…」），所以分成兩份放在 `zh-Hant.lproj`、`en.lproj`，系統依介面語言挑。`Resources/` 底下不能再放一份：系統找資源時先找沒有分語言的那份。連結用系統的文字元件，點了用預設瀏覽器打開，不在 app 裡開網頁。
 - `make-dmg.sh` 在 DMG 放一份 `Third-Party Licenses.txt`。
 - 更新網址：GitHub 的 repository variable `SHIYIN_UPDATE_URL` 設成 `https://github.com/EdenQ/Shiyin/releases/latest/download/shiyin-update.json`（fork 的更新來源；不可指回上游），CI 建置時寫進 app。`releases/latest` 永遠指向最新的 Release，每次發布不用改網址。
 
