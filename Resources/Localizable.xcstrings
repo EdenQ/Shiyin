@@ -12849,6 +12849,17 @@
         }
       }
     },
+    "電腦聲音的擷取一直在重新連接，錄音可能斷斷續續。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Computer audio capture keeps reconnecting, so the recording may have gaps."
+          }
+        }
+      }
+    },
     "電腦聲音的擷取中斷了，正在重新連接…": {
       "extractionState": "manual",
       "localizations": {
@@ -13003,6 +13014,17 @@
         }
       }
     },
+    "麥克風一直在重新連接，錄音可能斷斷續續。藍牙耳機的麥克風常這樣，可以點上面的麥克風名稱換成內建麥克風。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The microphone keeps reconnecting, so the recording may have gaps. Bluetooth headset microphones often do this. Click the microphone name above to switch to the built-in microphone."
+          }
+        }
+      }
+    },
     "麥克風已靜音": {
       "extractionState": "manual",
       "localizations": {
@@ -13087,6 +13109,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "The microphone stopped sending audio and couldn't reconnect: %@. Meeting Assistant will keep trying; recording continues."
+          }
+        }
+      }
+    },
+    "麥克風沒辦法開始收音（%@）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The microphone couldn't start recording (%@)"
           }
         }
       }
