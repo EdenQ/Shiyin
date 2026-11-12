@@ -93,6 +93,14 @@
 
 - [~] **另一個 macOS 帳號安裝 DMG**（R10.1、R1.8；原 T-F5）：照安裝說明在另一個帳號裝一次、放行第一次開啟；第一次錄音時拒絕麥克風和系統聲音權限，看說明的畫面（寫出到哪裡打開、按鈕打開系統設定的那一頁）
 
+## App 圖示換成使用者的貓（F1.6，design §F1；2026-11-12 使用者從草稿選定）
+
+只做 Mac；`windows/` 不動。
+
+- [~] **IC1 看實際效果**（F1.6）：`Resources/AppIcon-1024.png` → `make-icon-from-png.sh` 產生 `AppIcon.icns`，`iconutil -c iconset` 反解 10 張尺寸正確；`docs/images/icon.png`、favicon、apple-touch-icon 已換。還差：
+  - 建置後使用者在 Finder、Dock、「關於 MA」、DMG 看 16～1024 各尺寸（macOS 的圖示快取可能要重新登入或 `killall Dock` 才換）
+  - 官網分享預覽圖 `site/public/og*.png` 還是舊圖示：`site/make-images.sh` 要用 Chrome 截圖，等使用者在電腦前再跑
+
 ## 紀錄條列頁的閱讀與複製（F4，design §F4、DF4；2026-11-10 使用者看過預覽後確認）
 
 只做 Mac；`windows/`、`shared/golden/`、`MindMap.topicRanges` 不動。測試用另外的 `SHIYIN_HOME` 和另外的建置資料夾（使用者用 build cache 的 app 錄音）。

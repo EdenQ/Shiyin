@@ -55,8 +55,8 @@ Sources/Shiyin/
 ├── Views/        MainWindow、MeetingDetailView、NotesTabs（紀錄分頁）、TranscriptTab、AskTab、ReviewTab、RecordingView、MenuBar、OnboardingView、GuideView、SettingsView、EnterpriseServerSettings、ExportSheet、Theme…
 └── Debug/        DebugControl、DebugMetrics、GoldenDump（只在 DEBUG 建置）
 Sources/QwenShim/ llama.cpp 的 C 薄層（§32.2）
-Resources/        Info.plist、Assets.xcassets、AppIcon.icns、Localizable.xcstrings、zh-Hant.lproj/、opencc/、ThirdPartyLicenses.txt
-scripts/          build-app.sh、make-dmg.sh、make-signing-cert.sh、export-signing-cert.sh、make-icon.swift、ci/、dev/（shiyinctl.swift、l10n.py、評估工具）、windows/
+Resources/        Info.plist、Assets.xcassets、AppIcon.icns（fork：由 AppIcon-1024.png 產生，§F1）、Localizable.xcstrings、zh-Hant.lproj/、opencc/、ThirdPartyLicenses.txt
+scripts/          build-app.sh、make-dmg.sh、make-signing-cert.sh、export-signing-cert.sh、make-icon.swift（上游舊圖示；fork 用 make-icon-from-png.sh）、ci/、dev/（shiyinctl.swift、l10n.py、評估工具）、windows/
 ```
 
 **資料**（`~/Library/Application Support/Shiyin`，權限 700）：
@@ -2156,6 +2156,7 @@ id 42 · shiyin://open?meeting=42 · transcript: get_transcript(meeting_id: 42)
 - `CFBundleName`（含繁中在地化）設為 `MA`，提供應用程式選單的短名稱；`CFBundleDisplayName` 英文為 `Meeting Assistant`，繁中為「會議助手」。
 - App 檔名使用 `Meeting Assistant.app`，對應未在地化的 `CFBundleDisplayName`，讓 Finder 能套用繁中顯示名稱；建置、安裝、DMG 和 CI 同步調整並引用含空白的路徑。
 - SwiftUI 取代 `.appInfo` 群組的預設按鈕，呼叫 `orderFrontStandardAboutPanel(options:)`，只指定 `.applicationName` 為 `MA — Meeting Assistant`，版本、圖示和 `Credits.html` 沿用系統行為。
+- App 圖示（F1.6）：原始檔是 `Resources/AppIcon-1024.png`（1024×1024、sRGB、外框透明；Apple 圖示範本：圓角方塊 824×824、圓角 185 置中，奶茶色 #F4EADB→#E3CFB4→#D6BC97 漸層加極淡內緣暗角，貓的照片用 Vision 去背後放在框內）。`scripts/make-icon-from-png.sh` 用 `sips` 從原始檔直接縮出 16、32、128、256、512 的 @1x／@2x 共 10 張（512@2x 就是原圖），`iconutil -c icns` 產生 `Resources/AppIcon.icns`，重跑結果相同；`build-app.sh`、`make-dmg.sh`、CI 照舊複製 `AppIcon.icns`（Info.plist `CFBundleIconFile` = AppIcon），Finder、Dock、「關於 MA」都用它。官網與 README 的 `docs/images/icon.png` 是原始檔縮成 256，`site/public/favicon.png`（64）、`apple-touch-icon.png`（180）照 `site/make-images.sh` 的 `sips -z` 從 icon.png 縮。上游的 `scripts/make-icon.swift` 畫舊的波形圖示：fork 保留檔案以減少合併衝突，但不再使用（檔頭註明），跑了會蓋掉 fork 的圖示；合併上游時 `AppIcon.icns`、`docs/images/icon.png`、`site/public` 的圖示衝突一律保留 fork 的版本，再跑 `make-icon-from-png.sh` 確認。
 - 介面文字使用「會議助手」／`Meeting Assistant`，提到左上角的應用程式選單時使用 `MA`。內部 Swift target、執行檔、Bundle Identifier、資料和設定位置維持原值（F1.4）。
 - 驗證：Swift 建置、字串抽取與中英翻譯檢查、plist 檢查、打包腳本語法檢查；檢查中英文 bundle 讀取的短名稱和顯示名稱。
 

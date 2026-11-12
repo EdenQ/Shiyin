@@ -10,6 +10,7 @@
 - F1.3 「關於 MA」使用系統標準關於視窗，名稱顯示 `MA — Meeting Assistant`，保留版本、圖示與第三方授權。
 - F1.4 沿用既有 Bundle Identifier、設定、鑰匙圈 service、資料目錄與 `.shiyin` 格式，既有會議可繼續使用。
 - F1.5 「回報問題」打開 fork 的 GitHub issues（`https://github.com/EdenQ/Shiyin/issues`），不送到原作者的 repo（2026-11-11 使用者決定）。
+- F1.6 App 圖示換成使用者的貓（灰色阿比西尼亞貓張嘴叫的頭部特寫、奶茶色圓角方塊，耳朵完整在框內）；Finder、Dock、「關於 MA」、DMG 與官網的圖示一致（2026-11-12 使用者從草稿選定）。
 
 ## 2. 使用者與發布方式（2026-10-15 已確認）
 
