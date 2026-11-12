@@ -283,7 +283,7 @@ docs/             規格
 scripts/build-app.sh               # release 建置，產出 build/Meeting Assistant.app（實際位置在 ~/Library/Caches/ShiyinBuild）
 scripts/build-app.sh --debug       # DEBUG 建置，含驗證用的控制通道
 scripts/make-dmg.sh                # release 建置並產生 DMG 和 shiyin-update.json
-swift scripts/make-icon.swift Resources/AppIcon.icns   # 重新產生圖示
+scripts/make-icon-from-png.sh      # 從 Resources/AppIcon-1024.png 重新產生 Resources/AppIcon.icns
 
 # DEBUG 版的控制通道：不用操作畫面就能觸發功能、讀取狀態、截圖
 swiftc scripts/dev/shiyinctl.swift -o ~/Library/Caches/ShiyinBuild/shiyinctl
