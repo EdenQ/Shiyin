@@ -277,7 +277,7 @@ docs/             specs
 scripts/build-app.sh               # release build, produces build/Meeting Assistant.app (actually in ~/Library/Caches/ShiyinBuild)
 scripts/build-app.sh --debug       # DEBUG build with the control channel used for verification
 scripts/make-dmg.sh                # release build plus DMG and shiyin-update.json
-swift scripts/make-icon.swift Resources/AppIcon.icns   # regenerate the icon
+scripts/make-icon-from-png.sh      # regenerate Resources/AppIcon.icns from Resources/AppIcon-1024.png
 
 # Control channel in DEBUG builds: trigger features, read state and take screenshots without touching the UI
 swiftc scripts/dev/shiyinctl.swift -o ~/Library/Caches/ShiyinBuild/shiyinctl

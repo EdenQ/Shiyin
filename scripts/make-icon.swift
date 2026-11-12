@@ -1,3 +1,4 @@
+// Fork（會議助手）不用這支：圖示改由 scripts/make-icon-from-png.sh 從 Resources/AppIcon-1024.png 產生（F1.6，design §F1）。跑這支會蓋掉 fork 的圖示。
 // 產生拾音的 app 圖示：青瓷綠圓角方塊＋一排波形條，其中一條是 VU 琥珀色（design §9.3）
 // 用法：swift scripts/make-icon.swift Resources/AppIcon.icns
 import AppKit
