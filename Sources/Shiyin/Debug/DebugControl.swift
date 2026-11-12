@@ -486,6 +486,7 @@ enum DebugControl {
         case "topiccollapse":   // topiccollapse all|none|default：議題全部收合、全部展開、回到預設（F4.7）
             model.notesCollapsedTopics = args[1] == "default" ? nil : (args[1] == "all" ? Set(model.detail?.notes?.topics.indices ?? 0..<0) : [])
         case "rate": model.player.setRate(Float(args[1]) ?? 1)
+        case "playvolume": model.player.setVolume(Float(args[1]) ?? 1)   // playvolume <0～1>（design §49.3）
         case "toggle": model.player.toggle()
         case "export":
             // export <項目> <格式> <路徑> [times 1/0] [speakers 1/0] [會議 id，預設目前選取的]
@@ -810,7 +811,9 @@ enum DebugControl {
             "transcriptionEngine": AppSettings.transcriptionEngine,
             "textSize": TextSize.level,   // 會議內容的文字大小（design §38.5）
             "player": ["loaded": model.player.isLoaded, "playing": model.player.isPlaying,
-                       "time": model.player.currentTime, "duration": model.player.duration, "rate": model.player.rate],
+                       "time": model.player.currentTime, "duration": model.player.duration, "rate": model.player.rate,
+                       "mixing": model.player.isMixing,
+                       "mix": ChannelMix.stats.withLock { ["frames": $0.frames, "sourcePeaks": $0.sourcePeaks, "mixedPeak": $0.mixedPeak] }],
             "recorder": ["recording": model.recorder.isRecording, "paused": model.recorder.isPaused,
                          "meetingId": model.recorder.meetingId ?? -1, "elapsed": model.recorder.elapsed,
                          "micLevel": model.recorder.micLevel, "systemLevel": model.recorder.systemLevel,
