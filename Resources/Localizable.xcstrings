@@ -2739,6 +2739,17 @@
         }
       }
     },
+    "其他 app": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "another app"
+          }
+        }
+      }
+    },
     "其他人…（到逐字稿改名）": {
       "extractionState": "manual",
       "localizations": {
@@ -12838,6 +12849,17 @@
         }
       }
     },
+    "電腦聲音的擷取一直在重新連接，錄音可能斷斷續續。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Computer audio capture keeps reconnecting, so the recording may have gaps."
+          }
+        }
+      }
+    },
     "電腦聲音的擷取中斷了，正在重新連接…": {
       "extractionState": "manual",
       "localizations": {
@@ -12992,6 +13014,17 @@
         }
       }
     },
+    "麥克風一直在重新連接，錄音可能斷斷續續。藍牙耳機的麥克風常這樣，可以點上面的麥克風名稱換成內建麥克風。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The microphone keeps reconnecting, so the recording may have gaps. Bluetooth headset microphones often do this. Click the microphone name above to switch to the built-in microphone."
+          }
+        }
+      }
+    },
     "麥克風已靜音": {
       "extractionState": "manual",
       "localizations": {
@@ -12999,6 +13032,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "Microphone muted"
+          }
+        }
+      }
+    },
+    "麥克風幾乎收不到聲音：%@ 可能正在用這支麥克風做回音消除（例如用 Safari 開的 Google Meet），會議助手收不到你的聲音。請改用 Chrome 開會，或讓會議和會議助手用不同的麥克風。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The microphone is picking up almost nothing: %@ may be using this microphone for echo cancellation (for example Google Meet in Safari), so Meeting Assistant can’t hear you. Join the meeting in Chrome instead, or use different microphones for the meeting and Meeting Assistant."
+          }
+        }
+      }
+    },
+    "麥克風幾乎收不到聲音：%@ 可能正在用這支麥克風做回音消除，會議助手收不到你的聲音。請讓 %@ 和會議助手用不同的麥克風。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The microphone is picking up almost nothing: %1$@ may be using this microphone for echo cancellation, so Meeting Assistant can’t hear you. Use different microphones for %2$@ and Meeting Assistant."
           }
         }
       }
@@ -13054,6 +13109,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "The microphone stopped sending audio and couldn't reconnect: %@. Meeting Assistant will keep trying; recording continues."
+          }
+        }
+      }
+    },
+    "麥克風沒辦法開始收音（%@）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The microphone couldn't start recording (%@)"
           }
         }
       }

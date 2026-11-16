@@ -1638,7 +1638,7 @@ Windows 的做法在 design-windows §11.7。
 
 - `AudioDevices.Device` 加 `transport`（`kAudioDevicePropertyTransportType`）、`dataSource`（輸入的 `kAudioDevicePropertyDataSource`）、`isBluetooth`（`kAudioDeviceTransportTypeBluetooth`、`BluetoothLE`）、`isBuiltIn`（`kAudioDeviceTransportTypeBuiltIn`，而且 data source 不是 `emic`：耳機孔的「外接麥克風」連接方式也是內建，4.2.3 插著有線耳機時藍牙提示的按鈕變成「改用 外接麥克風」；內建的麥克風是 `imic`）。加 `defaultInput()`（`kAudioHardwarePropertyDefaultInputDevice`）、`device(id:)`。
 - `MicrophoneMonitor`（`@Observable`、`@MainActor`、單例）：在系統物件上監聽 `kAudioHardwarePropertyDevices`、`kAudioHardwarePropertyDefaultInputDevice`，回到主執行緒重讀 `inputs`、`defaultInput`；值真的變了才設（§25）。錄音按鈕的選單、錄音畫面、設定頁的「麥克風」都用它，不再各自在 `onAppear` 讀一次。
-- `MicrophoneSource.deviceUID` 改成可以改（換麥克風時先改再 `restart()`）；`start()` 成功後讀 `inputNode.auAudioUnit.deviceID`，存成 `current: AudioDevices.Device?`（真正在收音的那支：指定的不在時是系統預設）。
+- `MicrophoneSource.deviceUID` 改成可以改（換麥克風時先改再 `restart()`）；`start()` 成功後讀 `inputNode.auAudioUnit.deviceID`，存成 `current: AudioDevices.Device?`（真正在收音的那支：指定的不在時是系統預設）。讀到的是 AVAudioEngine 自己建的聚合裝置（UID 開頭 `CADefaultDeviceAggregate`，用系統預設、輸入輸出是不同硬體時）就改用 `AudioDevices.defaultInput()`；麥克風清單也排除它（2026-11-15 真的錄音時發現：錄音畫面寫成「CADefaultDeviceAggregate-<pid>-0」，連接方式是聚合、藍牙提醒 R58.3 不會出現，4.2.3 起都這樣）。
 
 ### 38.2 錄音按鈕的選單（R58.1）
 
@@ -2360,6 +2360,93 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 - `scripts/dev/f4-check.py`：產生 `topicsegments` 的輸入（無重回的會議＝舊規則、模擬重回、短於 60 秒的片段、議題內時間亂序、讀不到的時間、早於議題開始的重點、空議題），跑 DEBUG 的 `topicsegments`，比對預期；再對示範會議（中、英、日）跑 `copysection` 比對預期文字。
 - 畫面：`windowshot` 看議題 ≤ 5 個（展開）、> 5 個（收合、膠囊）、深色、文字大小 150%、播放中目前議題、`topicscroll` 後捲到的位置。真的畫面上的滑過變色、點按、複製後貼上待使用者。
 
+## 45. 麥克風被別的 app 的語音處理佔住（R57，D151；GitHub #4）
+
+只有 Mac（R57.6）。在收音提醒（§26.1）上加一種提示，量法、顯示、通知都沿用。
+
+### 45.1 怎麼判斷
+
+- **幾乎沒聲音**：麥克風最近 8 秒（80 格，每格 100 毫秒）有 72 格以上的音量在 −119～−70 dBFS 之間。完全是 0 的格（−120）不算，那是「麥克風沒有收到聲音」（R24.3）。被佔住時量到 −78～−92 dBFS（requirements 第 39 節），一般錄音的 8 秒第 90 百分位最低 −57 dBFS（下面的評估），−70 兩邊各留 8、13 dB。
+- 光看音量不夠：外接的好麥克風、輸入音量調低的麥克風，沒人說話時本來就可以低於 −70（線上會議聽對方講 10 秒以上很常見）。所以還要符合下面其中一條：
+  - **正在收音的是這台 Mac 的內建麥克風**（`micDevice.isBuiltIn`）：內建麥克風在一般的房間不會這麼小聲。這一條不用等，會議比錄音早開始也抓得到（GitHub #4 就是這樣）。
+  - **這場錄音稍早是正常的**：稍早的背景（§26.1 的 30 秒第 10 百分位，取這場錄音到目前的最低值）比現在這 8 秒的第 90 百分位高 12 dB 以上。同一支麥克風的底噪不會自己掉 12 dB，掉了就是內容被換掉。任何麥克風都適用，抓的是錄到一半才被佔住。
+- 稍早的背景要晚 10 秒才算數：剛被佔住的那幾秒還沒判定，低的音量會混進背景。出現「幾乎沒聲音」就清掉還沒算數的；恢復正常後 30 秒內的背景也不算（30 秒的音量裡還有被佔住時的）。暫停、換麥克風後重新開始記（可能換了地方、換了一支）。
+- 外接麥克風、從錄音一開始就被佔住：分不出來是被佔住還是麥克風本來就安靜，不提示（寧可漏掉，不誤報）。這時候「聲音有點小」也不會出現（下面 45.3）。
+- 評估（2026-11-12，`afconvert` 轉 16 kHz、numpy 照同樣的算法；原本的評估資料被清掉，AMI 重新下載 3 場遠場麥克風 ES2002a、IS1009a、TS3003a）：
+
+| 錄音 | 8 秒第 90 百分位最低 | 提示 |
+|---|---|---|
+| 使用者的 11 場錄音（共 11 小時） | −57～−30 dBFS | 0 次 |
+| AMI 3 場 | −56～−47 dBFS | 0 次 |
+| 調小 20、30 dB（模擬安靜的外接麥克風、輸入音量調低） | −87～−64 dBFS | 7 場裡 5 場（調小 20 dB）、7 場（調小 30 dB）「幾乎沒聲音」會成立（所以只有內建麥克風才光看音量）；「稍早是正常的」0 次 |
+| 第 300 秒起換成 −85 dBFS 的雜訊（模擬錄到一半被佔住） | −85 dBFS | 第 308 秒出現 |
+
+- 已知的限制：內建麥克風的輸入音量被調得很低時，沒人說話 8 秒也會符合，原因會講錯（其實是音量太小）；這種設定很少見，而且錄音確實太小聲，照樣提示。
+
+### 45.2 是哪個 app
+
+- 提示出現的那一刻讀一次 Core Audio 的程序物件（同 §21.7：`kAudioProcessPropertyIsRunningInput`），加讀 `kAudioProcessPropertyPID`。拾音自己不算。
+- 名稱依序找：已知的會議 app、瀏覽器（§21.7 的名單，helper 歸到主程式；瀏覽器只寫名稱，不加「可能是 Google Meet」）→ `com.apple.WebKit.GPU`（Safari 的網頁是這個程序在收音，GitHub #4 的 log）寫 Safari → 其他一般的 app（`NSRunningApplication` 的 `activationPolicy == .regular`）用它的名稱 → 都沒有就寫「其他 app」（R57.2）。系統的背景程序（語音喚醒等）不算。
+- 名稱在提示出現時決定，之後不跟著變（提示列的字不要跳）。
+
+### 45.3 顯示
+
+- `Recorder.LevelHint` 加 `.suppressed`。優先順序：沒有收到聲音 → 被佔住 → 聲音太小 → 背景太吵。
+- 文字（錄音畫面的提示列、選單列、通知同一句，R42）：
+  - 瀏覽器、找不到是誰：「麥克風幾乎收不到聲音：<app> 可能正在用這支麥克風做回音消除（例如用 Safari 開的 Google Meet），拾音收不到你的聲音。請改用 Chrome 開會，或讓會議和拾音用不同的麥克風。」
+  - 其他 app（FaceTime 等，叫人改用 Chrome 不對）：「麥克風幾乎收不到聲音：<app> 可能正在用這支麥克風做回音消除，拾音收不到你的聲音。請讓 <app> 和拾音用不同的麥克風。」
+- 「幾乎沒聲音」的時候，「聲音太小」的秒數歸零（R57.3），不管上面兩條符不符合、使用者按過「知道了」沒有。
+- 麥克風恢復正常（不再「幾乎沒聲音」）就收起來；再發生會再出現在提示列，通知一場只送一次；按「知道了」這場不再出現（都同 §26.1、§31.5）。
+- 拾音不開語音處理、不自動換麥克風（R57.4、D104）。
+- 常見問題（R57.5）：官網首頁的常見問題加一條（中、英、日）。
+
+### 45.4 驗證
+
+- DEBUG：state 的 `recorder.levelCheck` 加 `nearSilent`、`floor`（稍早的背景）、`suppressedApp`；`record-sim` 的麥克風不是真的裝置，啟動參數 `-debugMicBuiltIn YES` 當成內建麥克風；哪個 app 在用麥克風用 `meetingapp <bundleID> on` 模擬。
+- 離線：`afconvert` 加 numpy（§26.1 的做法）。實際的語音處理：`scripts/dev/vpio-hold.swift` 對內建麥克風開語音處理時用真的麥克風錄音（要使用者在電腦前）。
+
+## 49. 雙聲道的錄音兩耳都聽得到（R73，D158；GitHub #7）
+
+### 49.1 混音（`Services/ChannelMix.swift`）
+
+- `ChannelMix.audioMix(for: AVAsset) async -> AVAudioMix?`：音軌是 2 個聲道時，回傳一個裝了 `MTAudioProcessingTap` 的 `AVAudioMix`；其他（單聲道、讀不到音軌）回傳 nil，照原樣播。
+- tap 的 process：`MTAudioProcessingTapGetSourceAudio` 取來源音訊，處理格式是 2 個聲道、非交錯的 Float32 時，每個取樣 m = (L + R) × 0.7071（同 AVAssetReader 混成單聲道的 −3 dB，量過：左聲道 0.5、右聲道 0 混出 0.354），超過 ±1 截掉，寫回兩個聲道。其他格式（prepare 時看 ASBD）不動。
+- 只在會議的 `channels` 是 `both` 時用（R73.5）：`Player.load(_:mixChannels:)`，`AppModel` 傳 `meeting.channels == "both"`。`load` 照舊馬上建好 `AVPlayerItem`，音軌讀到後才設 `item.audioMix`（可以中途設）。
+- 匯出（`AudioExporter`）：`both` 的會議即使原檔是同一種格式也重新轉。m4a 用 `AVAssetExportSession`（AppleM4A），`session.audioMix` 設成同一個混音，輸出還是雙聲道、兩個聲道一樣；wav 照舊解碼成 16 kHz 單聲道（原本原檔是 wav 時直接複製，左右分開）。`.shiyin` 照舊。
+
+### 49.3 驗證
+
+- DEBUG：tap 記下處理過的取樣數、混音後兩個聲道的峰值（state 的 `player.mix`）；`shiyinctl playvolume <0～1>`（AVPlayer 的音量，在 tap 之後，設 0 時 tap 照樣處理、使用者聽不到）。
+- 暫存的 `SHIYIN_HOME` 匯入一個左聲道有聲音、右聲道靜音的 WAV，用 sqlite3 把那場的 `channels` 改成 `both`（等於「麥克風＋電腦聲音」錄到的）：播放後 `player.mix` 兩個聲道的峰值相同、≈ 原本左聲道 × 0.71；改回 `mic` 時沒有混音。匯出 m4a 後讀兩個聲道，兩邊相同、≈ 原本左聲道 × 0.71。
+
+## 50. 錄音中麥克風一直重新連接（R74，D159、D160；GitHub #8）
+
+### 50.1 重新連接的節奏（`Recorder`）
+
+- 每個聲道記下重新連接的時間（`restarts[channel]`；裝置變了、看門狗觸發的都算，使用者換麥克風不算），只留 60 秒內的；n 是 60 秒內的次數。
+- `delay(n)`：n < 3 是 0.3 秒，之後是 2^(n−2) 秒（n = 3 是 2 秒、4 是 4 秒、5 是 8 秒、6 是 16 秒），最多 30 秒。
+- 裝置變了（`onInterruption`）：等 `delay(n)` 秒沒有新的通知再重新連接（原本固定 0.3 秒）。
+- 看門狗：超過 3 秒沒送資料時照舊提示；距離上次重新連接完至少 5 秒、沒有正在進行的重新連接，才重新連接（R74.1）；之後重試的間隔是 max(5, `delay(n)`) 秒。
+- 提示（`deviceWarning`，每秒重算）：重新連接失敗的原因 ＞ 一直在重新連接（n ≥ 3，R74.3）＞ 正在重新連接…。n 掉到 3 以下（60 秒沒再重新連接）時「一直在重新連接」那句消失。
+
+### 50.2 Mac：重新連接在背景（D160）
+
+- `Recorder` 多一個序列佇列 `deviceQueue`：重新連接（`restart()`）在這裡做，做完回主執行緒更新正在收音的麥克風、失敗的原因、提示。同一個聲道正在重新連接時又要重新連接（換麥克風）：記下來，做完再做一次。
+- 停止錄音時在 `deviceQueue` 上停掉音源（`deviceQueue.sync`）：等正在進行的重新連接做完，不會跟它同時動 AVAudioEngine。開始錄音照舊在主執行緒（還沒有別的工作）。重新連接做完時錄音已經停了（音源不是現在的），結果丟掉。
+- 模擬錄音的 `FileSource`（DEBUG）原本在 `start()` 用 `MainActor.assumeIsolated` 讀麥克風清單，背景會當掉：改讀 `MicrophoneMonitor` 上鎖的快照（`resolveSnapshot(_:)`，`refresh()` 時更新）。
+- fork 補的同步規則（DF5）：音源上會被兩個執行緒碰到的值都用 `LockedValue`（`NSLock`，每次讀寫只短暫拿鎖）存。`MicrophoneInput.deviceUID`：換麥克風時主執行緒寫、`deviceQueue` 上的 `start()` 讀；`current`（正在收音的裝置）：`start()` 在背景寫、主執行緒更新畫面時讀。`MicrophoneSource`、`FileSource` 一樣。不用 `deviceQueue.sync` 包住換麥克風：那會等整個重新連接做完，畫面又卡住（R74.4）。`start()` 一開始讀一次 UID 當這次的快照，中途換了就由 `restartAgain` 再做一次。驗證：`LockedValue` 原樣放進不碰硬體的 ThreadSanitizer 小程式，背景一直 `start()`（讀 UID、寫 current）、主執行緒一直換 UID、讀 current，沒有資料競態；同一個程式改回普通屬性時 TSan 報告競態。
+
+### 50.3 Mac：收音的格式（R74.5）
+
+- `installTap(onBus: 0, bufferSize: 4096, format: nil)`：用 input node 當下的格式。原本先讀 `outputFormat(forBus:)` 再傳進去，兩次之間裝置換了取樣率時 AVAudioEngine 丟 NSException（格式跟硬體不符）。`outputFormat` 只用來確認有輸入（取樣率 > 0）。
+- `StreamConverter` 看每個 buffer 的格式，跟上一個不同就重建 `AVAudioConverter`。
+- Objective-C 的例外：新的 C 系 target `Sources/ObjCCatch`（一個 `.m`，`ShiyinCatch(block) -> NSString?` 用 `@try/@catch` 包住，回傳例外的原因），包住 `inputNode`、`setDeviceID`、`installTap`、`prepare`、`start`；接到例外就停掉 engine、丟 `CaptureError.engine(原因)`，當成重新連接失敗（看門狗照常重試，開始錄音時就失敗則照舊顯示「沒辦法開始錄音」）。
+
+### 50.4 驗證
+
+- DEBUG：`shiyinctl recordflap <次數> [秒數]`：模擬錄音的麥克風（`FileSource`）接下來 N 次開始收音後 0.5 秒送出「裝置變了」，每次開始收音花 <秒數>（模擬藍牙），state 的 `recorder.restarts`（每個聲道 60 秒內重新連接的秒數）。驗證：重新連接的間隔照 50.1 拉長、提示換成「一直在重新連接」、停止後再開始恢復；開始收音花 3 秒時 `metrics` 的 `maxMainGapMs` 不到 0.5 秒（畫面不卡）、錄音沒停。
+- 真的裝置：內建麥克風錄音、錄音中換到別的麥克風再換回來（格式不同），錄音照常；AirPods 要回報的人或使用者實測。
+
 ## 14. 決策紀錄
 
 | # | 決策 | 不採用的方案與原因 |
@@ -2456,10 +2543,15 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 | D148 | Mac 在 `SHIYIN_HOME/bin/shiyin-mcp` 放一個啟動檔，AI 工具登記的都是它，拾音每次啟動時改寫成目前的路徑（§44.3） | 直接登記 app 裡的執行檔：使用者把拾音拖到別的資料夾（例如桌面）後設定就斷了。符號連結指到執行檔：`Bundle.main` 會變成連結所在的資料夾，讀不到 app 的設定（UserDefaults 的網域）。做成 Claude Desktop 的 `.mcpb` 擴充：只有 Claude Desktop 用得到，裡面還是要指到 app 的路徑 |
 | D149 | 工具回傳 Markdown 文字、英文的固定標籤，會議內容照原本的語言（§44.2） | 回 JSON（`structuredContent`）：AI 也讀得懂，但中文內容加上欄位名稱、跳脫字元，長度多三成；會議紀錄本來就有匯出用的 Markdown。標籤跟著介面語言：讀的是 AI，不是人，換介面語言時回傳的內容不該跟著變（標準答案也要多一份） |
 | D150 | 寫本地 MCP 的啟動檔時，拿掉 app 自己的隔離屬性（§44.3；2026-11-09 驗證時發現） | 不處理、靠使用者第一次打開時的放行：放行之後 AI 工具直接執行 bundle 裡的執行檔會不會再被擋，要使用者在系統設定裡輸入密碼按「仍要打開」才驗得到，沒辦法確定；還沒放行時實測會跳出提示、程序卡住，AI 工具只看到逾時。叫使用者自己在終端機跑 `xattr -dr`：一般使用者不會，也不該教他們關掉安全機制。啟動檔改成用 `open -a` 透過 LaunchServices 開：stdio 接不起來 |
+| D151 | 麥克風被語音處理佔住：內建麥克風光看音量（8 秒幾乎沒聲音），其他麥克風要這場錄音稍早是正常的才提示（§45.1；2026-11-12，GitHub #4） | 所有麥克風都光看音量：外接的好麥克風、輸入音量調低時，沒人說話就低於 −70 dBFS，線上會議聽對方講話時會誤報（調小 20 dB 的 7 場錄音有 5 場會）。看「有沒有別的 app 在用麥克風」：線上會議本來就有，分不出來。看內建麥克風變成 3 聲道：只在 MacBook Pro 量過，其他機型不確定。自己開語音處理、自動換麥克風：R57.4、D104 |
+| D158 | 雙聲道的錄音在播放、匯出 m4a 時才混音（MTAudioProcessingTap），錄音檔不變（§49；2026-11-12，GitHub #7） | 錄成單聲道、壓縮時混成單聲道：分聲道轉錄、判斷誰是我（§17.3）就沒有資料了。另外產生一份混好的播放檔：多一倍空間，長會議點了播放要等。用 AVAudioEngine 自己寫播放器：倍速、跳播、時間都要重寫。混音的音量用相加乘 0.71 而不是平均：跟轉錄時 AVAssetReader 混成單聲道一樣，只有一邊有聲音（最常見）時不會小一半 |
+| D159 | 重新連接的間隔逐漸拉長，看門狗在重新連接完先等 5 秒（§50.1；2026-11-12，GitHub #8） | 藍牙的裝置不重新連接：AVAudioEngine 收到裝置變了之後會自己停下來，不重開就一直沒聲音。一直重新連接時自動改用內建麥克風：D104 不自動換麥克風，使用者可能就是要用耳機的麥克風。原因是推測的（沒有 AirPods 4、還沒拿到當機報告），這兩個改動對所有裝置都安全：正常換裝置時前兩次照舊 0.3 秒 |
+| D160 | Mac 的重新連接在背景佇列做，AVAudioEngine 的 Objective-C 例外用一個小的 `.m` 接住（§50.2、§50.3） | 留在主執行緒：藍牙開始收音要好幾秒，畫面卡住（回報的「卡死一會」）。整個錄音（含開始、停止）都搬到背景：Recorder 的狀態都在主執行緒，改動太大。不接例外：格式在中途改變時直接當掉，Swift 的 `do/catch` 接不到 NSException |
 
 | DF1 | 錄音中只記使用者的標記，錄完依時間套到離線辨識分出的說話者；對不上或有矛盾就不套用 | 錄音中即時分辨說話者（FluidAudio 的 Sortformer、LS-EEND）：AMI 上錯誤率 26～34%，錄完的離線辨識是 12%，Sortformer 最多 4 人，錄音中的編號跟錄完的結果還要再對一次，也要多下載模型。標記直接當成一段一段的說話者（不經過說話者辨識）：只有標過的幾段有名字。對不上也取最接近的說話者：標錯或說話者辨識把兩個人併成一位時會套錯名字，還會學到錯的聲紋（D29：寧可少、不能錯）。代價：錄音中只有標過的那幾行看得到名字 |
 | DF2 | 標記帶入的名字當成「自動」的名字：畫面上標「標記」、可以說不是他；說話者辨識可能把人併在一起的會議不存聲紋；重新辨識說話者、合併時跟重新轉錄一樣重算（F2.9～F2.11，2026-10-29） | 當成手動改名（2026-10-22 的做法）：按錯人、或說話者辨識把兩個人併成一位而只標了其中一人時，錯的聲紋直接進聲紋庫，之後的會議會以 ≥ 0.88 的相似度自動帶入錯的名字，使用者在畫面上也看不出這個名字不是自己取的。完全不從標記學聲紋：每個人標一次就能讓之後的會議認得，是標記最大的好處。只看每位說話者自己的凝聚度：FluidAudio 只給整場的品質，沒有每位的 |
 | DF3 | 錄音中靜音麥克風時，麥克風那一聲道直接寫成 0（F3，2026-11-03） | 照錄、只記下靜音的時間範圍，轉錄和即時逐字稿時才拿掉：選錯了救得回來，但正式轉錄、說話者辨識、壓縮、匯出、封包、重新轉錄都要跟著處理這些範圍，錄音檔裡也還是有會議室的閒聊（使用者要的就是不錄）。跟 Teams 的靜音一樣「靜音就是沒錄」，最好懂；代價是忘了打開的那段救不回來，所以加上忘了打開的提醒（F3.4） |
 | DF4 | 紀錄條列頁先做分段複製、時間點降噪、色條、議題收合與目錄，議題帶改用新函式依重點時間切段（F4，2026-11-10 使用者看過預覽後確認） | 整頁換成一份文字（唯讀 NSTextView）讓原頁可以任意拖選：待確認的就地回答要改成彈出視窗、待辦表要重排、焦點與捲動都要重做，先用分段複製滿足「貼到 Slack／郵件」的實際需求。直接改 `topicRanges`：Windows 也比對它的標準答案，fork 只做 Mac，所以另寫 `topicSegments`。修正 D145「回頭講前面的議題算進後面的議題可以接受」：使用者想看出重回；整理工具給的每條重點時間已經夠用，不必請整理工具另給結束時間。最小片段 60 秒：一條時間填錯或順口提一句時，議題帶上會切出點不到的細線、目前議題來回跳；60 秒在一小時的會議約 1.6% 寬，差不多是點得到的寬度。開始段例外保留（2026-11-10 審查後決定）：併掉時議題列寫 00:00、議題帶上卻在一小時後才出現，議題列的開始時間、點開始時間播放、目前議題對不上；代價是議題帶上可能有很細的色塊（不寫字，滑過看名稱）。保護「包含 `start` 的段」而不是「最早的段」：早於 `start` 的重點可能是時間填錯，不該永久保留。零長度段（同一秒好幾個議題）不算一段，不然唯一有效的短段會被當成「還有別段」併掉。重回的段不往前多算：沒有依據，會吃掉前一個議題。議題膠囊目錄不是 D109 拒絕的側邊欄：只在議題 > 5 個時出現、放在紀錄上方一列、只做導覽不放要處理的內容，不佔寬度。重點先行、摘要收合：使用者看過預覽後不要。播放時自動捲動：使用者在讀別段時會被拉走，只標出 |
+| DF5 | 麥克風音源的 `deviceUID`、`current` 用短暫拿鎖的 `LockedValue` 存（§50.2；2026-11-16 審查帶入的上游 R74 時發現） | 主執行緒先取 UID 的快照傳進背景：要改上游共用的 `AudioSource.restart()` 介面，`current` 從背景寫回仍然要同步，日後合併上游衝突多。換麥克風用 `deviceQueue.sync`：會等整個重新連接做完（藍牙要好幾秒），抵消 R74.4 的不卡住。改成 actor：`start()` 是同步的 AVAudioEngine 呼叫，要大改。上游 b042c94 原本是普通屬性，TSan 證實換麥克風和重新連接同時發生時有資料競態 |
 
 沿用 v2 的決策：資料放 Application Support（v2 D3）、GRDB（v2 D5）、會議紀錄存 JSON 加版本（v2 D6）、DEBUG 控制通道（v2 §13）。

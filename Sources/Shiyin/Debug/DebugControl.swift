@@ -441,6 +441,8 @@ enum DebugControl {
             model.recorder.simulateStall(channel: args.count > 2 ? Int(args[2]) ?? 0 : 0, seconds: args[1] == "off" ? nil : Double(args[1]) ?? 5)
         case "recordinterrupt":   // recordinterrupt [聲道]：等於音源發現裝置變了，Recorder 會重新開始這個音源
             model.recorder.simulateInterruption(channel: args.count > 1 ? Int(args[1]) ?? 0 : 0)
+        case "recordflap":   // recordflap <次數> [秒數]：麥克風接下來幾次開始收音後都說裝置變了，每次重新開始花幾秒（design §50.4）
+            model.recorder.simulateFlapping(times: Int(args[1]) ?? 0, seconds: args.count > 2 ? Double(args[2]) ?? 0 : 0)
         case "recordlang":   // recordlang <語言代碼>：錄音中換會議語言（等於按「改回」；zh、en、ja、yue、ko…）
             if let language = MeetingLanguage(rawValue: args[1]) { model.recorder.switchLanguage(to: language) }
         case "record-sim":
@@ -486,6 +488,7 @@ enum DebugControl {
         case "topiccollapse":   // topiccollapse all|none|default：議題全部收合、全部展開、回到預設（F4.7）
             model.notesCollapsedTopics = args[1] == "default" ? nil : (args[1] == "all" ? Set(model.detail?.notes?.topics.indices ?? 0..<0) : [])
         case "rate": model.player.setRate(Float(args[1]) ?? 1)
+        case "playvolume": model.player.setVolume(Float(args[1]) ?? 1)   // playvolume <0～1>（design §49.3）
         case "toggle": model.player.toggle()
         case "export":
             // export <項目> <格式> <路徑> [times 1/0] [speakers 1/0] [會議 id，預設目前選取的]
@@ -810,7 +813,9 @@ enum DebugControl {
             "transcriptionEngine": AppSettings.transcriptionEngine,
             "textSize": TextSize.level,   // 會議內容的文字大小（design §38.5）
             "player": ["loaded": model.player.isLoaded, "playing": model.player.isPlaying,
-                       "time": model.player.currentTime, "duration": model.player.duration, "rate": model.player.rate],
+                       "time": model.player.currentTime, "duration": model.player.duration, "rate": model.player.rate,
+                       "mixing": model.player.isMixing,
+                       "mix": ChannelMix.stats.withLock { ["frames": $0.frames, "sourcePeaks": $0.sourcePeaks, "mixedPeak": $0.mixedPeak] }],
             "recorder": ["recording": model.recorder.isRecording, "paused": model.recorder.isPaused,
                          "meetingId": model.recorder.meetingId ?? -1, "elapsed": model.recorder.elapsed,
                          "micLevel": model.recorder.micLevel, "systemLevel": model.recorder.systemLevel,
@@ -823,6 +828,7 @@ enum DebugControl {
                          "failure": model.recorder.failureMessage ?? "", "language": model.recorder.language.rawValue,
                          "languageSwitch": model.recorder.languageSwitch.map { "\($0.from.rawValue)→\($0.to.rawValue)" } ?? "",
                          "deviceWarning": model.recorder.deviceWarning ?? "",
+                         "restarts": model.recorder.restartInfo,   // 重新連接的節奏（design §50.4）
                          // 麥克風（design §38.7）
                          "micDevice": model.recorder.micDevice.map { ["name": $0.name, "uid": $0.uid, "bluetooth": $0.isBluetooth] } as Any,
                          "micHint": model.recorder.micHint.map { ["text": $0.text, "builtIn": $0.builtIn?.name ?? ""] } as Any],

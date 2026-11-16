@@ -418,6 +418,7 @@ final class AppModel {
         }
         recorder.onMuteHint = { [weak self] in self?.muteHintAppeared() }
         recorder.onLevelHint = { [weak self] hint in self?.levelHintAppeared(hint) }
+        recorder.microphoneUser = { [weak self] in self?.meetingDetector.microphoneUser() }
         recorder.onMicHint = { [weak self] hint in self?.micHintAppeared(hint) }
         // 忘了停止錄音（design §35、R48）：提醒一出現就送通知（人多半不在電腦前）
         recorder.onIdlePrompt = { [weak self] in
@@ -546,7 +547,7 @@ final class AppModel {
         detail = loaded
         syncReviewDraft()
         if forceAudio || previous?.id != meeting.id || previous?.audioFile != meeting.audioFile {
-            if meeting.hasAudio { player.load(meeting.audioURL) } else { player.unload() }
+            if meeting.hasAudio { player.load(meeting.audioURL, mixChannels: meeting.channels == "both") } else { player.unload() }
         }
     }
 
@@ -620,7 +621,7 @@ final class AppModel {
     /// 每場每種最多一次由 Recorder 管；拾音在前面時只有錄音畫面和選單列的提示
     private func levelHintAppeared(_ hint: Recorder.LevelHint) {
         guard let id = recorder.meetingId, !mainWindowInFront else { return }
-        notifier.levelHint(hint.text, kind: hint.rawValue, meetingId: id)
+        notifier.levelHint(recorder.text(for: hint), kind: hint.rawValue, meetingId: id)
     }
 
     /// 用藍牙耳機的麥克風錄現場會議（design §38.4、R58.3）：通知的規則同收音提醒

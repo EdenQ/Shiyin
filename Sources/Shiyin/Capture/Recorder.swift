@@ -50,6 +50,7 @@ final class Recorder {
     /// 收音提醒（design §26.1、R24.1、R24.3）
     enum LevelHint: String {
         case silent   // 麥克風的聲音完全是 0
+        case suppressed   // 幾乎沒聲音：被別的 app 的語音處理佔住（design §45、R57）
         case quiet    // 有人在說話，但聲音很小
         case noisy    // 背景一直很大聲
 
@@ -57,12 +58,34 @@ final class Recorder {
         var text: String {
             switch self {
             case .silent: return String(localized: "麥克風沒有收到聲音：可能被靜音、被其他 app 佔用，或選錯了麥克風。可以在設定的「錄音與轉錄」換一個。")
+            case .suppressed: return Self.suppressedText(nil)
             case .quiet: return String(localized: "聲音有點小：手機或筆電放近說話的人一點。")
             case .noisy: return String(localized: "背景有點吵，說話者可能分不準。錄完可以用「重新辨識說話者」告訴會議助手大約幾個人。")
             }
         }
+
+        /// 被佔住的提示要寫出是哪個 app（design §45.3、R57.1、R57.2）：瀏覽器、找不到是誰時建議改用 Chrome，其他 app 只建議換麥克風
+        static func suppressedText(_ user: MeetingDetector.MicrophoneUser?) -> String {
+            guard let user, !user.isBrowser else {
+                let name = user?.name ?? String(localized: "其他 app")
+                return String(localized: "麥克風幾乎收不到聲音：\(name) 可能正在用這支麥克風做回音消除（例如用 Safari 開的 Google Meet），會議助手收不到你的聲音。請改用 Chrome 開會，或讓會議和會議助手用不同的麥克風。")
+            }
+            return String(localized: "麥克風幾乎收不到聲音：\(user.name) 可能正在用這支麥克風做回音消除，會議助手收不到你的聲音。請讓 \(user.name) 和會議助手用不同的麥克風。")
+        }
     }
     private(set) var levelHint: LevelHint?
+    /// 提示的文字（錄音畫面、選單列、通知共用，R42）
+    func text(for hint: LevelHint) -> String {
+        hint == .suppressed ? LevelHint.suppressedText(suppressedBy) : hint.text
+    }
+    /// 被佔住的提示出現時，正在用麥克風的 app（design §45.2）；AppModel 接到 MeetingDetector
+    @ObservationIgnored var microphoneUser: (() -> MeetingDetector.MicrophoneUser?)?
+    @ObservationIgnored private var suppressedBy: MeetingDetector.MicrophoneUser?
+    /// 這場錄音稍早的背景音量（最低值）；晚 10 秒才算數，還沒算數的放 pendingFloor（design §45.1）
+    @ObservationIgnored private var micFloor: Float?
+    @ObservationIgnored private var pendingFloor: [Float] = []
+    /// 幾乎沒聲音之後 30 秒內的背景不算：30 秒的音量裡還有那時候的
+    @ObservationIgnored private var floorHold = 0
 
     /// 正在收音的麥克風（design §38.3、R58.2）：開始、重新開始、換麥克風後更新
     private(set) var micDevice: AudioDevices.Device?
@@ -150,6 +173,13 @@ final class Recorder {
     @ObservationIgnored private var reconnecting: [Int: Date] = [:]
     @ObservationIgnored private var reconnectErrors: [Int: String] = [:]
     @ObservationIgnored private var pendingRestarts: [Int: DispatchWorkItem] = [:]
+    /// 重新連接的節奏（design §50.1）：每個聲道 60 秒內重新連接的時間、上次重新連接完的時間
+    @ObservationIgnored private var restarts: [Int: [Date]] = [:]
+    @ObservationIgnored private var restartedAt: [Int: Date] = [:]
+    /// 重新連接在背景佇列做（design §50.2）：正在做的聲道、做完要再做一次的聲道（中途換了麥克風）
+    @ObservationIgnored private var restarting: Set<Int> = []
+    @ObservationIgnored private var restartAgain: Set<Int> = []
+    @ObservationIgnored private let deviceQueue = DispatchQueue(label: "com.weiwei.shiyin.devices", qos: .userInitiated)
     /// 磁碟空間（design §20.3）：上次檢查的時間；錄音中不到 300 MB 只提醒一次
     @ObservationIgnored private var lastDiskCheck = Date.distantPast
     @ObservationIgnored private var warnedLowDisk = false
@@ -222,6 +252,18 @@ final class Recorder {
     func simulateInterruption(channel: Int, times: Int = 3) {
         for _ in 0..<times { sources[channel]?.onInterruption?() }
     }
+
+    /// 只在 DEBUG：recordflap，麥克風一直說裝置變了、重新開始很慢（design §50.4）
+    func simulateFlapping(times: Int, seconds: Double) {
+        (sources[0] as? FileSource)?.flap(times: times, seconds: seconds)
+    }
+
+    /// state 的 recorder.restarts：每個聲道 60 秒內重新連接的時間（錄音開始後的秒數）、正在重新連接的聲道
+    var restartInfo: [String: Any] {
+        let start = startedAt ?? Date()
+        return ["times": Dictionary(uniqueKeysWithValues: restarts.map { ("\($0.key)", $0.value.map { (($0.timeIntervalSince(start)) * 10).rounded() / 10 }) }),
+                "restarting": restarting.sorted()]
+    }
     #endif
 
     func pause() {
@@ -233,6 +275,7 @@ final class Recorder {
     func resume() {
         guard isRecording, isPaused else { return }
         writer?.resetRecentLevels()
+        resetMicFloor()
         (noisySeconds, quietSeconds) = (0, 0)
         markSpeech()   // 按了繼續表示人還在，重新計時（design §35.1）
         writer?.setPaused(false)
@@ -332,7 +375,7 @@ final class Recorder {
         guard isRecording, let mic = sources[0] as? MicrophoneInput else { return }
         mic.deviceUID = uid
         log.info("switching microphone")
-        restartSource(0)
+        restartSource(0, counted: false)
     }
 
     /// 藍牙提示的「知道了」：這場錄音不再出現
@@ -343,7 +386,10 @@ final class Recorder {
 
     private func updateMicDevice() {
         let device = (sources[0] as? MicrophoneInput)?.current
-        if device != micDevice { micDevice = device }
+        if device != micDevice {
+            micDevice = device
+            resetMicFloor()   // 換了一支麥克風，底噪不一樣
+        }
         updateMicHint()
     }
 
@@ -362,6 +408,12 @@ final class Recorder {
         }
     }
 
+    private func resetMicFloor() {
+        micFloor = nil
+        pendingFloor = []
+        floorHold = 0
+    }
+
     /// 「知道了」：這一種提示這場錄音不再出現
     func dismissLevelHint() {
         guard let levelHint else { return }
@@ -371,7 +423,9 @@ final class Recorder {
 
     func stop(idleSince: Double? = nil) {
         guard isRecording, let meetingId else { return }
-        sources.values.forEach { $0.stop() }
+        // 在重新連接的佇列上停：等正在進行的重新連接做完，不會同時動 AVAudioEngine（design §50.2）
+        let stopping = Array(sources.values)
+        deviceQueue.sync { stopping.forEach { $0.stop() } }
         sources = [:]
         let duration = writer?.finish() ?? 0
         let file = writer?.url
@@ -453,6 +507,8 @@ final class Recorder {
             muteHintNotified = false
             muteTalk = []
             (noisySeconds, quietSeconds) = (0, 0)
+            suppressedBy = nil
+            resetMicFloor()
             lastSpeechAt = 0
             liveActive = false
             idlePrompt = false
@@ -585,6 +641,7 @@ final class Recorder {
             checkLevels(writer)
             checkIdle(writer)
             guard isRecording else { return }   // 沒人說話太久，剛自動停止
+            updateDeviceWarning()   // 「一直在重新連接」1 分鐘沒再重新連接就收起（design §50.1）
         }
         var silent = systemSilent
         if source == "both" {
@@ -610,7 +667,8 @@ final class Recorder {
             return
         }
         let silent = writer.silence(0) > 10
-        let levels = writer.recentLevels(0).sorted()
+        let recent = writer.recentLevels(0)
+        let levels = recent.sorted()
         var speech: Float = 0, background: Float = 0
         if levels.count >= 300 {
             speech = levels[Int(Double(levels.count - 1) * 0.9)]
@@ -619,17 +677,50 @@ final class Recorder {
             // 說話比背景大 4 dB 以上才算有人在說話（完全安靜時聲音很平），不是安靜的停頓
             quietSeconds = speech < -50 && speech - background >= 4 ? quietSeconds + 1 : 0
         }
-        let hint: LevelHint? = silent ? .silent : quietSeconds >= 60 ? .quiet : noisySeconds >= 45 ? .noisy : nil
+        // 被別的 app 的語音處理佔住（design §45.1、R57）：最近 8 秒幾乎沒聲音（完全是 0 的不算），
+        // 而且是內建麥克風、或這場錄音稍早的背景比現在高 12 dB 以上
+        var nearSilent = false, suppressed = false
+        if recent.count >= 80 {
+            let tail = recent.suffix(80).sorted()
+            nearSilent = tail.count(where: { $0 > -119 && $0 < -70 }) >= 72
+            if nearSilent {
+                quietSeconds = 0   // 不是「聲音有點小」（R57.3）
+                pendingFloor = []
+                floorHold = 30
+                suppressed = micIsBuiltIn || micFloor.map { $0 - tail[71] >= 12 } ?? false
+            } else if floorHold > 0 {
+                floorHold -= 1
+            } else if levels.count >= 300 {
+                pendingFloor.append(background)
+                if pendingFloor.count > 10 {
+                    let value = pendingFloor.removeFirst()
+                    if value > -119 { micFloor = min(micFloor ?? value, value) }
+                }
+            }
+        }
+        let hint: LevelHint? = silent ? .silent : suppressed ? .suppressed : quietSeconds >= 60 ? .quiet : noisySeconds >= 45 ? .noisy : nil
         let shown = hint.flatMap { dismissedLevelHints.contains($0) ? nil : $0 }
         if shown != levelHint {
+            // 是哪個 app 在提示出現時決定，之後不跟著變（design §45.2）
+            if shown == .suppressed { suppressedBy = microphoneUser?() }
             levelHint = shown
             // 第一次出現才通知（R42.1）；提示消失又出現不再通知
             if let shown, notifiedLevelHints.insert(shown).inserted { onLevelHint?(shown) }
         }
         #if DEBUG
         levelCheck = ["speech": speech, "background": background, "frames": levels.count, "silentSeconds": writer.silence(0),
-                      "noisySeconds": noisySeconds, "quietSeconds": quietSeconds, "hint": levelHint?.rawValue ?? ""]
+                      "noisySeconds": noisySeconds, "quietSeconds": quietSeconds, "hint": levelHint?.rawValue ?? "",
+                      "nearSilent": nearSilent, "floor": micFloor ?? 0, "suppressedApp": suppressedBy?.name ?? "",
+                      "text": levelHint.map { text(for: $0) } ?? ""]
         #endif
+    }
+
+    /// 正在收音的是這台 Mac 的內建麥克風；模擬錄音沒有真的裝置，DEBUG 用 -debugMicBuiltIn YES 當成內建（design §45.4）
+    private var micIsBuiltIn: Bool {
+        #if DEBUG
+        if UserDefaults.standard.bool(forKey: "debugMicBuiltIn") { return true }
+        #endif
+        return micDevice?.isBuiltIn == true
     }
 
     /// 開始錄音時剩不到 1 GB、錄音中剩不到 300 MB 就提醒（錄音照常進行；寫不進去時 tick 會停止錄音）
@@ -650,9 +741,20 @@ final class Recorder {
         failureMessage = failureMessage.map { $0 + "\n\n" + message } ?? message
     }
 
-    // MARK: 換裝置、看門狗（design §20.2、R18.2、D25）
+    // MARK: 換裝置、看門狗（design §20.2、R18.2、D25；節奏 §50.1）
 
-    /// 裝置切換時通知會連續來好幾次，等 0.3 秒沒有新的通知再重新開始
+    /// 60 秒內已經重新連接 n 次，下一次等多久：前兩次 0.3 秒，之後 2、4、8、16 秒，最多 30 秒（design §50.1、R74.2）
+    nonisolated static func restartDelay(_ n: Int) -> Double {
+        n < 3 ? 0.3 : min(30, pow(2, Double(n - 2)))
+    }
+
+    /// 這個聲道 60 秒內重新連接了幾次（順便丟掉更早的）
+    private func recentRestarts(_ channel: Int, now: Date = Date()) -> Int {
+        restarts[channel] = restarts[channel]?.filter { now.timeIntervalSince($0) < 60 }
+        return restarts[channel]?.count ?? 0
+    }
+
+    /// 裝置切換時通知會連續來好幾次，等一下沒有新的通知再重新開始；一直重新連接時等久一點
     private func scheduleRestart(_ channel: Int) {
         guard isRecording else { return }
         pendingRestarts[channel]?.cancel()
@@ -663,25 +765,52 @@ final class Recorder {
             }
         }
         pendingRestarts[channel] = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: item)
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.restartDelay(recentRestarts(channel)), execute: item)
     }
 
-    private func restartSource(_ channel: Int) {
+    /// 在背景佇列重新開始（design §50.2）：藍牙裝置開始收音要好幾秒，不能卡住畫面。
+    /// counted：算進重新連接的次數（使用者換麥克風不算）
+    private func restartSource(_ channel: Int, counted: Bool = true) {
         guard isRecording, let audioSource = sources[channel] else { return }
-        do {
-            try audioSource.restart()
+        if counted { restarts[channel, default: []].append(Date()) }
+        guard !restarting.contains(channel) else {
+            restartAgain.insert(channel)
+            return
+        }
+        restarting.insert(channel)
+        let box = SourceBox(source: audioSource)
+        deviceQueue.async { [weak self] in
+            let failure: Error?
+            do { try box.source.restart(); failure = nil } catch { failure = error }
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated { self?.finishRestart(channel, box.source, failure) }
+            }
+        }
+    }
+
+    private func finishRestart(_ channel: Int, _ audioSource: AudioSource, _ failure: Error?) {
+        restarting.remove(channel)
+        // 錄音已經停了（音源在 stop() 停掉了）：結果丟掉
+        guard isRecording, sources[channel] === audioSource else {
+            restartAgain.remove(channel)
+            return
+        }
+        restartedAt[channel] = Date()
+        if let failure {
+            // 錄音不停：另一個音源照常錄，雙聲道時這段會補靜音；看門狗再試
+            reconnectErrors[channel] = failure.localizedDescription
+            log.error("audio source \(channel) restart failed: \(failure.localizedDescription, privacy: .public)")
+        } else {
             reconnectErrors[channel] = nil
             log.info("audio source \(channel) restarted")
-        } catch {
-            // 錄音不停：另一個音源照常錄，雙聲道時這段會補靜音；看門狗每 5 秒再試
-            reconnectErrors[channel] = error.localizedDescription
-            log.error("audio source \(channel) restart failed: \(error.localizedDescription, privacy: .public)")
         }
         if channel == 0 { updateMicDevice() }
         updateDeviceWarning()
+        if restartAgain.remove(channel) != nil { restartSource(channel, counted: false) }
     }
 
-    /// 音源超過 3 秒沒送資料：提示並每 5 秒試一次重新開始；收到資料後提示消失
+    /// 音源超過 3 秒沒送資料：提示並重新連接；重新連接完 5 秒內、正在重新連接時不再重開（R74.1），
+    /// 重試的間隔 max(5, 重新連接的節奏)；收到資料後提示消失
     private func watchdog(_ writer: RecordingWriter) {
         #if DEBUG
         if simulationEnded { return }
@@ -689,8 +818,15 @@ final class Recorder {
         let now = Date()
         for channel in sources.keys.sorted() {
             if writer.secondsSinceSamples(channel) > 3 {
-                if let last = reconnecting[channel], now.timeIntervalSince(last) < 5 { continue }
-                if reconnecting[channel] == nil { log.info("audio source \(channel) stalled") }
+                if reconnecting[channel] == nil {
+                    log.info("audio source \(channel) stalled")
+                    reconnecting[channel] = .distantPast
+                    updateDeviceWarning()
+                }
+                guard !restarting.contains(channel), pendingRestarts[channel] == nil else { continue }
+                if let done = restartedAt[channel], now.timeIntervalSince(done) < 5 { continue }
+                let interval = max(5, Self.restartDelay(recentRestarts(channel, now: now)))
+                if let last = reconnecting[channel], now.timeIntervalSince(last) < interval { continue }
                 reconnecting[channel] = now
                 restartSource(channel)
             } else if reconnecting[channel] != nil {
@@ -702,14 +838,20 @@ final class Recorder {
         }
     }
 
+    /// 提示列（design §50.1）：重新連接失敗的原因 ＞ 一直在重新連接（60 秒內 3 次以上）＞ 正在重新連接…
     private func updateDeviceWarning() {
-        let warning = reconnecting.keys.sorted().first.map { channel -> String in
-            let mic = source != "system" && channel == 0
-            if let reason = reconnectErrors[channel] {
-                return mic ? String(localized: "麥克風沒有送出聲音，重新連接失敗：\(reason)。會繼續重試，錄音沒有停")
-                    : String(localized: "電腦聲音的擷取中斷了，重新連接失敗：\(reason)。會繼續重試，錄音沒有停")
-            }
-            return mic ? String(localized: "麥克風沒有送出聲音，正在重新連接…") : String(localized: "電腦聲音的擷取中斷了，正在重新連接…")
+        let isMic = { (channel: Int) in self.source != "system" && channel == 0 }
+        let stalled = reconnecting.keys.sorted().first
+        let flapping = sources.keys.sorted().first { recentRestarts($0) >= 3 }
+        var warning: String?
+        if let channel = stalled, let reason = reconnectErrors[channel] {
+            warning = isMic(channel) ? String(localized: "麥克風沒有送出聲音，重新連接失敗：\(reason)。會繼續重試，錄音沒有停")
+                : String(localized: "電腦聲音的擷取中斷了，重新連接失敗：\(reason)。會繼續重試，錄音沒有停")
+        } else if let channel = flapping {
+            warning = isMic(channel) ? String(localized: "麥克風一直在重新連接，錄音可能斷斷續續。藍牙耳機的麥克風常這樣，可以點上面的麥克風名稱換成內建麥克風。")
+                : String(localized: "電腦聲音的擷取一直在重新連接，錄音可能斷斷續續。")
+        } else if let channel = stalled {
+            warning = isMic(channel) ? String(localized: "麥克風沒有送出聲音，正在重新連接…") : String(localized: "電腦聲音的擷取中斷了，正在重新連接…")
         }
         if warning != deviceWarning { deviceWarning = warning }
     }
@@ -725,6 +867,10 @@ final class Recorder {
         meterTimer = nil
         pendingRestarts.values.forEach { $0.cancel() }
         pendingRestarts = [:]
+        restarts = [:]
+        restartedAt = [:]
+        restarting = []
+        restartAgain = []
         reconnecting = [:]
         reconnectErrors = [:]
         deviceWarning = nil
@@ -751,6 +897,11 @@ final class Recorder {
         volatileText = ""
         liveStatus = ""
     }
+}
+
+/// 交給背景佇列重新開始的音源（design §50.2）：同一個音源的重新開始、停止都在 Recorder 的 deviceQueue 上，不會同時
+private struct SourceBox: @unchecked Sendable {
+    let source: AudioSource
 }
 
 /// 錄音的單聲道混音要同時送給即時逐字稿和語言偵測；寫檔的執行緒呼叫 handler，主執行緒換掉接收端

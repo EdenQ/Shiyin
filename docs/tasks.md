@@ -7,6 +7,11 @@
 > - 新任務照 SDD：先寫進 `requirements.md`、改 `design.md`，再加到這裡
 > - 需求見 `requirements.md`，設計見 `design.md`（以下簡稱 §）
 
+## 錄音中麥克風一直重新連接（R74，design §50、D159、D160；2026-11-12，GitHub #8）
+
+- [~] **RC1 Mac**（§50.1～§50.3）：程式完成；fork 4.7.6 用 DEBUG 版 `record-sim`＋`recordflap 6 3` 驗過（2026-11-16，見版本 commit）：麥克風重新連接 7 次、間隔 3.9、3.8、5.6、7.6、11.6、19.5 秒，第 3 次起提示「麥克風一直在重新連接」、60 秒後收起，`maxMainGapMs` 104 ms；F3 靜音中遇到重新連接時兩種提示同時出現（windowshot）。還差（要使用者在電腦前：DEBUG 版用真的麥克風可能跳出權限確認）：內建麥克風錄音、錄音中從麥克風名稱換到別的麥克風再換回來，錄音照常、log 沒有 `microphone engine exception`
+- [ ] **RC3 真的 AirPods**：回報的人（GitHub #8）提供當機報告、更新後再試；或使用者用 AirPods 錄一段
+
 ## 讓 AI 工具讀取會議：本地 MCP（R69，design §44、design-windows §11.12、D146～D149；2026-11-09 使用者新需求）
 
 - [~] **MCP6 真的 Claude Desktop、Mac 的複製選單**（§44.3、design-windows §11.12）：其他都驗過了（見 commit 訊息）；Mac 的 Claude Desktop 2026-11-10 驗過（使用者執行的腳本暫時加上 shiyin、驗完還原：initialize、tools/list 都有回應）。剩下：
@@ -18,12 +23,15 @@
 - [~] **MM2 Mac 畫面、匯出**（§42.4）：程式完成、畫面和匯出驗過，時間點用 `clickat` 點過（2026-11-06：議題的 01:05、條目的 00:58 都從那裡播放，點空白不會跳）。還差：「複製心智圖」後貼到別的程式（測試時不蓋掉使用者的剪貼簿）
 - [~] **MM3 Windows**（design-windows §11.10）：程式完成，dotnet test 209/209；2026-11-06 虛擬機看過畫面（淺色、深色、英文）、匯出 PNG、PDF、SVG，時間連結按得到。還差：「複製心智圖（圖片）」貼到別的程式（UTM 可能跟 Mac 共用剪貼簿，測試時不蓋掉使用者的剪貼簿）
 
-## Safari 開 Google Meet 時麥克風收不到聲音（R57；2026-10-29 Threads 的使用者回饋）
+## 系統預設麥克風的名稱、藍牙提醒（上游 54bc6f5，design §38.1；fork 4.7.6 帶入）
 
-- [ ] **R57 設計**：先寫 design（新的一節＋決策紀錄）：怎麼判斷「低到一般錄音環境不會出現」、找出正在用麥克風的 app（同偵測會議 R19.4）、跟「聲音有點小」（R24.3）的關係
-  - 驗證：用使用者的會議錄音和公開語料（AMI、AISHELL-4）算音量分布，門檻在安靜的會議、外接麥克風都不會誤報；實驗工具 `scripts/dev/vpio-hold.swift`、`mic-level.swift`
-- [ ] **R57 Mac 實作**（R57.1～R57.5）：錄音中 10 秒內提示、提示列、通知、選單列圖示、同一場只提醒一次、使用說明的常見問題
-  - 驗證：DEBUG 版用 `vpio-hold.swift` 對內建麥克風開語音處理時錄音（要使用者在電腦前，會用到麥克風），10 秒內出現提示、寫出 app 的名稱；關掉後提示收起；安靜的會議錄音用 `record-sim` 不誤報
+- [~] **DM1 真的麥克風**：程式完成、能編譯；模擬錄音不走這條路，沒有驗證。還差（要使用者在電腦前，會用到麥克風）：麥克風選「系統預設」錄幾秒，錄音畫面的麥克風名稱是真的裝置名稱（不是 `CADefaultDeviceAggregate-…`）、錄音中的麥克風清單沒有多一項；AirPods 當系統預設時，錄現場會議出現藍牙耳機的提醒（R58.3）
+
+## Safari 開 Google Meet 時麥克風收不到聲音（R57，design §45、D151；2026-10-29 Threads 的使用者回饋、GitHub #4）
+
+- [~] **R57 Mac 實作**（R57.1～R57.5，design §45）：程式完成，用 `record-sim` 驗過（2026-11-12，見 commit 訊息）。還差（要使用者在電腦前，會用到麥克風）：
+  - 真的語音處理：DEBUG 版用內建麥克風錄音時跑 `scripts/dev/vpio-hold.swift`，10 秒內出現提示；關掉後提示收起
+  - 用 Safari 開 Google Meet 時提示寫的是 Safari（Safari 的網頁由 `com.apple.WebKit.GPU` 收音是照 GitHub #4 的 log 寫的，還沒在這台電腦看過 Core Audio 回報的 bundle ID；不是的話「偵測到線上會議」對 Safari 也不會提醒，要一起改 `MeetingDetector.known`）
 
 ## 會議的參考文件（R61，design §39、design-windows §11.8、D133～D136；2026-11-02 使用者新需求）
 
