@@ -30,10 +30,23 @@ extension AudioSource {
 
 /// 麥克風那一聲道的音源（design §38.3）：可以換裝置，看得到實際在收音的是哪一支
 protocol MicrophoneInput: AudioSource {
-    /// 指定的輸入裝置 UID，空字串是系統預設；改了之後 `restart()` 才生效
+    /// 指定的輸入裝置 UID，空字串是系統預設；改了之後 `restart()` 才生效。
+    /// 主執行緒（換麥克風）寫、`deviceQueue` 的 `start()` 讀，實作要用 `LockedValue` 存（fork，design §50.2）
     var deviceUID: String { get set }
-    /// 實際在收音的裝置（指定的不在時是系統預設）；`start()` 成功後才有
+    /// 實際在收音的裝置（指定的不在時是系統預設）；`start()` 成功後才有。背景寫、主執行緒讀，同樣用 `LockedValue` 存
     var current: AudioDevices.Device? { get }
+}
+
+/// 跨執行緒讀寫的小值（fork，design §50.2）：每次讀寫只短暫拿鎖，不會等正在進行的重新連接。
+/// 換麥克風在主執行緒寫 UID、重新連接在背景佇列讀，沒有鎖就是資料競態（2026-11-16 審查用 TSan 證實）
+final class LockedValue<Value>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: Value
+    init(_ value: Value) { stored = value }
+    var value: Value {
+        get { lock.withLock { stored } }
+        set { lock.withLock { stored = newValue } }
+    }
 }
 
 /// 把任意格式的 buffer 持續轉成 16 kHz 單聲道（保留重取樣的狀態，適合串流）。
@@ -84,11 +97,19 @@ final class MicrophoneSource: MicrophoneInput {
     var onInterruption: (() -> Void)?
     private var engine = AVAudioEngine()
     private var observer: NSObjectProtocol?
-    var deviceUID: String
-    private(set) var current: AudioDevices.Device?
+    private let uidState: LockedValue<String>
+    private let currentState = LockedValue<AudioDevices.Device?>(nil)
+    var deviceUID: String {
+        get { uidState.value }
+        set { uidState.value = newValue }
+    }
+    private(set) var current: AudioDevices.Device? {
+        get { currentState.value }
+        set { currentState.value = newValue }
+    }
 
     init(deviceUID: String) {
-        self.deviceUID = deviceUID
+        uidState = LockedValue(deviceUID)
     }
 
     /// 每次開始都用新的 engine：重新開始時重讀輸入格式；指定的裝置不在了，新的 engine 就跟著系統預設（design §20.2）。
@@ -239,8 +260,16 @@ final class FileSource: MicrophoneInput {
     var onSamples: (([Float]) -> Void)?
     var onInterruption: (() -> Void)?
     /// 模擬錄音的麥克風（design §38.7）：照 `MicrophoneMonitor` 的清單（含 `fakemic` 的假裝置）決定是哪一支
-    var deviceUID = ""
-    private(set) var current: AudioDevices.Device?
+    private let uidState = LockedValue("")
+    private let currentState = LockedValue<AudioDevices.Device?>(nil)
+    var deviceUID: String {
+        get { uidState.value }
+        set { uidState.value = newValue }
+    }
+    private(set) var current: AudioDevices.Device? {
+        get { currentState.value }
+        set { currentState.value = newValue }
+    }
     /// 模擬「麥克風＋電腦聲音」時，同一段音訊在同一個迴圈裡也送給第二個聲道。
     /// 兩個聲道各開一個 FileSource 的話，高倍速時兩邊的速度會不一樣，造成真實裝置不會有的「晚到」
     var mirror: MirroredSource?
