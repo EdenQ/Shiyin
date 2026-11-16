@@ -7,14 +7,9 @@
 > - 新任務照 SDD：先寫進 `requirements.md`、改 `design.md`，再加到這裡
 > - 需求見 `requirements.md`，設計見 `design.md`（以下簡稱 §）
 
-## 雙聲道的錄音兩耳都聽得到（R73，design §49、D158；2026-11-12，GitHub #7）
-
-- [ ] **CH1 Mac**（§49.1）：`ChannelMix`、`Player.load(_:mixChannels:)`、匯出 m4a。驗證照 §49.3：左聲道有聲音、右聲道靜音的 `both` 會議播放時 `player.mix` 兩邊一樣、≈ 左聲道 × 0.71（`playvolume 0`，使用者聽不到）；`mic` 的會議不混；匯出的 m4a 兩個聲道一樣；倍速、跳播照常
-
 ## 錄音中麥克風一直重新連接（R74，design §50、D159、D160；2026-11-12，GitHub #8）
 
-- [~] **RC1 Mac**（§50.1～§50.3）：程式完成，`recordflap` 驗過（2026-11-12，見 commit 訊息）。還差（要使用者在電腦前：DEBUG 版用真的麥克風可能跳出權限確認）：內建麥克風錄音、錄音中從麥克風名稱換到別的麥克風再換回來，錄音照常、log 沒有 `microphone engine exception`
-- [ ] **RC2 Windows**（design-windows §11.17）：同樣的節奏和提示。驗證：`RecorderTests`
+- [~] **RC1 Mac**（§50.1～§50.3）：程式完成；fork 4.7.6 用 DEBUG 版 `record-sim`＋`recordflap 6 3` 驗過（2026-11-16，見版本 commit）：麥克風重新連接 7 次、間隔 3.9、3.8、5.6、7.6、11.6、19.5 秒，第 3 次起提示「麥克風一直在重新連接」、60 秒後收起，`maxMainGapMs` 104 ms；F3 靜音中遇到重新連接時兩種提示同時出現（windowshot）。還差（要使用者在電腦前：DEBUG 版用真的麥克風可能跳出權限確認）：內建麥克風錄音、錄音中從麥克風名稱換到別的麥克風再換回來，錄音照常、log 沒有 `microphone engine exception`
 - [ ] **RC3 真的 AirPods**：回報的人（GitHub #8）提供當機報告、更新後再試；或使用者用 AirPods 錄一段
 
 ## 讓 AI 工具讀取會議：本地 MCP（R69，design §44、design-windows §11.12、D146～D149；2026-11-09 使用者新需求）
@@ -27,6 +22,10 @@
 
 - [~] **MM2 Mac 畫面、匯出**（§42.4）：程式完成、畫面和匯出驗過，時間點用 `clickat` 點過（2026-11-06：議題的 01:05、條目的 00:58 都從那裡播放，點空白不會跳）。還差：「複製心智圖」後貼到別的程式（測試時不蓋掉使用者的剪貼簿）
 - [~] **MM3 Windows**（design-windows §11.10）：程式完成，dotnet test 209/209；2026-11-06 虛擬機看過畫面（淺色、深色、英文）、匯出 PNG、PDF、SVG，時間連結按得到。還差：「複製心智圖（圖片）」貼到別的程式（UTM 可能跟 Mac 共用剪貼簿，測試時不蓋掉使用者的剪貼簿）
+
+## 系統預設麥克風的名稱、藍牙提醒（上游 54bc6f5，design §38.1；fork 4.7.6 帶入）
+
+- [~] **DM1 真的麥克風**：程式完成、能編譯；模擬錄音不走這條路，沒有驗證。還差（要使用者在電腦前，會用到麥克風）：麥克風選「系統預設」錄幾秒，錄音畫面的麥克風名稱是真的裝置名稱（不是 `CADefaultDeviceAggregate-…`）、錄音中的麥克風清單沒有多一項；AirPods 當系統預設時，錄現場會議出現藍牙耳機的提醒（R58.3）
 
 ## Safari 開 Google Meet 時麥克風收不到聲音（R57，design §45、D151；2026-10-29 Threads 的使用者回饋、GitHub #4）
 
