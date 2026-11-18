@@ -1,23 +1,25 @@
-# brand.py check-sources 的白名單（design §F7.4）：這些地方不經過翻譯表，但照規定不換品牌。
-# 格式：<路徑（可用 * ）> | <那一行裡的一段文字>；原始碼改了、用不到的條目 check 會報錯，要一起刪。
+# brand.py check-sources 的白名單（design §F7.4）：這些字串不經過翻譯表，但照規定不換品牌。
+# 格式：<路徑（可用 *）> | <字串常值的全文>；全文太長時寫開頭，結尾加「…」表示開頭相同就算。
+# 比對的是那一個字串常值本身，不是整行；原始碼改了、用不到的條目 check 會報錯，要一起刪。
 
 # MCP 給 AI 工具的英文訊息、serverInfo、啟動檔註解：使用者看不到，使用者決定不換（2026-11-18，決定 5）
-Sources/Shiyin/MCP/MCPServer.swift | "title": "Shiyin"
-Sources/Shiyin/MCP/MCPSetup.swift | # 拾音的 MCP 伺服器
-Sources/Shiyin/MCP/MCPTools.swift | Shiyin (拾音) is the user's meeting recorder
-Sources/Shiyin/MCP/MCPTools.swift | Your company's Shiyin server
-Sources/Shiyin/MCP/MCPTools.swift | Reading meetings is turned off in Shiyin
-Sources/Shiyin/MCP/MCPTools.swift | Shiyin has no meetings yet
-Sources/Shiyin/MCP/MCPTools.swift | Shiyin was updated
-Sources/Shiyin/MCP/MCPTools.swift | This copy of Shiyin is older
-Sources/Shiyin/MCP/MCPTools.swift | Couldn't read Shiyin's meetings
+Sources/Shiyin/MCP/MCPServer.swift | Shiyin
+Sources/Shiyin/MCP/MCPSetup.swift | # 拾音的 MCP 伺服器（design §44.3）。拾音每次啟動時重寫，指到目前這份拾音；不要手動改
+Sources/Shiyin/MCP/MCPTools.swift | Shiyin (拾音) is the user's meeting recorder on this computer. These tools read the user's recorded meetings (read-only):
+Sources/Shiyin/MCP/MCPTools.swift | Your company's Shiyin server has turned off reading meetings from AI tools.
+Sources/Shiyin/MCP/MCPTools.swift | Reading meetings is turned off in Shiyin. Ask the user to turn on…
+Sources/Shiyin/MCP/MCPTools.swift | Shiyin has no meetings yet.
+Sources/Shiyin/MCP/MCPTools.swift | Shiyin was updated and its meeting database needs a one-time upgrade. Ask the user to open Shiyin once, then try again.
+Sources/Shiyin/MCP/MCPTools.swift | This copy of Shiyin is older than the meeting database. Ask the user to open the newest Shiyin once (it updates the path AI tools use), then try again.
+Sources/Shiyin/MCP/MCPTools.swift | Couldn't read Shiyin's meetings: \(error.localizedDescription)
 
 # 不該換的識別：資料夾 ~/Library/Application Support/Shiyin、User-Agent、更新時暫存的 bundle 名稱
-Sources/Shiyin/Services/Paths.swift | "Shiyin"
-Sources/Shiyin/Services/UsageStats.swift | "Shiyin/\(Self.appVersion)"
-Sources/Shiyin/Services/Updater.swift | "Shiyin.app"
+Sources/Shiyin/Services/Paths.swift | Shiyin
+Sources/Shiyin/Services/UsageStats.swift | Shiyin/\(Self.appVersion)
+Sources/Shiyin/Services/Updater.swift | Shiyin.app
 
 # 品牌接點本身：Brand.names 會加上 fork 名稱
-Sources/Shiyin/Services/ReleaseNotes.swift | Brand.names("Shiyin")
-Sources/Shiyin/Services/ReleaseNotes.swift | Brand.names("拾音")
-Sources/Shiyin/Fork/Brand.swift | names("拾音", "Shiyin")
+Sources/Shiyin/Services/ReleaseNotes.swift | Shiyin
+Sources/Shiyin/Services/ReleaseNotes.swift | 拾音
+Sources/Shiyin/Fork/Brand.swift | 拾音
+Sources/Shiyin/Fork/Brand.swift | Shiyin

@@ -128,7 +128,7 @@ if [ "${1:-}" = "--install" ]; then
     pgrep -xq Shiyin && { echo "拾音沒有結束（可能在錄音或工作中，請手動結束後再試）"; exit 1; }
   fi
   mkdir -p "$HOME/Applications"
-  rm -rf "$HOME/Applications/Meeting Assistant.app"
-  cp -R "$APP" "$HOME/Applications/Meeting Assistant.app"
-  echo "已安裝：$HOME/Applications/Meeting Assistant.app"
+  rm -rf "$HOME/Applications/Meeting Assistant.app"   # MA-FORK(F7)
+  cp -R "$APP" "$HOME/Applications/Meeting Assistant.app"   # MA-FORK(F7)
+  echo "已安裝：$HOME/Applications/Meeting Assistant.app"   # MA-FORK(F7)
 fi

@@ -28,7 +28,7 @@ cp "$SCRATCH/app/Meeting Assistant.app/Contents/Resources/ThirdPartyLicenses.txt
 rm -f "$DMG"
 # CI 上 hdiutil 偶爾會回「資源忙碌」，最多試三次
 for attempt in 1 2 3; do
-  hdiutil create -volname "Meeting Assistant ${VERSION}" -srcfolder "$STAGE" -fs HFS+ -format UDZO -ov "$DMG" >/dev/null && break
+  hdiutil create -volname "Meeting Assistant ${VERSION}" -srcfolder "$STAGE" -fs HFS+ -format UDZO -ov "$DMG" >/dev/null && break   # MA-FORK(F7)：磁碟名稱
   [ "$attempt" = 3 ] && exit 1
   echo "hdiutil 失敗，5 秒後重試（第 ${attempt} 次）"
   sleep 5
