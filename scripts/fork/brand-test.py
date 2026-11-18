@@ -18,6 +18,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+sys.dont_write_bytecode = True   # import brand.py 時不要在 repo 留 __pycache__
 ROOT = Path(__file__).resolve().parents[2]
 BRAND = ROOT / "scripts/fork/brand.py"
 spec = importlib.util.spec_from_file_location("brand", BRAND)
@@ -78,6 +79,7 @@ struct Probe: View {
     }
     // 註解裡的 "拾音" 不算
     /* "Shiyin" 也不算 */
+    /* 巢狀 /* "拾音 inner" */ "Shiyin outer" */
 }
 ''')
         self.assertEqual(problems, [])
@@ -111,6 +113,72 @@ struct Probe: View {
             self.assertIn(text, found, f"沒抓到 {text}")
         self.assertEqual(len(problems), 11, found)
 
+    def test_review2_string_expressions_are_reported(self):
+        """複審 P2-3：呼叫是 Text，但參數其實是 String 運算式，不會查表，要報"""
+        problems = self.scan('''import SwiftUI
+struct Probe: View {
+    let flag = true
+    let supplied = ""
+    var body: some View {
+        Text(flag ? supplied : "Shiyin variable alternative")
+        Text("Shiyin transform".uppercased())
+        Text("Shiyin comment concat" /* note */ + supplied)
+        Text("Shiyin cast" as String)
+        Text(flag ? "Shiyin both a" : supplied)
+        Text(supplied.isEmpty ? "Shiyin opt" : "x" + supplied)
+        Text("Shiyin line comment" // 註解
+             + supplied)
+    }
+}
+''')
+        found = "\n".join(problems)
+        for text in ["Shiyin variable alternative", "Shiyin transform", "Shiyin comment concat", "Shiyin cast",
+                     "Shiyin both a", "Shiyin opt", "Shiyin line comment"]:
+            self.assertIn(text, found, f"沒抓到 {text}")
+        self.assertEqual(len(problems), 7, found)
+
+    def test_supported_boundary(self):
+        """design §F7.4 的語法邊界：放行的寫法"""
+        problems = self.scan('''import SwiftUI
+struct Probe: View {
+    let flag = true
+    var body: some View {
+        Text(flag ? "Shiyin literal first" : "Shiyin literal second")
+        Text(flag /* 註解 */ ? "Shiyin c1" : /* 註解 */ "Shiyin c2")
+        Text("Shiyin modifier").font(.title)
+        Button("Shiyin button", role: .destructive) { }
+        Label("Shiyin label", systemImage: "star")
+    }
+    func s() -> String { String(localized: "Shiyin \\(flag ? 1 : 2) 次") }
+}
+''')
+        self.assertEqual(problems, [])
+
+    def test_conservative_boundary_reported(self):
+        """design §F7.4 的語法邊界：編譯器其實會查表，但掃描器不認得、保守報錯的寫法（要用白名單或改寫）"""
+        swift = '''import SwiftUI
+struct CustomLookup: View {
+    let key: LocalizedStringKey
+    init(_ key: LocalizedStringKey) { self.key = key }
+    var body: some View { Text(key) }
+}
+struct Probe: View {
+    var body: some View {
+        CustomLookup("Shiyin custom key")
+        Text(("Shiyin parenthesized"))
+        Text(String(localized: "opaque key", defaultValue: "Shiyin localized default"))
+        Text(LocalizedStringKey(stringLiteral: "Shiyin literal key"))
+    }
+}
+'''
+        problems = self.scan(swift)
+        found = "\n".join(problems)
+        for text in ["Shiyin custom key", "Shiyin parenthesized", "Shiyin localized default", "Shiyin literal key"]:
+            self.assertIn(text, found, f"沒抓到 {text}")
+        self.assertEqual(len(problems), 4, found)
+        allowed = self.scan(swift, "Sources/Shiyin/Views/Probe.swift | Shiyin custom key\n")
+        self.assertEqual(len(allowed), 3, allowed)   # 白名單只放過自訂 View 那一個
+
     def test_allowlist_is_exact_per_literal(self):
         swift = '''func f() {
     let a = Path("Shiyin")
@@ -129,6 +197,83 @@ struct Probe: View {
 
     def test_repo_sources_clean(self):
         self.assertEqual(brand.check_sources(), [])
+
+
+class CompilerCrossCheck(unittest.TestCase):
+    """掃描器放行的每個字串，Swift 編譯器（-emit-localized-strings）在同一個位置也要抽得出來：
+    證明「放行＝真的查表」。編譯器沒有的話略過（CI 的 macOS runner 有）"""
+
+    PROBE = '''import SwiftUI
+struct CustomLookup: View {
+    let key: LocalizedStringKey
+    init(_ key: LocalizedStringKey) { self.key = key }
+    var body: some View { Text(key) }
+}
+struct CompilerProbe: View {
+    let flag: Bool
+    let supplied: String
+    var body: some View {
+        VStack {
+            Text(flag ? "Shiyin literal first" : "Shiyin literal second")
+            Text(flag ? supplied : "Shiyin variable alternative")
+            CustomLookup("Shiyin custom key")
+            Text("Shiyin transform".uppercased())
+            Text("Shiyin comment concat" /* note */ + supplied)
+            Text("Shiyin cast" as String)
+            Text(String(localized: "opaque key", defaultValue: "Shiyin localized default"))
+            Text("拾音 plain")
+            Text(verbatim: "拾音 verbatim")
+            Text("拾音" + supplied)
+            Text(flag /* c */ ? "拾音 c1" : "拾音 c2")
+            Button("拾音 button") { }
+            Label("拾音 label", systemImage: "star")
+            Toggle("拾音 toggle", isOn: .constant(true))
+            Text(("拾音 parenthesized"))
+            Text(supplied ?? "拾音 fallback")
+        }
+        .help("拾音 help")
+        .navigationTitle(flag ? "拾音 nav1" : "拾音 nav2")
+    }
+    func message(_ n: Int) -> String { String(localized: "拾音 \\(n) 次") }
+    func other() -> String { MeetingLanguageStub.ui(zh: "拾音 ui", en: "Shiyin ui") }
+}
+enum MeetingLanguageStub { static func ui(zh: String, en: String) -> String { zh } }
+'''
+
+    def test_scanner_passes_only_what_compiler_extracts(self):
+        import shutil as sh
+        swiftc = sh.which("swiftc")
+        if not swiftc:
+            self.skipTest("沒有 swiftc")
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            (tmp / "Sources").mkdir()
+            src = tmp / "Sources/CompilerProbe.swift"
+            src.write_text(self.PROBE.replace("supplied ?? ", "Optional(supplied) ?? "), encoding="utf-8")
+            out = tmp / "strings"
+            p = subprocess.run([swiftc, "-parse-as-library", "-emit-module", "-module-name", "CompilerProbe",
+                                "-module-cache-path", str(tmp / "mc"), "-emit-localized-strings",
+                                "-emit-localized-strings-path", str(out), "-emit-module-path", str(tmp / "P.swiftmodule"),
+                                str(src)], capture_output=True, text=True)
+            self.assertEqual(p.returncode, 0, p.stderr[-2000:])
+            data = json.loads(next(out.glob("*.stringsdata")).read_text(encoding="utf-8"))
+            extracted = {(e["location"]["startingLine"], e["location"]["startingColumn"])
+                         for entries in data["tables"].values() for e in entries}
+            literals = [l for l in brand.swift_literals(src.read_text(encoding="utf-8")) if brand.UPSTREAM.search(l.body)]
+            passed = [l for l in literals if l.localized]
+            for l in passed:
+                self.assertIn((l.line, l.column), extracted, f"掃描器放行、編譯器卻沒抽出：{l.body}")
+            # 編譯器沒抽出的品牌字串，掃描器一定要報
+            for l in literals:
+                if (l.line, l.column) not in extracted:
+                    self.assertFalse(l.localized, l.body)
+            self.assertGreaterEqual(len(passed), 10)   # 正向的寫法真的有被放行（不是全部報錯）
+            problems, conservative, count = brand.crosscheck(out, root=tmp)   # brand.py crosscheck 同一套
+            self.assertEqual(problems, [])
+            self.assertEqual(count, len(passed))
+            # 編譯器會查表、掃描器保守報錯的：自訂 LocalizedStringKey 的 View、多一層括號（defaultValue 的位置不是鍵，編譯器抽的是鍵）
+            self.assertEqual(len(conservative), 2, conservative)
+
 
 
 class Phrases(unittest.TestCase):

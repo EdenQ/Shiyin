@@ -8,6 +8,10 @@
   brand.py check <App.app>             只檢查建置結果和原始碼，不改檔
   brand.py check-sources               只檢查原始碼：包住字串的最內層呼叫不是查表的，字串裡卻有「拾音」「Shiyin」
                                        （白名單 fork/brand-allow.txt 比對字串全文）
+  brand.py crosscheck <stringsdata 資料夾>  用 Swift 編譯器抽出的字串（位置）核對掃描器：放行的每個字串，
+                                       編譯器在同一個位置也要抽得到（design §F7.4；合併上游後跑）。產生方式：
+                                       swift build … --scratch-path <別的資料夾> --target Shiyin -Xswiftc -emit-localized-strings
+                                       -Xswiftc -emit-localized-strings-path -Xswiftc <stringsdata 資料夾>
   測試：python3 scripts/fork/brand-test.py -v
   brand.py guides <輸出資料夾> <html>…   安裝說明換好放到輸出資料夾（make-dmg.sh 呼叫），也會檢查
   brand.py compare <舊.app> <新.app>    逐鍵比對兩個建置的翻譯、Info.plist、Credits（每版跟上一版比；
@@ -262,115 +266,176 @@ LOOKUP_CALLS = {"Text", "Button", "Toggle", "Label", "Section", "Window", "Menu"
 LOOKUP_LABELED = {"String": "localized"}
 
 
+class Literal:
+    """一個字串常值：位置、原文，和它在哪個呼叫的哪個參數裡"""
+    def __init__(self, start, end, body, line, column, frame):
+        self.start, self.end, self.body, self.line, self.column = start, end, body, line, column
+        self.call = frame["name"] if frame else None
+        self.label = frame["label"] if frame else None
+        self.arg = (frame["id"], frame["arg"]) if frame else None
+        self.arg_start = frame["arg_start"] if frame else None
+        self.localized = False
+
+
 def swift_literals(source):
-    """把 Swift 原始碼切成字串常值：[(行號, 字串原文, 包住它的呼叫, 參數標籤, 前一個符號, 後一個符號)]。
-    認得註解、一般／多行／raw 字串、字串插值裡的程式（插值裡的字串另算一個，包住它的呼叫是插值裡的那個）。
-    呼叫是「最內層的括號」：( 前面的名稱；[ ] 和 { } 也算一層（陣列、字典、closure 裡的字串不算查表）。
-    這不是完整的 Swift 解析器，判斷不了的寫法一律當成不查表（保守報錯，再用白名單放行）"""
-    out = []
-    frames = []          # 每層：{"name", "label", "interp": 回到字串時要用的狀態或 None}
+    """把 Swift 原始碼切成字串常值（Literal），並判斷每一個會不會查翻譯表。
+    認得註解、一般／多行／raw 字串、字串插值（插值裡的字串另算一個，包住它的是插值）。
+    呼叫是包住字串的「最內層括號」：( 前面的名稱；[ ] 和 { } 也算一層（陣列、字典、closure 裡的字串不查表）。
+    查表只放行兩種參數寫法（design §F7.4）：整個參數就是一個字串常值；三元運算兩邊都是字串常值。
+    其他運算式（變數、.uppercased()、as String、+ 串接、??、多一層括號）判斷不了型別，一律當成不查表"""
+    literals, comments, arg_end = [], [], {}
+    frames = []
+    counter = [0]
     i, n = 0, len(source)
+    line_starts = [0] + [k + 1 for k, ch in enumerate(source) if ch == "\n"]
 
-    def line_of(pos):
-        return source.count("\n", 0, pos) + 1
-
-    def prev_token(pos):
-        j = pos - 1
-        while j >= 0 and source[j] in " \t\r\n":
-            j -= 1
-        if j >= 1 and source[j - 1:j + 1] == "??":
-            return "??"
-        return source[j] if j >= 0 else ""
-
-    def next_token(pos):
-        j = pos
-        while j < n and source[j] in " \t\r\n":
-            j += 1
-        return source[j] if j < n else ""
+    def position(pos):
+        import bisect
+        row = bisect.bisect_right(line_starts, pos) - 1
+        return row + 1, len(source[line_starts[row]:pos].encode("utf-8")) + 1   # 欄跟編譯器一樣用 UTF-8 位元組
 
     def label_at(pos):
         m = re.match(r"\s*([A-Za-z_]\w*)\s*:(?!:)", source[pos:pos + 80])
         return m.group(1) if m else None
 
     def read_string(start, hashes, multi):
-        """從開頭的引號後面讀到結尾；遇到插值就把狀態存進 frame、回傳 None（之後在 ) 時接著讀）"""
-        quote = '"""' if multi else '"'
-        close = quote + "#" * hashes
+        close = ('"""' if multi else '"') + "#" * hashes
         interp = "\\" + "#" * hashes + "("
         j = start
         while j < n:
             if source.startswith(interp, j):
-                return ("interp", j + len(interp))
+                return "interp", j + len(interp)
             if source[j] == "\\" and hashes == 0:
                 j += 2
                 continue
             if source.startswith(close, j):
-                return ("end", j)
+                return "end", j + len(close)
             j += 1
-        return ("end", n)
+        return "end", n
 
-    # 字串讀到一半進了插值：記下字串的開頭、引號種類，) 結束插值時繼續讀
-    def scan_string(open_pos, body_start, hashes, multi, resume_from):
+    def scan_string(open_pos, body_start, hashes, multi, resume_from, owner):
         kind, j = read_string(resume_from, hashes, multi)
         if kind == "interp":
-            frames.append({"name": "\\(", "label": None,
-                           "interp": (open_pos, body_start, hashes, multi)})
+            frames.append({"name": "\\(", "label": None, "id": -1, "arg": 0, "arg_start": j,
+                           "interp": (open_pos, body_start, hashes, multi, owner)})
             return j
-        end = j
-        literal = source[body_start:end]
-        top = next((f for f in reversed(frames)), None)
-        out.append((line_of(open_pos), literal, top["name"] if top else None, top["label"] if top else None,
-                    prev_token(open_pos), next_token(end + len('"""' if multi else '"') + hashes)))
-        return end + len('"""' if multi else '"') + hashes
+        line, column = position(open_pos)
+        body = source[body_start:j - len('"""' if multi else '"') - hashes]
+        literals.append(Literal(open_pos, j, body, line, column, owner))
+        return j
+
+    def open_frame(name, pos):
+        counter[0] += 1
+        frames.append({"name": name, "label": label_at(pos), "id": counter[0], "arg": 0, "arg_start": pos, "interp": None})
 
     while i < n:
         c = source[i]
         if source.startswith("//", i):
-            i = source.find("\n", i)
-            i = n if i < 0 else i
+            j = source.find("\n", i)
+            j = n if j < 0 else j
+            comments.append((i, j))
+            i = j
             continue
-        if source.startswith("/*", i):
-            j = source.find("*/", i + 2)
-            i = n if j < 0 else j + 2
+        if source.startswith("/*", i):   # Swift 的 /* */ 可以巢狀
+            depth, j = 1, i + 2
+            while j < n and depth:
+                if source.startswith("/*", j):
+                    depth, j = depth + 1, j + 2
+                elif source.startswith("*/", j):
+                    depth, j = depth - 1, j + 2
+                else:
+                    j += 1
+            comments.append((i, j))
+            i = j
             continue
         m = re.match(r'(#*)("""|")', source[i:i + 12])
         if m and (m.group(1) or c == '"'):
-            hashes, multi = len(m.group(1)), m.group(2) == '"""'
             body = i + m.end()
-            i = scan_string(i, body, hashes, multi, body)
+            owner = frames[-1] if frames else None
+            owner = dict(owner) if owner else None   # 記下當時的參數（標籤、第幾個）
+            i = scan_string(i, body, len(m.group(1)), m.group(2) == '"""', body, owner)
             continue
-        if c in "([{":
-            name = ""
-            if c == "(":
-                m2 = re.search(r"([A-Za-z_]\w*)\s*$", source[max(0, i - 60):i])
-                name = m2.group(1) if m2 else ""
-            frames.append({"name": name or c, "label": label_at(i + 1) if c == "(" else None, "interp": None})
+        if c == "(":
+            m2 = re.search(r"([A-Za-z_]\w*)\s*$", source[max(0, i - 60):i])
+            open_frame(m2.group(1) if m2 else "(", i + 1)
+            i += 1
+            continue
+        if c in "[{":
+            open_frame(c, i + 1)
+            frames[-1]["label"] = None
             i += 1
             continue
         if c in ")]}":
             if frames:
                 f = frames.pop()
                 if f["interp"]:
-                    open_pos, body_start, hashes, multi = f["interp"]
-                    i = scan_string(open_pos, body_start, hashes, multi, i + 1)
+                    open_pos, body_start, hashes, multi, owner = f["interp"]
+                    i = scan_string(open_pos, body_start, hashes, multi, i + 1, owner)
                     continue
+                arg_end[(f["id"], f["arg"])] = i
             i += 1
             continue
-        if c == "," and frames and frames[-1]["name"] not in "[{":
-            frames[-1]["label"] = label_at(i + 1)
+        if c == "," and frames and frames[-1]["id"] > 0:
+            f = frames[-1]
+            arg_end[(f["id"], f["arg"])] = i
+            f["arg"] += 1
+            f["arg_start"] = i + 1
+            f["label"] = label_at(i + 1) if f["name"] not in "[{" else None
         i += 1
-    return out
+
+    # 參數的文字：註解換成空白（位置不變），去掉開頭的「標籤:」
+    blank = list(source)
+    for a, b in comments:
+        for k in range(a, b):
+            if blank[k] != "\n":
+                blank[k] = " "
+    blanked = "".join(blank)
+    by_arg = {}
+    for lit in literals:
+        if lit.arg:
+            by_arg.setdefault(lit.arg, []).append(lit)
+    for key, lits in by_arg.items():
+        end = arg_end.get(key)
+        if end is None:
+            continue
+        start = lits[0].arg_start
+        text = blanked[start:end]
+        label = re.match(r"\s*[A-Za-z_]\w*\s*:(?!:)", text)
+        offset = start + (label.end() if label else 0)
+        if not lookup_argument(lits[0]):
+            continue
+        parts = [(l.start - offset, l.end - offset) for l in lits]
+        body = blanked[offset:end]
+        if argument_is_literal_key(body, parts):
+            for l in lits:
+                l.localized = True
+    return literals
 
 
-def literal_is_localized(name, label, prev, nxt, line):
-    """字串會不會查翻譯表：包住它的就是查表的呼叫、在對的參數、沒有用 + 串接或 ?? 接在 String 後面、那行沒有 l10n-skip"""
-    if "// l10n-skip" in line:
-        return False
-    if prev in ("+", "??") or nxt == "+":
-        return False
-    if name in LOOKUP_LABELED:
-        return label == LOOKUP_LABELED[name]
-    return name in LOOKUP_CALLS and label is None
+def lookup_argument(lit):
+    """字串所在的參數是不是查表的參數：查表呼叫的第一個沒有標籤的參數，或 String(localized:)"""
+    if lit.call in LOOKUP_LABELED:
+        return lit.label == LOOKUP_LABELED[lit.call]
+    return lit.call in LOOKUP_CALLS and lit.label is None and lit.arg[1] == 0
+
+
+def argument_is_literal_key(body, parts):
+    """整個參數是一個字串常值，或「條件 ? 常值 : 常值」（條件裡不能有字串）"""
+    stripped = body.strip()
+    if len(parts) == 1:
+        a, b = parts[0]
+        return body[:a].strip() == "" and body[b:].strip() == ""
+    if len(parts) == 2:
+        (a1, b1), (a2, b2) = parts
+        before, middle, after = body[:a1].rstrip(), body[b1:a2].strip(), body[b2:].strip()
+        return (before.endswith("?") and not before.endswith("??") and before[:-1].strip() != ""
+                and "?" not in before[:-1] and middle == ":" and after == "")
+    return stripped == "" and False
+
+
+def literal_is_localized(lit, line):
+    """字串會不會查翻譯表：swift_literals 判斷過的寫法，而且那行沒有 l10n-skip"""
+    return lit.localized and "// l10n-skip" not in line
 
 
 def load_allow(allow_file=None):
@@ -402,10 +467,11 @@ def check_sources(root=None, allow_file=None):
         rel = str(f.relative_to(root))
         source = f.read_text(encoding="utf-8")
         lines = source.splitlines()
-        for no, literal, name, label, prev, nxt in swift_literals(source):
+        for lit in swift_literals(source):
+            no, literal, name = lit.line, lit.body, lit.call
             if not leftover(literal):
                 continue
-            if literal_is_localized(name, label, prev, nxt, lines[no - 1] if no <= len(lines) else ""):
+            if literal_is_localized(lit, lines[no - 1] if no <= len(lines) else ""):
                 continue
             rule = next((r for r in allow if allow_matches(r, rel, literal)), None)
             if rule:
@@ -416,6 +482,35 @@ def check_sources(root=None, allow_file=None):
         if rule not in used:
             problems.append(f"fork/brand-allow.txt：用不到的白名單 {rule[0]} | {rule[1]}（原始碼改了的話一起刪）")
     return problems
+
+
+def crosscheck(stringsdata_dir, root=None):
+    """掃描器放行、編譯器卻沒抽出的品牌字串 → 掃描器有漏洞（problems）；編譯器抽出、掃描器報錯的只列出來（保守）"""
+    root = (root or ROOT).resolve()
+    extracted = {}
+    for f in Path(stringsdata_dir).glob("*.stringsdata"):
+        data = json.loads(f.read_text(encoding="utf-8"))
+        source = Path(data.get("source", "")).resolve()
+        for entries in data.get("tables", {}).values():
+            for e in entries:
+                extracted.setdefault(source, set()).add((e["location"]["startingLine"], e["location"]["startingColumn"]))
+    if not extracted:
+        return [f"{stringsdata_dir}：沒有 stringsdata"], [], 0
+    problems, conservative, passed = [], [], 0
+    for f in sorted((root / "Sources").rglob("*.swift")):
+        locations = extracted.get(f.resolve(), set())
+        for lit in swift_literals(f.read_text(encoding="utf-8")):
+            if not UPSTREAM.search(lit.body):
+                continue
+            hit = (lit.line, lit.column) in locations
+            where = f"{f.relative_to(root)}:{lit.line}:{lit.column} \"{lit.body[:60]}\""
+            if lit.localized:
+                passed += 1
+                if not hit:
+                    problems.append(f"{where}：掃描器放行，編譯器卻沒有抽出（不查表）")
+            elif hit:
+                conservative.append(where)
+    return problems, conservative, passed
 
 
 def fnmatch_path(path, pattern):
@@ -512,6 +607,12 @@ def main(argv):
         return report(check_app(Path(argv[1])) + check_sources(), "建置結果和原始碼")
     if len(argv) >= 3 and argv[0] == "compare":
         return compare(Path(argv[1]), Path(argv[2]))
+    if len(argv) >= 2 and argv[0] == "crosscheck":
+        problems, conservative, passed = crosscheck(argv[1])
+        print(f"brand.py crosscheck：掃描器放行 {passed} 個品牌字串；編譯器抽出、掃描器保守報錯的 {len(conservative)} 個")
+        for c in conservative:
+            print("  保守：" + c)
+        return report(problems, "掃描器對照編譯器")
     if argv[:1] == ["check-sources"]:
         return report(check_sources(), "原始碼")
     if len(argv) >= 3 and argv[0] == "guides":
