@@ -1,6 +1,42 @@
 # CLAUDE.md
 
-拾音 Shiyin 是 macOS 原生的會議紀錄 app（SwiftUI，macOS 26）。目前是 4.7.6（fork，Mac build 30；保留 F2.12、F3、F4；4.7.6 帶入上游 4.8.1 的雙聲道播放、匯出混音（R73）、麥克風一直重新連接不卡住（R74）、麥克風被回音消除佔住的提示（R57）、系統預設麥克風的名稱；上游基礎 4.7.1：4.1 加上三個分頁的減法、待確認就地回答、收音提醒送通知、可選的 Qwen3-ASR 引擎，Windows 同步；4.1.1 整理工具設定好才用、失敗說清楚怎麼修；4.1.2 忘了停止錄音時提醒、自動停止；4.2 可以連公司的企業伺服器（在公司的伺服器轉錄、整理，公司詞彙表、加入連結）；4.2.1 企業伺服器的安全強化；4.2.2 只裝 Codex 桌面版也能整理、只有 Claude 桌面版時說明怎麼裝 Claude Code，Windows 加上 AMD 顯示卡加速、錄得到 Teams 的聲音；4.2.3 錄音按鈕和錄音畫面可以選、換麥克風，藍牙耳機的麥克風錄現場會議時提醒，會議內容的文字大小（⌘＋／⌘－），右上角的匯出按鈕；4.3 會議的參考文件（加入 PDF、Word、PowerPoint、圖片，整理和提問時一起參考、註明出處）、整理工具的額度用完時說清楚，Windows 只有 Intel 顯示卡的電腦也試著用顯示卡轉錄；4.5 會議語言加廣東話、韓文（實驗性），每種語言的做法寫在共用的語言檔（台語評估過、還沒加，design §41.9）；4.6 會議紀錄可以切換成心智圖（匯出 PNG、PDF、SVG、複製圖片；design §42）、播放條上的議題時間軸（design §43）；4.7 讓 AI 工具讀取會議（本地 MCP：Claude Code、Codex、Claude Desktop 可以列出、搜尋、讀會議，`Shiyin --mcp`、Windows 的 `shiyin-mcp.exe`；design §44）；4.7.1 更新下載時看得到進度、下載中結束先提醒，提問的回答缺欄位時照樣顯示；第三版加上英文版、開源準備、轉錄準確度、日文、更多整理工具、穩定性修正；3.5 加上草稿紀錄、聲紋、猜說話者、對會議提問、偵測會議；3.6 加上重新辨識說話者、合併和改句子的說話者、分不準的提醒、收音提醒，修正錄音中畫面卡住；4.0 加上 Windows 版、待確認的是非題、聲紋沒把握時先問、短句的說話者、沒有 claude／codex 時先不整理）：
+## 這個專案：會議助手（拾音的 fork）
+
+- 這個 repo（`EdenQ/Shiyin`）是上游「拾音 Shiyin」（`juinwei7/Shiyin`）的 fork。app 叫「會議助手」（應用程式選單 `MA`、英文 Meeting Assistant），**只做 Mac**；`windows/`、`docs/design-windows.md`、Windows 的翻譯表不動。
+- 版本、fork 有哪些功能（F#）、跟上游差在哪裡：見 `docs/fork/requirements.md` 的 §0 和 `docs/fork/upstream-sync.md`。上游各版的內容看上游的 `docs/requirements.md` 和 git 歷史。
+- **先讀 `docs/fork/`**，再讀上游的文件：
+
+| 文件 | 內容 |
+|---|---|
+| `docs/fork/requirements.md` | fork 的需求 F#.#（F1 名稱、F2 說話者標記、F3 靜音、F4 條列頁、F7 品牌；新功能從 F9 編號） |
+| `docs/fork/design.md` | fork 的設計 §F#、決策 DF#、開發規則 §F0、資料庫規則 §F-DB、對上游設計的補充 §F-UP |
+| `docs/fork/tasks.md` | fork 還沒完成的任務、上游任務在 fork 的實測狀態 |
+| `docs/fork/upstream-sync.md` | 版本號規則（DF6）、合併上游的流程、refs 命名空間、新舊 SHA 對照 |
+| `docs/fork/manifest.json` | 給機器讀的：每個 fork 功能的檔、接點、設定鍵、DEBUG 指令、migration、資料表 |
+
+- **上游的 `docs/requirements.md`、`design.md`、`tasks.md` 照上游原樣，fork 不改**（合併時直接用上游的版本）。fork 的需求、設計、任務、對上游的補充都寫在 `docs/fork/`，引用上游的編號（R#、§數字、D#）。
+
+### 品牌（fork design §F7）
+
+- 原始碼、翻譯表、`Info.plist`、安裝說明照上游寫「拾音」「Shiyin」，**不要在原始碼寫「會議助手」**：建置時 `scripts/fork/brand.py apply` 把建好的 app 換成會議助手（`build-app.sh`、`--debug`、`make-dmg.sh` 都會跑）。名稱、整句特例、不換的片段在 `fork/brand.json`。
+- 不經過翻譯表的寫法（`ui(zh:`、`verbatim:`、字串串接）不能有品牌字；`python3 scripts/fork/brand.py check-sources` 會擋，真的不換的（MCP 給 AI 的訊息、資料夾名稱）列在 `fork/brand-allow.txt`。改過 `brand.py` 跑 `python3 scripts/fork/brand-test.py`。
+- 不換：`.shiyin`、`shiyin://`、`Application Support/Shiyin`、鑰匙圈的「拾音 API key」、bundle id `com.weiwei.shiyin`、User-Agent、DMG 和 `shiyin-update.json` 的檔名、原作者署名。
+
+### 改到上游的檔（fork design §F0）
+
+- fork 的程式放 `Sources/Shiyin/Fork/<功能>/`；上游的檔只加一行接點，行尾標 `// MA-FORK(F#)`（腳本用 `# MA-FORK(F#)`），登記在 `docs/fork/manifest.json`。不改上游函式的簽章。
+- 資料庫：migration、新表 `ma_` 開頭，只新增、不改、不刪；上游會搬動會議資料的功能，fork 的表要跟著處理（fork design §F-DB）。設定鍵、DEBUG 指令 `ma` 開頭（已經有的保留原名）。
+
+### 版本號、發布（DF6）
+
+- build 號從 31 起單調遞增。合併上游 X.Y.Z 的那一版是 X.Y.(Z+1)（比目前小時取 fork 的 patch + 1），fork 自己的發布只加 patch。
+- Release 說明照下面「發布新版的說明文字」，標題寫「會議助手 X.Y.Z」，第一行後面加「- 基於上游 拾音 X.Y.Z」（英文「- Based on upstream Shiyin X.Y.Z」）。合併上游的流程見 `docs/fork/upstream-sync.md`（避免 cherry-pick）。
+
+## 上游拾音的說明（開發與驗證）
+
+以下是上游拾音的架構、指令和驗證時要注意的事，fork 照樣適用（Windows 的部分 fork 不做）。
+
+拾音 Shiyin 是 macOS 原生的會議紀錄 app（SwiftUI，macOS 26）：
 
 - 錄音：AVAudioEngine 收麥克風、Core Audio process tap 收電腦聲音，寫成雙聲道 WAV（`Sources/Shiyin/Capture/`）
 - 即時逐字稿：系統的 SpeechAnalyzer（語系依會議語言，寫在語言檔的 `live.mac`：zh_TW、en_US、ja_JP、zh_HK（粵語）、ko_KR）
@@ -17,7 +53,7 @@
 
 ## 開發流程：SDD（規格驅動）
 
-本專案先寫規格再寫程式，規格放在 `docs/`：
+本專案先寫規格再寫程式，規格放在 `docs/`（fork 的在 `docs/fork/`，見最上面；下表是上游的文件，fork 不改）：
 
 | 文件 | 內容 |
 |---|---|
@@ -27,11 +63,11 @@
 | `docs/tasks.md` | 還沒完成的任務，每項都有驗證方式；做完就刪掉 |
 
 開發時的規則：
-- 開工前先讀 requirements、design、tasks（做 Windows 版時加上 design-windows），從 `tasks.md` 的任務接著做。
-- 每完成一項任務，照它的「驗證」實際跑過一次，從 `tasks.md` 刪掉，跑了什麼、結果如何寫在 commit 訊息。`[~]` 表示程式完成，但有部分驗證要等使用者（權限、真實錄音、API key），只寫還差什麼。
+- 開工前先讀 `docs/fork/` 的 requirements、design、tasks，再讀上游的 requirements、design、tasks，從 `docs/fork/tasks.md` 的任務接著做。
+- 每完成一項任務，照它的「驗證」實際跑過一次，從 `docs/fork/tasks.md` 刪掉，跑了什麼、結果如何寫在 commit 訊息。`[~]` 表示程式完成，但有部分驗證要等使用者（權限、真實錄音、API key），只寫還差什麼。
 - docs 只留還用得到的：做完的任務、用不到的文件直接刪掉，不另外留紀錄檔（都在 git 歷史裡）。
-- 程式要偏離 `design.md` 時，先改 `design.md`（重要的取捨寫進決策紀錄 D#），再改程式，commit 訊息寫原因。
-- 有新需求時，先寫進 `requirements.md`，再改設計、加任務。不要直接寫程式。
+- 程式要偏離設計時，先改 `docs/fork/design.md`（重要的取捨寫進決策紀錄 DF#；偏離上游的設計時寫在 §F-UP），再改程式，commit 訊息寫原因。
+- 有新需求時，先寫進 `docs/fork/requirements.md`，再改設計、加任務。不要直接寫程式。
 
 ## 指令
 
@@ -41,6 +77,8 @@ scripts/build-app.sh --install   # 建置並安裝到 ~/Applications
 scripts/build-app.sh --debug     # DEBUG 版：含驗證用控制通道（指令見 Sources/Shiyin/Debug/DebugControl.swift）
 scripts/make-dmg.sh              # release 建置並產生 DMG（dist/Shiyin-<版本>.dmg，含中英文安裝說明 PDF）
 scripts/dev/l10n.py check        # 抽出介面字串合併進翻譯表，列出缺英文的條目和沒查表的中文（有問題時 exit 1）
+python3 scripts/fork/brand.py check-sources   # fork：原始碼在不查表的地方寫了「拾音」「Shiyin」就失敗（design §F7.4）
+python3 scripts/fork/brand-test.py             # fork：brand.py 的回歸測試
 scripts/dev/make-third-party-licenses.sh   # 更新套件版本後重跑：產生 Resources/ThirdPartyLicenses.txt（「關於拾音」和 DMG 附的授權條款）
 scripts/dev/l10n.py apply <翻譯.json>   # 寫入英文翻譯：{"中文鍵": "English"}，複數用 {"one": …, "other": …}
 scripts/make-signing-cert.sh     # 建立自簽憑證；加 --trust 信任它（要使用者輸入登入密碼）
