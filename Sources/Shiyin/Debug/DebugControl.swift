@@ -1168,7 +1168,7 @@ enum DebugControl {
                 let settings = await UNUserNotificationCenter.current().notificationSettings()
                 write(["authorization": settings.authorizationStatus.rawValue], to: args[1])
             }
-        default: log.error("unknown debug command \(name)")
+        default: if !ForkDebug.handle(args, model: model) { log.error("unknown debug command \(name)") }   // MA-FORK(F0)：fork 的 DEBUG 指令
         }
     }
 
