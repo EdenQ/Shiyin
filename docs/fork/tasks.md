@@ -4,22 +4,14 @@
 > 上游任務在 fork 這邊的實測狀態寫在這裡。需求在 `docs/fork/requirements.md`，設計在 `docs/fork/design.md`。
 > 規則同 CLAUDE.md：每項都有驗證方式；`[~]` 是程式完成、還差要使用者的驗證。「design §F#」指 fork design，「design §數字」「D#」「R#」指上游文件。
 
-## 合併上游 5.0（PLAN-fork-5.0 階段 1，發布 5.0.1／build 31）
+## 5.0.1（合併上游 5.0.0）待使用者實測
 
-- [ ] **M1 接回上游歷史並合併**：照 `docs/fork/upstream-sync.md` §2：內部先合 4.8.1、再合 5.0.0；版本照 DF6 改成 5.0.1（build 31）
-  - 驗證：`git merge-base HEAD refs/upstream-tags/v5.0.0` 是 v5.0.0 那個 commit；`brand.py check-sources`、`l10n.py check`、`swift build` 通過；跟 5.0.0 比，上游三份文件 `docs/requirements.md`、`design.md`、`tasks.md` 沒有差異
-- [ ] **M2 fork 的 migration 搬到上游的後面**（design §F-DB.1 第 3 點）：`ForkMigrations.register(&migrator)` 在上游最後一個 migration 之後
-  - 驗證：`scripts/dev/check-fork-migrations.py` 跟著 5.0 改（`ChineseScript`、`AppSettings` 的替身），全新、v7、Fork v8、上游 v8～v15、fork 4.7.6 的資料庫升級、重新開啟、降回 4.7.6 再打開都通過
-- [ ] **M3 標記跟著上游的編輯、分割、合併**（F2.13，design §F-DB.2）
-  - 驗證：DEBUG 版 `record-sim`＋`tagspeaker add` 放標記，跑 `editmeeting`、`restoreedit`、`splitmeeting` 和合併，用 `speakertags <id> <out.json>` 比對時間
-- [ ] **M4 封包帶標記**（F2.8，design §F-DB.3）
-  - 驗證：帶標記的會議匯出再匯入，`speakertags` 相同；4.7.6 匯出的舊封包照常匯入；上游 5.0 的 app 匯入帶標記的封包成功
-- [ ] **M5 錄音島顯示靜音**（F3.7）：上游 5.0 的錄音島（R81）在麥克風靜音時寫「麥克風靜音中」
-  - 驗證：DEBUG 版模擬錄音中 `mute`，`windowshot` 錄音島中英文
-- [ ] **M6 提醒事項列表的品牌接點**（F7.5，design §F7.3）：`Reminders.listTitle` 包 `Brand.name(…)`、`EventKitReminders.list()` 用 `Brand.isListTitle`
-  - 驗證：`brand-hooks-test`；真的提醒事項：有舊名「拾音」列表時沿用、沒有時建立「會議助手」（要使用者同意提醒事項權限）
-- [ ] **M7 F2、F3、F4 接到 5.0 的新畫面**（會議頁上方、設定十一頁、就地編輯）
-  - 驗證：PLAN-fork-5.0 §8.1 的回歸清單全部通過
+合併、M2～M7 的程式和自動驗證做完了（分支 feature/f9-merge-upstream-5.0）。這台電腦沒有給 Claude 輔助使用、螢幕錄製的權限，下面要使用者在電腦前：
+
+- [~] **M5 錄音島的靜音**（F3.7）：DEBUG 版 `record-sim` 中 `micmute on`，`mawindowshot <輸出> island` 拍過收起、滑過去（中英簡）。還差：真的錄音中按錄音畫面的麥克風、⌃⌥⌘M，看螢幕上方的島（有瀏海、沒瀏海的 Mac）；靜音中現場有人說話約 20 秒時島上出現提醒、按「打開麥克風」
+- [~] **M6 提醒事項的列表**（F7.5）：DEBUG 版用的是假的提醒事項（`FakeReminders`），接點用 `brand-hooks-test` 驗過。還差（要同意提醒事項權限）：正式建置按「加到提醒事項」：沒有列表時建立「會議助手」；先手動建一個叫「拾音」的列表時沿用它、不再建新的。測完刪掉測試建立的列表和待辦
+- [~] **M7 F2、F3、F4 在 5.0 的新畫面上按**：`windowshot` 看過紀錄分頁（條數、色條、「加到提醒事項」、負責人頭像）、錄音畫面的靜音、設定「錄音」頁的開關。還差：紀錄分頁點兩下條目就地編輯、右鍵、⋯ 之後 F4 的樣式還在；會議頁上方「標記」的名字點了出現「是別人／不是他」；說話者名字彈窗的「不是他」
+- [ ] **4.7.6 → 5.0.1 的 app 內更新**：裝 4.7.6 的使用者更新後，打開舊會議看標記、靜音、條列頁；資料夾、編輯會議等 5.0 的功能可以用
 
 ## 上游 R74 在 fork 的實測（design §50、D159、D160；fork 4.7.6 帶入，F6）
 
@@ -42,7 +34,6 @@
 
 - [~] **IC1 看實際效果**（F1.6）：`Resources/AppIcon-1024.png` → `make-icon-from-png.sh` 產生 `AppIcon.icns`，`iconutil -c iconset` 反解 10 張尺寸正確；`docs/images/icon.png`、favicon、apple-touch-icon 已換。還差：
   - 建置後使用者在 Finder、Dock、「關於 MA」、DMG 看 16～1024 各尺寸（macOS 的圖示快取可能要重新登入或 `killall Dock` 才換）
-  - 官網分享預覽圖 `site/public/og*.png` 還是舊圖示：`site/make-images.sh` 要用 Chrome 截圖，等使用者在電腦前再跑
 
 ## 紀錄條列頁的閱讀與複製（F4，design §F4、DF4；2026-11-10 使用者看過預覽後確認）
 

@@ -283,12 +283,13 @@ class Phrases(unittest.TestCase):
         self.tmp = Path(tempfile.mkdtemp())
         self.app = self.tmp / "T.app"
         res = self.app / "Contents/Resources"
-        for lang in ("en", "zh-Hant"):
+        for lang in ("en", "zh-Hant", "zh-Hans"):
             (res / f"{lang}.lproj").mkdir(parents=True)
         shutil.copy(ROOT / "Resources/Info.plist", self.app / "Contents/Info.plist")
         licenses = (ROOT / "Resources/ThirdPartyLicenses.txt").read_text(encoding="utf-8")
         (res / "ThirdPartyLicenses.txt").write_text(licenses, encoding="utf-8")
         sponsor = {"zh-Hant": f'覺得拾音好用的話，可以<a href="{KOFI}">請我喝杯咖啡</a>。',
+                   "zh-Hans": f'觉得拾音好用的话，可以<a href="{KOFI}">请我喝杯咖啡</a>。',
                    "en": f'Enjoying Shiyin? <a href="{KOFI}">Buy me a coffee</a>.'}
         for lang, line in sponsor.items():
             (res / f"{lang}.lproj/Credits.html").write_text(
@@ -297,8 +298,10 @@ class Phrases(unittest.TestCase):
         catalog = json.loads((ROOT / "Resources/Localizable.xcstrings").read_text(encoding="utf-8"))["strings"]
         key = next(k for k in catalog if "「拾音」選單" in k)
         en = catalog[key]["localizations"]["en"]["stringUnit"]["value"]
+        hans = catalog[key]["localizations"]["zh-Hans"]["stringUnit"]["value"]
         (res / "zh-Hant.lproj/Localizable.strings").write_bytes(plistlib.dumps({key: key, "結束拾音": "結束拾音"}))
         (res / "en.lproj/Localizable.strings").write_bytes(plistlib.dumps({key: en, "結束拾音": "Quit Shiyin"}))
+        (res / "zh-Hans.lproj/Localizable.strings").write_bytes(plistlib.dumps({key: hans, "結束拾音": "退出拾音"}))
         self.res = res
 
     def tearDown(self):
@@ -336,6 +339,13 @@ class Phrases(unittest.TestCase):
         code, out = run("apply", self.app)
         self.assertEqual(code, 1, out)
         self.assertIn("zh-Hant.lproj/Credits.html：缺少必要的整句", out)
+
+    def test_zh_hans_credits_drift_fails(self):
+        """上游 4.8 起有簡體的 Credits：贊助句漂移也要失敗"""
+        self.edit("zh-Hans.lproj/Credits.html", "请我喝杯咖啡</a>。", "请我喝杯咖啡</a>！")
+        code, out = run("apply", self.app)
+        self.assertEqual(code, 1, out)
+        self.assertIn("zh-Hans.lproj/Credits.html：缺少必要的整句", out)
 
     def test_license_header_drift_fails(self):
         self.edit("ThirdPartyLicenses.txt", "Shiyin uses the following open-source software", "Shiyin uses these open-source packages")
