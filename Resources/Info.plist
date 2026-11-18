@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>Meeting Assistant</string>
+	<string>Shiyin</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -21,7 +21,7 @@
 	<array>
 		<dict>
 			<key>CFBundleTypeName</key>
-			<string>Meeting Assistant Meeting</string>
+			<string>Shiyin Meeting</string>
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>LSHandlerRank</key>
@@ -71,7 +71,7 @@
 		<string>zh-Hant</string>
 	</array>
 	<key>CFBundleName</key>
-	<string>MA</string>
+	<string>Shiyin</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -92,13 +92,13 @@
 		<true/>
 	</dict>
 	<key>NSAudioCaptureUsageDescription</key>
-	<string>To record online meetings (Zoom, Meet, Teams), Meeting Assistant records the other side from your computer's audio. Recordings stay on this Mac.</string>
+	<string>To record online meetings (Zoom, Meet, Teams), Shiyin records the other side from your computer's audio. Recordings stay on this Mac.</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Meeting Assistant uses the microphone to record meetings. Recordings stay on this Mac.</string>
+	<string>Shiyin uses the microphone to record meetings. Recordings stay on this Mac.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Meeting Assistant creates a live transcript on this Mac while recording. Nothing is uploaded.</string>
+	<string>Shiyin creates a live transcript on this Mac while recording. Nothing is uploaded.</string>
 	<key>ShiyinIssuesURL</key>
 	<string>https://github.com/EdenQ/Shiyin/issues</string>
 	<key>ShiyinUpdateURL</key>
@@ -114,7 +114,7 @@
 				<string>public.archive</string>
 			</array>
 			<key>UTTypeDescription</key>
-			<string>Meeting Assistant Meeting</string>
+			<string>Shiyin Meeting</string>
 			<key>UTTypeIdentifier</key>
 			<string>com.weiwei.shiyin.meeting</string>
 			<key>UTTypeTagSpecification</key>

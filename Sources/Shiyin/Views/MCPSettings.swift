@@ -32,7 +32,7 @@ struct MCPSettings: View {
             if blocked {
                 Text("公司的企業伺服器關掉了這個功能。")
             } else {
-                Text("Claude Code、Claude Desktop、Codex 等支援 MCP 的 AI 工具可以搜尋、讀你的會議紀錄和逐字稿（只能讀、不能改），會議助手不用開著。讀到的內容會交給那個 AI 工具處理，跟整理會議紀錄一樣會離開這台電腦。")
+                Text("Claude Code、Claude Desktop、Codex 等支援 MCP 的 AI 工具可以搜尋、讀你的會議紀錄和逐字稿（只能讀、不能改），拾音不用開著。讀到的內容會交給那個 AI 工具處理，跟整理會議紀錄一樣會離開這台電腦。")
             }
         }
         .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)

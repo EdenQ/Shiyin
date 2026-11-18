@@ -12,11 +12,11 @@ enum MCPSetup {
 
     // MARK: 啟動檔（D148）
 
-    /// AI 工具登記的都是這個檔：會議助手每次啟動時改寫成目前的路徑，搬家、更新後不用重新設定
+    /// AI 工具登記的都是這個檔：拾音每次啟動時改寫成目前的路徑，搬家、更新後不用重新設定
     static var launcherURL: URL { Paths.home.appendingPathComponent("bin/shiyin-mcp") }
 
     static func launcherScript(executable: String, home: String?) -> String {
-        var lines = ["#!/bin/sh", "# 會議助手的 MCP 伺服器（design §44.3）。會議助手每次啟動時重寫，指到目前這份會議助手；不要手動改"]  // l10n-skip
+        var lines = ["#!/bin/sh", "# 拾音的 MCP 伺服器（design §44.3）。拾音每次啟動時重寫，指到目前這份拾音；不要手動改"]  // l10n-skip
         if let home { lines.append("export SHIYIN_HOME=\(shellQuote(home))") }
         lines.append("exec \(shellQuote(executable)) --mcp \"$@\"")
         return lines.joined(separator: "\n") + "\n"
@@ -26,12 +26,12 @@ enum MCPSetup {
         case translocated
         var errorDescription: String? {
             switch self {
-            case .translocated: return String(localized: "先把會議助手拖進「應用程式」資料夾再打開，AI 工具才找得到它。")
+            case .translocated: return String(localized: "先把拾音拖進「應用程式」資料夾再打開，AI 工具才找得到它。")
             }
         }
     }
 
-    /// 沒拖進「應用程式」就從 DMG、下載資料夾打開時，macOS 把會議助手搬到暫時的路徑（App Translocation），啟動檔不能指過去（design §44.3）
+    /// 沒拖進「應用程式」就從 DMG、下載資料夾打開時，macOS 把拾音搬到暫時的路徑（App Translocation），啟動檔不能指過去（design §44.3）
     static var isTranslocated: Bool {
         #if DEBUG
         if ProcessInfo.processInfo.environment["SHIYIN_FAKE_TRANSLOCATED"] == "1" { return true }
@@ -59,8 +59,8 @@ enum MCPSetup {
         return url
     }
 
-    /// 拿掉 bundle 的隔離屬性（D150）：從網路下載的會議助手每個檔案都有 com.apple.quarantine，AI 工具直接執行裡面的執行檔時
-    /// Gatekeeper 會跳出提示、程序卡住。會議助手跑得起來就代表使用者放行過。主執行檔沒有隔離屬性就不走整個 bundle（每次啟動都會叫）
+    /// 拿掉 bundle 的隔離屬性（D150）：從網路下載的拾音每個檔案都有 com.apple.quarantine，AI 工具直接執行裡面的執行檔時
+    /// Gatekeeper 會跳出提示、程序卡住。拾音跑得起來就代表使用者放行過。主執行檔沒有隔離屬性就不走整個 bundle（每次啟動都會叫）
     @discardableResult
     static func removeQuarantine(in bundle: URL) -> Int {
         let name = "com.apple.quarantine"
@@ -168,11 +168,7 @@ enum MCPSetup {
             if fm.fileExists(atPath: url.path) {
                 guard let object = try? JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any],
                       object["mcpServers"] == nil || object["mcpServers"] is [String: Any] else {
-                    // 保留 Windows 共用的翻譯鍵；只改顯示的品牌前綴，不改錯誤裡的設定檔路徑。
-                    let message = String(localized: "Claude Desktop 的設定檔不是拾音看得懂的格式，沒有改動：\(url.path)")
-                    let prefix = message.hasPrefix("Shiyin ") ? ("Shiyin ", "Meeting Assistant ") : ("Claude Desktop 的設定檔不是拾音", "Claude Desktop 的設定檔不是會議助手")  // l10n-skip
-                    let branded = message.hasPrefix(prefix.0) ? prefix.1 + message.dropFirst(prefix.0.count) : message
-                    return Outcome(ok: false, message: branded)
+                    return Outcome(ok: false, message: String(localized: "Claude Desktop 的設定檔不是拾音看得懂的格式，沒有改動：\(url.path)"))
                 }
                 root = object
                 let backup = url.appendingPathExtension("bak")

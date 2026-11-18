@@ -55,10 +55,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // 更新器自己下載完、替換前結束時狀態是「準備安裝」，不會問
         let updating = model.updater.state == .downloading
         guard recording || busy || updating else { return nil }
-        let title = recording ? String(localized: "正在錄音，要結束會議助手嗎？")
-            : busy ? String(localized: "還有工作在進行，要結束會議助手嗎？") : String(localized: "更新還在下載，要結束會議助手嗎？")
+        let title = recording ? String(localized: "正在錄音，要結束拾音嗎？")
+            : busy ? String(localized: "還有工作在進行，要結束拾音嗎？") : String(localized: "更新還在下載，要結束拾音嗎？")
         var info: [String] = []
-        if recording { info.append(String(localized: "錄音會先存好，下次開啟會議助手時開始轉錄。")) }
+        if recording { info.append(String(localized: "錄音會先存好，下次開啟拾音時開始轉錄。")) }
         if busy { info.append(String(localized: "進行中的轉錄或整理會中斷，下次開啟時從頭重跑。")) }
         if updating { info.append(String(localized: "更新的下載會中斷，之後再按一次「下載並更新」就好。")) }
         return (title, info.joined(separator: "\n"))

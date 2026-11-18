@@ -5,7 +5,7 @@ struct ShiyinApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
 
     var body: some Scene {
-        Window("會議助手", id: "main") {
+        Window("拾音", id: "main") {
             RootView()
                 .environment(AppModel.shared)
                 .frame(minWidth: 960, minHeight: 620)
@@ -15,7 +15,7 @@ struct ShiyinApp: App {
         .defaultLaunchBehavior(.presented)
         .commands { AppCommands(model: AppModel.shared) }
 
-        Window("歡迎使用會議助手", id: "onboarding") {
+        Window("歡迎使用拾音", id: "onboarding") {
             OnboardingView()
                 .environment(AppModel.shared)
                 .chineseGlyphs()
@@ -23,7 +23,7 @@ struct ShiyinApp: App {
         .windowResizability(.contentSize)
         .defaultLaunchBehavior(.suppressed)
 
-        Window("會議助手使用說明", id: "guide") {
+        Window("拾音使用說明", id: "guide") {
             GuideView()
                 .tint(.celadon)
                 .frame(minWidth: 520, minHeight: 480)
@@ -74,11 +74,7 @@ struct AppCommands: Commands {
     @AppStorage(AppSettings.textSizeKey) private var textSize = 0
 
     var body: some Commands {
-        CommandGroup(replacing: .appInfo) {
-            Button("關於 MA") {
-                NSApp.orderFrontStandardAboutPanel(options: [.applicationName: "MA — Meeting Assistant"])
-            }
-        }
+        BrandAboutCommand()   // MA-FORK(F7)
         CommandGroup(after: .appInfo) {
             Button("檢查更新…") { Task { await model.checkForUpdatesFromMenu() } }
         }
@@ -122,7 +118,7 @@ struct AppCommands: Commands {
                 .disabled(textSize == 0)
         }
         CommandGroup(replacing: .help) {
-            Button("會議助手使用說明") { openWindow(id: "guide") }
+            Button("拾音使用說明") { openWindow(id: "guide") }
                 .keyboardShortcut("?", modifiers: .command)
             Button("回報問題…") { openWindow(id: "report") }
         }

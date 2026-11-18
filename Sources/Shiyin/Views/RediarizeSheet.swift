@@ -10,7 +10,7 @@ struct RediarizeSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("重新辨識說話者").font(.title3.weight(.semibold))
-            Text("只重新分辨誰在說話，逐字稿的文字不會變。人多、吵雜或手機遠距收音時，告訴會議助手大約幾個人會分得比較準。")
+            Text("只重新分辨誰在說話，逐字稿的文字不會變。人多、吵雜或手機遠距收音時，告訴拾音大約幾個人會分得比較準。")
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             Picker("大約幾個人", selection: $count) {

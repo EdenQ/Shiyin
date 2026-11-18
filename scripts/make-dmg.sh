@@ -16,18 +16,19 @@ DMG="$OUT_DIR/Shiyin-${VERSION}.dmg"
 scripts/build-app.sh
 rm -rf "$STAGE"
 mkdir -p "$STAGE" "$OUT_DIR"
-ditto "$SCRATCH/app/Meeting Assistant.app" "$STAGE/Meeting Assistant.app"   # Finder 會依在地化設定顯示成「會議助手」
+ditto "$SCRATCH/app/Meeting Assistant.app" "$STAGE/Meeting Assistant.app"   # MA-FORK(F7)：Finder 會依在地化設定顯示成「會議助手」
 # 中英文共用一個 DMG：捷徑和磁碟名稱用不分語言的英文
 ln -s /Applications "$STAGE/Applications"
 # 安裝說明：HTML 用系統的文字排版轉成 PDF
-swift scripts/html-to-pdf.swift scripts/install-guide.html "$STAGE/安裝說明.pdf"
-swift scripts/html-to-pdf.swift scripts/install-guide.en.html "$STAGE/Install Guide.pdf"
-cp Resources/ThirdPartyLicenses.txt "$STAGE/Third-Party Licenses.txt"   # 第三方授權（design §12.1、R13.1）
+/usr/bin/python3 scripts/fork/brand.py guides "$SCRATCH/brand-guides" scripts/install-guide.html scripts/install-guide.en.html   # MA-FORK(F7)
+swift scripts/html-to-pdf.swift "$SCRATCH/brand-guides/install-guide.html" "$STAGE/安裝說明.pdf"   # MA-FORK(F7)
+swift scripts/html-to-pdf.swift "$SCRATCH/brand-guides/install-guide.en.html" "$STAGE/Install Guide.pdf"   # MA-FORK(F7)
+cp "$SCRATCH/app/Meeting Assistant.app/Contents/Resources/ThirdPartyLicenses.txt" "$STAGE/Third-Party Licenses.txt"   # 第三方授權（design §12.1、R13.1）；MA-FORK(F7)：換過品牌的那份
 
 rm -f "$DMG"
 # CI 上 hdiutil 偶爾會回「資源忙碌」，最多試三次
 for attempt in 1 2 3; do
-  hdiutil create -volname "Meeting Assistant ${VERSION}" -srcfolder "$STAGE" -fs HFS+ -format UDZO -ov "$DMG" >/dev/null && break
+  hdiutil create -volname "Meeting Assistant ${VERSION}" -srcfolder "$STAGE" -fs HFS+ -format UDZO -ov "$DMG" >/dev/null && break   # MA-FORK(F7)：磁碟名稱
   [ "$attempt" = 3 ] && exit 1
   echo "hdiutil 失敗，5 秒後重試（第 ${attempt} 次）"
   sleep 5

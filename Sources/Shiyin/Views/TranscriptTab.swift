@@ -233,7 +233,7 @@ struct TranscriptTab: View {
     private var speakerHintBar: some View {
         HStack(spacing: 10) {
             Image(systemName: "person.2.badge.gearshape").foregroundStyle(Color.signal)
-            Text("說話者可能分得不夠：有些不同的人可能被當成同一位。人多、吵雜或手機放在桌上錄音時常發生，告訴會議助手大約幾個人會分得比較準。")
+            Text("說話者可能分得不夠：有些不同的人可能被當成同一位。人多、吵雜或手機放在桌上錄音時常發生，告訴拾音大約幾個人會分得比較準。")
             // 不能加 fixedSize：理由同 upgradeBar
             Spacer()
             Button("不用了") { model.dismissSpeakerHint() }
@@ -564,12 +564,12 @@ struct RenameSpeakerForm: View {
                 .onSubmit(onSave)
             if automatic || tagged {
                 Text(tagged ? "這個名字是從錄音時的標記帶入的。不對的話直接改名，或按「不是他」。"
-                            : "這個名字是會議助手認出聲音後自動帶入的。不對的話直接改名，或按「不是他」。")
+                            : "這個名字是拾音認出聲音後自動帶入的。不對的話直接改名，或按「不是他」。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Text("整場逐字稿和之後的會議紀錄都會用這個名字；會議助手也會記住這個人的聲音，之後的會議自動帶入。")
+            Text("整場逐字稿和之後的會議紀錄都會用這個名字；拾音也會記住這個人的聲音，之後的會議自動帶入。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
