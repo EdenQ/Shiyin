@@ -26121,6 +26121,23 @@
         }
       }
     },
+    "麥克風靜音中": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "麦克风静音中"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Microphone muted"
+          }
+        }
+      }
+    },
     "麥克風靜音中，現場好像有人在說話。要錄進去的話，打開麥克風。": {
       "extractionState": "manual",
       "localizations": {

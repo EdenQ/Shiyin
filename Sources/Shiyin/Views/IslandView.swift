@@ -102,6 +102,7 @@ struct IslandRoot: View {
         let recorder = model.recorder
         if recorder.isPaused {
             Image(systemName: "pause.fill").font(.system(size: 10)).foregroundStyle(.white.opacity(0.8))
+        } else if recorder.micMuted { ForkIslandMutedDot(alert: state.hintKey != nil)   // MA-FORK(F3)：靜音中（F3.7）
         } else {
             Circle()
                 .fill(state.hintKey != nil ? Color.signal : Color.red)
@@ -152,6 +153,7 @@ struct IslandRoot: View {
                 }
                 Spacer(minLength: 0)
             }
+            ForkIslandMuteRow(recorder: recorder)   // MA-FORK(F3)：「麥克風靜音中」（F3.7）
             if let line = latestLine {
                 Text(line).foregroundStyle(.secondary).lineLimit(2).frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -242,6 +244,7 @@ struct IslandRoot: View {
                 .init(title: String(localized: "停止錄音"), primary: true) { recorder.stop() },
             ])
         }
+        if let hint = ForkIslandMute.hint(recorder) { return hint }   // MA-FORK(F3)：靜音中好像有人說話（F3.4）
         if let hint = recorder.micHint {
             var buttons: [IslandHint.Button] = []
             if let builtIn = hint.builtIn {

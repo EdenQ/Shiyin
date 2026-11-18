@@ -183,6 +183,7 @@ final class IslandState {
     static func hintKey(_ recorder: Recorder) -> String? {
         guard recorder.isRecording else { return nil }
         if recorder.idlePrompt { return "idle" }
+        if let key = ForkIslandMute.hintKey(recorder) { return key }   // MA-FORK(F3)
         if let mic = recorder.micHint { return "mic:\(mic.name)" }
         if let hint = recorder.levelHint { return "level:\(hint.rawValue)" }
         if let warning = recorder.deviceWarning { return "device:\(warning)" }
