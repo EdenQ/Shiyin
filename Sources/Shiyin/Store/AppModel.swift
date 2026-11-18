@@ -2080,6 +2080,7 @@ final class AppModel {
         case .audio:
             try await AudioExporter.export(b, format: format, to: url)
         case .package:
+            let b = ForkSpeakerTags.attach(b, db: db, meetingId: meetingId)   // MA-FORK(F2)
             try await Task.detached(priority: .userInitiated) { try MeetingPackage.export(b, to: url) }.value
         }
     }

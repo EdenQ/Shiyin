@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""MA fork 合併的回歸檢查：使用實際 Swift migrator，測試兩種舊 v8 資料庫與說話者標記。
+"""MA fork 合併的回歸檢查：使用實際 Swift migrator，測試兩種舊 v8 資料庫與說話者標記（fork design §F-DB）。
 
-先完成 DEBUG 建置，再執行：python3 scripts/dev/check-fork-migrations.py
-只使用暫存資料庫，不啟動 App、不讀取使用者資料。
+情境：全新、v7、fork 舊 v8、上游 v8／v9／v10／v15（從沒裝過 fork）、fork 4.7.6（用 4.7.6 的 migrator 跑完）；
+升級後重新開啟；降回 4.7.6 的 migrator 再寫入、再升回來；ma_meeting_edit_tags 跟著 meeting_edits 刪。
+先完成 DEBUG 建置，再執行：python3 scripts/dev/check-fork-migrations.py [--scratch-path <建置暫存>]
+只使用暫存資料庫，不啟動 App、不讀取使用者資料。4.7.6 的 migrator 從 git 的 v4.7.6 tag 讀。
 """
 import argparse
 from pathlib import Path
@@ -18,6 +20,11 @@ source = (ROOT / 'Sources/Shiyin/Store/AppDatabase.swift').read_text()
 match = re.search(r'private static var migrator: DatabaseMigrator \{\n(.*?)\n    \}\n', source, re.S)
 if not match:
     raise SystemExit('Cannot locate the app migrator')
+old_source = subprocess.run(['git', '-C', str(ROOT), 'show', 'v4.7.6:Sources/Shiyin/Store/AppDatabase.swift'],
+                            capture_output=True, text=True, check=True).stdout
+old_match = re.search(r'private static var migrator: DatabaseMigrator \{\n(.*?)\n    \}\n', old_source, re.S)
+if not old_match:
+    raise SystemExit('Cannot locate the 4.7.6 migrator')
 
 helpers = source[source.index('    private static let metaRowidBase:'):source.index('    func rebuildSearchIndex()')]
 search_hit = source[source.index('struct SearchHit:'):source.index('final class AppDatabase:')]
@@ -30,9 +37,23 @@ import os
 let log = Logger(subsystem: "com.weiwei.shiyin.fork-regression", category: "test")
 
 __SEARCH_HIT__
+// 測試替身：只給 MeetingLanguage 用（5.0 的簡體設定），不讀 UserDefaults
+enum AppSettings {
+    static func script(_ text: String, for language: MeetingLanguage) -> String { text }
+    static func simplifiedChinese(for language: MeetingLanguage) -> Bool { false }
+}
 enum AppMigrations {
     static func make() -> DatabaseMigrator {
 __APP_MIGRATOR__
+    }
+    // v14 換側欄設定的鍵：測試不寫 UserDefaults
+    static var seriesKeysReplaced: [Int64: String] = [:]
+    static func replaceSeriesKeys(_ names: [Int64: String]) { seriesKeysReplaced = names }
+__SEARCH_HELPERS__
+}
+enum OldForkMigrations {
+    static func make() -> DatabaseMigrator {
+__OLD_MIGRATOR__
     }
 __SEARCH_HELPERS__
 }
@@ -55,7 +76,7 @@ func require(_ value: Bool, _ message: String) {
 }
 
 let directory = URL(fileURLWithPath: CommandLine.arguments[1], isDirectory: true)
-for scenario in ["fresh", "v7", "fork-v8", "upstream-v8", "upstream-v9", "upstream-v10"] {
+for scenario in ["fresh", "v7", "fork-v8", "upstream-v8", "upstream-v9", "upstream-v10", "upstream-v15", "fork-476"] {
     let path = directory.appendingPathComponent(scenario + ".sqlite").path
     var config = Configuration()
     config.foreignKeysEnabled = true
@@ -82,17 +103,34 @@ for scenario in ["fresh", "v7", "fork-v8", "upstream-v8", "upstream-v9", "upstre
                 VALUES (1, 0, 4, 'Fixture person', 'line', '2026-10-24');
                 """)
         }
+    } else if scenario == "fork-476" {
+        // fork 4.7.6 的使用者：用 4.7.6 的 migrator 全部跑完（v1～v9、ma_speaker_tags_v1、v10），放標記、文件、資料夾
+        try OldForkMigrations.make().migrate(queue)
+        try queue.write { db in
+            try db.execute(sql: """
+                INSERT INTO speaker_tags (meeting_id, start, end, name, kind, created_at) VALUES (1, 0, 4, 'Fixture person', 'line', '2026-11-16');
+                INSERT INTO documents (meeting_id, name, file, kind, pages, created_at) VALUES (1, 'Fixture document', 'fixture.txt', 'text', '["Retained document"]', '2026-11-16');
+                UPDATE meetings SET folder = 'Fixture folder', min_speakers = 3 WHERE id = 1;
+                UPDATE segments SET speaker_manual = 1 WHERE meeting_id = 1;
+                """)
+        }
     } else if scenario.hasPrefix("upstream-") {
         try migrator.migrate(queue, upTo: String(scenario.dropFirst("upstream-".count)))
         try queue.write { db in try db.execute(sql: "UPDATE meetings SET min_speakers = 3 WHERE id = 1") }
         if scenario != "upstream-v8" {
             try queue.write { db in try db.execute(sql: "UPDATE segments SET speaker_manual = 1 WHERE meeting_id = 1") }
         }
+        if scenario == "upstream-v10" || scenario == "upstream-v15" {
+            // 模擬上游已升級、從未安裝 fork 的資料庫（fork 的 migration 在上游全部之後，upTo 不會跑到）
+            try queue.write { db in
+                require(try !db.tableExists("speaker_tags"), "Fork table created before upstream finished")
+            }
+        }
         if scenario == "upstream-v10" {
             // 模擬上游已升級 v10、從未安裝 fork 的資料庫；保留真實的文件資料。
             try queue.write { db in
                 try db.execute(sql: """
-                    DROP TABLE speaker_tags;
+                    DROP TABLE IF EXISTS speaker_tags;
                     DELETE FROM grdb_migrations WHERE identifier = 'ma_speaker_tags_v1';
                     INSERT INTO documents (meeting_id, name, file, kind, pages, created_at)
                     VALUES (1, 'Fixture document', 'fixture.txt', 'text', '["Retained document"]', '2026-11-05');
@@ -112,10 +150,12 @@ for scenario in ["fresh", "v7", "fork-v8", "upstream-v8", "upstream-v9", "upstre
         require(try db.tableExists("speaker_tags"), "Missing fork tags")
         require(try db.tableExists("speaker_undo"), "Missing upstream undo")
         require(try db.tableExists("documents"), "Missing upstream documents")
+        require(try db.tableExists("ma_meeting_edit_tags"), "Missing fork edit snapshot table")
+        require(migrator.migrations.suffix(2) == ["ma_speaker_tags_v1", "ma_meeting_edit_tags_v1"], "Fork migrations are not last")
         require(try String.fetchOne(db, sql: "PRAGMA integrity_check") == "ok", "Integrity check failed")
         require(try Row.fetchAll(db, sql: "PRAGMA foreign_key_check").isEmpty, "Foreign key check failed")
         let count = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM speaker_tags")
-        require(count == (scenario == "fork-v8" ? 1 : 0), "Tag data changed")
+        require(count == (scenario == "fork-v8" || scenario == "fork-476" ? 1 : 0), "Tag data changed")
         if scenario != "fresh" {
             require(try String.fetchOne(db, sql: "SELECT audio_file FROM meetings WHERE id = 1") == "1.wav", "Audio link lost")
             require(try String.fetchOne(db, sql: "SELECT notes FROM meetings WHERE id = 1") == "{\"summary\":\"retained\"}", "Notes lost")
@@ -128,11 +168,51 @@ for scenario in ["fresh", "v7", "fork-v8", "upstream-v8", "upstream-v9", "upstre
         if scenario == "upstream-v9" || scenario == "upstream-v10" {
             require(try Int.fetchOne(db, sql: "SELECT speaker_manual FROM segments WHERE meeting_id = 1") == 1, "Manual speaker edit lost")
         }
-        if scenario == "upstream-v10" {
+        if scenario == "fork-476" {
+            require(try String.fetchOne(db, sql: "SELECT name FROM folders") == "Fixture folder", "Folder not migrated (v13)")
+            require(try db.tableExists("meeting_edits") && db.tableExists("clean_lines") && db.tableExists("folder_rules"), "Missing v11-v15 tables")
+            require(try Int.fetchOne(db, sql: "SELECT min_speakers FROM meetings WHERE id = 1") == 3, "Speaker count lost")
+            require(try Int.fetchOne(db, sql: "SELECT speaker_manual FROM segments WHERE meeting_id = 1") == 1, "Manual speaker edit lost")
+        }
+        if scenario == "upstream-v10" || scenario == "fork-476" {
             require(try String.fetchOne(db, sql: "SELECT pages FROM documents WHERE meeting_id = 1") == "[\"Retained document\"]", "Document lost")
         }
     }
+    if scenario != "fresh" {
+        // 編輯會議的標記快照（F2.13）：先寫快照、交易結束前才有 meeting_edits（延後檢查的外鍵）；刪 meeting_edits 時跟著刪
+        try queue.write { db in
+            try db.execute(sql: "INSERT INTO ma_meeting_edit_tags (meeting_id, tags_json) VALUES (1, '[]')")
+            try db.execute(sql: "INSERT INTO meeting_edits (meeting_id, snapshot, audio_file, created_at, edited_at) VALUES (1, '{}', '', 'x', 'x')")
+        }
+        try queue.write { db in try db.execute(sql: "DELETE FROM meeting_edits WHERE meeting_id = 1") }
+        try queue.read { db in
+            require(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM ma_meeting_edit_tags") == 0, "Edit tag snapshot not cascaded")
+            require(try Row.fetchAll(db, sql: "PRAGMA foreign_key_check").isEmpty, "Foreign key check failed after edit snapshot")
+        }
+    }
     print("PASS migration: \(scenario) + reopen; data retained")
+    if scenario == "fork-476" || scenario == "fresh" {
+        // 降回 4.7.6：舊 migrator 開升級後的資料庫（v11～v15、ma_meeting_edit_tags_v1 對它是不認得的 migration）
+        let old = OldForkMigrations.make()
+        let back = try DatabaseQueue(path: path, configuration: config)
+        try old.migrate(back)
+        try back.write { db in
+            try db.execute(sql: "INSERT INTO meetings (title, meeting_date, source_filename, audio_file, created_at, updated_at) VALUES ('After downgrade', '2026-11-18', 'b.wav', 'b.wav', '2026-11-18', '2026-11-18')")
+            let mid = db.lastInsertedRowID
+            try db.execute(sql: "INSERT INTO segments (meeting_id, seq, start, end, text, speaker) VALUES (?, 0, 0, 1, 'x', 1)", arguments: [mid])
+            try db.execute(sql: "INSERT INTO speaker_tags (meeting_id, start, end, name, kind, created_at) VALUES (?, 0, 1, 'Downgrade', 'now', 'x')", arguments: [mid])
+            try db.execute(sql: "UPDATE segments SET text = 'edited' WHERE meeting_id = ?", arguments: [mid])
+            try db.execute(sql: "DELETE FROM meetings WHERE id = ?", arguments: [mid])
+        }
+        try back.read { db in
+            require(try String.fetchOne(db, sql: "PRAGMA integrity_check") == "ok", "Integrity after downgrade")
+            require(try Row.fetchAll(db, sql: "PRAGMA foreign_key_check").isEmpty, "FK after downgrade")
+            require(Set(old.migrations).isSubset(of: try old.appliedIdentifiers(db)), "Old migrator pending after downgrade")
+        }
+        let again = try DatabaseQueue(path: path, configuration: config)
+        try migrator.migrate(again)
+        print("PASS downgrade to fork 4.7.6 migrator: \(scenario) opens, writes, deletes, FK/integrity ok; re-upgrade ok")
+    }
 }
 
 struct Span: SpeakerSpan {
@@ -159,7 +239,7 @@ print("PASS speaker tagging: dominant, ambiguous, silence, conflicting names, ma
 with tempfile.TemporaryDirectory(prefix='ma-fork-regression-') as work:
     work = Path(work)
     swift = work / 'main.swift'
-    swift.write_text(HARNESS.replace('__APP_MIGRATOR__', match.group(1))
+    swift.write_text(HARNESS.replace('__APP_MIGRATOR__', match.group(1)).replace('__OLD_MIGRATOR__', old_match.group(1))
                      .replace('__SEARCH_HELPERS__', helpers).replace('__SEARCH_HIT__', search_hit))
     # Only Meeting is needed by the migration search helpers. Omit its UI-only
     # diarization-quality property so this database test does not load audio engines.
@@ -178,7 +258,8 @@ with tempfile.TemporaryDirectory(prefix='ma-fork-regression-') as work:
                     *[str(ROOT/name) for name in ['Sources/Shiyin/Model/SpeakerTagging.swift',
                         'Sources/Shiyin/Model/MeetingNotes.swift',
                         'Sources/Shiyin/Model/MeetingLanguage.swift', 'Sources/Shiyin/Services/Paths.swift',
-                        'Sources/Shiyin/Services/DesktopApps.swift']],
+                        'Sources/Shiyin/Services/DesktopApps.swift', 'Sources/Shiyin/Transcribe/ChineseScript.swift',
+                        'Sources/Shiyin/Fork/Store/ForkMigrations.swift']],
                     str(model), str(obj), '-lsqlite3',
                     '-o', str(executable)], check=True)
     subprocess.run([str(executable), str(work)], check=True)

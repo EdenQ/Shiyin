@@ -12,6 +12,7 @@ struct ExportBundle {
     var notes: MeetingNotes?
     /// 參考文件（design §39.5）：只有 .shiyin 封包用到
     var documents: [MeetingDocument] = []
+    var speakerTags: [SpeakerTag] = []   // MA-FORK(F2)：.shiyin 封包帶錄音中的標記（F2.8）
 
     func speakerName(_ idx: Int?) -> String? { idx.map { speakers[$0] ?? text.speaker($0) } }
 

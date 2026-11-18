@@ -121,6 +121,7 @@ extension AppDatabase {
             }
             record!.editedAt = now
             record!.mergedFrom = MeetingEditRecord.encodeIds(record!.mergedIds + others.filter { !record!.mergedIds.contains($0) })
+            if firstEdit { try ForkSpeakerTags.snapshot(db, meetingId: id) }   // MA-FORK(F2)：快照也存標記（F2.13）
 
             // 說話者時間的比例（§81.1）：每個說話者正式逐字稿留下的長度 ÷ 原本的長度
             var spoken: [Int64: [Int: (before: Double, after: Double)]] = [:]
@@ -150,6 +151,7 @@ extension AppDatabase {
                     _ = try Bookmark.deleteOne(db, key: bookmark.id!)
                 }
             }
+            try ForkSpeakerTags.remap(db, meetingId: id, plan: plan)   // MA-FORK(F2)：標記跟著搬到新的時間軸（F2.13）
 
             // 合併：另一場的說話者對起來，句子、標記、參考文件複製過來（§81.4）
             var documentCopies: [(from: String, to: String)] = []
@@ -187,6 +189,7 @@ extension AppDatabase {
                     var copy = Bookmark(meetingId: id, time: t, label: bookmark.label)
                     try copy.insert(db)
                 }
+                try ForkSpeakerTags.copyForMerge(db, into: id, from: other, plan: plan)   // MA-FORK(F2)
                 for document in try MeetingDocument.filter(Column("meeting_id") == other).order(Column("id")).fetchAll(db) {
                     var copy = document
                     copy.id = nil
@@ -344,6 +347,7 @@ extension AppDatabase {
                 try db.execute(sql: "UPDATE meetings SET deleted_at = NULL WHERE id = ?", arguments: [other])
                 untrashed.append(other)
             }
+            try ForkSpeakerTags.restore(db, meetingId: id)   // MA-FORK(F2)：快照的標記放回來（F2.13）
             _ = try MeetingEditRecord.deleteOne(db, key: id)
             return RestoreOutcome(currentAudio: currentAudio, editsAudio: record.audioFile, restoredAudio: meeting.audioFile,
                                   trashed: trashed, untrashed: untrashed, removedDocuments: removedDocuments)

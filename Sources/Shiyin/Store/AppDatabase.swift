@@ -270,24 +270,6 @@ final class AppDatabase: @unchecked Sendable {
                 );
                 """)
         }
-        // Fork 舊版 v8 是 speaker_tags，上游 v8 是 min_speakers；兩種資料庫都要補齊（design §F2.1）。
-        migrator.registerMigration("ma_speaker_tags_v1") { db in
-            if try !db.columns(in: "meetings").contains(where: { $0.name == "min_speakers" }) {
-                try db.execute(sql: "ALTER TABLE meetings ADD COLUMN min_speakers INTEGER")
-            }
-            try db.execute(sql: """
-                CREATE TABLE IF NOT EXISTS speaker_tags (
-                  id         INTEGER PRIMARY KEY AUTOINCREMENT,
-                  meeting_id INTEGER NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
-                  start      REAL NOT NULL,
-                  end        REAL NOT NULL,
-                  name       TEXT NOT NULL,
-                  kind       TEXT NOT NULL,
-                  created_at TEXT NOT NULL
-                );
-                CREATE INDEX IF NOT EXISTS speaker_tags_meeting ON speaker_tags(meeting_id);
-                """)
-        }
         // 會議的參考文件（design §39.1、R61）
         migrator.registerMigration("v10") { db in
             try db.execute(sql: """
@@ -394,6 +376,7 @@ final class AppDatabase: @unchecked Sendable {
                 );
                 """)
         }
+        ForkMigrations.register(&migrator)   // MA-FORK(F2)：fork 的 migration 一律在上游的全部之後（fork design §F-DB.1）
         return migrator
     }
 
@@ -621,6 +604,7 @@ final class AppDatabase: @unchecked Sendable {
         try original.update(db)
         // 段落換了，說話者的復原對不上（design §24.2）
         try db.execute(sql: "DELETE FROM speaker_undo WHERE meeting_id = ?", arguments: [id])
+        try ForkSpeakerTags.split(db, from: id, to: newId, at: cut)   // MA-FORK(F2)：切點之後的標記跟到新的那場（F2.13）
         return meeting
     }
 
