@@ -2368,7 +2368,7 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 
 - `names`：每個介面語言的名稱對照。zh-Hant「拾音→會議助手」、zh-Hans「拾音→会议助手」、en「Shiyin→Meeting Assistant」（en 的值偶爾夾中文，也換「拾音」）。之後才有的語言（日、韓介面）用 en 那一份。
 - `bundleName` = MA、`displayName`（各語言）、`aboutName` = MA — Meeting Assistant。
-- `phrases`：整句的特例，先換、不再被名稱對照影響：「「拾音」選單」→「「MA」選單」（應用程式選單叫 MA，F1.1）、`/Applications/Shiyin.app` → 加引號的 `Meeting Assistant.app`、第三方授權的開場白、Credits 的贊助說明（「會議助手改自 juinwei7 的開源專案拾音 Shiyin…請原作者喝杯咖啡」）。上游改了這些句子時，整句對不到、剩下的「拾音」會讓檢查失敗，不會默默換錯。
+- `phrases`：整句的特例（`from`、`to`、`required`），先換、不再被名稱對照影響：「「拾音」選單」→「「MA」選單」（應用程式選單叫 MA，F1.1）、`/Applications/Shiyin.app` → 加引號的 `Meeting Assistant.app`、第三方授權的開場白、Credits 的贊助說明（「會議助手改自 juinwei7 的開源專案拾音 Shiyin…請原作者喝杯咖啡」）。`required` 依資源指定哪些整句一定要命中（相對 `Contents/Resources` 的檔案，`guide:` 開頭是安裝說明）：換完的資源裡看不到 `to` 就失敗。上游改了句子（連一個標點）時，整句對不到，一般的名稱替換會把句子換成「Enjoying Meeting Assistant?」、署名消失，殘留檢查看不出來，所以要靠 `required`（2026-11-18 審查 P2-2）。檢查的是輸出有沒有 `to`，對換過的產物重跑結果不變。
 - `keep`：不換的片段（正規表示式，F7.2）。`Shiyin(?=[A-Z])` 是 `ShiyinIssuesURL` 這類鍵名、識別。
 
 ### F7.2 建置時替換（`scripts/fork/brand.py apply <app>`）
@@ -2395,14 +2395,14 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 ### F7.4 檢查（`brand.py check <app>`、`check-sources`）
 
 - 建好的 app：各 `.lproj` 的值、`InfoPlist.strings` 的值、Credits、第三方授權的開頭、Info.plist（識別除外）扣掉 `keep` 後還有「拾音」「Shiyin」（簡體也是這兩個字）就 exit 1。`Info.plist` 沒有 `MABrand` 也算失敗。`apply` 最後一定跑一次，所以建置會失敗。
-- 原始碼（`Sources/**/*.swift`，註解除外）：字串常值裡有品牌字，而且那一行（或往上兩行，三元運算跨行）不是查翻譯表的寫法（`String(localized:`、`Text(`、`Button(`、`.help(`、`Window(`…），或是明確不查表的寫法（`verbatim:`、`ui(zh:`、`text(zh:`、`prompt(zh:`、`format(zh:`、`// l10n-skip`、字串用 `+` 串接）就算違規，除非列在 `fork/brand-allow.txt`（`<路徑> | <那行裡的一段字>`；用不到的白名單條目也報錯，原始碼改了要一起刪）。
+- 原始碼（`Sources/**/*.swift`）：`brand.py` 把 Swift 切成字串常值（認得 `//`、`/* */` 註解，一般、多行 `"""`、raw `#"…"#` 字串，字串插值裡的程式另外算），每個字串找**包住它的最內層呼叫**（`(` 前面的名稱；`[ ]`、`{ }` 也算一層）。品牌字只有在這個呼叫是查表的（`Text`、`Button`、`Toggle`、`Label`、`Section`、`Window`、`Menu`、`Link`、`.help`、`.alert`… 的第一個沒有標籤的參數，或 `String(localized:`），而且沒有用 `+` 串接、沒有接在 `??` 後面、那行沒有 `// l10n-skip` 時才放過；其他一律算違規（附近有別的 `Text(` 也不算數，2026-11-18 審查 P2-1）。這不是完整的 Swift 解析器，判斷不了的寫法都當成不查表，保守報錯，再列進 `fork/brand-allow.txt`：`<路徑> | <字串常值的全文>`，太長時寫開頭加「…」；比對的是那一個字串，不是整行。用不到的白名單條目也報錯，原始碼改了要一起刪。
 - 上游新增不查表的品牌字時，建置失敗，看那一處是要加接點、還是列白名單。
 
 ### F7.5 驗證
 
 - `brand.py compare` 4.7.6 正式版（GitHub Release 的 DMG）和新建置：2562 條相同；差異 4 條（Claude Desktop 設定檔格式錯誤的繁中訊息，4.7.6 在執行時才換前綴、顯示一樣；本機 Xcode 27.2 的 xcstringstool 多編出 3 條值等於鍵的英文條目，跟品牌無關）。
 - 安裝說明換完跟 4.7.6 的兩份 HTML 逐字相同。
-- 故意漏換（原始碼加一行 `ui(zh: "拾音…")`、app 的繁中檔加一條「拾音…」、名稱對照帶格式碼）都 exit 1。
+- `scripts/fork/brand-test.py`（`python3 scripts/fork/brand-test.py -v`，暫存資料夾、不碰 repo 和使用者的 app）：審查的 ReviewBrandProbe（前一行有 `Text(`、下一行不查表）要報；真正跨行的查表（三元運算分兩行、`.help`、插值、`String(` 換行才寫 `localized:`）要放過；`+` 串接、`verbatim:`、`??`、陣列、`ui(zh:`、`String(format:`、插值裡的 `ui`、raw、多行、`l10n-skip` 要報；白名單只放過那一個字串、用不到的條目要報；Credits 中英贊助句、授權開場白、安裝說明的選單名和 `xattr` 指令漂移都要失敗；正常的 apply、guides 重跑結果不變；漏換、格式碼不同、必要的檔案不見要失敗。
 - `scripts/fork/brand-hooks-test/main.swift`：`swiftc -swift-version 5 -o <輸出> scripts/fork/brand-hooks-test/main.swift Sources/Shiyin/Fork/Brand.swift` 跑過接點（沒有 MABrand 時不變、舊名列表沿用、都沒有時新建「會議助手」、更新說明選段落）。
 - DEBUG 版 `shiyinctl windowshot` 拍繁中、英文、簡體（4.7.6 沒有簡體翻譯，系統退回英文，跟 4.7.6 一樣）的主畫面、錄音畫面，`snapshot … guide` 拍使用說明；`state` 的主視窗標題是「會議助手」／Meeting Assistant。
 
@@ -2599,6 +2599,6 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 | DF3 | 錄音中靜音麥克風時，麥克風那一聲道直接寫成 0（F3，2026-11-03） | 照錄、只記下靜音的時間範圍，轉錄和即時逐字稿時才拿掉：選錯了救得回來，但正式轉錄、說話者辨識、壓縮、匯出、封包、重新轉錄都要跟著處理這些範圍，錄音檔裡也還是有會議室的閒聊（使用者要的就是不錄）。跟 Teams 的靜音一樣「靜音就是沒錄」，最好懂；代價是忘了打開的那段救不回來，所以加上忘了打開的提醒（F3.4） |
 | DF4 | 紀錄條列頁先做分段複製、時間點降噪、色條、議題收合與目錄，議題帶改用新函式依重點時間切段（F4，2026-11-10 使用者看過預覽後確認） | 整頁換成一份文字（唯讀 NSTextView）讓原頁可以任意拖選：待確認的就地回答要改成彈出視窗、待辦表要重排、焦點與捲動都要重做，先用分段複製滿足「貼到 Slack／郵件」的實際需求。直接改 `topicRanges`：Windows 也比對它的標準答案，fork 只做 Mac，所以另寫 `topicSegments`。修正 D145「回頭講前面的議題算進後面的議題可以接受」：使用者想看出重回；整理工具給的每條重點時間已經夠用，不必請整理工具另給結束時間。最小片段 60 秒：一條時間填錯或順口提一句時，議題帶上會切出點不到的細線、目前議題來回跳；60 秒在一小時的會議約 1.6% 寬，差不多是點得到的寬度。開始段例外保留（2026-11-10 審查後決定）：併掉時議題列寫 00:00、議題帶上卻在一小時後才出現，議題列的開始時間、點開始時間播放、目前議題對不上；代價是議題帶上可能有很細的色塊（不寫字，滑過看名稱）。保護「包含 `start` 的段」而不是「最早的段」：早於 `start` 的重點可能是時間填錯，不該永久保留。零長度段（同一秒好幾個議題）不算一段，不然唯一有效的短段會被當成「還有別段」併掉。重回的段不往前多算：沒有依據，會吃掉前一個議題。議題膠囊目錄不是 D109 拒絕的側邊欄：只在議題 > 5 個時出現、放在紀錄上方一列、只做導覽不放要處理的內容，不佔寬度。重點先行、摘要收合：使用者看過預覽後不要。播放時自動捲動：使用者在讀別段時會被拉走，只標出 |
 | DF5 | 麥克風音源的 `deviceUID`、`current` 用短暫拿鎖的 `LockedValue` 存（§50.2；2026-11-16 審查帶入的上游 R74 時發現） | 主執行緒先取 UID 的快照傳進背景：要改上游共用的 `AudioSource.restart()` 介面，`current` 從背景寫回仍然要同步，日後合併上游衝突多。換麥克風用 `deviceQueue.sync`：會等整個重新連接做完（藍牙要好幾秒），抵消 R74.4 的不卡住。改成 actor：`start()` 是同步的 AVAudioEngine 呼叫，要大改。上游 b042c94 原本是普通屬性，TSan 證實換麥克風和重新連接同時發生時有資料競態 |
-| DF7 | 品牌在建置時換建好的 app（`brand.py apply`），原始碼、翻譯表、Info.plist 照上游寫（F7，2026-11-18） | 原始碼直接寫「會議助手」（4.7.6 以前）：每次合併上游，32 個 Swift 檔、翻譯表 89 個鍵、Info.plist、安裝說明都衝突，而且上游新加的字串一定是「拾音」，要人工找。在建置前換一份翻譯表再編（PLAN 的原案）：繁中是來源語言，要另外寫明確的繁中值，還要處理鍵；編出來的繁中 `.strings` 本來就有全部的鍵，直接換值比較簡單，也能一起處理 `.stringsdict`、InfoPlist.strings。Swift 裡用 `Brand.name(...)` 包每一處：還是會衝突。代價：有幾處不經過翻譯表（關於、更新說明、5.0 的提醒事項）要留 1 行接點，原始碼掃描擋住上游新增的 |
+| DF7 | 品牌在建置時換建好的 app（`brand.py apply`），原始碼、翻譯表、Info.plist 照上游寫（F7，2026-11-18） | 原始碼直接寫「會議助手」（4.7.6 以前）：每次合併上游，32 個 Swift 檔、翻譯表 89 個鍵、Info.plist、安裝說明都衝突，而且上游新加的字串一定是「拾音」，要人工找。在建置前換一份翻譯表再編（PLAN 的原案）：繁中是來源語言，要另外寫明確的繁中值，還要處理鍵；編出來的繁中 `.strings` 本來就有全部的鍵，直接換值比較簡單，也能一起處理 `.stringsdict`、InfoPlist.strings。Swift 裡用 `Brand.name(...)` 包每一處：還是會衝突。代價：有幾處不經過翻譯表（關於、更新說明、5.0 的提醒事項）要留 1 行接點，原始碼掃描擋住上游新增的。防護要嚴：原始碼掃描只認包住字串的最內層查表呼叫，不看附近幾行；整句特例依資源規定一定要命中，不能只看有沒有殘留的「拾音」（2026-11-18 審查 P2-1、P2-2） |
 
 沿用 v2 的決策：資料放 Application Support（v2 D3）、GRDB（v2 D5）、會議紀錄存 JSON 加版本（v2 D6）、DEBUG 控制通道（v2 §13）。
