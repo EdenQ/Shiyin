@@ -35,15 +35,15 @@ enum DocumentReader {
             switch self {
             case .unsupported(let ext):
                 switch ext {
-                case "key": return String(localized: "會議助手讀不了 Keynote 檔。請先在 Keynote 匯出成 PDF 再加入。")
-                case "pages": return String(localized: "會議助手讀不了 Pages 檔。請先在 Pages 匯出成 PDF 再加入。")
-                case "numbers": return String(localized: "會議助手讀不了 Numbers 檔。請先在 Numbers 匯出成 PDF 再加入。")
-                case "doc": return String(localized: "會議助手讀不了舊版的 Word 檔（.doc）。請另存成 docx 或 PDF 再加入。")
-                case "": return String(localized: "會議助手讀不了沒有副檔名的檔案。請先匯出成 PDF 再加入。")
-                default: return String(localized: "會議助手讀不了 .\(ext) 檔。請先匯出成 PDF 再加入。")
+                case "key": return String(localized: "拾音讀不了 Keynote 檔。請先在 Keynote 匯出成 PDF 再加入。")
+                case "pages": return String(localized: "拾音讀不了 Pages 檔。請先在 Pages 匯出成 PDF 再加入。")
+                case "numbers": return String(localized: "拾音讀不了 Numbers 檔。請先在 Numbers 匯出成 PDF 再加入。")
+                case "doc": return String(localized: "拾音讀不了舊版的 Word 檔（.doc）。請另存成 docx 或 PDF 再加入。")
+                case "": return String(localized: "拾音讀不了沒有副檔名的檔案。請先匯出成 PDF 再加入。")
+                default: return String(localized: "拾音讀不了 .\(ext) 檔。請先匯出成 PDF 再加入。")
                 }
-            case .tooLarge(let name): return String(localized: "「\(name)」超過 200 MB，會議助手不讀這麼大的文件。")
-            case .locked(let name): return String(localized: "「\(name)」有密碼保護，會議助手讀不了。請先移除密碼再加入。")
+            case .tooLarge(let name): return String(localized: "「\(name)」超過 200 MB，拾音不讀這麼大的文件。")
+            case .locked(let name): return String(localized: "「\(name)」有密碼保護，拾音讀不了。請先移除密碼再加入。")
             case .unreadable(let name): return String(localized: "「\(name)」讀不出來，檔案可能壞了。")
             case .empty(let name): return String(localized: "「\(name)」裡讀不到文字。")
             case .encoding(let name): return String(localized: "「\(name)」不是 UTF-8 的文字檔。請另存成 UTF-8 再加入。")

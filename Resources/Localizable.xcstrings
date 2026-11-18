@@ -79,7 +79,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ isn’t signed in. Meeting Assistant will use it once you sign in."
+            "value": "%@ isn’t signed in. Shiyin will use it once you sign in."
           }
         }
       }
@@ -139,13 +139,13 @@
         }
       }
     },
-    "%@失敗（錯誤代碼 %d）。請確認已允許會議助手「錄製系統音訊」": {
+    "%@失敗（錯誤代碼 %d）。請確認已允許拾音「錄製系統音訊」": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ failed (error %d). Make sure Meeting Assistant is allowed to record system audio."
+            "value": "%@ failed (error %d). Make sure Shiyin is allowed to record system audio."
           }
         }
       }
@@ -650,6 +650,17 @@
         }
       }
     },
+    "- 拾音 %@（build %@）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "- Shiyin %1$@ (build %2$@)"
+          }
+        }
+      }
+    },
     "- 整理工具：%@": {
       "extractionState": "manual",
       "localizations": {
@@ -657,17 +668,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "- Summarizer: %@"
-          }
-        }
-      }
-    },
-    "- 會議助手 %@（build %@）": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "- Meeting Assistant %1$@ (build %2$@)"
           }
         }
       }
@@ -860,24 +860,24 @@
         }
       }
     },
-    "Claude Code、Claude Desktop、Codex 等支援 MCP 的 AI 工具可以搜尋、讀你的會議紀錄和逐字稿（只能讀、不能改），會議助手不用開著。讀到的內容會交給那個 AI 工具處理，跟整理會議紀錄一樣會離開這台電腦。": {
+    "Claude Code、Claude Desktop、Codex 等支援 MCP 的 AI 工具可以搜尋、讀你的會議紀錄和逐字稿（只能讀、不能改），拾音不用開著。讀到的內容會交給那個 AI 工具處理，跟整理會議紀錄一樣會離開這台電腦。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "AI tools that support MCP, such as Claude Code, Claude Desktop and Codex, can search and read your meeting notes and transcripts (read-only), even when Meeting Assistant isn't open. What they read is handled by that AI tool and leaves this Mac, just like when meeting notes are written."
+            "value": "AI tools that support MCP, such as Claude Code, Claude Desktop and Codex, can search and read your meeting notes and transcripts (read-only), even when Shiyin isn't open. What they read is handled by that AI tool and leaves this Mac, just like when meeting notes are written."
           }
         }
       }
     },
-    "Claude Code、Claude Desktop、Codex 等支援 MCP 的 AI 工具可以直接讀會議助手的會議：到「設定 → 進階 → AI 工具（MCP）」打開「讓 AI 工具讀取會議」，再按「加到 Claude Code」「加到 Codex」或「加到 Claude Desktop」。其他工具用「複製」自己貼上設定。會議助手不用開著。": {
+    "Claude Code、Claude Desktop、Codex 等支援 MCP 的 AI 工具可以直接讀拾音的會議：到「設定 → 進階 → AI 工具（MCP）」打開「讓 AI 工具讀取會議」，再按「加到 Claude Code」「加到 Codex」或「加到 Claude Desktop」。其他工具用「複製」自己貼上設定。拾音不用開著。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "AI tools that support MCP, such as Claude Code, Claude Desktop and Codex, can read your Meeting Assistant meetings directly: in Settings › Advanced › AI tools (MCP), turn on “Let AI tools read meetings”, then click “Add to Claude Code”, “Add to Codex” or “Add to Claude Desktop”. For other tools, use Copy and paste the settings yourself. Meeting Assistant doesn't need to be open."
+            "value": "AI tools that support MCP, such as Claude Code, Claude Desktop and Codex, can read your Shiyin meetings directly: in Settings › Advanced › AI tools (MCP), turn on “Let AI tools read meetings”, then click “Add to Claude Code”, “Add to Codex” or “Add to Claude Desktop”. For other tools, use Copy and paste the settings yourself. Shiyin doesn't need to be open."
           }
         }
       }
@@ -899,7 +899,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Meeting Assistant couldn't read Claude Desktop's settings file, so it wasn't changed: %@"
+            "value": "Shiyin couldn't read Claude Desktop's settings file, so it wasn't changed: %@"
           }
         }
       }
@@ -1166,13 +1166,13 @@
         }
       }
     },
-    "Zoom、Teams、Webex、Google Meet（瀏覽器）等開始用麥克風、會議助手沒在錄音時提醒你；會議結束時提醒停止。只提醒，不會自動錄音。": {
+    "Zoom、Teams、Webex、Google Meet（瀏覽器）等開始用麥克風、拾音沒在錄音時提醒你；會議結束時提醒停止。只提醒，不會自動錄音。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "When Zoom, Teams, Webex, Google Meet (in a browser) or a similar app starts using the microphone and Meeting Assistant isn't recording, Meeting Assistant asks whether to record, and asks again when the meeting seems to end. It only asks; it never records on its own."
+            "value": "When Zoom, Teams, Webex, Google Meet (in a browser) or a similar app starts using the microphone and Shiyin isn't recording, Shiyin asks whether to record, and asks again when the meeting seems to end. It only asks; it never records on its own."
           }
         }
       }
@@ -1243,13 +1243,13 @@
         }
       }
     },
-    "macOS 沒有讓會議助手讀取鑰匙圈裡的 API key。再試一次時，系統詢問就輸入這台 Mac 的登入密碼（不是 API key），按「永遠允許」；或到設定 → 整理工具重新貼上 key。": {
+    "macOS 沒有讓拾音讀取鑰匙圈裡的 API key。再試一次時，系統詢問就輸入這台 Mac 的登入密碼（不是 API key），按「永遠允許」；或到設定 → 整理工具重新貼上 key。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS didn’t let Meeting Assistant read the API key from the keychain. Try again, and when macOS asks, enter this Mac’s login password (not the API key) and click “Always Allow”. Or paste the key again in Settings → Summarizer."
+            "value": "macOS didn’t let Shiyin read the API key from the keychain. Try again, and when macOS asks, enter this Mac’s login password (not the API key) and click “Always Allow”. Or paste the key again in Settings → Summarizer."
           }
         }
       }
@@ -1362,13 +1362,13 @@
         }
       }
     },
-    "「%@」有密碼保護，會議助手讀不了。請先移除密碼再加入。": {
+    "「%@」有密碼保護，拾音讀不了。請先移除密碼再加入。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "“%@” is password-protected, so Meeting Assistant can't read it. Remove the password and add it again."
+            "value": "“%@” is password-protected, so Shiyin can't read it. Remove the password and add it again."
           }
         }
       }
@@ -1406,13 +1406,13 @@
         }
       }
     },
-    "「%@」超過 200 MB，會議助手不讀這麼大的文件。": {
+    "「%@」超過 200 MB，拾音不讀這麼大的文件。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "“%@” is larger than 200 MB. Meeting Assistant doesn't read documents that large."
+            "value": "“%@” is larger than 200 MB. Shiyin doesn't read documents that large."
           }
         }
       }
@@ -1428,13 +1428,13 @@
         }
       }
     },
-    "「說話者與詞彙」：會議助手認識的人和他們的聲紋，可以改名、刪除，或關掉記住聲音的功能；詞彙表加入系統名、產品名、人名的正確寫法，這對專有名詞的正確率影響很大。": {
+    "「說話者與詞彙」：拾音認識的人和他們的聲紋，可以改名、刪除，或關掉記住聲音的功能；詞彙表加入系統名、產品名、人名的正確寫法，這對專有名詞的正確率影響很大。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Speakers & Glossary: the people Meeting Assistant recognizes and their voiceprints, which you can rename or delete, or turn off remembering voices; the glossary holds the correct spelling of system names, product names and people's names, which greatly improves proper-noun accuracy."
+            "value": "Speakers & Glossary: the people Shiyin recognizes and their voiceprints, which you can rename or delete, or turn off remembering voices; the glossary holds the correct spelling of system names, product names and people's names, which greatly improves proper-noun accuracy."
           }
         }
       }
@@ -1450,13 +1450,13 @@
         }
       }
     },
-    "「進階」：檢查更新（有新版時會議助手會詢問，同意後自動下載、驗證並重新打開；也可以從「MA」選單選「檢查更新…」）、環境檢查、錄音和模型佔用的空間。": {
+    "「進階」：檢查更新（有新版時拾音會詢問，同意後自動下載、驗證並重新打開；也可以從「拾音」選單選「檢查更新…」）、環境檢查、錄音和模型佔用的空間。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Advanced: check for updates (when a new version is available Meeting Assistant asks, then downloads, verifies and relaunches; also available from the MA menu → Check for Updates…), environment check, and the space used by recordings and models."
+            "value": "Advanced: check for updates (when a new version is available Shiyin asks, then downloads, verifies and relaunches; also available from the Shiyin menu → Check for Updates…), environment check, and the space used by recordings and models."
           }
         }
       }
@@ -1599,7 +1599,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Meeting Assistant will reopen when it's done"
+            "value": "Shiyin will reopen when it's done"
           }
         }
       }
@@ -1868,13 +1868,13 @@
         }
       }
     },
-    "之後隨時可以從「輔助說明」選單（⌘?）或選單列的會議助手圖示，再打開這份說明。": {
+    "之後隨時可以從「輔助說明」選單（⌘?）或選單列的拾音圖示，再打開這份說明。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "You can open this guide again any time from the Help menu (⌘?) or the Meeting Assistant icon in the menu bar."
+            "value": "You can open this guide again any time from the Help menu (⌘?) or the Shiyin icon in the menu bar."
           }
         }
       }
@@ -1901,13 +1901,13 @@
         }
       }
     },
-    "人多、吵雜或手機放在桌上錄音時，先告訴會議助手大約幾個人，說話者會分得比較準": {
+    "人多、吵雜或手機放在桌上錄音時，先告訴拾音大約幾個人，說話者會分得比較準": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "With many people, noise, or a phone on the table, telling Meeting Assistant roughly how many people there are helps it tell speakers apart"
+            "value": "With many people, noise, or a phone on the table, telling Shiyin roughly how many people there are helps it tell speakers apart"
           }
         }
       }
@@ -2022,13 +2022,13 @@
         }
       }
     },
-    "企業伺服器要求轉到別的網址（HTTP %lld），會議助手不會跟著轉。請確認網址，或請公司的管理者檢查伺服器的設定。": {
+    "企業伺服器要求轉到別的網址（HTTP %lld），拾音不會跟著轉。請確認網址，或請公司的管理者檢查伺服器的設定。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The enterprise server asked to redirect to another address (HTTP %lld). Meeting Assistant doesn't follow redirects. Check the URL, or ask your company's administrator to check the server settings."
+            "value": "The enterprise server asked to redirect to another address (HTTP %lld). Shiyin doesn't follow redirects. Check the URL, or ask your company's administrator to check the server settings."
           }
         }
       }
@@ -2099,13 +2099,13 @@
         }
       }
     },
-    "你有 Claude 桌面版：另外安裝 Claude Code（命令列版）之後，會議助手就能用你的 Claude 訂閱（Pro 以上）整理。": {
+    "你有 Claude 桌面版：另外安裝 Claude Code（命令列版）之後，拾音就能用你的 Claude 訂閱（Pro 以上）整理。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "You have the Claude desktop app. Install Claude Code (the command-line version) as well, and Meeting Assistant can summarize with your Claude subscription (Pro or higher)."
+            "value": "You have the Claude desktop app. Install Claude Code (the command-line version) as well, and Shiyin can summarize with your Claude subscription (Pro or higher)."
           }
         }
       }
@@ -2154,13 +2154,13 @@
         }
       }
     },
-    "例如：「上個月跟客戶談過哪些價格？」「寄信的機制最後怎麼決定的？」會議助手會先找出相關的會議片段，再請整理工具回答，回答附上是哪一場會議、哪個時間點。": {
+    "例如：「上個月跟客戶談過哪些價格？」「寄信的機制最後怎麼決定的？」拾音會先找出相關的會議片段，再請整理工具回答，回答附上是哪一場會議、哪個時間點。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "For example: “What prices did we discuss with clients last month?” or “What did we decide about sending email?” Meeting Assistant first finds the relevant parts of your meetings, then asks the summarizer. Answers show which meeting and what time each point comes from."
+            "value": "For example: “What prices did we discuss with clients last month?” or “What did we decide about sending email?” Shiyin first finds the relevant parts of your meetings, then asks the summarizer. Answers show which meeting and what time each point comes from."
           }
         }
       }
@@ -2408,13 +2408,13 @@
         }
       }
     },
-    "先把會議助手拖進「應用程式」資料夾再打開，AI 工具才找得到它。": {
+    "先把拾音拖進「應用程式」資料夾再打開，AI 工具才找得到它。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Move Meeting Assistant to the Applications folder and open it from there first, so AI tools can find it."
+            "value": "Move Shiyin to the Applications folder and open it from there first, so AI tools can find it."
           }
         }
       }
@@ -2584,13 +2584,13 @@
         }
       }
     },
-    "公司有會議助手的企業伺服器時，填入公司給的網址、按「登入」，在打開的網頁用公司帳號登入。登入後錄音交給公司的伺服器轉錄，沒有 NVIDIA 顯示卡的電腦也很快；整理也可以用公司提供的模型。": {
+    "公司有拾音的企業伺服器時，填入公司給的網址、按「登入」，在打開的網頁用公司帳號登入。登入後錄音交給公司的伺服器轉錄，沒有 NVIDIA 顯示卡的電腦也很快；整理也可以用公司提供的模型。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "If your company runs a Meeting Assistant enterprise server, enter the URL they gave you, click Sign In, and sign in with your company account on the page that opens. Recordings are then transcribed on the company's server — fast even without an NVIDIA graphics card — and summaries can use the company's model."
+            "value": "If your company runs a Shiyin enterprise server, enter the URL they gave you, click Sign In, and sign in with your company account on the page that opens. Recordings are then transcribed on the company's server — fast even without an NVIDIA graphics card — and summaries can use the company's model."
           }
         }
       }
@@ -2899,7 +2899,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Delete the voice samples of everyone Meeting Assistant knows?"
+            "value": "Delete the voice samples of everyone Shiyin knows?"
           }
         }
       }
@@ -3114,13 +3114,13 @@
         }
       }
     },
-    "加好之後在 AI 工具裡直接問，例如「列出我這週的會議」「上週所有會議的待辦有哪些」「找出提到預算的會議，整理成一段給主管」，也可以跟其他工具一起用（把待辦開成工單、寫週報）。回答裡的會議連結點了會打開會議助手、跳到那個時間點。": {
+    "加好之後在 AI 工具裡直接問，例如「列出我這週的會議」「上週所有會議的待辦有哪些」「找出提到預算的會議，整理成一段給主管」，也可以跟其他工具一起用（把待辦開成工單、寫週報）。回答裡的會議連結點了會打開拾音、跳到那個時間點。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Then just ask in the AI tool, for example “List my meetings this week”, “What are the action items from last week's meetings?” or “Find the meetings that discussed the budget and summarize them for my manager”. It also works together with your other tools (turning action items into tickets, writing a weekly report). Meeting links in the answers open Meeting Assistant at that moment."
+            "value": "Then just ask in the AI tool, for example “List my meetings this week”, “What are the action items from last week's meetings?” or “Find the meetings that discussed the budget and summarize them for my manager”. It also works together with your other tools (turning action items into tickets, writing a weekly report). Meeting links in the answers open Shiyin at that moment."
           }
         }
       }
@@ -3147,13 +3147,13 @@
         }
       }
     },
-    "包含錄音、逐字稿、說話者、會議紀錄、筆記和重點標記。傳給同事後，對方雙擊就能匯入會議助手。": {
+    "包含錄音、逐字稿、說話者、會議紀錄、筆記和重點標記。傳給同事後，對方雙擊就能匯入拾音。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Includes the recording, transcript, speakers, meeting notes, your notes and bookmarks. A colleague can double-click it to import into Meeting Assistant."
+            "value": "Includes the recording, transcript, speakers, meeting notes, your notes and bookmarks. A colleague can double-click it to import into Shiyin."
           }
         }
       }
@@ -3357,13 +3357,13 @@
         }
       }
     },
-    "原因：%@\n\n你的資料沒有被改動。升級前的備份在：%@\n請把這個訊息截圖給維護會議助手的人。": {
+    "原因：%@\n\n你的資料沒有被改動。升級前的備份在：%@\n請把這個訊息截圖給維護拾音的人。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reason: %@\n\nYour data has not been changed. The backup made before the upgrade is in: %@\nPlease send a screenshot of this message to whoever maintains Meeting Assistant."
+            "value": "Reason: %@\n\nYour data has not been changed. The backup made before the upgrade is in: %@\nPlease send a screenshot of this message to whoever maintains Shiyin."
           }
         }
       }
@@ -3568,13 +3568,13 @@
         }
       }
     },
-    "只重新分辨誰在說話，逐字稿的文字不會變。人多、吵雜或手機遠距收音時，告訴會議助手大約幾個人會分得比較準。": {
+    "只重新分辨誰在說話，逐字稿的文字不會變。人多、吵雜或手機遠距收音時，告訴拾音大約幾個人會分得比較準。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Only works out again who is speaking; the transcript text doesn't change. With many people, a noisy room or a phone recording from across the table, telling Meeting Assistant roughly how many people there are helps."
+            "value": "Only works out again who is speaking; the transcript text doesn't change. With many people, a noisy room or a phone recording from across the table, telling Shiyin roughly how many people there are helps."
           }
         }
       }
@@ -3976,13 +3976,13 @@
         }
       }
     },
-    "執行這個工作時會議助手意外結束了 2 次，已經停止自動重試。可以按「重試」再試一次。": {
+    "執行這個工作時拾音意外結束了 2 次，已經停止自動重試。可以按「重試」再試一次。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Meeting Assistant quit unexpectedly twice while running this task, so it won't retry automatically. Click “Retry” to try again."
+            "value": "Shiyin quit unexpectedly twice while running this task, so it won't retry automatically. Click “Retry” to try again."
           }
         }
       }
@@ -4043,13 +4043,13 @@
         }
       }
     },
-    "大約幾個人：人多、吵雜或手機放在桌上錄音時，先告訴會議助手大約幾個人，說話者會分得比較準": {
+    "大約幾個人：人多、吵雜或手機放在桌上錄音時，先告訴拾音大約幾個人，說話者會分得比較準": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Roughly how many people: with many people, noise, or a phone on the table, telling Meeting Assistant ahead of time helps it tell speakers apart"
+            "value": "Roughly how many people: with many people, noise, or a phone on the table, telling Shiyin ahead of time helps it tell speakers apart"
           }
         }
       }
@@ -5268,13 +5268,13 @@
         }
       }
     },
-    "打開會議助手": {
+    "打開拾音": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Open Meeting Assistant"
+            "value": "Open Shiyin"
           }
         }
       }
@@ -5599,6 +5599,28 @@
         }
       }
     },
+    "拾音": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shiyin"
+          }
+        }
+      }
+    },
+    "拾音 %@ 可以更新了": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shiyin %@ is available"
+          }
+        }
+      }
+    },
     "拾音 API key（%@）": {
       "extractionState": "manual",
       "localizations": {
@@ -5606,6 +5628,182 @@
           "stringUnit": {
             "state": "translated",
             "value": "Shiyin API key (%@)"
+          }
+        }
+      }
+    },
+    "拾音使用說明": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shiyin Guide"
+          }
+        }
+      }
+    },
+    "拾音把會議變成逐字稿和會議紀錄。錄音、轉錄、說話者辨識都在這台 Mac 上完成。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shiyin turns meetings into transcripts and meeting notes. Recording, transcription and speaker recognition all happen on this Mac."
+          }
+        }
+      }
+    },
+    "拾音正在轉錄或整理會議紀錄": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shiyin is transcribing or summarizing meeting notes"
+          }
+        }
+      }
+    },
+    "拾音正在錄音": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shiyin is recording"
+          }
+        }
+      }
+    },
+    "拾音沒有麥克風權限": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shiyin doesn't have microphone access"
+          }
+        }
+      }
+    },
+    "拾音沒辦法開啟資料庫": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shiyin can't open its database"
+          }
+        }
+      }
+    },
+    "拾音的版本太舊，請先更新拾音": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This version of Shiyin is too old. Please update Shiyin first."
+          }
+        }
+      }
+    },
+    "拾音系統聲音": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shiyin System Audio"
+          }
+        }
+      }
+    },
+    "拾音認出這個人的聲音，自動帶入名字。不對的話點名字": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shiyin recognized this person's voice and filled in the name. Click the name if it's wrong."
+          }
+        }
+      }
+    },
+    "拾音讀不了 .%@ 檔。請先匯出成 PDF 再加入。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shiyin can't read .%@ files. Export it as PDF and add that instead."
+          }
+        }
+      }
+    },
+    "拾音讀不了 Keynote 檔。請先在 Keynote 匯出成 PDF 再加入。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shiyin can't read Keynote files. Export it as PDF in Keynote and add that instead."
+          }
+        }
+      }
+    },
+    "拾音讀不了 Numbers 檔。請先在 Numbers 匯出成 PDF 再加入。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shiyin can't read Numbers files. Export it as PDF in Numbers and add that instead."
+          }
+        }
+      }
+    },
+    "拾音讀不了 Pages 檔。請先在 Pages 匯出成 PDF 再加入。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shiyin can't read Pages files. Export it as PDF in Pages and add that instead."
+          }
+        }
+      }
+    },
+    "拾音讀不了沒有副檔名的檔案。請先匯出成 PDF 再加入。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shiyin can't read files without an extension. Export it as PDF and add that instead."
+          }
+        }
+      }
+    },
+    "拾音讀不了舊版的 Word 檔（.doc）。請另存成 docx 或 PDF 再加入。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shiyin can't read old Word files (.doc). Save it as docx or PDF and add that instead."
+          }
+        }
+      }
+    },
+    "拾音：正在打開瀏覽器登入 %@。登入完成後，回到拾音按「重試」或「測試整理工具」。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shiyin: opening your browser to sign in to %@. When you’re done, go back to Shiyin and click “Retry” or “Test Summarizer”."
           }
         }
       }
@@ -5621,13 +5819,13 @@
         }
       }
     },
-    "按「停止並轉錄」後，會議助手會在這台 Mac 上重新轉錄（中文、英文用 Breeze ASR 25，%@用 Whisper large-v3-turbo，%@用 Qwen3-ASR），並分辨不同的說話者。等待的時候，會議紀錄會先用即時逐字稿整理一份草稿，正式版好了會自動換掉。逐字稿上點「說話者 1」可以改成人名，整場都會跟著改；會議助手會記住這個人的聲音，之後的會議自動帶入名字（標「自動」，認錯了點一下就能改）。": {
+    "按「停止並轉錄」後，拾音會在這台 Mac 上重新轉錄（中文、英文用 Breeze ASR 25，%@用 Whisper large-v3-turbo，%@用 Qwen3-ASR），並分辨不同的說話者。等待的時候，會議紀錄會先用即時逐字稿整理一份草稿，正式版好了會自動換掉。逐字稿上點「說話者 1」可以改成人名，整場都會跟著改；拾音會記住這個人的聲音，之後的會議自動帶入名字（標「自動」，認錯了點一下就能改）。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "After you press Stop & Transcribe, Meeting Assistant re-transcribes the recording on this Mac (Breeze ASR 25 for Chinese and English, Whisper large-v3-turbo for %@, Qwen3-ASR for %@) and tells the speakers apart. While you wait, the notes are drafted from the live transcript and replaced automatically once the final version is ready. Click \"Speaker 1\" in the transcript to give them a name and it changes throughout the meeting; Meeting Assistant remembers their voice and fills in the name in later meetings (marked \"auto\"; one click fixes a wrong guess)."
+            "value": "After you press Stop & Transcribe, Shiyin re-transcribes the recording on this Mac (Breeze ASR 25 for Chinese and English, Whisper large-v3-turbo for %@, Qwen3-ASR for %@) and tells the speakers apart. While you wait, the notes are drafted from the live transcript and replaced automatically once the final version is ready. Click \"Speaker 1\" in the transcript to give them a name and it changes throughout the meeting; Shiyin remembers their voice and fills in the name in later meetings (marked \"auto\"; one click fixes a wrong guess)."
           }
         }
       }
@@ -5676,13 +5874,13 @@
         }
       }
     },
-    "按工具列的「錄音」（⌘R）開始錄；點按鈕旁的箭頭可以選錄音來源和麥克風，線上會議請選「麥克風＋電腦聲音（線上會議）」，對方的聲音也會錄進來。錄音畫面的音量條旁寫著正在用哪一支麥克風，點一下可以換；藍牙耳機連著時，系統可能自動改用耳機的麥克風，現場會議記得換成這台 Mac 的麥克風。已經有錄音檔的話，拖進視窗、按「匯入」（⌘O），或拖到 Dock 上的會議助手圖示都可以。": {
+    "按工具列的「錄音」（⌘R）開始錄；點按鈕旁的箭頭可以選錄音來源和麥克風，線上會議請選「麥克風＋電腦聲音（線上會議）」，對方的聲音也會錄進來。錄音畫面的音量條旁寫著正在用哪一支麥克風，點一下可以換；藍牙耳機連著時，系統可能自動改用耳機的麥克風，現場會議記得換成這台 Mac 的麥克風。已經有錄音檔的話，拖進視窗、按「匯入」（⌘O），或拖到 Dock 上的拾音圖示都可以。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Click “Record” (⌘R) in the toolbar to start. Click the arrow next to it to choose the source and microphone; for online meetings choose “Microphone + computer audio (online meetings)” so the other side is recorded too. While recording, the microphone in use is shown next to the level meter; click it to switch. When Bluetooth headphones are connected, macOS may switch to their microphone, so for in-person meetings switch back to this Mac’s microphone. If you already have a recording, drag it into the window, click “Import” (⌘O), or drop it on the Meeting Assistant icon in the Dock."
+            "value": "Click “Record” (⌘R) in the toolbar to start. Click the arrow next to it to choose the source and microphone; for online meetings choose “Microphone + computer audio (online meetings)” so the other side is recorded too. While recording, the microphone in use is shown next to the level meter; click it to switch. When Bluetooth headphones are connected, macOS may switch to their microphone, so for in-person meetings switch back to this Mac’s microphone. If you already have a recording, drag it into the window, click “Import” (⌘O), or drop it on the Shiyin icon in the Dock."
           }
         }
       }
@@ -6085,13 +6283,13 @@
         }
       }
     },
-    "整場逐字稿和之後的會議紀錄都會用這個名字；會議助手也會記住這個人的聲音，之後的會議自動帶入。": {
+    "整場逐字稿和之後的會議紀錄都會用這個名字；拾音也會記住這個人的聲音，之後的會議自動帶入。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The whole transcript and future meeting notes use this name. Meeting Assistant also remembers this person's voice and fills in the name in future meetings."
+            "value": "The whole transcript and future meeting notes use this name. Shiyin also remembers this person's voice and fills in the name in future meetings."
           }
         }
       }
@@ -6569,13 +6767,13 @@
         }
       }
     },
-    "新版的簽章跟目前的會議助手不符，拒絕安裝（%@）": {
+    "新版的簽章跟目前的拾音不符，拒絕安裝（%@）": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The new version's signature doesn't match this Meeting Assistant, so it wasn't installed (%@)"
+            "value": "The new version's signature doesn't match this Shiyin, so it wasn't installed (%@)"
           }
         }
       }
@@ -6811,13 +7009,13 @@
         }
       }
     },
-    "更新檔裡找不到會議助手": {
+    "更新檔裡找不到拾音": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Meeting Assistant wasn't found in the update"
+            "value": "Shiyin wasn't found in the update"
           }
         }
       }
@@ -6877,24 +7075,24 @@
         }
       }
     },
-    "更新還在下載，要結束會議助手嗎？": {
+    "更新還在下載，要結束拾音嗎？": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "An update is still downloading. Quit Meeting Assistant?"
+            "value": "An update is still downloading. Quit Shiyin?"
           }
         }
       }
     },
-    "替說話者取名時，會議助手會記下這個人的聲音特徵。之後的會議認出同一個人，就自動帶入名字並標「自動」，不對可以改。聲音特徵只存在這台 Mac 的資料庫，不會上傳，也不會放進匯出的 .shiyin 封包。": {
+    "替說話者取名時，拾音會記下這個人的聲音特徵。之後的會議認出同一個人，就自動帶入名字並標「自動」，不對可以改。聲音特徵只存在這台 Mac 的資料庫，不會上傳，也不會放進匯出的 .shiyin 封包。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "When you name a speaker, Meeting Assistant saves that person's voice features. When it recognizes the same person in a later meeting, it fills in the name and marks it “Auto”; you can change it if it's wrong. Voice features stay in the database on this Mac. They're never uploaded or included in exported .shiyin packages."
+            "value": "When you name a speaker, Shiyin saves that person's voice features. When it recognizes the same person in a later meeting, it fills in the name and marks it “Auto”; you can change it if it's wrong. Voice features stay in the database on this Mac. They're never uploaded or included in exported .shiyin packages."
           }
         }
       }
@@ -7005,204 +7203,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Meeting text size"
-          }
-        }
-      }
-    },
-    "會議助手": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Meeting Assistant"
-          }
-        }
-      }
-    },
-    "會議助手 %@ 可以更新了": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Meeting Assistant %@ is available"
-          }
-        }
-      }
-    },
-    "會議助手使用說明": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Meeting Assistant Guide"
-          }
-        }
-      }
-    },
-    "會議助手把會議變成逐字稿和會議紀錄。錄音、轉錄、說話者辨識都在這台 Mac 上完成。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Meeting Assistant turns meetings into transcripts and meeting notes. Recording, transcription and speaker recognition all happen on this Mac."
-          }
-        }
-      }
-    },
-    "會議助手正在轉錄或整理會議紀錄": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Meeting Assistant is transcribing or summarizing meeting notes"
-          }
-        }
-      }
-    },
-    "會議助手正在錄音": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Meeting Assistant is recording"
-          }
-        }
-      }
-    },
-    "會議助手沒有麥克風權限": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Meeting Assistant doesn't have microphone access"
-          }
-        }
-      }
-    },
-    "會議助手沒辦法開啟資料庫": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Meeting Assistant can't open its database"
-          }
-        }
-      }
-    },
-    "會議助手的版本太舊，請先更新會議助手": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This version of Meeting Assistant is too old. Please update Meeting Assistant first."
-          }
-        }
-      }
-    },
-    "會議助手系統聲音": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Meeting Assistant System Audio"
-          }
-        }
-      }
-    },
-    "會議助手認出這個人的聲音，自動帶入名字。不對的話點名字": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Meeting Assistant recognized this person's voice and filled in the name. Click the name if it's wrong."
-          }
-        }
-      }
-    },
-    "會議助手讀不了 .%@ 檔。請先匯出成 PDF 再加入。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Meeting Assistant can't read .%@ files. Export it as PDF and add that instead."
-          }
-        }
-      }
-    },
-    "會議助手讀不了 Keynote 檔。請先在 Keynote 匯出成 PDF 再加入。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Meeting Assistant can't read Keynote files. Export it as PDF in Keynote and add that instead."
-          }
-        }
-      }
-    },
-    "會議助手讀不了 Numbers 檔。請先在 Numbers 匯出成 PDF 再加入。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Meeting Assistant can't read Numbers files. Export it as PDF in Numbers and add that instead."
-          }
-        }
-      }
-    },
-    "會議助手讀不了 Pages 檔。請先在 Pages 匯出成 PDF 再加入。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Meeting Assistant can't read Pages files. Export it as PDF in Pages and add that instead."
-          }
-        }
-      }
-    },
-    "會議助手讀不了沒有副檔名的檔案。請先匯出成 PDF 再加入。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Meeting Assistant can't read files without an extension. Export it as PDF and add that instead."
-          }
-        }
-      }
-    },
-    "會議助手讀不了舊版的 Word 檔（.doc）。請另存成 docx 或 PDF 再加入。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Meeting Assistant can't read old Word files (.doc). Save it as docx or PDF and add that instead."
-          }
-        }
-      }
-    },
-    "會議助手：正在打開瀏覽器登入 %@。登入完成後，回到會議助手按「重試」或「測試整理工具」。": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Meeting Assistant: opening your browser to sign in to %@. When you’re done, go back to Meeting Assistant and click “Retry” or “Test Summarizer”."
           }
         }
       }
@@ -7439,13 +7439,13 @@
         }
       }
     },
-    "有 Claude 桌面版，但會議助手要另外安裝 Claude Code（命令列版）：在終端機執行 %@，再執行 claude 登入": {
+    "有 Claude 桌面版，但拾音要另外安裝 Claude Code（命令列版）：在終端機執行 %@，再執行 claude 登入": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The Claude desktop app is installed, but Meeting Assistant needs Claude Code (the command-line version): run %@ in Terminal, then sign in by running claude"
+            "value": "The Claude desktop app is installed, but Shiyin needs Claude Code (the command-line version): run %@ in Terminal, then sign in by running claude"
           }
         }
       }
@@ -7736,13 +7736,13 @@
         }
       }
     },
-    "歡迎使用會議助手": {
+    "歡迎使用拾音": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Welcome to Meeting Assistant"
+            "value": "Welcome to Shiyin"
           }
         }
       }
@@ -7780,13 +7780,13 @@
         }
       }
     },
-    "正在下載更新，完成後會議助手會自動重新打開": {
+    "正在下載更新，完成後拾音會自動重新打開": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Downloading the update. Meeting Assistant will reopen when it's done."
+            "value": "Downloading the update. Shiyin will reopen when it's done."
           }
         }
       }
@@ -8067,13 +8067,13 @@
         }
       }
     },
-    "正在錄音，要結束會議助手嗎？": {
+    "正在錄音，要結束拾音嗎？": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Recording in progress. Quit Meeting Assistant?"
+            "value": "Recording in progress. Quit Shiyin?"
           }
         }
       }
@@ -8199,13 +8199,13 @@
         }
       }
     },
-    "每天送一份匿名的使用統計給會議助手的開發者：版本、系統、錄音和轉錄了幾分鐘、用了哪些功能、失敗幾次和哪一種失敗。不會送會議標題、逐字稿、會議紀錄、人名、聲紋或任何檔案。": {
+    "每天送一份匿名的使用統計給拾音的開發者：版本、系統、錄音和轉錄了幾分鐘、用了哪些功能、失敗幾次和哪一種失敗。不會送會議標題、逐字稿、會議紀錄、人名、聲紋或任何檔案。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Once a day, Meeting Assistant sends its developer an anonymous summary: version, system, minutes recorded and transcribed, which features were used, and how many tasks failed and of what kind. It never sends meeting titles, transcripts, notes, names, voiceprints or any files."
+            "value": "Once a day, Shiyin sends its developer an anonymous summary: version, system, minutes recorded and transcribed, which features were used, and how many tasks failed and of what kind. It never sends meeting titles, transcripts, notes, names, voiceprints or any files."
           }
         }
       }
@@ -8216,7 +8216,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Once a day, Meeting Assistant sends an anonymous usage summary (version, system, minutes recorded and transcribed, which features were used, and how many tasks failed and of what kind) that never includes meeting content. You can turn it off in Settings → Advanced."
+            "value": "Once a day, Shiyin sends an anonymous usage summary (version, system, minutes recorded and transcribed, which features were used, and how many tasks failed and of what kind) that never includes meeting content. You can turn it off in Settings → Advanced."
           }
         }
       }
@@ -8419,13 +8419,13 @@
         }
       }
     },
-    "沒有權限替換「%@」裡的會議助手，已經打開下載好的 DMG，請把會議助手拖進「應用程式」取代舊版": {
+    "沒有權限替換「%@」裡的拾音，已經打開下載好的 DMG，請把拾音拖進「應用程式」取代舊版": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Meeting Assistant can't replace the app in “%@”. The downloaded DMG is open; drag Meeting Assistant to Applications to replace the old version."
+            "value": "Shiyin can't replace the app in “%@”. The downloaded DMG is open; drag Shiyin to Applications to replace the old version."
           }
         }
       }
@@ -9048,13 +9048,13 @@
         }
       }
     },
-    "發布會議助手的人會給你這個網址（shiyin-update.json）。留空就用安裝版本內建的網址；都沒有的話不會檢查更新。": {
+    "發布拾音的人會給你這個網址（shiyin-update.json）。留空就用安裝版本內建的網址；都沒有的話不會檢查更新。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Whoever distributes Meeting Assistant gives you this URL (shiyin-update.json). Leave it blank to use the one built into this version; if neither is set, Meeting Assistant doesn't check for updates."
+            "value": "Whoever distributes Shiyin gives you this URL (shiyin-update.json). Leave it blank to use the one built into this version; if neither is set, Shiyin doesn't check for updates."
           }
         }
       }
@@ -9081,13 +9081,13 @@
         }
       }
     },
-    "目前是 %@。更新時會議助手會結束並重新打開，會議資料都會保留。": {
+    "目前是 %@。更新時拾音會結束並重新打開，會議資料都會保留。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "You have %@. Meeting Assistant will quit and reopen to update; your meetings are kept."
+            "value": "You have %@. Shiyin will quit and reopen to update; your meetings are kept."
           }
         }
       }
@@ -9335,13 +9335,13 @@
         }
       }
     },
-    "第一次錄音時會詢問；被拒絕的話到「系統設定 → 隱私權與安全性 → 麥克風」打開會議助手": {
+    "第一次錄音時會詢問；被拒絕的話到「系統設定 → 隱私權與安全性 → 麥克風」打開拾音": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "You'll be asked the first time you record. If denied, turn on Meeting Assistant in System Settings → Privacy & Security → Microphone."
+            "value": "You'll be asked the first time you record. If denied, turn on Shiyin in System Settings → Privacy & Security → Microphone."
           }
         }
       }
@@ -9566,13 +9566,13 @@
         }
       }
     },
-    "結束會議助手": {
+    "結束拾音": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Quit Meeting Assistant"
+            "value": "Quit Shiyin"
           }
         }
       }
@@ -9797,13 +9797,13 @@
         }
       }
     },
-    "背景有點吵，說話者可能分不準。錄完可以用「重新辨識說話者」告訴會議助手大約幾個人。": {
+    "背景有點吵，說話者可能分不準。錄完可以用「重新辨識說話者」告訴拾音大約幾個人。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "It’s a bit noisy, so speakers may get mixed up. After recording, use “Identify Speakers Again” to tell Meeting Assistant roughly how many people there were."
+            "value": "It’s a bit noisy, so speakers may get mixed up. After recording, use “Identify Speakers Again” to tell Shiyin roughly how many people there were."
           }
         }
       }
@@ -10221,7 +10221,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "People Meeting Assistant Knows"
+            "value": "People Shiyin Knows"
           }
         }
       }
@@ -10281,13 +10281,13 @@
         }
       }
     },
-    "說話者分得太少（人多、吵雜、手機放在桌上遠距收音）時，從「更多 → 重新處理」選「重新辨識說話者…」，告訴會議助手大約幾個人。只會重新分辨誰在說話，逐字稿的文字不會變。錄音中（會議標題右邊的「人數」）或匯入時也可以先選。": {
+    "說話者分得太少（人多、吵雜、手機放在桌上遠距收音）時，從「更多 → 重新處理」選「重新辨識說話者…」，告訴拾音大約幾個人。只會重新分辨誰在說話，逐字稿的文字不會變。錄音中（會議標題右邊的「人數」）或匯入時也可以先選。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Too few speakers detected (many people, noise, or a phone on the table far from everyone)? Choose More → Reprocess → Re-identify speakers… and tell Meeting Assistant roughly how many people there were. Only the speaker labels change; the transcript text stays. You can also set the count while recording (the People control next to the meeting title) or when importing."
+            "value": "Too few speakers detected (many people, noise, or a phone on the table far from everyone)? Choose More → Reprocess → Re-identify speakers… and tell Shiyin roughly how many people there were. Only the speaker labels change; the transcript text stays. You can also set the count while recording (the People control next to the meeting title) or when importing."
           }
         }
       }
@@ -10303,13 +10303,13 @@
         }
       }
     },
-    "說話者可能分得不夠：有些不同的人可能被當成同一位。人多、吵雜或手機放在桌上錄音時常發生，告訴會議助手大約幾個人會分得比較準。": {
+    "說話者可能分得不夠：有些不同的人可能被當成同一位。人多、吵雜或手機放在桌上錄音時常發生，告訴拾音大約幾個人會分得比較準。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Some speakers may be missing: different people may have been treated as one. This often happens with many people, noise, or a phone on the table. Telling Meeting Assistant roughly how many people there were helps."
+            "value": "Some speakers may be missing: different people may have been treated as one. This often happens with many people, noise, or a phone on the table. Telling Shiyin roughly how many people there were helps."
           }
         }
       }
@@ -10380,13 +10380,13 @@
         }
       }
     },
-    "請到「系統設定 → 隱私權與安全性 → 麥克風」打開「會議助手」，再重新開始錄音。": {
+    "請到「系統設定 → 隱私權與安全性 → 麥克風」打開「拾音」，再重新開始錄音。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Turn on Meeting Assistant in System Settings → Privacy & Security → Microphone, then start recording again."
+            "value": "Turn on Shiyin in System Settings → Privacy & Security → Microphone, then start recording again."
           }
         }
       }
@@ -10529,7 +10529,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Meeting Assistant uses %@ after you paste an API key and click “Save”. No key? Choose “Not now”."
+            "value": "Shiyin uses %@ after you paste an API key and click “Save”. No key? Choose “Not now”."
           }
         }
       }
@@ -10589,13 +10589,13 @@
         }
       }
     },
-    "超過 15 秒沒有收到系統聲音：請確認線上會議有聲音，並在「系統設定 → 隱私權與安全性 → 錄製螢幕與系統錄音」允許會議助手": {
+    "超過 15 秒沒有收到系統聲音：請確認線上會議有聲音，並在「系統設定 → 隱私權與安全性 → 錄製螢幕與系統錄音」允許拾音": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "No system audio for over 15 seconds. Check that the meeting is playing sound and that Meeting Assistant is allowed in System Settings → Privacy & Security → Screen & System Audio Recording."
+            "value": "No system audio for over 15 seconds. Check that the meeting is playing sound and that Shiyin is allowed in System Settings → Privacy & Security → Screen & System Audio Recording."
           }
         }
       }
@@ -11009,13 +11009,13 @@
         }
       }
     },
-    "這不是有效的會議助手封包：%@": {
+    "這不是有效的拾音封包：%@": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "This isn't a valid Meeting Assistant package: %@"
+            "value": "This isn't a valid Shiyin package: %@"
           }
         }
       }
@@ -11031,24 +11031,24 @@
         }
       }
     },
-    "這個名字是會議助手認出聲音後自動帶入的。不對的話直接改名，或按「不是他」。": {
+    "這個名字是拾音認出聲音後自動帶入的。不對的話直接改名，或按「不是他」。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Meeting Assistant filled in this name after recognizing the voice. If it's wrong, rename the speaker or click “Not this person”."
+            "value": "Shiyin filled in this name after recognizing the voice. If it's wrong, rename the speaker or click “Not this person”."
           }
         }
       }
     },
-    "這個封包是新版會議助手匯出的（格式 %lld），請先更新會議助手再匯入": {
+    "這個封包是新版拾音匯出的（格式 %lld），請先更新拾音再匯入": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "This package was exported by a newer Meeting Assistant (format %lld). Update Meeting Assistant first, then import it."
+            "value": "This package was exported by a newer Shiyin (format %lld). Update Shiyin first, then import it."
           }
         }
       }
@@ -11075,13 +11075,13 @@
         }
       }
     },
-    "這個網址不是會議助手的企業伺服器": {
+    "這個網址不是拾音的企業伺服器": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "This URL is not a Meeting Assistant enterprise server"
+            "value": "This URL is not a Shiyin enterprise server"
           }
         }
       }
@@ -11533,7 +11533,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Transcription or summarizing in progress will stop and start over the next time you open Meeting Assistant."
+            "value": "Transcription or summarizing in progress will stop and start over the next time you open Shiyin."
           }
         }
       }
@@ -11660,13 +11660,13 @@
         }
       }
     },
-    "還有工作在進行，要結束會議助手嗎？": {
+    "還有工作在進行，要結束拾音嗎？": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Work is still in progress. Quit Meeting Assistant?"
+            "value": "Work is still in progress. Quit Shiyin?"
           }
         }
       }
@@ -11858,13 +11858,13 @@
         }
       }
     },
-    "還沒有認識的人。在逐字稿點「說話者 1」改成名字，會議助手就會記住這個人。": {
+    "還沒有認識的人。在逐字稿點「說話者 1」改成名字，拾音就會記住這個人。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "No one yet. Click “Speaker 1” in a transcript and give them a name, and Meeting Assistant will remember that person."
+            "value": "No one yet. Click “Speaker 1” in a transcript and give them a name, and Shiyin will remember that person."
           }
         }
       }
@@ -12348,7 +12348,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Meeting Assistant reminds you after 15 minutes with nobody talking. After 15 more minutes of silence it stops recording and transcribes only up to the last speech; the full recording is kept."
+            "value": "Shiyin reminds you after 15 minutes with nobody talking. After 15 more minutes of silence it stops recording and transcribes only up to the last speech; the full recording is kept."
           }
         }
       }
@@ -12364,13 +12364,13 @@
         }
       }
     },
-    "錄音中很久沒人說話，會議助手自動停止了錄音。要轉錄全部的話，用「更多 → 重新處理 → 重新轉錄」。": {
+    "錄音中很久沒人說話，拾音自動停止了錄音。要轉錄全部的話，用「更多 → 重新處理 → 重新轉錄」。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nobody spoke for a long time, so Meeting Assistant stopped recording. To transcribe everything, use More → Reprocess → Transcribe Again."
+            "value": "Nobody spoke for a long time, so Shiyin stopped recording. To transcribe everything, use More → Reprocess → Transcribe Again."
           }
         }
       }
@@ -12469,7 +12469,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Meeting Assistant couldn't write the recording to disk (the disk may be full), so recording has stopped. Everything recorded before that is kept and will be transcribed as usual."
+            "value": "Shiyin couldn't write the recording to disk (the disk may be full), so recording has stopped. Everything recorded before that is kept and will be transcribed as usual."
           }
         }
       }
@@ -12574,13 +12574,13 @@
         }
       }
     },
-    "錄音會先存好，下次開啟會議助手時開始轉錄。": {
+    "錄音會先存好，下次開啟拾音時開始轉錄。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The recording will be saved and transcribed the next time you open Meeting Assistant."
+            "value": "The recording will be saved and transcribed the next time you open Shiyin."
           }
         }
       }
@@ -12591,7 +12591,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Recordings are sent to %@ (your company's server) for transcription and deleted afterwards; speaker identification and voiceprints stay on this Mac. Uses the glossary. If the server can't be reached, Meeting Assistant waits, or you can transcribe on this Mac instead."
+            "value": "Recordings are sent to %@ (your company's server) for transcription and deleted afterwards; speaker identification and voiceprints stay on this Mac. Uses the glossary. If the server can't be reached, Shiyin waits, or you can transcribe on this Mac instead."
           }
         }
       }
@@ -12673,13 +12673,13 @@
         }
       }
     },
-    "鑰匙圈裡已經有舊的 key，macOS 沒有讓會議助手取代它。請打開「鑰匙圈存取」，刪除「拾音 API key（%@）」後再存一次。": {
+    "鑰匙圈裡已經有舊的 key，macOS 沒有讓拾音取代它。請打開「鑰匙圈存取」，刪除「拾音 API key（%@）」後再存一次。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The keychain already has an older key, and macOS didn’t let Meeting Assistant replace it. Open Keychain Access, delete “Shiyin API key (%@)”, then save again."
+            "value": "The keychain already has an older key, and macOS didn’t let Shiyin replace it. Open Keychain Access, delete “Shiyin API key (%@)”, then save again."
           }
         }
       }
@@ -12695,13 +12695,13 @@
         }
       }
     },
-    "開 Zoom、Teams、Google Meet 等線上會議時，會議助手會提醒你開始錄音；會議好像結束時提醒停止。不想被某個 app 提醒，在提醒上按「不要再提醒」。": {
+    "開 Zoom、Teams、Google Meet 等線上會議時，拾音會提醒你開始錄音；會議好像結束時提醒停止。不想被某個 app 提醒，在提醒上按「不要再提醒」。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "When you join a Zoom, Teams, Google Meet or other online meeting, Meeting Assistant asks whether to start recording, and reminds you to stop when the meeting seems to be over. To stop the reminders for an app, click “Don't Ask for This App” on the reminder."
+            "value": "When you join a Zoom, Teams, Google Meet or other online meeting, Shiyin asks whether to start recording, and reminds you to stop when the meeting seems to be over. To stop the reminders for an app, click “Don't Ask for This App” on the reminder."
           }
         }
       }
@@ -12877,7 +12877,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Computer audio capture stopped and couldn't reconnect: %@. Meeting Assistant will keep trying; recording continues."
+            "value": "Computer audio capture stopped and couldn't reconnect: %@. Shiyin will keep trying; recording continues."
           }
         }
       }
@@ -13036,24 +13036,24 @@
         }
       }
     },
-    "麥克風幾乎收不到聲音：%@ 可能正在用這支麥克風做回音消除（例如用 Safari 開的 Google Meet），會議助手收不到你的聲音。請改用 Chrome 開會，或讓會議和會議助手用不同的麥克風。": {
+    "麥克風幾乎收不到聲音：%@ 可能正在用這支麥克風做回音消除（例如用 Safari 開的 Google Meet），拾音收不到你的聲音。請改用 Chrome 開會，或讓會議和拾音用不同的麥克風。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The microphone is picking up almost nothing: %@ may be using this microphone for echo cancellation (for example Google Meet in Safari), so Meeting Assistant can’t hear you. Join the meeting in Chrome instead, or use different microphones for the meeting and Meeting Assistant."
+            "value": "The microphone is picking up almost nothing: %@ may be using this microphone for echo cancellation (for example Google Meet in Safari), so Shiyin can’t hear you. Join the meeting in Chrome instead, or use different microphones for the meeting and Shiyin."
           }
         }
       }
     },
-    "麥克風幾乎收不到聲音：%@ 可能正在用這支麥克風做回音消除，會議助手收不到你的聲音。請讓 %@ 和會議助手用不同的麥克風。": {
+    "麥克風幾乎收不到聲音：%@ 可能正在用這支麥克風做回音消除，拾音收不到你的聲音。請讓 %@ 和拾音用不同的麥克風。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The microphone is picking up almost nothing: %1$@ may be using this microphone for echo cancellation, so Meeting Assistant can’t hear you. Use different microphones for %2$@ and Meeting Assistant."
+            "value": "The microphone is picking up almost nothing: %1$@ may be using this microphone for echo cancellation, so Shiyin can’t hear you. Use different microphones for %2$@ and Shiyin."
           }
         }
       }
@@ -13108,7 +13108,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The microphone stopped sending audio and couldn't reconnect: %@. Meeting Assistant will keep trying; recording continues."
+            "value": "The microphone stopped sending audio and couldn't reconnect: %@. Shiyin will keep trying; recording continues."
           }
         }
       }

@@ -133,9 +133,9 @@ final class EnterpriseServer {
         var errorDescription: String? {
             switch self {
             case .invalidURL: return String(localized: "網址不對：要以 https:// 開頭，例如 https://shiyin.example.com")
-            case .notShiyin: return String(localized: "這個網址不是會議助手的企業伺服器")
+            case .notShiyin: return String(localized: "這個網址不是拾音的企業伺服器")
             case .serverTooOld: return String(localized: "企業伺服器的版本太舊，請通知公司的管理者更新")
-            case .appTooOld: return String(localized: "會議助手的版本太舊，請先更新會議助手")
+            case .appTooOld: return String(localized: "拾音的版本太舊，請先更新拾音")
             case .unreachable(let detail): return String(localized: "連不到企業伺服器（\(detail)）。請確認網址，在公司外面要先連 VPN。")
             case .untrusted: return String(localized: "企業伺服器的憑證不受這台 Mac 信任，請公司的管理者協助安裝憑證")
             case .loginExpired: return String(localized: "企業伺服器的登入已失效，請重新登入")
@@ -464,7 +464,7 @@ final class EnterpriseServer {
 
     /// 伺服器要轉到別的網址：不跟著轉（D126），不是暫時的問題（轉錄的工作算失敗）
     nonisolated static func redirected(_ status: Int) -> Failure {
-        .server(kind: "redirect", message: String(localized: "企業伺服器要求轉到別的網址（HTTP \(status)），會議助手不會跟著轉。請確認網址，或請公司的管理者檢查伺服器的設定。"))
+        .server(kind: "redirect", message: String(localized: "企業伺服器要求轉到別的網址（HTTP \(status)），拾音不會跟著轉。請確認網址，或請公司的管理者檢查伺服器的設定。"))
     }
 
     /// 伺服器的錯誤 {"error": {"kind", "message"}}（M§36.2）

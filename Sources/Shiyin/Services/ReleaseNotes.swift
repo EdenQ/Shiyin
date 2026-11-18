@@ -22,8 +22,8 @@ enum ReleaseNotes {
         if !current.isEmpty { paragraphs.append(current) }
         guard !paragraphs.isEmpty else { return ([], 0) }
         let picked = english
-            ? paragraphs.first { $0[0].lowercased().hasPrefix("shiyin") } ?? paragraphs[paragraphs.count - 1]
-            : paragraphs.first { $0[0].hasPrefix("會議助手") } ?? paragraphs[0]   // l10n-skip
+            ? paragraphs.first { p in Brand.names("Shiyin").contains { p[0].lowercased().hasPrefix($0.lowercased()) } } ?? paragraphs[paragraphs.count - 1]   // MA-FORK(F7)
+            : paragraphs.first { p in Brand.names("拾音").contains { p[0].hasPrefix($0) } } ?? paragraphs[0]   // l10n-skip MA-FORK(F7)
         var items = picked.filter { $0.hasPrefix("- ") }.map { String($0.dropFirst(2)).trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
         if items.isEmpty { items = picked.count > 1 ? Array(picked.dropFirst()) : picked }
         let shown = Array(items.prefix(maxItems))

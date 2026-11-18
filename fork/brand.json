@@ -1,0 +1,36 @@
+{
+  "_comment": "fork 的品牌（design §F7、DF7）。原始碼照上游寫「拾音」「Shiyin」，scripts/fork/brand.py 在建置時換成這裡的名稱。",
+  "names": {
+    "zh-Hant": {"拾音": "會議助手"},
+    "zh-Hans": {"拾音": "会议助手"},
+    "en": {"Shiyin": "Meeting Assistant", "拾音": "會議助手"}
+  },
+  "bundleName": "MA",
+  "displayName": {"en": "Meeting Assistant", "zh-Hant": "會議助手", "zh-Hans": "会议助手"},
+  "aboutName": "MA — Meeting Assistant",
+  "phrases": [
+    ["「拾音」選單", "「MA」選單"],
+    ["the Shiyin menu", "the MA menu"],
+    ["/Applications/Shiyin.app", "\"/Applications/Meeting Assistant.app\""],
+    ["拾音 Shiyin 使用了下列開源軟體", "會議助手 Meeting Assistant 使用了下列開源軟體"],
+    ["Shiyin uses the following open-source software", "Meeting Assistant uses the following open-source software"],
+    ["覺得拾音好用的話，可以<a href=\"https://ko-fi.com/weiwei_chang\">請我喝杯咖啡</a>。",
+     "會議助手改自 juinwei7 的開源專案拾音 Shiyin。喜歡的話，可以<a href=\"https://ko-fi.com/weiwei_chang\">請原作者喝杯咖啡</a>。"],
+    ["Enjoying Shiyin? <a href=\"https://ko-fi.com/weiwei_chang\">Buy me a coffee</a>.",
+     "Meeting Assistant is based on Shiyin, an open-source app by juinwei7. Enjoying it? <a href=\"https://ko-fi.com/weiwei_chang\">Buy the original author a coffee</a>."]
+  ],
+  "keep": [
+    "拾音 API key",
+    "Shiyin API key",
+    "Application Support/Shiyin",
+    "開源專案拾音 Shiyin",
+    "based on Shiyin, an open-source app by juinwei7",
+    "github\\.com/[A-Za-z0-9_.-]+/Shiyin",
+    "Shiyin-[0-9.]+\\.dmg",
+    "Shiyin(?=[A-Z])"
+  ],
+  "infoPlistBrandKeys": ["CFBundleTypeName", "UTTypeDescription", "NSMicrophoneUsageDescription",
+                         "NSAudioCaptureUsageDescription", "NSSpeechRecognitionUsageDescription"],
+  "infoPlistIdentityKeys": ["CFBundleExecutable", "CFBundleIdentifier", "CFBundleURLName", "CFBundleURLSchemes",
+                            "UTTypeIdentifier", "LSItemContentTypes", "public.filename-extension"]
+}

@@ -106,7 +106,7 @@ struct MeetingHeader: View {
             if let minutes = detail.untranscribedMinutes {
                 // 自動停止的錄音（design §35.3、R48.3）：後面沒人說話的部分沒有轉錄
                 Label("最後 \(minutes) 分鐘沒有人說話，沒有轉錄", systemImage: "moon.zzz")
-                    .help("錄音中很久沒人說話，會議助手自動停止了錄音。要轉錄全部的話，用「更多 → 重新處理 → 重新轉錄」。")
+                    .help("錄音中很久沒人說話，拾音自動停止了錄音。要轉錄全部的話，用「更多 → 重新處理 → 重新轉錄」。")
             }
             if !detail.speakers.isEmpty {
                 HStack(spacing: 6) {
@@ -181,7 +181,7 @@ struct MeetingHeader: View {
                       systemImage: "person.2")
             }
             .fixedSize()
-            .help("大約幾個人：人多、吵雜或手機放在桌上錄音時，先告訴會議助手大約幾個人，說話者會分得比較準")
+            .help("大約幾個人：人多、吵雜或手機放在桌上錄音時，先告訴拾音大約幾個人，說話者會分得比較準")
         }
     }
 }
@@ -509,7 +509,7 @@ private struct AutoSpeakerName: View {
                 .padding(.vertical, 1)
                 .background(Color.secondary.opacity(0.15), in: Capsule())
         }
-        .help(tagged ? "錄音時標記的名字。不對的話點名字" : "會議助手認出這個人的聲音，自動帶入名字。不對的話點名字")
+        .help(tagged ? "錄音時標記的名字。不對的話點名字" : "拾音認出這個人的聲音，自動帶入名字。不對的話點名字")
     }
 }
 

@@ -36,7 +36,7 @@ enum MCPServer {
             return success(id, [
                 "protocolVersion": protocolVersions.contains(asked) ? asked : fallbackProtocolVersion,
                 "capabilities": ["tools": [String: Any]()],
-                "serverInfo": ["name": "shiyin", "title": "Meeting Assistant", "version": version],
+                "serverInfo": ["name": "shiyin", "title": "Shiyin", "version": version],
                 "instructions": MCPTools.instructions,
             ])
         case "ping":

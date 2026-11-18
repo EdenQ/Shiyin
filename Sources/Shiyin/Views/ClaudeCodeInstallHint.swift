@@ -15,7 +15,7 @@ struct ClaudeCodeInstallHint: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("你有 Claude 桌面版：另外安裝 Claude Code（命令列版）之後，會議助手就能用你的 Claude 訂閱（Pro 以上）整理。")
+            Text("你有 Claude 桌面版：另外安裝 Claude Code（命令列版）之後，拾音就能用你的 Claude 訂閱（Pro 以上）整理。")
                 .fixedSize(horizontal: false, vertical: true)
             Text("打開「終端機」，貼上這一行安裝：").foregroundStyle(.secondary)
             HStack(spacing: 8) {

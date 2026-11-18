@@ -34,7 +34,7 @@ struct OnboardingView: View {
     init(startStep: Int = 0) { _step = State(initialValue: startStep) }
 
     /// 三步（R44.6、design §33.4、D111）：權限（開頭是原本歡迎頁的三句話）、整理工具（先問平常用哪個 AI）、開始（模型在背景下載）
-    private let titles = [String(localized: "歡迎使用會議助手"), String(localized: "整理工具"), String(localized: "準備好了")]
+    private let titles = [String(localized: "歡迎使用拾音"), String(localized: "整理工具"), String(localized: "準備好了")]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {

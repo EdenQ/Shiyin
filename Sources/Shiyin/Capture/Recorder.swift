@@ -60,7 +60,7 @@ final class Recorder {
             case .silent: return String(localized: "麥克風沒有收到聲音：可能被靜音、被其他 app 佔用，或選錯了麥克風。可以在設定的「錄音與轉錄」換一個。")
             case .suppressed: return Self.suppressedText(nil)
             case .quiet: return String(localized: "聲音有點小：手機或筆電放近說話的人一點。")
-            case .noisy: return String(localized: "背景有點吵，說話者可能分不準。錄完可以用「重新辨識說話者」告訴會議助手大約幾個人。")
+            case .noisy: return String(localized: "背景有點吵，說話者可能分不準。錄完可以用「重新辨識說話者」告訴拾音大約幾個人。")
             }
         }
 
@@ -68,9 +68,9 @@ final class Recorder {
         static func suppressedText(_ user: MeetingDetector.MicrophoneUser?) -> String {
             guard let user, !user.isBrowser else {
                 let name = user?.name ?? String(localized: "其他 app")
-                return String(localized: "麥克風幾乎收不到聲音：\(name) 可能正在用這支麥克風做回音消除（例如用 Safari 開的 Google Meet），會議助手收不到你的聲音。請改用 Chrome 開會，或讓會議和會議助手用不同的麥克風。")
+                return String(localized: "麥克風幾乎收不到聲音：\(name) 可能正在用這支麥克風做回音消除（例如用 Safari 開的 Google Meet），拾音收不到你的聲音。請改用 Chrome 開會，或讓會議和拾音用不同的麥克風。")
             }
-            return String(localized: "麥克風幾乎收不到聲音：\(user.name) 可能正在用這支麥克風做回音消除，會議助手收不到你的聲音。請讓 \(user.name) 和會議助手用不同的麥克風。")
+            return String(localized: "麥克風幾乎收不到聲音：\(user.name) 可能正在用這支麥克風做回音消除，拾音收不到你的聲音。請讓 \(user.name) 和拾音用不同的麥克風。")
         }
     }
     private(set) var levelHint: LevelHint?
@@ -518,7 +518,7 @@ final class Recorder {
             isPaused = false
             isRecording = true
             activity = ProcessInfo.processInfo.beginActivity(options: [.idleSystemSleepDisabled, .userInitiated],
-                                                             reason: String(localized: "會議助手正在錄音"))
+                                                             reason: String(localized: "拾音正在錄音"))
             let timer = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in
                 MainActor.assumeIsolated { self?.tick() }
             }
