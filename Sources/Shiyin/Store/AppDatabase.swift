@@ -473,8 +473,10 @@ final class AppDatabase: @unchecked Sendable {
 
     /// 語言檔裡每種語言的預設說話者名稱（design §41.1）：「說話者 %lld」→「說話者 \d+」，接成一個樣式
     private static let defaultSpeakerPattern: Regex<AnyRegexOutput> = {
-        let forms = LanguageProfiles.all.map { profile -> String in
-            let parts = profile.speaker.components(separatedBy: "%lld")
+        // 每種語言的寫法，加上中文用簡體時的寫法（「说话者 %lld」，design §47.2）
+        let speakers = LanguageProfiles.all.flatMap { [$0.speaker, ChineseScript.toSimplified($0.speaker)] }
+        let forms = Array(Set(speakers)).sorted().map { speaker -> String in
+            let parts = speaker.components(separatedBy: "%lld")
             return parts.map { NSRegularExpression.escapedPattern(for: $0) }.joined(separator: "\\d+")
         }
         return try! Regex("^(?:" + forms.joined(separator: "|") + ")$")
@@ -950,7 +952,7 @@ final class AppDatabase: @unchecked Sendable {
         return metaRowidBase + meetingId * 4 + code
     }
 
-    private static func indexSegment(_ db: Database, meetingId: Int64, id: Int64, text: String) throws {
+    static func indexSegment(_ db: Database, meetingId: Int64, id: Int64, text: String) throws {
         try db.execute(sql: "INSERT INTO search (rowid, meeting_id, kind, ref, text) VALUES (?, ?, 'segment', ?, ?)",
                        arguments: [id, meetingId, id, text])
     }

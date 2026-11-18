@@ -68,9 +68,9 @@ extension NSColor {
 }
 
 extension Font {
-    /// 會議標題、會議紀錄段落標題：宋體-繁，讓紀錄讀起來像一份文件
+    /// 會議標題、會議紀錄段落標題：宋體，讓紀錄讀起來像一份文件。簡體介面用宋體-簡（design §48.2）
     static func songti(_ size: CGFloat, weight: Font.Weight = .semibold) -> Font {
-        .custom("Songti TC", size: size).weight(weight)
+        .custom(MeetingLanguage.simplifiedInterface ? "Songti SC" : "Songti TC", size: size).weight(weight)  // l10n-skip
     }
 }
 
@@ -80,7 +80,7 @@ private struct MeetingText: ViewModifier {
     @Environment(\.meetingLanguage) private var language
 
     func body(content: Content) -> some View {
-        content.typesettingLanguage(Locale.Language(identifier: language.profile.fonts.typesetting))
+        content.typesettingLanguage(Locale.Language(identifier: language.contentTypesetting))
     }
 }
 
@@ -93,7 +93,7 @@ private struct ContentTitleFont: ViewModifier {
 
     func body(content: Content) -> some View {
         let size = size * scale
-        return content.font(.custom(language.profile.fonts.titleMac, size: size).weight(.semibold))   // 語言檔（design §41.5）
+        return content.font(.custom(language.contentTitleFont, size: size).weight(.semibold))   // 語言檔（design §41.5），簡體跟著「中文的字」（§48.2）
             .meetingText()
     }
 }

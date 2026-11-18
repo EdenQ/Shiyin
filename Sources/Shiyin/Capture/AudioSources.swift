@@ -39,7 +39,7 @@ protocol MicrophoneInput: AudioSource {
 
 /// 跨執行緒讀寫的小值（fork，design §50.2）：每次讀寫只短暫拿鎖，不會等正在進行的重新連接。
 /// 換麥克風在主執行緒寫 UID、重新連接在背景佇列讀，沒有鎖就是資料競態（2026-11-16 審查用 TSan 證實）
-final class LockedValue<Value>: @unchecked Sendable {
+final class LockedValue<Value>: @unchecked Sendable {   // MA-FORK(DF5)
     private let lock = NSLock()
     private var stored: Value
     init(_ value: Value) { stored = value }

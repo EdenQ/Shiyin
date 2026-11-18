@@ -300,7 +300,7 @@ struct ProviderSettings: View {
         case .enterpriseSignedOut?: return String(localized: "公司的伺服器還沒登入或登入已失效：到「進階 → 企業伺服器」登入。設定好之前不會自動整理。")
         case .enterpriseNoModels?: return String(localized: "公司的伺服器還沒有提供整理用的模型：請管理者在伺服器後台的「整理模型」加上模型。")
         case .paused(_, let detail)?:
-            let reason = detail.trimmingCharacters(in: CharacterSet(charactersIn: "。. "))   // l10n-skip
+            let reason = MeetingLanguage.uiStored(detail.trimmingCharacters(in: CharacterSet(charactersIn: "。. ")))   // l10n-skip
             return String(localized: "上次整理失敗：\(reason)。改好設定，或按「測試整理工具」成功之後，才會再自動整理。")
         }
     }
@@ -571,6 +571,8 @@ struct TemplateSettings: View {
     private func load(_ id: String?) {
         guard let template = model.templates.first(where: { $0.id == id }) else { draft = nil; return }
         draft = template.definition(for: .interface)
+        // 內建範本不能改、不會存檔：簡體介面顯示簡體（design §48.2）
+        if template.builtin, MeetingLanguage.simplifiedInterface { draft = draft?.mappingText(ChineseScript.toSimplifiedUI) }
         draftName = template.displayName
     }
 
@@ -761,6 +763,7 @@ struct RecordingSettings: View {
     @AppStorage(AppSettings.inputDeviceKey) private var device = ""
     @AppStorage(AppSettings.liveTranscriptionKey) private var live = true
     @AppStorage(AppSettings.autoDetectLanguageKey) private var autoDetect = true
+    @AppStorage(AppSettings.chineseScriptKey) private var chineseScript = AppSettings.defaultChineseScript
     @AppStorage(AppSettings.diarizeKey) private var diarize = true
     @AppStorage(AppSettings.globalHotKeyKey) private var hotKey = true
     @AppStorage(AppSettings.meetingDetectionKey) private var meetingDetection = true
@@ -798,6 +801,13 @@ struct RecordingSettings: View {
                     ForEach(MeetingLanguage.allCases) { Text($0.name).tag($0) }
                 }
                 Text("新的錄音和匯入預設用這個語言轉錄、整理會議紀錄；錄音選單、匯入時和會議頁都可以改。")
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                // 中文的字（R71、design §47.3）
+                Picker("中文的字", selection: $chineseScript) {
+                    Text("繁體（台灣）").tag("traditional")
+                    Text("簡體").tag("simplified")
+                }
+                Text("只影響中文會議的逐字稿、會議紀錄和匯出，介面文字不變。已經做好的會議不會變，重新轉錄或重新整理後才會換。")
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 Toggle("自動偵測會議語言", isOn: $autoDetect)
                     .onChange(of: autoDetect) { _, on in if on { model.models.autoStart(.languageDetection) } }
