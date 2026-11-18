@@ -12,6 +12,15 @@
 - F1.5 「回報問題」打開 fork 的 GitHub issues（`https://github.com/EdenQ/Shiyin/issues`），不送到原作者的 repo（2026-11-11 使用者決定）。
 - F1.6 App 圖示換成使用者的貓（灰色阿比西尼亞貓張嘴叫的頭部特寫、奶茶色圓角方塊，耳朵完整在框內）；Finder、Dock、「關於 MA」、DMG 與官網的圖示一致（2026-11-12 使用者從草稿選定）。
 
+## Fork F7. 品牌集中在建置時替換（2026-11-18，PLAN-fork-5.0 階段 0b，使用者已確認做法）
+
+- F7.1 原始碼、翻譯表、`Info.plist`、`InfoPlist.strings`、安裝說明、第三方授權照上游寫「拾音」「Shiyin」；建置時（`build-app.sh`，含 `--debug`；`make-dmg.sh`）換成 F1 的名稱。使用者看到的介面、Finder、「關於 MA」、DMG 跟 4.7.6 相同（F1.1～F1.4）。目的是合併上游時，品牌不再造成衝突。
+- F7.2 名稱、整句的特例、不換的片段集中在 `fork/brand.json`。不換：原作者署名（「改自…拾音 Shiyin」、juinwei7、Ko-fi）、`.shiyin` 副檔名、`shiyin://`、資料夾 `Application Support/Shiyin`、鑰匙圈項目名「拾音 API key」、bundle id、User-Agent、Info.plist 的 `Shiyin…URL` 鍵名、DMG 和 `shiyin-update.json` 的檔名。
+- F7.3 MCP 給 AI 工具的英文訊息、`serverInfo` 不換（使用者看不到，2026-11-18 使用者決定），列在原始碼掃描的白名單。
+- F7.4 建置時檢查：建好的 app 裡扣掉不換的片段後還有「拾音」「Shiyin」、換完格式碼數量不同、原始碼在不經過翻譯表的地方寫了品牌字（不在白名單），建置失敗。
+- F7.5 上游 5.0 的提醒事項列表（R101）在 fork 叫「會議助手」（英文介面 Meeting Assistant）；已經有舊名「拾音」「Shiyin」的列表時沿用，不重複建立（2026-11-18 使用者決定；接點在合併 5.0 時接上）。
+- F7.6 fork 沒有部署官網：`site/` 不換品牌，合併 5.0 時回到上游原樣（2026-11-18 使用者決定）。Windows 版不在範圍內。
+
 ## 2. 使用者與發布方式（2026-10-15 已確認）
 
 - 使用者：公司同事和身邊的人，不一定是工程師，也不一定裝了開發工具。
