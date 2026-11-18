@@ -88,7 +88,7 @@ enum Reminders {
     }
 
     /// 「拾音」列表的名稱：跟著介面語言
-    static var listTitle: String { MeetingLanguage.ui(zh: "拾音", en: "Shiyin") }
+    static var listTitle: String { Brand.name(MeetingLanguage.ui(zh: "拾音", en: "Shiyin")) }   // MA-FORK(F7)：fork 叫會議助手（F7.5）
 }
 
 /// EventKit 的提醒事項
@@ -112,7 +112,7 @@ final class EventKitReminders: ReminderStore {
         if let id = defaults.string(forKey: AppSettings.remindersListKey), let calendar = store.calendar(withIdentifier: id) {
             return calendar.calendarIdentifier
         }
-        if let calendar = store.calendars(for: .reminder).first(where: { ["拾音", "Shiyin"].contains($0.title) }) {  // l10n-skip：列表的名稱
+        if let calendar = store.calendars(for: .reminder).first(where: { Brand.isListTitle($0.title) }) {  // MA-FORK(F7)：會議助手、舊名「拾音」都認得（F7.5）
             defaults.set(calendar.calendarIdentifier, forKey: AppSettings.remindersListKey)
             return calendar.calendarIdentifier
         }
