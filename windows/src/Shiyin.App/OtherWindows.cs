@@ -50,7 +50,7 @@ public static class OtherWindows
             progress.Children.Clear();
             for (var i = 0; i < titles.Length; i++)
             {
-                var bar = new Microsoft.UI.Xaml.Shapes.Rectangle { Height = 4, RadiusX = 2, RadiusY = 2, Fill = i <= step ? Ui.Celadon : Ui.Subtle };
+                var bar = new Microsoft.UI.Xaml.Shapes.Rectangle { Height = 4, RadiusX = 2, RadiusY = 2, Fill = i <= step ? Ui.Celadon : Ui.Track };
                 Grid.SetColumn(bar, i);
                 progress.Children.Add(bar);
             }
@@ -332,12 +332,12 @@ public static class OtherWindows
             {
                 ModelStore.State.Installed => ("\uE73E", L.T("轉錄模型已經就緒。"), Ui.Celadon),
                 ModelStore.State.Downloading d => ("\uE896", L.F("轉錄模型下載中 %lld%%，下載好之前先用快速辨識轉錄。", d.Total > 0 ? (long)(d.Received * 100.0 / d.Total) : 0), Ui.Signal),
-                _ => ("\uE896", L.T("轉錄模型還沒下載好，會先用快速辨識轉錄；可以到「設定 → 錄音與轉錄」下載，用模型轉錄比較準。"), Ui.Signal),
+                _ => ("\uE896", L.T("轉錄模型還沒下載好，會先用快速辨識轉錄；可以到「設定 → 模型與空間」下載，用模型轉錄比較準。"), Ui.Signal),
             };
             column.Children.Add(Ui.Split(new FontIcon { Glyph = glyph, FontSize = 16, Foreground = color, Margin = new Thickness(0, 2, 0, 0) }, Ui.Text(text, color: color), 10));
         }
         column.Children.Add(Ui.Text(L.T("拾音會常駐在工作列右下角的系統匣，關掉視窗也會繼續錄音和整理。")));
-        column.Children.Add(Ui.Text(L.T("之後可以在「設定 → 進階」重新顯示這個引導。"), color: Ui.Secondary));
+        column.Children.Add(Ui.Text(L.T("之後可以在「設定 → 一般」重新顯示這個引導。"), color: Ui.Secondary));
         return column;
     }
 
@@ -349,7 +349,9 @@ public static class OtherWindows
         (string Title, string Body)[] steps =
         [
             (L.T("錄音或匯入"), L.T("按側欄上方的「錄音」（Ctrl+R）開始錄；點按鈕旁的箭頭可以選錄音來源和麥克風，線上會議請選「麥克風＋電腦聲音（線上會議）」，對方的聲音也會錄進來。錄音畫面會寫出正在用哪一支麥克風，點一下可以換；藍牙耳機連著時 Windows 可能自動改用耳機的麥克風，拾音會提醒你。已經有錄音檔的話，拖進視窗、按「匯入」（Ctrl+O），或在檔案總管按右鍵用拾音開啟都可以。")),
-            (L.T("邊錄邊看、邊記"), L.T("錄音中畫面左邊是即時逐字稿，講完幾秒內就會出現；右邊「我的筆記」每換一行會自動記下當時的錄音時間（錄完在逐字稿分頁頂部的「我的筆記」還能改）。重要的地方按「標記重點」（Ctrl+B），在其他 app 裡也可以按 Ctrl+Alt+Shift+B。需要中斷時按「暫停」（Ctrl+Shift+P），暫停的時間不會錄進去。")),
+            (L.T("邊錄邊看、邊記"), L.T("錄音中畫面左邊是即時逐字稿，講完幾秒內就會出現；右邊「我的筆記」每換一行會自動記下當時的錄音時間（錄完在逐字稿分頁頂部的「我的筆記」還能改）。重要的地方按「標記重點」（Ctrl+B），在其他 app 裡也可以按 Ctrl+Alt+Shift+B。需要中斷時按「暫停」（Ctrl+Shift+P），暫停的時間不會錄進去。")
+                // 錄音島（R81.10、design-windows §11.21）
+                + "\n\n" + L.T("錄音中螢幕上方正中間會有一個小小的錄音島，顯示錄音的時間；收音有問題（麥克風沒收到聲音、用的是藍牙耳機的麥克風、好像沒人在說話）時會往下展開那一句提醒和按鈕。滑鼠移上去可以看音量和最新一句逐字稿，直接按「暫停」「標記重點」「打開拾音」「停止並轉錄」，不用切回拾音。全螢幕開會、分享畫面時也看得到，分享畫面拍不到它；偵測到線上會議時的「要開始錄音嗎？」也在這裡。不想要的話，到「設定 → 錄音 → 提醒與快捷鍵」關掉「在螢幕上方顯示錄音島」。")),
             (L.T("正式轉錄、分辨說話者"), L.F("按「停止並轉錄」後，拾音會在這台電腦上重新轉錄（中文、英文用 Breeze ASR 25，%@用 Whisper large-v3-turbo，%@用 Qwen3-ASR），並分辨不同的說話者。等待的時候，會議紀錄會先用即時逐字稿整理一份草稿，正式版好了會自動換掉。逐字稿上點「說話者 1」可以改成人名，整場都會跟著改；拾音會記住這個人的聲音，之後的會議自動帶入名字（標「自動」，認錯了點一下就能改）。", MeetingLanguages.UiNames("turbo"), MeetingLanguages.UiNames("qwen"))),
             (L.T("看會議紀錄"), L.T("轉錄完會自動整理。「紀錄」分頁由上而下是摘要、決議、待辦、未決問題和依議題分段的討論；每一條後面的時間點點一下，就從錄音那裡開始播放。上方的「條列｜心智圖」可以把紀錄畫成心智圖，一眼看出有哪些議題。範本選單可以換成一對一、訪談、課堂／演講、腦力激盪等格式，換完從「更多 → 重新處理」選「重新整理會議紀錄」。想找某件事，可以在「提問」分頁直接問，回答會附上時間點；側欄上方的提問按鈕可以一次問所有會議。")),
             (L.T("回答待確認、修改"), L.T("整理時沒把握的人名、專有名詞、負責人和期限會列成待確認的題目。紀錄裡有疑問的那一條旁邊會有「？」，點了就能當場回答；紀錄頂部的「還有 N 題待確認」點開可以一次看完。能用是或否回答的直接按「是」「不是」（按「是」不用等整理工具），其他的在「你的回答」欄位回答，按「送出」，會議紀錄就會依你的答案修正；看不懂或不重要的按「略過」，或一次「全部略過」。也可以按「編輯」直接改。改錯了按「編輯」旁的「復原上一版」。")),
@@ -362,7 +364,7 @@ public static class OtherWindows
             var number = new Border
             {
                 Width = 24, Height = 24, CornerRadius = new CornerRadius(12), Background = Ui.Celadon, VerticalAlignment = VerticalAlignment.Top,
-                Child = new TextBlock { Text = $"{i + 1}", HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White) },
+                Child = new TextBlock { Text = $"{i + 1}", HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Foreground = Ui.HighContrast ? Ui.OnCeladon : new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White) },
             };
             column.Children.Add(Ui.Split(number, Ui.Column(6, Ui.Heading(steps[i].Title, MeetingLanguage.Zh), Ui.Text(steps[i].Body, select: true)), 14));
         }
@@ -377,12 +379,23 @@ public static class OtherWindows
             L.T("側欄上方的「搜尋所有會議」會同時搜標題、逐字稿、會議紀錄和你的筆記，點結果就跳到那一段。"),
             L.T("點任何時間點或視窗底部的時間軸就從那裡播放，空白鍵播放或暫停；播放列右邊可以選 0.75×～2× 的速度。"),
             L.T("逐字稿裡琥珀色的段落辨識信心比較低，值得回頭聽；時間軸上的三角形是待確認題目、圓點是你標的重點；時間軸上面的色塊是議題，點了從那個議題開始聽。"),
-            L.T("會議可以分資料夾：在會議上按右鍵（或「更多」）選「移到資料夾」→「新資料夾…」。正在看某個資料夾時，新錄的和匯入的會議都會放進去。"),
+            L.T("會議可以分資料夾：在會議上按右鍵（或「更多」）選「移到資料夾」→「新資料夾…」。側欄的資料夾點一下就在原地展開最近 5 場，下面的「其他會議」只列不在資料夾裡的會議。展開後點「顯示全部」，下面的列表就只看這個資料夾，這時新錄的和匯入的會議都會放進去。資料夾按右鍵可以重新命名或刪除（會議會保留）。"),
             L.T("刪除的會議會先放進側欄最下面的「垃圾桶」，30 天內都可以還原。"),
+            // 排序、分組、篩選，資料夾自動歸類，直接改刪（R97、R98、R100、design-windows §11.30、§11.31、§11.33；定期會議 D177 拿掉）
+            L.T("會議多了可以整理：會議列表上方那一行右邊的漏斗按鈕可以照日期、標題、長度排序，依月份或資料夾分組，只看有待確認、有你的待辦、某個人參加或某個範本的會議。資料夾按右鍵選「自動加入的條件…」，例如標題有「週會」、某幾個人都參加，新的會議整理完就自動放進去。"),
+            // 側欄的收合（R101、design-windows §11.34）
+            L.T("側欄太長時可以收起來：點「資料夾」「其他會議」這些標題就收起或展開；展開的會議點一下直接打開。"),
+            L.T("每一種東西都可以直接改：側欄的會議、資料夾、人物按右鍵，或滑鼠移上去時右邊的「⋯」；選到時按 Enter 或 F2 重新命名、按 Delete 刪除。會議紀錄的每一條按兩下就能改，按右鍵可以刪掉那一條（改錯了按紀錄分頁「編輯」旁的「復原上一版」）。會議頁上方的說話者點名字就能重新命名。"),
+            // 人物頁（R85、design-windows §11.22）
+            L.T("側欄上方切到「人物」，可以看拾音認識的每個人：一起開過的會議（每場他說了多久）、所有會議紀錄裡他負責的待辦，點了打開那場會議、從那個時間點播放。人物頁的名字下面可以重新命名、把被記成兩個名字的同一個人合併，或移除這個人；側欄的人按右鍵或滑過時右邊的「⋯」也一樣。"),
             L.T("說話者分得太少（人多、吵雜、手機放在桌上遠距收音）時，從「更多 → 重新處理」選「重新辨識說話者…」，告訴拾音大約幾個人。"),
             L.T("說話者分錯了：同一個人被分成兩位，點說話者的名字選「合併到…」；某幾句分錯人，在逐字稿按右鍵選「這句是誰說的」。改錯了，點說話者的名字或按右鍵選「復原」。"),
+            // 我的聲音（R80.6、design-windows §11.20）
+            L.T("到「設定 → 說話者 → 我的聲音」錄一段自己的聲音（照著畫面上的文字唸約 20 秒），第一場會議就認得你：聲音像你的說話者會直接帶入你的名字，沒把握時在待確認問你。錄音只用來算聲音特徵，算完就刪掉。"),
+            // 分享畫面時藏起拾音的視窗（R77.2、design-windows §11.19）
+            L.T("「設定 → 一般」的「分享畫面時藏起拾音的視窗」：打開後，用 Zoom、Teams、Google Meet 分享整個螢幕時別人看不到拾音，截圖、螢幕錄影也拍不到。"),
             L.T("開 Zoom、Teams、Google Meet 等線上會議時，拾音會提醒你開始錄音；會議好像結束時提醒停止。"),
-            L.T("遇到問題，可以從設定的「進階」選「回報問題…」，會附上版本和環境（不含會議內容）。")));
+            L.T("遇到問題，可以從設定的「檢查與更新」選「回報問題…」，會附上版本和環境（不含會議內容）。")));
         // 會議的參考文件（M§39.6、R61.10）
         column.Children.Add(Section(L.T("會議的參考文件"),
             L.T("會議中一起討論的文件（簡報、規格書、報價單、白板照片）可以加進會議：會議標題下迴紋針圖示的選單（還沒有文件時寫「加入文件」）選「加入文件…」，或把 PDF、Word、PowerPoint、圖片拖進視窗。純文字、Markdown 要從「加入文件…」選（拖進來的 txt 會當成逐字稿、md 會當成筆記）。"),
@@ -390,7 +403,7 @@ public static class OtherWindows
             L.T("掃描的 PDF、圖片用 Windows 的文字辨識讀出文字（要有會議語言的辨識：設定 → 時間與語言 → 語言與地區）。一場會議的文件合計最多 4 萬字，太長的只送前面的部分。Keynote、Pages 請先匯出成 PDF。")));
         // 讓 AI 工具讀取會議（本地 MCP，M§44.4、design-windows §11.12）
         column.Children.Add(Section(L.T("讓 AI 工具讀取會議"),
-            L.T("Claude Code、Claude Desktop、Codex 等支援 MCP 的 AI 工具可以直接讀拾音的會議：到「設定 → 進階 → AI 工具（MCP）」打開「讓 AI 工具讀取會議」，再按「加到 Claude Code」「加到 Codex」或「加到 Claude Desktop」。其他工具用「複製」自己貼上設定。拾音不用開著。"),
+            L.T("Claude Code、Claude Desktop、Codex 等支援 MCP 的 AI 工具可以直接讀拾音的會議：到「設定 → AI 工具」打開「讓 AI 工具讀取會議」，再按「加到 Claude Code」「加到 Codex」或「加到 Claude Desktop」。其他工具用「複製」自己貼上設定。拾音不用開著。"),
             L.T("加好之後在 AI 工具裡直接問，例如「列出我這週的會議」「上週所有會議的待辦有哪些」「找出提到預算的會議，整理成一段給主管」，也可以跟其他工具一起用（把待辦開成工單、寫週報）。回答裡的會議連結點了會打開拾音、跳到那個時間點。"),
             L.T("只能讀、不能改；垃圾桶裡的會議、正在錄的會議讀不到。讀到的會議內容會交給那個 AI 工具處理，跟整理會議紀錄一樣會離開這台電腦；關掉開關就讀不到了。")));
         column.Children.Add(Section(L.T("資料與隱私"),
@@ -402,10 +415,10 @@ public static class OtherWindows
             // 企業伺服器（R52.1）：登入了才寫，沒登入的人照原本的說明
             AppHost.Current.Enterprise.HasAccount ? L.T("登入公司的企業伺服器時：錄音會上傳到公司自己的伺服器轉錄和辨識說話者，不經過其他雲端服務，轉完就刪，聲紋不存在伺服器；選「公司」整理時，逐字稿送到公司的伺服器，由公司選的模型整理（公司機房裡的模型，或公司接的 AI 服務）。公司的後台只看得到用量的數字（幾分鐘、幾次），看不到會議內容。") : null,
             // 匿名使用統計（M§30.5）：有統計網址的版本才寫
-            AppHost.Current.Usage.IsOffered ? L.T("每天送一份匿名的使用統計（版本、系統、錄音和轉錄的分鐘數、用了哪些功能、失敗的次數和種類），不含任何會議內容。在設定 → 進階可以關掉。") : null));
+            AppHost.Current.Usage.IsOffered ? L.T("每天送一份匿名的使用統計（版本、系統、錄音和轉錄的分鐘數、用了哪些功能、失敗的次數和種類），不含任何會議內容。在設定 → 一般可以關掉。") : null));
         column.Children.Add(Section(L.T("快捷鍵"),
             L.F("%@：%@", "Ctrl+R", L.T("開始或停止錄音")),
-            L.F("%@：%@", "Ctrl+Alt+Shift+R", L.T("在其他 app 裡也能開始或停止錄音（可以在設定 → 錄音與轉錄關掉）")),
+            L.F("%@：%@", "Ctrl+Alt+Shift+R", L.T("在其他 app 裡也能開始或停止錄音（可以在設定 → 錄音關掉）")),
             L.F("%@：%@", "Ctrl+Shift+P", L.T("暫停或繼續錄音")),
             L.F("%@：%@", "Ctrl+B", L.T("錄音中標記重點")),
             L.F("%@：%@", "Ctrl+Alt+Shift+B", L.T("錄音中在其他 app 裡也能標記重點")),
@@ -580,9 +593,10 @@ public sealed class MeetingPromptWindow : Window
         }
         else
         {
-            message = L.T("會議好像結束了，要停止錄音嗎？");
-            buttons.Children.Add(Ui.Button(L.T("繼續錄"), () => Do(() => { })));
-            buttons.Children.Add(Ui.Button(L.T("停止並轉錄"), () => Do(host.Recorder.Stop), accent: true));
+            // 會議結束在倒數時（R95、M§69）寫同一句、不倒數（同 Mac 的浮動視窗）；兩個按鈕都取消倒數
+            message = host.MeetingEnd.Active ? L.F("會議好像結束了，%lld 秒後自動停止錄音", (long)host.MeetingEnd.Seconds) : L.T("會議好像結束了，要停止錄音嗎？");
+            buttons.Children.Add(Ui.Button(L.T("繼續錄"), () => Do(host.MeetingEnd.Cancel)));
+            buttons.Children.Add(Ui.Button(L.T("停止並轉錄"), () => Do(() => { host.MeetingEnd.Cancel(); host.Recorder.Stop(); }), accent: true));
         }
         buttons.HorizontalAlignment = HorizontalAlignment.Right;
         Content = Ui.WindowBackground(new Border { Padding = new Thickness(16), Child = Ui.Column(12, Ui.Text(message, 14), buttons) });
@@ -603,6 +617,7 @@ public sealed class MeetingPromptWindow : Window
         var area = DisplayArea.Primary.WorkArea;
         var scale = WindowPlacement.Scale(this);
         WindowPlacement.FollowTheme(this);
+        WindowCapture.Track(this);
         int w = (int)(400 * scale), h = (int)(160 * scale), margin = (int)(20 * scale);
         AppWindow.MoveAndResize(new Windows.Graphics.RectInt32(area.X + area.Width - w - margin, area.Y + area.Height - h - margin, w, h));
         AppWindow.Show(activateWindow: false);

@@ -50,10 +50,28 @@ public sealed class AppSettings
     public const string NotesViewKey = "notesView";
     /// <summary>讓 AI 工具讀取會議（本地 MCP，M§44.1），預設關</summary>
     public const string McpEnabledKey = "mcpEnabled";
+    /// <summary>分享畫面時藏起拾音的視窗（R77、design-windows §11.19），預設關</summary>
+    public const string HideFromScreenSharingKey = "hideFromScreenSharing";
+    /// <summary>在螢幕上方顯示錄音島，預設開（M§57.2、R81.8、design-windows §11.21）</summary>
+    public const string RecordingIslandKey = "recordingIsland";
+    /// <summary>會議結束時倒數後自動停止錄音，預設開（R95、M§69、design-windows §11.28）</summary>
+    public const string AutoStopOnMeetingEndKey = "autoStopOnMeetingEnd";
+    /// <summary>逐字稿：original（原文）／clean（精簡，R96、M§70）</summary>
+    public const string TranscriptViewKey = "transcriptView";
+    /// <summary>會議列表的排序、分組（R97、M§71、design-windows §11.30）：dateDesc／dateAsc／title／duration、none／month／folder（以前存的 series 讀成不分組）</summary>
+    public const string MeetingSortKey = "meetingSort";
+    public const string MeetingGroupingKey = "meetingGrouping";
+    /// <summary>側欄收起來的段落、在原地展開的資料夾（R101、M§75、design-windows §11.34）：字串陣列，鍵同 Mac</summary>
+    public const string SidebarCollapsedKey = "sidebarCollapsed";
+    public const string SidebarExpandedKey = "sidebarExpanded";
+    /// <summary>側欄「資料夾」那一段拖曳排好的順序（R103.2、M§77、design-windows §11.36）：字串陣列（照順序），鍵同 sidebarExpanded</summary>
+    public const string SidebarOrderKey = "sidebarOrder";
     /// <summary>中文的字：traditional／simplified（沒有值 = traditional，M§47.2）</summary>
     public const string ChineseScriptKey = "chineseScript";
     /// <summary>Windows 才有：介面語言（空的是跟著 Windows 的顯示語言，zh、en）</summary>
     public const string InterfaceLanguageKey = "interfaceLanguage";
+    /// <summary>設定視窗上次停在哪一頁（R108.5、M§82）：SettingsPages 的代號，鍵同 Mac</summary>
+    public const string SettingsPageKey = "settingsPage";
 
     readonly string? path;
     readonly object gate = new();
@@ -296,6 +314,7 @@ public sealed class AppSettings
     public bool SummarizerReady => SummarizerProblem is null;
     public bool AutoSummarize => Flag(AutoSummarizeKey, true);
     public bool McpEnabled => Flag(McpEnabledKey, false);
+    public bool HideFromScreenSharing => Flag(HideFromScreenSharingKey, false);
     public bool CompressAudio => Flag(CompressAudioKey, true);
     public bool Diarize => Flag(DiarizeKey, true);
     /// <summary>線上會議的麥克風、電腦聲音分開轉錄（M§17.3）；還在評估，設定裡沒有開關</summary>
@@ -318,6 +337,15 @@ public sealed class AppSettings
     public bool GlobalHotKey => Flag(GlobalHotKeyKey, true);
     public bool Voiceprints => Flag(VoiceprintsKey, true);
     public bool MeetingDetection => Flag(MeetingDetectionKey, true);
+    /// <summary>在螢幕上方顯示錄音島（M§57、R81.8）</summary>
+    public bool RecordingIsland => Flag(RecordingIslandKey, true);
+    /// <summary>會議結束時倒數 60 秒自動停止錄音（R95.2）</summary>
+    public bool AutoStopOnMeetingEnd => Flag(AutoStopOnMeetingEndKey, true);
+    /// <summary>逐字稿顯示原文還是精簡版（R96.1）</summary>
+    public string TranscriptView => String(TranscriptViewKey) == "clean" ? "clean" : "original";
+    /// <summary>會議列表的排序、分組（R97.2）：記住；認不得的值用預設</summary>
+    public MeetingSort MeetingSort => MeetingSorts.Parse(String(MeetingSortKey)) ?? MeetingSort.DateDesc;
+    public MeetingGrouping MeetingGrouping => MeetingGroupings.Parse(String(MeetingGroupingKey)) ?? MeetingGrouping.None;
     public bool BookmarkHotKey => Flag(BookmarkHotKeyKey, true);
     public bool IdleStop => Flag(IdleStopKey, true);
     /// <summary>正式轉錄用快速辨識（Mac 的「macOS 內建」，D45）：設定值同 Mac 是 system</summary>

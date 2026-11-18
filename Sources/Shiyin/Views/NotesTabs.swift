@@ -26,14 +26,37 @@ struct ReadingColumn<Content: View>: View {
     }
 }
 
-/// 紀錄的一段（fork F4.1、F4.3，design §F4.4）：標題、條數、滑過才出現的「複製這一段」；`accent` 有給時左邊一條色條
-struct NotesSection<Content: View>: View {
+/// 紀錄的一段（fork F4.1、F4.3，design §F4.4）：標題、條數、滑過才出現的「複製這一段」；`accent` 有給時左邊一條色條。
+/// 上游 5.0 的標題右邊按鈕（`accessory`，「待辦」的「加到提醒事項」，design §52.2）放在複製鈕後面
+struct NotesSection<Content: View, Accessory: View>: View {
     let title: String
-    var count: Int? = nil
+    var count: Int? = nil   // MA-FORK(F4)：count、accent、copy 三個參數
     var accent: Color? = nil
     var copy: NotesSectionScope? = nil
-    @ViewBuilder var content: Content
+    /// 標題右邊的按鈕（「待辦」的「加到提醒事項」，design §52.2）
+    var accessory: Accessory
+    var content: Content
     @State private var hovering = false
+
+    init(title: String, count: Int? = nil, accent: Color? = nil, copy: NotesSectionScope? = nil,
+         @ViewBuilder content: () -> Content) where Accessory == EmptyView {
+        self.title = title
+        self.count = count
+        self.accent = accent
+        self.copy = copy
+        self.accessory = EmptyView()
+        self.content = content()
+    }
+
+    init(title: String, count: Int? = nil, accent: Color? = nil, copy: NotesSectionScope? = nil,
+         @ViewBuilder accessory: () -> Accessory, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.count = count
+        self.accent = accent
+        self.copy = copy
+        self.accessory = accessory()
+        self.content = content()
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -42,6 +65,7 @@ struct NotesSection<Content: View>: View {
                 if let count { Text(verbatim: String(count)).contentFont(.callout, monospacedDigit: true).foregroundStyle(.secondary) }
                 Spacer(minLength: 0)
                 if let copy { SectionCopyButton(scope: copy, help: String(localized: "複製這一段（純文字）")).opacity(hovering ? 1 : 0) }
+                accessory
             }
             content
         }
@@ -87,7 +111,7 @@ struct NoteRow: View {
                 .foregroundStyle(symbolColor.map { AnyShapeStyle($0) } ?? AnyShapeStyle(.secondary))
                 .frame(minWidth: 10, alignment: .leading)
             Text(item.text).meetingText()
-                .textSelection(.enabled)
+                .selectableUnlessEditable(ref != nil && detail != nil)   // 上游 R100：可以就地編輯的條目不設成可選取（點了編輯）
                 .frame(maxWidth: .infinity, alignment: .leading)
             if let ref, let detail { ReviewMarker(ref: ref, count: detail.reviewCount(ref)) }
             if !item.time.isEmpty { TimeButton(time: item.time, subdued: true, highlighted: hovering) }
@@ -111,7 +135,13 @@ struct ItemList: View {
             ForEach(Array(items.enumerated()), id: \.offset) { index, item in
                 let ref = ref(index)
                 VStack(alignment: .leading, spacing: 8) {
-                    NoteRow(item: item, symbol: symbol, symbolColor: symbolColor, ref: ref, detail: detail)
+                    if let ref, detail != nil, model.editingNoteItem == ref {
+                        // 就地改這一條（R100、design §74）
+                        NoteItemEditor(ref: ref)
+                    } else {
+                        NoteRow(item: item, symbol: symbol, symbolColor: symbolColor, ref: ref, detail: detail)   // MA-FORK(F4)：符號、時間點降噪
+                            .noteItemActions(ref: detail == nil ? nil : ref, text: item.text, time: item.time)
+                    }
                     if let ref, let detail, model.reviewDraft?.expanded == ref {
                         InlineReviewCard(detail: detail, indexes: detail.reviewLinks[ref] ?? [])
                     }
@@ -302,9 +332,10 @@ struct InlineReviewCard: View {
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer()
                     Button("收合") { draft.expanded = nil }
+                        .buttonStyle(SheetPillButtonStyle(.secondary, compact: true))
                     // 只送這一條對到的題目（R41.2），題數也只算這幾題
                     Button(draft.submitTitle(only: shown)) { model.submitReviewDraft(only: shown) }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(SheetPillButtonStyle(.primary, compact: true))
                         .disabled(!draft.hasSomethingToSubmit(only: shown) || model.detailStatus?.isActive == true)
                 }
             }
@@ -318,7 +349,7 @@ struct InlineReviewCard: View {
 /// 沒有會議紀錄時的說明與動作
 struct NotesPlaceholder: View {
     @Environment(AppModel.self) private var model
-    @Environment(\.openSettings) private var openSettings
+    @Environment(\.openWindow) private var openWindow
     let detail: MeetingDetail
 
     var body: some View {
@@ -334,15 +365,15 @@ struct NotesPlaceholder: View {
                 // 沒選過整理工具、也沒有 claude、codex（R35.2）：說還沒設定，給打開設定的按鈕（整理工具是第一個分頁）
                 Text("還沒設定整理工具。選好之後，就能把逐字稿整理成摘要、決議和待辦；之後的會議轉錄完會自動整理。")
                     .foregroundStyle(.secondary)
-                Button("設定整理工具") { openSettings() }
+                Button("設定整理工具") { openWindow.settings(.provider) }
             } else if AppSettings.provider != .none, let problem = model.summarizerProblem {
                 // 選了整理工具但還沒準備好（沒登入、沒有 key…，R45.4）：說原因，給修的按鈕
-                // 不加 fixedSize：這裡不在 ScrollView 裡，量最小高度時整個視窗的內容會被往上推（CLAUDE.md）
+                // 不加 fixedSize：這裡不在 ScrollView 裡，量最小高度時整個視窗的內容會被往上推
                 Text("整理工具還沒設定好：\(problem.message)")
                     .foregroundStyle(.secondary)
                 Button(problem.actionTitle) {
                     switch problem.action {
-                    case .openSettings: openSettings()
+                    case .openSettings: openWindow.settings(problem.settingsPage)
                     case .login(let provider): CLILogin.openLogin(provider)
                     }
                 }
@@ -369,6 +400,8 @@ struct NotesPage: View {
     let detail: MeetingDetail
     @State private var editing: MeetingNotes?
     @State private var base: MeetingNotes?
+    /// 心智圖的縮放（design §65）：換會議時這個 view 跟著換，回到預設；切回條列時清掉
+    @State private var mindMapZoom: Double?
 
     var body: some View {
         if let current = editing {
@@ -376,6 +409,12 @@ struct NotesPage: View {
                 .onDisappear { finish(true, automatically: true) }   // 切到別的分頁、別場會議：自動存，不丟掉打的字
         } else if let notes = detail.notes, !notes.isEmpty, notesView == "mindMap" {
             mindMapPage(notes)
+        } else if let notes = detail.notes, !notes.isEmpty, notesView == "people" {
+            // 人物（R92、design §66）：條列、心智圖不變，依人整理的另外一頁
+            ReadingColumn {
+                header(notes)
+                PeopleNotes(detail: detail, notes: notes)
+            }
         } else if let notes = detail.notes, !notes.isEmpty {
             listPage(notes)
         } else {
@@ -410,6 +449,15 @@ struct NotesPage: View {
                 }
                 if !notes.actionItems.isEmpty {
                     NotesSection(title: String(localized: "待辦"), count: notes.actionItems.count, accent: .actionBlue, copy: .actionItems) {
+                        // 加到提醒事項（design §52.2、R76.1）：垃圾桶裡的會議不顯示
+                        if detail.meeting.deletedAt == nil {
+                            Button("加到提醒事項", systemImage: "checklist") { model.addActionItemsToReminders() }
+                                .buttonStyle(.borderless)
+                                .font(.callout)
+                                .disabled(model.addingReminders)
+                                .help("把這場會議的待辦加到「提醒事項」app 的「\(Reminders.listTitle)」列表，加過的不會重複加")
+                        }
+                    } content: {
                         ActionItemsTable(items: notes.actionItems, detail: detail) { .actionItems($0) }
                     }
                 }
@@ -502,6 +550,10 @@ struct NotesPage: View {
         if let id = detail.meeting.id, model.documentsChanged.contains(id) {
             DocumentsBanner().environment(\.textScale, 1)
         }
+        // 這場很像某個資料夾裡的會議（R98.3）
+        if let id = detail.meeting.id, let suggestion = model.folderSuggestion(for: detail.meeting) {
+            FolderSuggestionBanner(meetingId: id, suggestion: suggestion).environment(\.textScale, 1)
+        }
         if detail.reviewCount > 0 { ReviewBanner(detail: detail) }
         EditBar(viewMode: $notesView, disabled: model.detailStatus?.isActive == true,
                 onUndo: detail.canUndoNotes ? { model.undoNotes() } : nil) {
@@ -525,7 +577,7 @@ struct NotesPage: View {
                     .padding(.bottom, 26)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 MindMapView(layout: layout, language: detail.meeting.meetingLanguage, availableWidth: width,
-                            onSeek: model.player.isLoaded ? { model.player.seek(to: $0) } : nil)
+                            onSeek: model.player.isLoaded ? { model.player.seek(to: $0) } : nil, zoom: $mindMapZoom)
             }
         }
         return Group {
@@ -537,6 +589,7 @@ struct NotesPage: View {
                 }
             }
         }
+        .onDisappear { mindMapZoom = nil }   // 切回條列、編輯、換分頁時回到預設（R91.3）
     }
 
     private func finish(_ save: Bool, automatically: Bool = false) {
@@ -586,8 +639,93 @@ struct ReviewBanner: View {
 }
 
 /// 右上角的「編輯」按鈕；有上一版時旁邊多一顆「復原上一版」（R44.4，原本在「更多」）；左邊是「條列｜心智圖」（R67）
+/// 人物（R92、design §66）：每個人一張：頭像、名字、說了多久，重點（時間點、待確認的標記）、負責的待辦。
+/// 這場的紀錄還沒有每個人的重點時說明原因；有兩位以上說話者時可以只補上這一段（其他段落不動）
+struct PeopleNotes: View {
+    @Environment(AppModel.self) private var model
+    let detail: MeetingDetail
+    let notes: MeetingNotes
+
+    var body: some View {
+        if notes.people.contains(where: { !$0.points.isEmpty }) {
+            let spoken = spokenSeconds
+            let total = spoken.values.reduce(0, +)
+            VStack(alignment: .leading, spacing: 30) {
+                ForEach(Array(notes.people.enumerated()), id: \.offset) { p, person in
+                    if !person.points.isEmpty { card(p, person, spoken: spoken, total: total) }
+                }
+            }
+            .padding(.top, 10)
+        } else {
+            VStack(alignment: .leading, spacing: 12) {
+                if detail.speakers.count < 2 {
+                    Text("這場會議只有一位說話者（或沒有辨識說話者），沒有依人物整理的重點。").foregroundStyle(.secondary)
+                } else {
+                    Text("這場的會議紀錄還沒有每個人的重點。").foregroundStyle(.secondary)
+                    Button("產生每個人的重點", systemImage: "person.2") { model.generatePeopleNotes() }
+                        .disabled(model.detailStatus?.isActive == true)
+                        .help("用整理工具依說話者整理每個人的重點；摘要、決議、待辦這些段落不會變")
+                }
+            }
+            .contentFont()
+            .padding(.top, 10)
+        }
+    }
+
+    private func card(_ p: Int, _ person: MeetingNotes.Person, spoken: [Int: Double], total: Double) -> some View {
+        let idx = speakerIdx(person.name)
+        let owned = notes.actionItems.enumerated().filter { owns($0.element.owner, person.name) }
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                PersonAvatar(name: person.name, color: idx.map(Color.speaker) ?? Color.person(person.name),
+                             size: 30, isMe: idx != nil && idx == detail.selfIdx)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(person.name).contentTitleFont(18)
+                    if let idx, let seconds = spoken[idx], total > 0 {
+                        Text("說了 \(TimeFormat.duration(Int(seconds.rounded())))（\(Int((seconds / total * 100).rounded()))%）")
+                            .contentFont(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            ItemList(items: person.points, detail: detail) { .person(p, $0) }
+            if !owned.isEmpty {
+                Text("負責的待辦").contentFont(.callout).foregroundStyle(.secondary).padding(.top, 4)
+                ItemList(items: owned.map { MeetingNotes.Item(text: dueText($0.element), time: $0.element.time) }, detail: detail) {
+                    .actionItems(owned[$0].offset)
+                }
+            }
+        }
+    }
+
+    /// 每位說話者在正式逐字稿裡說了幾秒
+    private var spokenSeconds: [Int: Double] {
+        var seconds: [Int: Double] = [:]
+        for s in detail.segments where s.kind == "final" {
+            if let idx = s.speaker { seconds[idx, default: 0] += max(0, s.end - s.start) }
+        }
+        return seconds
+    }
+
+    /// 名字對到哪一位說話者（不分大小寫、去頭尾空白）；對不到是 nil，頭像照名字算顏色（同人物頁）
+    private func speakerIdx(_ name: String) -> Int? {
+        let target = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return detail.speakers.first { $0.value.trimmingCharacters(in: .whitespacesAndNewlines).caseInsensitiveCompare(target) == .orderedSame }?.key
+    }
+
+    /// 負責人跟名字一樣或包含名字（不分大小寫，同人物頁的待辦，R85.3）
+    private func owns(_ owner: String, _ name: String) -> Bool {
+        let target = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !target.isEmpty && owner.range(of: target, options: .caseInsensitive) != nil
+    }
+
+    private func dueText(_ item: MeetingNotes.ActionItem) -> String {
+        item.due.isEmpty ? item.task : String(localized: "\(item.task)（期限 \(item.due)）")
+    }
+}
+
 struct EditBar: View {
-    /// list／mindMap；nil 不顯示切換
+    /// list／mindMap／people；nil 不顯示切換
     var viewMode: Binding<String>? = nil
     /// 轉錄或整理中不能編輯：工作完成時會整份寫回，手動改的會被蓋掉
     var disabled = false
@@ -601,11 +739,12 @@ struct EditBar: View {
                 Picker("顯示方式", selection: viewMode) {
                     Text("條列").tag("list")
                     Text("心智圖").tag("mindMap")
+                    Text("人物").tag("people")
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
                 .fixedSize()
-                .help("把會議紀錄切換成條列或心智圖")
+                .help("把會議紀錄切換成條列、心智圖或依人物整理")
             }
             Spacer()
             if let onUndo {
@@ -629,6 +768,7 @@ struct EditBar: View {
 /// 待辦表（fork F4.4）：負責人、期限在左邊方便掃讀，事項在右邊、時間點在最後；三個文字欄都能選取
 struct ActionItemsTable: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.textScale) private var scale
     let items: [MeetingNotes.ActionItem]
     var detail: MeetingDetail? = nil
     var ref: (Int) -> NoteItemRef? = { _ in nil }
@@ -648,19 +788,40 @@ struct ActionItemsTable: View {
             ForEach(Array(items.enumerated()), id: \.offset) { index, item in
                 let ref = ref(index)
                 GridRow {
-                    Text(item.owner.isEmpty ? String(localized: "未指定") : item.owner).meetingText()
-                        .fontWeight(item.owner.isEmpty ? .regular : .semibold)
-                        .foregroundStyle(item.owner.isEmpty ? Color.signal : Color.primary)
-                        .textSelection(.enabled)
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        // 負責人是這場的說話者時放他的頭像（design §58.2、R83.2）
+                        if let idx = detail?.speakerIdx(named: item.owner) {
+                            PersonAvatar(name: item.owner, color: Color.speaker(idx), isMe: idx == detail?.selfIdx)
+                                .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 4 * scale }
+                        }
+                        Text(item.owner.isEmpty ? String(localized: "未指定") : item.owner).meetingText()   // MA-FORK(F4)：負責人粗體、可選取（F4.4）
+                            .fontWeight(item.owner.isEmpty ? .regular : .semibold)
+                            .foregroundStyle(item.owner.isEmpty ? Color.signal : Color.primary)
+                            .textSelection(.enabled)
+                    }
                     Text(item.due.isEmpty ? "—" : item.due)
                         .monospacedDigit()
                         .foregroundStyle(item.due.isEmpty ? .tertiary : .primary)
                         .textSelection(.enabled)
-                    Text(item.task).meetingText()
-                        .textSelection(.enabled)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .gridColumnAlignment(.leading)
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        if let ref, detail != nil, model.editingNoteItem == ref {
+                            NoteItemEditor(ref: ref)   // 就地改這一條（R100）
+                        } else {
+                            Text(item.task).meetingText()
+                                .selectableUnlessEditable(ref != nil && detail != nil)
+                                .fixedSize(horizontal: false, vertical: true)
+                            // 已經加到提醒事項的（design §52.2、R76.4）：完成了打勾
+                            if detail != nil, let done = model.reminderStatus[Reminders.key(item.task)] {
+                                Image(systemName: done ? "checkmark.circle.fill" : "checklist")
+                                    .foregroundStyle(done ? Color.celadon : Color.secondary)
+                                    .contentFont(.caption)
+                                    .help(done ? "已在提醒事項裡完成" : "已加到提醒事項")
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .noteItemActions(ref: detail == nil || model.editingNoteItem == ref ? nil : ref, text: item.task, time: item.time)
+                    .gridColumnAlignment(.leading)
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         if let ref, let detail { ReviewMarker(ref: ref, count: detail.reviewCount(ref)) }
                         if !item.time.isEmpty { TimeButton(time: item.time, subdued: true, highlighted: hovered == index) }
@@ -695,17 +856,26 @@ struct NotesEditor: View {
     @Environment(\.textScale) private var scale
     @Binding var notes: MeetingNotes
     let onFinish: (Bool) -> Void
+    /// 打開時有每個人的重點才顯示那一段（刪光了也留著，可以再新增）
+    @State private var showsPeople: Bool
+
+    init(notes: Binding<MeetingNotes>, onFinish: @escaping (Bool) -> Void) {
+        _notes = notes
+        self.onFinish = onFinish
+        _showsPeople = State(initialValue: !notes.wrappedValue.people.isEmpty)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("編輯會議紀錄").font(.headline)
+                Text("編輯會議紀錄").font(.title3).fontWeight(.bold)
                 Spacer()
                 Button("取消") { onFinish(false) }
+                    .buttonStyle(SheetPillButtonStyle(.secondary, compact: true))
                     .keyboardShortcut(.cancelAction)
                 Button("完成") { onFinish(true) }
+                    .buttonStyle(SheetPillButtonStyle(.primary, compact: true))
                     .keyboardShortcut(.defaultAction)
-                    .buttonStyle(.borderedProminent)
             }
             .padding(.horizontal, 32)
             .padding(.vertical, 10)
@@ -741,6 +911,27 @@ struct NotesEditor: View {
                         let section = $notes.custom.safe(i, fallback: .init(title: "", items: []))
                         EditorSection(title: section.wrappedValue.title) { ItemsEditor(items: section.items) }
                     }
+                    // 每個人的重點（R92，「人物」顯示的那一段）：有這一段時才出現，原本的編輯器不變；同議題，名字欄＋重點
+                    if showsPeople {
+                        EditorSection(title: String(localized: "每個人的重點")) {
+                            ForEach(notes.people.indices, id: \.self) { i in
+                                let person = $notes.people.safe(i, fallback: .init(name: "", points: []))
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack {
+                                        TextField("名字", text: person.name).contentTitleFont(16)
+                                        Button { if notes.people.indices.contains(i) { notes.people.remove(at: i) } } label: { Image(systemName: "trash") }
+                                            .buttonStyle(.borderless).help("刪除這個人的重點")
+                                    }
+                                    ItemsEditor(items: person.points)
+                                }
+                            }
+                            Button("新增一個人", systemImage: "plus") {
+                                notes.people.append(.init(name: "", points: []))
+                            }
+                            .buttonStyle(.borderless)
+                            .contentFont(.callout)
+                        }
+                    }
                     if !notes.reviewItems.isEmpty {
                         EditorSection(title: String(localized: "待確認")) {
                             ForEach(Array(notes.reviewItems.enumerated()), id: \.offset) { index, item in
@@ -755,7 +946,7 @@ struct NotesEditor: View {
                         }
                     }
                 }
-                .textFieldStyle(.roundedBorder)
+                .textFieldStyle(.sheetCompact)
                 .contentFont()   // 文字大小（design §38.5）
                 .frame(maxWidth: 720 * scale, alignment: .leading)
                 .padding(.horizontal, 32)

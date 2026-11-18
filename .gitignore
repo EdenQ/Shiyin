@@ -21,3 +21,5 @@ dist
 # IDE 的設定、dotnet test 的暫存
 .idea/
 windows/TestResults/
+# Claude Code 的本機設定：只留在本地，不推。上游也不推 CLAUDE.md，fork 有追蹤（MA-FORK，docs/fork/upstream-sync.md §2.1）
+.claude/

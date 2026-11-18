@@ -10,7 +10,9 @@ extension SnakeCaseRecord {
 }
 
 enum Clock {
-    static func now() -> String { ISO8601DateFormatter().string(from: Date()) }
+    /// 格式同 ISO8601DateFormatter 的預設（2026-11-17T01:02:03Z）。不要每次新建 ISO8601DateFormatter：
+    /// 資料表的預設值（createdAt = Clock.now()）讀每一筆都會跑一次，長會議的校正建議光建格式器就要 0.1 秒（2026-11-17 量到）
+    static func now() -> String { Date().ISO8601Format() }
 }
 
 struct Meeting: SnakeCaseRecord, Identifiable, Hashable {
@@ -44,6 +46,8 @@ struct Meeting: SnakeCaseRecord, Identifiable, Hashable {
     // v9（design §24.1）：說話者辨識的自我檢查分數（越大越可能把不同的人併在一起），nil 是沒算過；使用者按了「不用了」
     var speakerCheck: Double?
     var speakerHintDismissed: Bool = false
+    // v12（design §72）：資料夾已經決定了（自動放過、自己移過、建議按了不用）。定期會議的 series_id 欄位留著不用（D177）
+    var folderDecided: Bool = false
 
     var meetingLanguage: MeetingLanguage { MeetingLanguage(rawValue: language) ?? .zh }
 
@@ -213,21 +217,22 @@ enum JobKind: String, Codable, CaseIterable {
     case correct   // 逐字稿校正（design §17.4）
     case nameSpeakers   // 猜說話者（design §21.5）
     case rediarize   // 只重新辨識說話者（design §23）
+    case clean   // 精簡逐字稿（design §70）
 
     /// 轉錄線、整理線、輔助線（design §21.2）：校正、猜說話者在輔助線，跟整理同時跑
     var lane: JobLane {
         switch self {
         case .transcribe, .compress, .rediarize: return .transcribe
         case .summarize, .revise: return .llm
-        case .correct, .nameSpeakers: return .assist
+        case .correct, .nameSpeakers, .clean: return .assist
         }
     }
 
     /// 要用整理工具的工作（design §34）
-    var usesSummarizer: Bool { self == .summarize || self == .revise || self == .correct || self == .nameSpeakers }
+    var usesSummarizer: Bool { self == .summarize || self == .revise || self == .correct || self == .nameSpeakers || self == .clean }
 
     /// 背景的輔助工作：不發通知、不改會議的狀態
-    var isAuxiliary: Bool { self == .compress || self == .correct || self == .nameSpeakers || self == .rediarize }
+    var isAuxiliary: Bool { self == .compress || self == .correct || self == .nameSpeakers || self == .rediarize || self == .clean }
 }
 
 enum JobLane: String, CaseIterable { case transcribe, llm, assist }

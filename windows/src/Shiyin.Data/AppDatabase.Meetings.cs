@@ -61,6 +61,23 @@ public sealed partial class AppDatabase
     public Job? LatestJob(long meetingId) => Read(db =>
         db.QueryOne($"SELECT * FROM jobs WHERE meeting_id = ? AND kind NOT IN ({AuxiliaryKinds}) ORDER BY id DESC LIMIT 1", meetingId) is { } r ? ToJob(r) : null);
 
+    /// <summary>某種工作最後一次的紀錄（輔助工作也算；精簡逐字稿失敗時要說明，R96、M§70）</summary>
+    public Job? LastJob(long meetingId, JobKind kind) => Read(db =>
+        db.QueryOne("SELECT * FROM jobs WHERE meeting_id = ? AND kind = ? ORDER BY id DESC LIMIT 1", meetingId, kind.Code()) is { } r ? ToJob(r) : null);
+
+    /// <summary>精簡逐字稿（R96、M§70）：段落 id → 精簡後的文字（空字串是整句都是贅字）；沒產生過是空的</summary>
+    public Dictionary<long, string> CleanLines(long meetingId) => Read(db =>
+        db.Query("SELECT c.segment_id, c.text FROM clean_lines c JOIN segments s ON s.id = c.segment_id WHERE s.meeting_id = ?", meetingId)
+            .ToDictionary(r => r.Long("segment_id"), r => r.Str("text")));
+
+    /// <summary>存精簡逐字稿：這場會議原本的精簡版整份換掉；段落已經不在（整理期間被刪、重新轉錄）的跳過（同 Mac）</summary>
+    public void SaveCleanLines(long meetingId, IReadOnlyDictionary<long, string> lines) => Write(db =>
+    {
+        db.Execute("DELETE FROM clean_lines WHERE segment_id IN (SELECT id FROM segments WHERE meeting_id = ?)", meetingId);
+        foreach (var (id, text) in lines)
+            db.Execute("INSERT INTO clean_lines (segment_id, text) SELECT id, ? FROM segments WHERE id = ? AND meeting_id = ?", text, id, meetingId);
+    });
+
     /// <summary>最後一次完成的轉錄的 payload（M§35.3：until 是只轉錄到第幾秒）；沒有就是 null</summary>
     public string? LastTranscribePayload(long meetingId) => Read(db =>
         db.Scalar("SELECT payload FROM jobs WHERE meeting_id = ? AND kind = 'transcribe' AND status = 'done' ORDER BY id DESC LIMIT 1", meetingId) as string);
@@ -85,16 +102,41 @@ public sealed partial class AppDatabase
         Index(db, m.Id!.Value, SearchKind.UserNotes, m.UserNotes);
     });
 
-    /// <summary>資料夾（R9.2）：資料夾就是 meetings.folder 的值，空字串表示不在任何資料夾</summary>
+    /// <summary>
+    /// 資料夾（R9.2）：資料夾就是 meetings.folder 的值，空字串表示不在任何資料夾。
+    /// 自己移進、移出資料夾後不再自動放、不再建議（folder_decided，M§72）
+    /// </summary>
     public void SetFolder(IReadOnlyList<long> ids, string folder)
     {
         if (ids.Count == 0) return;
-        Write(db => { foreach (var id in ids) db.Execute("UPDATE meetings SET folder = ?, updated_at = ? WHERE id = ?", folder, Clock.Now(), id); });
+        Write(db =>
+        {
+            foreach (var id in ids) db.Execute("UPDATE meetings SET folder = ?, folder_decided = 1, updated_at = ? WHERE id = ?", folder, Clock.Now(), id);
+            if (folder.Length > 0) db.Execute("INSERT OR IGNORE INTO folders (name, created_at) VALUES (?, ?)", folder, Clock.Now());
+        });
     }
 
-    /// <summary>改名或刪除（newName 為空字串）一個資料夾，垃圾桶裡的會議也一起改</summary>
-    public void RenameFolder(string old, string newName) =>
-        Write(db => db.Execute("UPDATE meetings SET folder = ?, updated_at = ? WHERE folder = ?", newName, Clock.Now(), old));
+    /// <summary>建一個空的資料夾（R104、M§78）</summary>
+    public void CreateFolder(string name) => Write(db => db.Execute("INSERT OR IGNORE INTO folders (name, created_at) VALUES (?, ?)", name, Clock.Now()));
+
+    /// <summary>資料夾表裡的名字（會議都移走了也還在；側欄跟會議的資料夾、條件取聯集，M§78）</summary>
+    public List<string> FolderNames() => Read(db => db.Query("SELECT name FROM folders").Select(r => r.Str("name")).ToList());
+
+    /// <summary>
+    /// 改名或刪除（newName 為空字串）一個資料夾，垃圾桶裡的會議也一起改。
+    /// 改名時自動加入的條件跟著改名；刪除資料夾（或新名稱已經有條件）時條件一起刪（M§72）
+    /// </summary>
+    public void RenameFolder(string old, string newName) => Write(db =>
+    {
+        db.Execute("UPDATE meetings SET folder = ?, updated_at = ? WHERE folder = ?", newName, Clock.Now(), old);
+        var targetHasRule = db.Scalar("SELECT 1 FROM folder_rules WHERE folder = ?", newName) is not null;
+        if (newName.Length == 0 || targetHasRule) db.Execute("DELETE FROM folder_rules WHERE folder = ?", old);
+        else db.Execute("UPDATE folder_rules SET folder = ? WHERE folder = ?", newName, old);
+        // 資料夾表（R104、M§78）：刪除、改成已經有的名字時拿掉舊的，不然改名
+        var targetExists = db.Scalar("SELECT 1 FROM folders WHERE name = ?", newName) is not null;
+        if (newName.Length == 0 || targetExists) db.Execute("DELETE FROM folders WHERE name = ?", old);
+        else db.Execute("UPDATE folders SET name = ? WHERE name = ?", newName, old);
+    });
 
     /// <summary>錄音中途當掉、連錄音檔都沒有的會議（M§20.6）</summary>
     public List<long> EmptyRecordingMeetings() => Read(db =>
@@ -115,6 +157,76 @@ public sealed partial class AppDatabase
         });
         files.ForEach(RemoveDocumentFile);
     }
+
+    /// <summary>
+    /// 從 cut 秒分成兩場（R90、M§64）：開始時間 ≥ cut 的段落（正式、即時都算）、標記重點搬到新的一場，時間減 cut、seq 重新從 0 編；
+    /// 校正建議、搜尋索引跟著段落。說話者兩邊各留有段落的；只在新的一場說話的人，聲紋改指新的一場。
+    /// audioExtension：切好的錄音的副檔名（null 是沒有錄音）；跟原本那場的不同時（匯入的 mp3 切成 m4a，design-windows §11.23）
+    /// 原本那場的錄音檔名一起改。回傳新的一場（錄音檔名已經給好，檔案由呼叫的人搬）
+    /// </summary>
+    public Meeting? SplitMeeting(long id, double cut, string title, string? audioExtension) => Write(db => SplitMeeting(db, id, cut, title, audioExtension));
+
+    /// <summary>同上，在呼叫的人的交易裡（編輯會議套用時一起分，M§81.1）</summary>
+    internal static Meeting? SplitMeeting(Db db, long id, double cut, string title, string? audioExtension)
+    {
+        if (FetchMeeting(db, id) is not { } original) return null;
+        var meeting = original.Clone();
+        meeting.Id = null;
+        meeting.Title = title;
+        meeting.AudioFile = "";
+        meeting.Notes = null;
+        meeting.NotesBy = null;
+        meeting.NotesDraft = 0;
+        meeting.UserNotes = "";
+        meeting.SpeakerHintDismissed = false;
+        // Swift 的 rounded() 是四捨五入
+        var cutSeconds = (int)Math.Round(cut, MidpointRounding.AwayFromZero);
+        meeting.DurationSeconds = original.DurationSeconds is int d ? Math.Max(0, d - cutSeconds) : null;
+        var started = DateTimeOffset.TryParse(original.CreatedAt, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var t) ? t : Clock.Source();
+        meeting.CreatedAt = started.AddSeconds(cut).UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture);
+        meeting.UpdatedAt = Clock.Now();
+        var newId = InsertMeetingRow(db, meeting);
+        meeting.Id = newId;
+        if (audioExtension is not null)
+        {
+            meeting.AudioFile = $"{newId}.{audioExtension}";
+            UpdateMeetingRow(db, meeting);
+        }
+        Index(db, newId, SearchKind.Title, meeting.DisplayTitle);
+
+        var moved = db.Query("SELECT id FROM segments WHERE meeting_id = ? AND start >= ? ORDER BY seq", id, cut).Select(r => r.Long("id")).ToList();
+        for (var seq = 0; seq < moved.Count; seq++)
+            db.Execute("UPDATE segments SET meeting_id = ?, seq = ?, start = MAX(0, start - ?), end = MAX(0, end - ?) WHERE id = ?", newId, seq, cut, cut, moved[seq]);
+        db.Execute("UPDATE corrections SET meeting_id = ? WHERE segment_id IN (SELECT id FROM segments WHERE meeting_id = ?)", newId, newId);
+        db.Execute("UPDATE search SET meeting_id = ? WHERE rowid IN (SELECT id FROM segments WHERE meeting_id = ?)", newId, newId);
+        db.Execute("UPDATE bookmarks SET meeting_id = ?, time = MAX(0, time - ?) WHERE meeting_id = ? AND time >= ?", newId, cut, id, cut);
+
+        bool Speaks(long meetingId, int idx) =>
+            (long)db.Scalar("SELECT EXISTS (SELECT 1 FROM segments WHERE meeting_id = ? AND speaker = ?)", meetingId, idx)! != 0;
+        foreach (var speaker in db.Query("SELECT * FROM speakers WHERE meeting_id = ?", id).Select(ToSpeaker).ToList())
+        {
+            if (!Speaks(id, speaker.Idx) && Speaks(newId, speaker.Idx))
+                db.Execute("UPDATE voiceprints SET meeting_id = ? WHERE meeting_id = ? AND speaker_idx = ?", newId, id, speaker.Idx);
+            speaker.MeetingId = newId;
+            InsertSpeakerRow(db, speaker);
+        }
+        RemoveEmptySpeakers(db, id);
+        RemoveEmptySpeakers(db, newId);
+
+        original.DurationSeconds = cutSeconds;
+        if (audioExtension is not null && original.AudioFile.Length > 0
+            && !string.Equals(System.IO.Path.GetExtension(original.AudioFile).TrimStart('.'), audioExtension, StringComparison.OrdinalIgnoreCase))
+            original.AudioFile = System.IO.Path.ChangeExtension(original.AudioFile, audioExtension);
+        original.UpdatedAt = Clock.Now();
+        UpdateMeetingRow(db, original);
+        // 段落換了，說話者的復原對不上（M§24.2）
+        db.Execute("DELETE FROM speaker_undo WHERE meeting_id = ?", id);
+        return meeting;
+    }
+
+    /// <summary>這場會議有沒有排隊中或執行中的工作（任何種類，含壓縮、校正這些輔助工作；M§64）</summary>
+    public bool HasActiveJobs(long meetingId) => Read(db =>
+        (long)db.Scalar("SELECT COUNT(*) FROM jobs WHERE meeting_id = ? AND status IN ('queued', 'running')", meetingId)! > 0);
 
     /// <summary>移到垃圾桶或還原（R9.3）</summary>
     public void SetTrashed(long id, bool trashed) =>
@@ -314,10 +426,16 @@ public sealed partial class AppDatabase
     public List<Bookmark> Bookmarks(long meetingId) =>
         Read(db => db.Query("SELECT * FROM bookmarks WHERE meeting_id = ? ORDER BY time", meetingId).Select(ToBookmark).ToList());
 
+    /// <summary>一個重點標記（重新命名的對話框讀目前的名字，R102）</summary>
+    public Bookmark? Bookmark(long id) => Read(db => db.QueryOne("SELECT * FROM bookmarks WHERE id = ?", id) is { } r ? ToBookmark(r) : null);
+
     public void AddBookmark(long meetingId, double time, string label = "") =>
         Write(db => db.Execute("INSERT INTO bookmarks (meeting_id, time, label) VALUES (?, ?, ?)", meetingId, time, label));
 
     public void DeleteBookmark(long id) => Write(db => db.Execute("DELETE FROM bookmarks WHERE id = ?", id));
+
+    /// <summary>重新命名一個重點標記（R100、M§74）</summary>
+    public void RenameBookmark(long id, string label) => Write(db => db.Execute("UPDATE bookmarks SET label = ? WHERE id = ?", label, id));
 
     public void UpdateUserNotes(long meetingId, string text) => Write(db =>
     {

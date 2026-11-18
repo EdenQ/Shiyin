@@ -117,18 +117,33 @@ struct MainView: View {
     @AppStorage("hasSeenGuide") private var hasSeenGuide = false
     @State private var dropTargeted = false
 
+    /// 右邊那一欄：人物頁、多選、會議頁或空白頁
+    @ViewBuilder
+    private var detailContent: some View {
+        if model.sidebarMode == .people && !model.showTrash && model.searchQuery.trimmingCharacters(in: .whitespaces).isEmpty {
+            // 人物頁（design §60.2）
+            if let person = model.peopleOverview.first(where: { $0.id == model.selectedPerson }) {
+                PersonPage(person: person).id(person.id)
+            } else {
+                PeopleEmptyView().toolbar { SettingsToolbarItem() }
+            }
+        } else if model.multiSelected.count > 1 {
+            MultiSelectionView(ids: model.multiSelected).toolbar { SettingsToolbarItem() }
+        } else if let detail = model.detail {
+            MeetingDetailView(detail: detail)
+                .id(detail.meeting.id)
+        } else {
+            EmptyDetailView().toolbar { SettingsToolbarItem() }
+        }
+    }
+
     var body: some View {
         @Bindable var model = model
         NavigationSplitView {
             SidebarView()
                 .navigationSplitViewColumnWidth(min: 240, ideal: 280, max: 380)
         } detail: {
-            if let detail = model.detail {
-                MeetingDetailView(detail: detail)
-                    .id(detail.meeting.id)
-            } else {
-                EmptyDetailView()
-            }
+            detailContent
         }
         .dropDestination(for: URL.self) { urls, _ in
             model.requestImport(urls)
@@ -149,7 +164,12 @@ struct MainView: View {
                 openWindow(id: "guide")
             }
         }
-        .modifier(FolderPromptModifier())
+        // 重新命名、新資料夾的彈窗（R102、design §76）
+        .sheet(item: Binding(get: { model.renameTarget }, set: { model.renameTarget = $0 })) { RenameSheet(target: $0) }
+        // 資料夾的自動加入條件（design §72）
+        .sheet(item: Binding(get: { model.editingFolderRule.map(EditingFolder.init) }, set: { model.editingFolderRule = $0?.name })) {
+            FolderRuleSheet(folder: $0.name)
+        }
         // 有新版時詢問（R10.6）
         .alert(String(localized: "拾音 \(model.updater.prompt?.version ?? "") 可以更新了"), isPresented: Binding(
             get: { model.updater.prompt != nil }, set: { if !$0 { model.updater.prompt = nil } })) {
@@ -167,33 +187,74 @@ struct MainView: View {
                   String(localized: "目前是 \(Updater.currentVersion)。更新時拾音會結束並重新打開，會議資料都會保留。")]
                 .filter { !$0.isEmpty }.joined(separator: "\n\n"))
         }
-        .confirmationDialog("永久刪除這場會議？", isPresented: Binding(get: { model.confirmPurge != nil }, set: { if !$0 { model.confirmPurge = nil } })) {
-            Button("永久刪除", role: .destructive) {
-                if let id = model.confirmPurge { model.deletePermanently(id) }
-            }
-        } message: {
-            Text("會議紀錄、逐字稿和錄音都會刪掉，沒辦法還原。")
+        // 刪除、移除、分成兩場的確認（R106、design §80）：同一種彈窗，取代系統的確認對話框
+        .sheet(item: Binding(get: { model.activeConfirmation }, set: { if $0 == nil { model.clearConfirmations() } })) { ConfirmSheet(request: $0) }
+        .sheet(item: Binding(get: { model.editingMeeting.map(EditingMeeting.init) }, set: { model.editingMeeting = $0?.id })) {
+            MeetingEditSheet(meetingId: $0.id)
         }
-        .confirmationDialog("把這場會議移到垃圾桶？", isPresented: $model.confirmDelete) {
-            Button("移到垃圾桶", role: .destructive) {
-                if let id = model.deleteTarget { model.moveToTrash(id) }
+    }
+}
+
+/// 選了兩場以上的會議（R88、design §62）：能一起做的事
+/// 工具列最右邊的齒輪：打開設定（R108.1，同選單列的「設定⋯」、⌘,）。每一種頁面在自己工具列的最後放一個：
+/// 掛在外層的話會排到「匯出」「更多」前面
+struct SettingsToolbarItem: ToolbarContent {
+    var body: some ToolbarContent {
+        ToolbarItem(placement: .primaryAction) { SettingsButton() }
+    }
+
+    private struct SettingsButton: View {
+        @Environment(\.openWindow) private var openWindow
+
+        var body: some View {
+            Button { openWindow.settings() } label: { Label("設定", systemImage: "gearshape") }
+                .help("設定（⌘,）")
+        }
+    }
+}
+
+struct MultiSelectionView: View {
+    @Environment(AppModel.self) private var model
+    let ids: [Int64]
+
+    var body: some View {
+        ContentUnavailableView {
+            Label("已選取 \(ids.count) 場會議", systemImage: "square.stack")
+        } description: {
+            Text("按住 ⌘ 點選可以加入或取消，按住 ⇧ 點選一次選一段。")
+        } actions: {
+            HStack {
+                if model.showTrash {
+                    Button("還原") { model.restore(ids) }
+                    Button("永久刪除…", role: .destructive) { model.confirmPurge = ids }
+                } else {
+                    FolderMenu(meetingIds: ids, current: model.commonFolder(ids))
+                        .fixedSize()
+                    Button("移到垃圾桶…", role: .destructive) {
+                        model.deleteTargets = ids
+                        model.confirmDelete = true
+                    }
+                }
             }
-        } message: {
-            Text("30 天內都可以從垃圾桶還原。")
         }
     }
 }
 
 struct SidebarView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var trashTargeted = false
 
     var body: some View {
         @Bindable var model = model
         VStack(spacing: 0) {
-            if model.searchQuery.trimmingCharacters(in: .whitespaces).isEmpty {
-                meetingList
-            } else {
+            let searching = !model.searchQuery.trimmingCharacters(in: .whitespaces).isEmpty
+            if searching {
                 SearchResultsList()
+            } else if model.sidebarMode == .people && !model.showTrash {
+                peopleList
+            } else {
+                meetingList
             }
             Divider()
             if model.importingCount > 0 {
@@ -216,10 +277,19 @@ struct SidebarView: View {
                           systemImage: model.showTrash ? "chevron.backward" : "trash")
                 }
                 .buttonStyle(.borderless)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(trashTargeted ? Color.celadon : .secondary)
+                // 會議拖到這裡＝移到垃圾桶（R103.1，可以還原）
+                .meetingDrop(enabled: !model.showTrash, targeted: $trashTargeted) { model.moveToTrash($0) }
                 Spacer()
-                // 匯入放這裡：側邊欄的工具列放不下，會被收進「>>」（design §22.2、R21.5）
-                if !model.showTrash {
+                // 匯入放這裡：側邊欄的工具列放不下，會被收進「>>」（design §22.2、R21.5）；垃圾桶裡換成清空（R88.3）
+                if model.showTrash {
+                    Button { model.confirmEmptyTrash = true } label: {
+                        Label("清空垃圾桶…", systemImage: "trash.slash")
+                    }
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(.secondary)
+                    .disabled(model.trash.isEmpty)
+                } else {
                     Button { model.showFileImporter = true } label: {
                         Label("匯入", systemImage: "square.and.arrow.down")
                     }
@@ -233,6 +303,7 @@ struct SidebarView: View {
             .padding(.vertical, 8)
         }
         .searchable(text: $model.searchQuery, placement: .sidebar, prompt: "搜尋所有會議")
+        .onAppear { model.reloadPeopleOverview() }
         .toolbar {
             ToolbarItemGroup {
                 RecordingControls()
@@ -247,44 +318,144 @@ struct SidebarView: View {
         }
     }
 
-    private var meetingList: some View {
-        @Bindable var model = model
-        return List(selection: $model.selection) {
-            if model.showTrash {
-                Text("垃圾桶裡的會議 30 天後會永久刪除").font(.caption).foregroundStyle(.secondary)
-            } else if !model.folders.isEmpty {
-                Section("資料夾") {
-                    FolderRow(name: String(localized: "所有會議"), count: model.meetings.count, symbol: "tray.full", selected: model.folderFilter == nil) {
-                        model.folderFilter = nil
-                    }
-                    ForEach(model.folders, id: \.name) { folder in
-                        FolderRow(name: folder.name, count: folder.count, symbol: "folder", selected: model.folderFilter == folder.name) {
-                            model.folderFilter = folder.name
-                        }
-                        .contextMenu {
-                            Button("重新命名…") { model.folderPrompt = .rename(folder.name) }
-                            Button("刪除資料夾（會議會保留）", role: .destructive) { model.deleteFolder(folder.name) }
-                        }
-                    }
+    /// 側欄最上面的兩組（design §60.2、R85.1）：所有會議、人物，再來是資料夾。跟資料夾同一種列，
+    /// 點了換下面那一段的內容（macOS 的側欄是導覽清單，不放分段控制）
+    @ViewBuilder
+    private var scopeSections: some View {
+        let people = model.sidebarMode == .people
+        Section {
+            // 所有會議是回到預設的畫面，不畫選到的樣子；人物模式時人物亮
+            FolderRow(name: String(localized: "所有會議"), count: model.meetings.count, symbol: "tray.full", selected: false) {
+                model.sidebarMode = .meetings
+                model.folderFilter = nil
+            }
+            FolderRow(name: String(localized: "人物"), count: model.peopleOverview.count, symbol: "person.2", selected: people) {
+                model.sidebarMode = .people
+                model.reloadPeopleOverview()
+            }
+        }
+        // 段落可以收起；每個資料夾可以在原地展開最近的會議（R101、design §75）。一直顯示，標題右邊「+」建空的資料夾（R104、design §78）
+        Section {
+            if model.isSectionExpanded("folders") {
+                SidebarFolderRows()
+                if model.folders.isEmpty {
+                    Text("按 + 新增資料夾").font(.callout).foregroundStyle(.secondary).selectionDisabled()
                 }
             }
-            Section(model.showTrash || model.folders.isEmpty ? "" : (model.folderFilter ?? String(localized: "所有會議"))) {
-                ForEach(model.filteredMeetings) { row in
-                    MeetingRowView(row: row, status: model.status(row))
-                        .tag(row.id)
-                        .contextMenu {
-                            if model.showTrash {
-                                Button("還原") { model.restore(row.id) }
-                                Button("永久刪除…", role: .destructive) { model.confirmPurge = row.id }
-                            } else {
-                                FolderMenu(meetingId: row.id, current: row.meeting.folder)
-                                Divider()
-                                Button("移到垃圾桶", role: .destructive) { model.moveToTrash(row.id) }
-                            }
+        } header: {
+            HStack(spacing: 6) {
+                // 段落標題跟「+」在輔助使用裡併成一個元件，按下去要是「+」，收合改成有名字的動作（同會議列表的標題）
+                SidebarSectionHeader(title: String(localized: "資料夾"), key: "folders", besideMenu: true)
+                Spacer(minLength: 4)
+                // 不用 Button：List 裡的 SwiftUI 按鈕會讓整個表格的點擊卡住（見 sidebarClick）
+                SidebarHeaderIcon(systemName: "plus")
+                    .sidebarClick { model.renameTarget = .newFolder([]) }
+                    .padding(.trailing, SidebarHeaderIcon.trailing)
+                    .help("新資料夾")
+                    .accessibilityElement()
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityLabel(Text("新資料夾"))
+                    .accessibilityAction { model.renameTarget = .newFolder([]) }
+            }
+        }
+    }
+
+    /// 一場會議的列：右邊的「⋯」跟右鍵同一份（R100）；選到的是多選裡的一場時，選單對整個多選
+    private func meetingRow(_ row: MeetingRow) -> some View {
+        let selected = model.listSelection.contains(row.id)
+        return MeetingRowView(row: row, status: model.status(row))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            // 拖到資料夾、其他會議的標題、垃圾桶（R103.1）；在多選裡時拖整個多選。點一下選取（⌘、⇧ 多選）也在這裡，
+            // 不經過 List 自己的點擊、拖曳（design §77）。垃圾桶裡的不能拖。把手只蓋內容，不蓋右邊的「⋯」
+            .sidebarDragHandle(type: model.showTrash ? nil : .shiyinMeetingIDs, label: row.meeting.displayTitle,
+                               data: { Data(model.dragIDs(for: row.id).map(String.init).joined(separator: ",").utf8) }) {
+                model.clickMeetingRow(row.id, modifiers: $0)
+            }
+            // 「⋯」和右鍵：自己畫的選單（R105）；選到的是多選裡的一場時，選單對整個多選
+            .floatingRowMenu(selected: selected) { model.meetingMenu(model.dragIDs(for: row.id)) }
+            .sidebarSelectableRow(selected: selected)
+            .tag(row.id)
+    }
+
+    /// 人物模式：上面同樣是所有會議、人物、資料夾，下面是認識的人（design §60.2）
+    private var peopleList: some View {
+        @Bindable var model = model
+        return List(selection: $model.selectedPerson) {
+            scopeSections
+            Section {
+                if model.isSectionExpanded("people") {
+                    ForEach(model.peopleOverview) { person in
+                        PersonRow(person: person)
+                            .floatingRowMenu(selected: model.selectedPerson == person.id) { model.personMenu(person) }
+                            .sidebarSelectableRow(selected: model.selectedPerson == person.id)
+                            .tag(person.id)
+                    }
+                    if model.peopleOverview.isEmpty {
+                        Text("在逐字稿點「說話者 1」改成名字，或到設定錄一段你自己的聲音，拾音就會記住這個人。")
+                            .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                            .selectionDisabled()
+                    }
+                }
+            } header: {
+                SidebarSectionHeader(title: String(localized: "人物"), key: "people")
+            }
+        }
+        // 選到一個人時按 Return 重新命名、Delete 移除（R85.7、R100）
+        .onKeyPress(.return) { model.sidebarReturn() ? .handled : .ignored }
+        .onDeleteCommand { model.sidebarDelete() }
+    }
+
+    private var meetingList: some View {
+        @Bindable var model = model
+        // 多選（R88、design §62）：⌘、⇧ 點選；右鍵在選取的列上是全部
+        return List(selection: $model.listSelection) {
+            if model.showTrash {
+                Text("垃圾桶裡的會議 30 天後會永久刪除").font(.caption).foregroundStyle(.secondary)
+            } else {
+                scopeSections
+            }
+            if model.showTrash {
+                Section {
+                    ForEach(model.filteredMeetings) { row in meetingRow(row) }
+                }
+            } else {
+                // 排序、分組、篩選（R97、design §71）：標題那一列有「顯示方式」，分組時每組一段
+                // 會議列表、分組的每一組都可以收起（R101、design §75）
+                let groups = model.meetingGroups
+                let grouped = model.effectiveGrouping != .none
+                let expanded = model.isSectionExpanded("meetings")
+                Section {
+                    if expanded {
+                        if model.meetingFilter.isActive { MeetingFilterBar() }
+                        if model.meetingFilter.isActive && model.filteredMeetings.isEmpty { MeetingFilterEmpty() }
+                        if model.listShowsOthersOnly && model.filteredMeetings.isEmpty {
+                            Text("不在資料夾裡的會議會列在這裡").font(.callout).foregroundStyle(.secondary).selectionDisabled()
                         }
+                        if !grouped, let rows = groups.first?.rows {
+                            ForEach(rows) { row in meetingRow(row) }
+                        }
+                    }
+                } header: {
+                    MeetingListHeader()
+                }
+                if grouped && expanded {
+                    ForEach(groups) { group in
+                        let key = AppModel.groupKey(group)
+                        Section {
+                            if model.isSectionExpanded(key) {
+                                ForEach(group.rows) { row in meetingRow(row) }
+                            }
+                        } header: {
+                            SidebarSectionHeader(title: group.title, key: key)
+                        }
+                    }
                 }
             }
         }
+        // 鍵盤（R100）：Return 重新命名、Delete 移到垃圾桶（垃圾桶裡是永久刪除），都照現在選到的
+        .onKeyPress(.return) { model.sidebarReturn() ? .handled : .ignored }
+        .onDeleteCommand { model.sidebarDelete() }
         .overlay {
             if model.filteredMeetings.isEmpty && model.showTrash {
                 Text("垃圾桶是空的").foregroundStyle(.secondary)
@@ -293,27 +464,141 @@ struct SidebarView: View {
     }
 }
 
-/// 側欄的資料夾列（R9.2）：點了就只看這個資料夾
+/// 側欄的資料夾列（R9.2）：所有會議、人物點了換下面的列表；資料夾點了在原地展開（R101）。有選單時（資料夾，R100）滑過或選到時
+/// 數量的位置換成「⋯」。整列用點擊手勢，不用 Button：List 裡的按鈕會把右鍵當成點擊，右鍵選單出不來
+/// （2026-11-16 自己驗收時發現）
 struct FolderRow: View {
+    @Environment(AppModel.self) private var model
     let name: String
     let count: Int
     let symbol: String
     let selected: Bool
+    /// 資料夾（R101）：點了在原地展開、收起，圖示換成打開或關著的資料夾（nil 是所有會議、人物這種一般的列）
+    var folder: FolderState? = nil
+    /// 拖曳排序用的鍵（R103.2）；nil 不能拖
+    var dragKey: String? = nil
+    /// 收拖過來的會議、資料夾（排序）、檔案（R103）
+    var drop: SidebarRowDrop? = nil
+    var menu: (() -> [MenuEntry])? = nil
     let action: () -> Void
+    @State private var hovering = false
+    @State private var dropState: SidebarDropState?
+    @State private var height: CGFloat = 28
+
+    /// 輔助使用的值：展開了沒、幾場（右邊不顯示場數）
+    private var accessibilityState: String {
+        let meetings = String(localized: "\(count) 場")
+        guard let folder else { return meetings }
+        return String(localized: "\(folder.expanded ? String(localized: "已展開") : String(localized: "已收起"))、\(meetings)")
+    }
+
+    struct FolderState {
+        var expanded: Bool
+        /// 右上角的標記：齒輪（有自動加入條件）
+        var badge: String?
+    }
 
     var body: some View {
-        Button(action: action) {
+        let showMenu = menu != nil && (hovering || selected)
+        let state = dropState
+        let into = state == .into
+        HStack {
             HStack {
-                Label(name, systemImage: symbol)
-                    .foregroundStyle(selected ? Color.celadon : .primary)
-                    .fontWeight(selected ? .semibold : .regular)
+                Label {
+                    Text(name)
+                } icon: {
+                    // 拖東西進來時也是打開的資料夾
+                    if let folder { FolderGlyph(open: folder.expanded || into, badge: folder.badge) } else { Image(systemName: symbol) }
+                }
+                // 圖示跟字同色（不用側欄預設的主色）；選到時一塊灰底，拖東西進來時青瓷綠
+                .labelStyle(SidebarLabelStyle())
+                .foregroundStyle(into ? Color.celadon : .primary)
+                // 輔助使用照舊是一顆按鈕（「⋯」另外一顆）；資料夾的值是展開了沒，可以往上、往下移（R103.2）
+                .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+                // 右邊不顯示場數，輔助使用照樣唸得到
+                .accessibilityValue(Text(accessibilityState))
+                .accessibilityAction(.default, action)
+                .accessibilityActions {
+                    if let dragKey {
+                        Button("往上移") { model.moveSidebarItem(dragKey, by: -1) }
+                        Button("往下移") { model.moveSidebarItem(dragKey, by: 1) }
+                    }
+                }
                 Spacer()
-                Text("\(count)").monospacedDigit().foregroundStyle(.secondary)
             }
             .contentShape(Rectangle())
+            // 可以拖的列（資料夾）蓋拖曳把手：拖了排序，沒拖就是點一下（R103.2、design §77）；其他列（所有會議、人物）
+            // 蓋只接點一下的 view，不用 onTapGesture（會讓整個表格的點擊卡住，見 sidebarClick）
+            .modifier(FolderRowHandle(name: name, dragKey: dragKey, action: action))
+            // 右邊不放場數，滑過或選到時「⋯」
+            if let menu {
+                FloatingMenuButton(entries: menu)
+                    .opacity(showMenu ? 1 : 0)
+                    .allowsHitTesting(showMenu)
+            }
         }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(selected ? .isSelected : [])
+        .contentShape(Rectangle())
+        .modifier(FolderRowContextMenu(menu: menu))
+        .onHover { hovering = $0 }
+        .sidebarHover(selected: selected)
+        // 拖進來：整列一塊青瓷綠的底；排序：上緣或下緣一條線（design §77）
+        .background {
+            RoundedRectangle(cornerRadius: SidebarHoverModifier.radius, style: .continuous)
+                .fill(Color.celadon.opacity(into ? 0.18 : 0))
+                .padding(.horizontal, -SidebarHoverModifier.inset.width)
+                .padding(.vertical, -SidebarHoverModifier.inset.height)
+        }
+        .overlay(alignment: state == .after ? .bottom : .top) {
+            if state == .before || state == .after {
+                Capsule().fill(Color.celadon).frame(height: 2)
+                    .padding(.horizontal, -SidebarHoverModifier.inset.width)
+                    .offset(y: (state == .before ? -1 : 1) * (SidebarHoverModifier.inset.height + 1))
+                    .allowsHitTesting(false)
+            }
+        }
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
+        .modifier(FolderRowDragModifier(drop: drop, height: height, state: $dropState))
+    }
+}
+
+/// 有選單的列：右鍵打開自己畫的選單（R105）
+private struct FolderRowContextMenu: ViewModifier {
+    let menu: (() -> [MenuEntry])?
+
+    func body(content: Content) -> some View {
+        if let menu { content.floatingContextMenu(menu) } else { content }
+    }
+}
+
+/// 有鍵的列蓋拖曳把手
+private struct FolderRowHandle: ViewModifier {
+    let name: String
+    let dragKey: String?
+    let action: () -> Void
+
+    func body(content: Content) -> some View {
+        if let dragKey {
+            content.sidebarDragHandle(type: .shiyinSidebarItem, label: name, data: { Data(dragKey.utf8) }, onClick: action)
+        } else {
+            content.sidebarClick(action)
+        }
+    }
+}
+
+/// 有 drop 的列收拖過來的會議、資料夾（排序）、檔案
+private struct FolderRowDragModifier: ViewModifier {
+    let drop: SidebarRowDrop?
+    let height: CGFloat
+    @Binding var state: SidebarDropState?
+
+    func body(content: Content) -> some View {
+        if let drop {
+            let types = [drop.meetings != nil ? UTType.shiyinMeetingIDs : nil, drop.item != nil ? .shiyinSidebarItem : nil,
+                         drop.files != nil ? .fileURL : nil].compactMap { $0 }
+            content.onDrop(of: types, delegate: SidebarRowDropDelegate(drop: drop, height: height, state: $state))
+        } else {
+            content
+        }
     }
 }
 
@@ -321,73 +606,34 @@ struct FolderRow: View {
 struct FolderMenu: View {
     @Environment(AppModel.self) private var model
     /// nil：目前選取的會議。工具列的選單可能沿用之前建立的，按下時才決定是哪一場，不然會移到上一場會議
-    var meetingId: Int64? = nil
+    var meetingIds: [Int64]? = nil
+    /// 這幾場現在在的資料夾（空字串是不在資料夾裡）；多選而且在不同資料夾時是 nil
     var current: String? = nil
 
-    private var target: Int64? { meetingId ?? model.selection }
-    private var folder: String { current ?? model.detail?.meeting.folder ?? "" }
+    private var targets: [Int64] { meetingIds ?? [model.selection].compactMap { $0 } }
 
     var body: some View {
         Menu("移到資料夾", systemImage: "folder") {
-            if meetingId == nil {
-                // 工具列的選單內容不會更新，列出全部資料夾和固定的「移出資料夾」，選到原本的資料夾時 AppModel 會說明
+            if meetingIds == nil || current == nil {
+                // 工具列的選單內容不會更新，列出全部資料夾和固定的「移出資料夾」，選到原本的資料夾時 AppModel 會說明；
+                // 多選而且在不同資料夾時也是這樣
                 ForEach(model.folders, id: \.name) { item in
-                    Button(item.name) { if let target { model.moveToFolder(target, folder: item.name) } }
+                    Button(item.name) { model.moveToFolder(targets, folder: item.name) }
                 }
                 if !model.folders.isEmpty { Divider() }
-                Button("新資料夾…") { if let target { model.folderPrompt = .create(target) } }
-                Button("移出資料夾") { if let target { model.moveToFolder(target, folder: "") } }
-            } else {
+                Button("新資料夾…", systemImage: "folder.badge.plus") { if !targets.isEmpty { model.renameTarget = .newFolder(targets) } }
+                Button("移出資料夾", systemImage: "minus.circle") { model.moveToFolder(targets, folder: "") }
+            } else if let folder = current {
                 ForEach(model.folders.filter { $0.name != folder }, id: \.name) { item in
-                    Button(item.name) { if let target { model.moveToFolder(target, folder: item.name) } }
+                    Button(item.name) { model.moveToFolder(targets, folder: item.name) }
                 }
                 if !model.folders.filter({ $0.name != folder }).isEmpty { Divider() }
-                Button("新資料夾…") { if let target { model.folderPrompt = .create(target) } }
+                Button("新資料夾…", systemImage: "folder.badge.plus") { if !targets.isEmpty { model.renameTarget = .newFolder(targets) } }
                 if !folder.isEmpty {
-                    Button("移出「\(folder)」") { if let target { model.moveToFolder(target, folder: "") } }
+                    Button("移出「\(folder)」", systemImage: "minus.circle") { model.moveToFolder(targets, folder: "") }
                 }
             }
         }
-    }
-}
-
-/// 新資料夾、資料夾改名的輸入框
-struct FolderPromptModifier: ViewModifier {
-    @Environment(AppModel.self) private var model
-    @State private var name = ""
-
-    func body(content: Content) -> some View {
-        content.alert(title, isPresented: Binding(get: { model.folderPrompt != nil }, set: { if !$0 { model.folderPrompt = nil } })) {
-            TextField("資料夾名稱", text: $name)
-            Button("取消", role: .cancel) { model.folderPrompt = nil }
-            Button(confirmTitle) {
-                let value = name.trimmingCharacters(in: .whitespacesAndNewlines)
-                switch model.folderPrompt {
-                case .create(let id)?: if !value.isEmpty { model.moveToFolder(id, folder: value) }
-                case .rename(let old)?: model.renameFolder(old, to: value)
-                case nil: break
-                }
-                model.folderPrompt = nil
-            }
-        } message: {
-            Text(message)
-        }
-        .onChange(of: model.folderPrompt) { _, prompt in
-            if case .rename(let old)? = prompt { name = old } else { name = "" }
-        }
-    }
-
-    private var title: String {
-        if case .rename? = model.folderPrompt { return String(localized: "重新命名資料夾") }
-        return String(localized: "新資料夾")
-    }
-    private var confirmTitle: String {
-        if case .rename? = model.folderPrompt { return String(localized: "重新命名") }
-        return String(localized: "建立並移入")
-    }
-    private var message: String {
-        if case .rename? = model.folderPrompt { return String(localized: "資料夾裡的會議都會跟著改。") }
-        return String(localized: "例如專案名稱或客戶名稱。這場會議會移進新資料夾。")
     }
 }
 
@@ -499,35 +745,43 @@ struct RecordingControls: View {
                     .help("停止錄音並開始轉錄（⌘R）")
             }
         } else {
-            // 這兩個選項是之後錄音的設定，選完畫面不會變，跳一個提示讓人知道選到了
-            Menu {
-                Picker("錄音來源", selection: Binding(get: { source }, set: { value in
-                    source = value
-                    model.noticeMessage = String(localized: "之後的錄音：\(Self.sourceLabel(value))")
-                })) {
-                    ForEach(["mic", "both", "system"], id: \.self) { Text(Self.sourceLabel($0)).tag($0) }
+            // 這兩個選項是之後錄音的設定，選完畫面不會變，跳一個提示讓人知道選到了。
+            // 按鈕和箭頭分成兩個控制項（A11Y1）：分割選單（Menu 的 primaryAction）箭頭那一半在輔助使用裡沒有名字，VoiceOver 讀不出來
+            ControlGroup {
+                Button { model.startRecording() } label: {
+                    Label(MeetingLanguage.ui(zh: "錄音", en: "Record"), systemImage: "record.circle")
                 }
-                .pickerStyle(.inline)
-                // 麥克風（R58.1、design §38.2）：跟設定頁同一個設定
-                if source != "system" {
-                    Picker("麥克風", selection: Binding(get: { device }, set: { model.switchMicrophone($0) })) {
-                        MicrophoneOptions(saved: device)
+                .help("開始錄音（⌘R），用\(language.uiName)辨識；點右邊的箭頭可以改錄音來源和語言")
+                Menu {
+                    Picker("錄音來源", selection: Binding(get: { source }, set: { value in
+                        source = value
+                        model.noticeMessage = String(localized: "之後的錄音：\(Self.sourceLabel(value))")
+                    })) {
+                        ForEach(["mic", "both", "system"], id: \.self) { Text(Self.sourceLabel($0)).tag($0) }
                     }
                     .pickerStyle(.inline)
+                    // 麥克風（R58.1、design §38.2）：跟設定頁同一個設定
+                    if source != "system" {
+                        Picker("麥克風", selection: Binding(get: { device }, set: { model.switchMicrophone($0) })) {
+                            MicrophoneOptions(saved: device)
+                        }
+                        .pickerStyle(.inline)
+                    }
+                    Picker("會議語言", selection: Binding(get: { language }, set: { value in
+                        language = value
+                        model.noticeMessage = String(localized: "之後的錄音都用\(value.uiName)")
+                    })) {
+                        ForEach(MeetingLanguage.allCases) { Text($0.name).tag($0) }
+                    }
+                    .pickerStyle(.inline)
+                } label: {
+                    Label("錄音選項", systemImage: "chevron.down")
                 }
-                Picker("會議語言", selection: Binding(get: { language }, set: { value in
-                    language = value
-                    model.noticeMessage = String(localized: "之後的錄音都用\(value.uiName)")
-                })) {
-                    ForEach(MeetingLanguage.allCases) { Text($0.name).tag($0) }
-                }
-                .pickerStyle(.inline)
-            } label: {
-                Label(MeetingLanguage.ui(zh: "錄音", en: "Record"), systemImage: "record.circle")
-            } primaryAction: {
-                model.startRecording()
+                .menuIndicator(.hidden)
+                .help("錄音來源、麥克風、會議語言")
+                .accessibilityLabel(Text("錄音選項"))
             }
-            .help("開始錄音（⌘R），用\(language.uiName)辨識；點右邊的箭頭可以改錄音來源和語言")
+            .controlGroupStyle(.navigation)
             // 工具列的選單建立一次就不會更新勾選，選項變了（含接上、拔掉麥克風）就換一個新的選單
             .id("\(source)-\(language.rawValue)-\(device)-\(MicrophoneMonitor.shared.signature)")
         }
@@ -593,55 +847,74 @@ struct ImportSheet: View {
     @State private var speakerCount = 0
 
     var body: some View {
+        // 同其他彈窗的樣子（R106、design §80）
         VStack(alignment: .leading, spacing: 16) {
-            Text(urls.count == 1 ? "匯入錄音" : "匯入 \(urls.count) 個錄音檔").font(.title3.weight(.semibold))
+            SheetHeader(title: urls.count == 1 ? String(localized: "匯入錄音") : String(localized: "匯入 \(urls.count) 個錄音檔"),
+                        onClose: { model.pendingImport = []; dismiss() })
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(urls, id: \.self) { url in
                     Label(url.lastPathComponent, systemImage: "waveform").lineLimit(1).truncationMode(.middle)
                 }
             }
             .foregroundStyle(.secondary)
-            Form {
-                if urls.count == 1 {
-                    TextField("標題", text: $title, prompt: Text("選填，沒填就由整理時命名"))
-                    DatePicker("會議日期", selection: $date, displayedComponents: .date)
-                } else {
-                    LabeledContent(String(localized: "會議日期"), value: String(localized: "依各檔案的檔名或修改日期"))
+            if urls.count == 1 {
+                VStack(alignment: .leading, spacing: 6) {
+                    SheetFieldLabel(String(localized: "標題"))
+                    SheetTextField(placeholder: String(localized: "選填，沒填就由整理時命名"), text: $title)
                 }
-                TextField("與會者", text: $participants, prompt: Text("選填，用逗號分隔"))
-                Picker("範本", selection: $templateId) {
-                    ForEach(model.templates) { Text($0.displayName).tag($0.id) }
-                }
-                Picker("會議語言", selection: $language) {
-                    ForEach(MeetingLanguage.allCases) { Text($0.name).tag($0) }
-                }
-                .help("決定轉錄和會議紀錄用的語言")
-                // 先填人數（design §26.2）
-                Picker("大約幾個人", selection: $speakerCount) {
-                    Text("自動判斷").tag(0)
-                    ForEach(2...12, id: \.self) { n in Text("\(n) 人").tag(n) }
-                }
-                .help("人多、吵雜或手機放在桌上錄音時，先告訴拾音大約幾個人，說話者會分得比較準")
             }
-            .formStyle(.columns)
-            HStack {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    SheetFieldLabel(String(localized: "會議日期"))
+                    if urls.count == 1 {
+                        SheetDateField(label: String(localized: "會議日期"), date: $date)
+                    } else {
+                        Text("依各檔案的檔名或修改日期").font(.system(size: 15)).foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .sheetFieldBox()
+                    }
+                }
+                VStack(alignment: .leading, spacing: 6) {
+                    SheetFieldLabel(String(localized: "大約幾個人"))
+                    // 先填人數（design §26.2）
+                    SheetMenuField(options: [(0, String(localized: "自動判斷"))] + (2...12).map { ($0, String(localized: "\($0) 人")) },
+                                   selection: $speakerCount)
+                        .help("人多、吵雜或手機放在桌上錄音時，先告訴拾音大約幾個人，說話者會分得比較準")
+                }
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                SheetFieldLabel(String(localized: "與會者"))
+                SheetTextField(placeholder: String(localized: "選填，用逗號分隔"), text: $participants)
+            }
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    SheetFieldLabel(String(localized: "範本"))
+                    SheetMenuField(options: model.templates.map { ($0.id, $0.displayName) }, selection: $templateId)
+                }
+                VStack(alignment: .leading, spacing: 6) {
+                    SheetFieldLabel(String(localized: "會議語言"))
+                    SheetMenuField(options: MeetingLanguage.allCases.map { ($0, $0.name) }, selection: $language)
+                        .help("決定轉錄和會議紀錄用的語言")
+                }
+            }
+            HStack(spacing: 10) {
                 Spacer()
-                Button("取消", role: .cancel) {
+                Button("取消") {
                     model.pendingImport = []
                     dismiss()
                 }
+                .buttonStyle(SheetPillButtonStyle(.secondary))
                 .keyboardShortcut(.cancelAction)
                 Button("匯入並開始轉錄") {
                     model.confirmImport(ImportOptions(title: title, date: urls.count == 1 ? DateText.string(date) : nil,
                                                       participants: participants, templateId: templateId, language: language,
                                                       minSpeakers: speakerCount == 0 ? nil : speakerCount))
                 }
+                .buttonStyle(SheetPillButtonStyle(.primary))
                 .keyboardShortcut(.defaultAction)
-                .buttonStyle(.borderedProminent)
             }
         }
-        .padding(20)
-        .frame(width: 460)
+        .sheetChrome(width: 480)
         .onAppear {
             if let first = urls.first,
                let inferred = DateText.date(Importer.inferDate(filename: first.lastPathComponent, modified: Importer.modificationDate(first))) {
@@ -649,4 +922,10 @@ struct ImportSheet: View {
             }
         }
     }
+}
+
+/// 正在編輯條件的資料夾（sheet(item:) 要 Identifiable）
+struct EditingFolder: Identifiable {
+    let name: String
+    var id: String { name }
 }
