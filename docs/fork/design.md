@@ -50,13 +50,15 @@ scripts/fork/check.sh                 # 完整：建置、DEBUG 版實際操作�
 scripts/fork/check.sh --quick         # 只跑靜態的（不建 app、不開 DEBUG 版，約 1～2 分鐘）
 scripts/fork/check.sh --base-app <舊版.app>   # 品牌逐鍵比對的基準（預設：HEAD 之前最近的 fork tag 的 release 建置，見下）
 scripts/fork/check.sh --base-ref v5.0.1        # 基準改用這個 tag 建
-scripts/fork/check.sh --only 3,5,7    # 只跑這幾項（1～12、I1、I2、L、S；要用到的建置、DEBUG 版自己會建、會開）
+scripts/fork/check.sh --only 3,5,7    # 只跑這幾項（1～13、I1、I2、L、T、S；要用到的建置、DEBUG 版自己會建、會開）
 scripts/fork/check.sh --out <資料夾>  # 摘要、log、截圖放這裡（預設 $TMPDIR/shiyin-check-<時間>）
 scripts/fork/check.sh --keep          # 留下這次的 app、暫存 SHIYIN_HOME（除錯用）
 scripts/fork/check.sh --clean-cache   # 結束時連建置快取、基準版也刪掉
 ```
 
-exit 0：沒有 FAIL（SKIP、需人工不算失敗）；1：有 FAIL；2：沒開始（使用者正在錄音、有別的 DEBUG 版在跑、參數錯）。摘要是輸出資料夾的 `summary.md`，最後也印在終端機。每一項一列：狀態（PASS／FAIL／SKIP／需人工）、耗時、證據路徑（log、JSON、截圖），細項寫在下面。
+exit 0：沒有 FAIL（SKIP、需人工不算失敗）；1：有 FAIL；2：沒開始（使用者正在錄音、有別的 DEBUG 版在跑、拿不到開始時的設定快照、參數錯，含 `--only` 有不認得的項目或一項都沒選到）。
+
+`--only` 只收 `1`～`13`、`I1`、`I2`、`L`、`T`、`S`（逗號分隔），有一個不認得就 exit 2。跟 `--quick` 合用時：`--only` 決定跑哪幾項，`--quick` 只讓 3、4 停在靜態的部分（不建 app）；`--only` 選到的非 Q 項目（1、2、5～10、S）照常建置、開 DEBUG 版，所以 `--quick --only 5` 還是會建 app。摘要是輸出資料夾的 `summary.md`，最後也印在終端機。每一項一列：狀態（PASS／FAIL／SKIP／需人工）、耗時、證據路徑（log、JSON、截圖），細項寫在下面。
 
 **項目**（編號照 PLAN §8.1；`--quick` 只跑標 Q 的）
 
@@ -71,13 +73,13 @@ exit 0：沒有 FAIL（SKIP、需人工不算失敗）；1：有 FAIL；2：沒�
 | 7 | F3 靜音 | `f3-mute-check.py`（狀態、⌃⌥⌘M、錄音檔兩聲道、靜音那段麥克風是 0、電腦聲音照常） |
 | 8 | F3 加上 5.0 | `check-debug.py f3-hint`：靜音中 `levelCheck` 沒有收音提示；選單列圖示是 `mic.slash.circle.fill`；`hotkey.muteRegistered` 錄音中是 true、停止後 false；靜音中 `recordstall 32 1`（電腦聲音停下）：20 秒左右 `muteHint` 出現、`micmute dismiss` 收掉；提示列的 windowshot 放進截圖 |
 | 9 | F4 | `scripts/dev/f4-check.py`（議題切段、中英日的分段複製） |
-| 10 | F4 加上 5.0 | `noteitem delete actionItems 0` 之後 `copysection` 的待辦少一條、其他條和別的段落照舊（示範會議的決議只有 1 條，刪了整段變空）；刪除後的 windowshot 放進截圖 |
+| 10 | F4 加上 5.0 | **只自動驗證刪除**：`noteitem delete actionItems 0` 之後 `copysection` 的待辦少一條、其他條和別的段落照舊（示範會議的決議只有 1 條，刪了整段變空）；刪除後的 windowshot 放進截圖。`noteitem edit` 之後的樣式、「人物」頁不套 F4 樣式沒有自動驗證，摘要的說明欄寫明，留給 S 和使用者 |
 | S | 截圖 | 繁中、英文各開一次 DEBUG 版：示範會議的紀錄、逐字稿分頁（`windowshot`）、設定「錄音」頁（`preview settings recording` 加 `mawindowshot`），加上 #8、#10 的圖，放在輸出資料夾的 `shots/`；狀態一律「需人工」（看條數、色條、「加到提醒事項」、靜音開關、提示列；還沒有基準圖，不做像素比對） |
 | 11 | DF5 | Q：`scripts/fork/tsan-lockedvalue/run.sh` |
-| 12 | 設定殘留 | Q：開始、結束各 `defaults export com.weiwei.shiyin`，要逐位元組相同（不同時列出哪幾個鍵）。DEBUG 指令本來就會寫的鍵（`preview settings` 記住的 `settingsPage`）在開 DEBUG 版前記下、結束後改回（只改值真的變了的）；其他鍵不自動改回，免得蓋掉使用者同時改的設定 |
+| 12 | 設定殘留 | Q：開始、結束各 `defaults export com.weiwei.shiyin`，要逐位元組相同（不同時列出哪幾個鍵；快照的規則見下面「失敗一律不放行」）。DEBUG 指令本來就會寫的鍵（`preview settings` 記住的 `settingsPage`）在開 DEBUG 版前記下、結束後改回（只改值真的變了的）；其他鍵不自動改回，免得蓋掉使用者同時改的設定 |
 | 13 | 實機更新 | 不自動：列為「需人工」（4.7.6 → 新版的 app 內更新，開舊會議看標記、靜音、條列頁） |
 
-另外三項也標 Q：`isolation-check.py`（I1）、`isolation-check-test.py`（I2，§F0.3）、`l10n.py check`（L；跑之前存一份翻譯表，跑完翻譯表有變就算 FAIL 並放回原本的內容：檢查不該改到 repo）。摘要列在 #3 之後。#4 的子項（例如 CI 的更新網址）讀不到時整項照樣 PASS，說明欄寫哪一個子項 SKIP。
+另外四項也標 Q：`check-test.py`（T，check.sh 自己的負對照，見下）、`isolation-check.py`（I1）、`isolation-check-test.py`（I2，§F0.3）、`l10n.py check`（L；跑之前存一份翻譯表，跑完翻譯表有變就算 FAIL 並放回原本的內容：檢查不該改到 repo）。摘要列在 #3 之後。#4 的子項（例如 CI 的更新網址）讀不到時整項照樣 PASS，說明欄寫哪一個子項 SKIP。
 
 **安全規則**（CLAUDE.md「驗證時要注意」）
 
@@ -86,6 +88,26 @@ exit 0：沒有 FAIL（SKIP、需人工不算失敗）；1：有 FAIL；2：沒�
 - DEBUG 版：暫存 `SHIYIN_HOME`，`open -g -n --env SHIYIN_HOME=…`，參數 `-ApplePersistenceIgnoreState YES -llmProvider none -autoSummarize NO -correctTranscript NO -debugQuietPrompts YES -recordingIsland NO -mcpEnabled NO -autoCheckUpdates NO -muteHotKey YES`（設定只在這次執行有效）；啟動後用 `lsof` 確認開的是暫存的資料庫，開到正式資料庫就結束 app、FAIL。錄音島關掉：上游 5.0 的 DEBUG `state` 在島出現時寫不出 JSON。結束用 `kill`（TERM，10 秒後 KILL），不用 `quit`：正常結束會把視窗位置寫進共用設定。
 - 不送按鍵、不用 System Events、不用 AX：畫面一律 `windowshot`、`mawindowshot`（app 自己畫）。
 - 結束（含失敗、Ctrl-C）時結束自己的 DEBUG 版、刪掉這次的暫存資料夾（app、home、`shiyinctl`）；輸出資料夾留著（摘要和證據）。建置快取和基準版留著給下次用（`--clean-cache` 才刪）。
+
+**失敗一律不放行**（check.sh 是安全防線：判斷不了的情況算失敗，不算通過）
+
+- 設定快照：`defaults export` 成功、而且 `plutil -lint` 認得是 plist 才算快照。網域確實不存在（`defaults read` 說 `Domain … does not exist`）是另一種明確狀態，快照檔寫成 `MA-CHECK: domain absent`；其他失敗（權限、服務、I/O、輸出不是 plist）：開始時 exit 2（不跑），結束時 #12 FAIL。不會用空檔代替。
+- 資料庫：DEBUG 版啟動後用 `lsof -p <pid> -Fn`（每個路徑一行、保留空白）列出開著的檔，`lsof` 失敗或沒有輸出就算失敗；所有 `shiyin.sqlite`、`-wal`、`-shm` 都要在這次的暫存 home 底下，而且一定要看得到暫存 home 的 `shiyin.sqlite`；開了任何正式資料夾（`~/Library/Application Support/Shiyin/`）底下的檔也算失敗。失敗時結束那個 DEBUG 版，DEBUG 版的項目全部 FAIL。
+- 品牌比對：`brand.py compare` 的 exit code 分三種：0 相同、1 比完有差異（需人工）、2 工具或輸入錯誤（基準或新版不是有效的 app：沒有 `Contents/Info.plist`、讀不了、沒有任何 `.lproj` 的 `Localizable.strings`；或比對中丟例外）。check.sh 只把 1 當「需人工」，其他非 0 一律 FAIL；呼叫前也先確認基準 bundle 有這些檔。
+- 結束 DEBUG 版：送訊號前核對那個 pid 的執行檔還是這次暫存資料夾裡的 app（`ps -o comm=`），不是就不送（pid 可能被別的程序重用）。
+- `--only`：照上面的白名單驗證。
+
+**check.sh 自己的測試**（`python3 scripts/fork/check-test.py`，也是 quick 的 T）：check.sh 的判斷寫在 `scripts/fork/check-lib.sh`（`check.sh` source 它），測試在暫存資料夾放假的 `defaults`、`lsof`、`ps`、`plutil` 指令（PATH 最前面），只呼叫 lib 的函式，不讀寫真的設定、不碰任何資料庫。負對照都要失敗或 exit 2：
+
+| 函式 | 情境 | 要的結果 |
+|---|---|---|
+| `defaults_snapshot` | export 失敗（非網域不存在）、export 成功但不是 plist、網域不存在 | 前兩個 return 1；不存在寫 `MA-CHECK: domain absent`、return 0 |
+| `verify_db_files` | 只有暫存、只有正式、兩者都有、路徑有空白（暫存 home 有空白；正式的 `Application Support`）、只有 `-wal` 在正式、lsof 失敗、lsof 沒輸出 | 只有「只有暫存」（含有空白的暫存 home）通過 |
+| `compare_status` | brand.py compare 回 0、1、2、其他 | PASS、需人工、FAIL、FAIL |
+| `validate_only` | `999`、空字串、`3,999`、`3,I1,S` | 前三個 return 2，最後一個通過 |
+| `owned_pid` | pid 的執行檔是這次的 app、是別的程式、pid 不在 | 只有第一個通過 |
+
+另外 `brand-test.py` 加 `brand.py compare` 的測試：相同 0、有差異 1、基準缺 `Info.plist` 或沒有翻譯 2。
 
 **品牌比對的基準**：`--base-app` 沒給時，用 `git describe --tags --abbrev=0 --match 'v[0-9]*' HEAD^` 找到的 fork tag（現在是 v5.0.1），`git archive` 那個 tag 到暫存資料夾、用它自己的 `build-app.sh`（同樣的複本規則）建 release，放在 `~/Library/Caches/ShiyinBuild/check/base/<tag>/`，之後直接用。用同一台電腦、同一版 Xcode 建，`xcstringstool` 的版本差異不會變成假的差異（F7.5 跟 GitHub 上的 4.7.6 比時就多了 3 條）。
 
