@@ -1,10 +1,10 @@
 #!/bin/bash
-# DF5 的 TSan 檢查：python 從 AudioSources.swift 取出 LockedValue，編成 -sanitize=thread，
+# DF5 的 TSan 檢查：python 從 Fork/DF5/LockedValue.swift 取出 LockedValue，編成 -sanitize=thread，
 # locked 跑 3 次要 0 個資料競態（exit 0）；plain（對照組）跑 3 次要報告 data race（exit 非 0）
 set -u
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 WORK="$(mktemp -d)"; trap 'rm -rf "$WORK"' EXIT
-python3 - "$ROOT/Sources/Shiyin/Capture/AudioSources.swift" "$WORK/LockedValue.swift" <<'PY'
+python3 - "$ROOT/Sources/Shiyin/Fork/DF5/LockedValue.swift" "$WORK/LockedValue.swift" <<'PY'
 import re,sys
 s=open(sys.argv[1]).read()
 m=re.search(r'^final class LockedValue<Value>.*?^}\n', s, re.S|re.M)

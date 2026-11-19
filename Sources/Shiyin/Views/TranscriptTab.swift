@@ -390,28 +390,6 @@ struct TranscriptTab: View {
         .contentFont(.caption)
     }
 
-    /// 錄音時標記、沒套用的名字（design §24.4、R23.5）：套用到這一段的說話者（跟手動改名一樣），或刪掉標記
-    private func tagLine(_ tag: SpeakerTag, speaker idx: Int) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Label("錄音時標記為\(tag.name)", systemImage: "person.crop.circle.badge.questionmark")
-                .foregroundStyle(Color.signal)
-            Spacer(minLength: 8)
-            Button("刪除標記") { if let id = tag.id { model.deleteSpeakerTag(id) } }
-                .buttonStyle(.link)
-            let count = detail.taggedSegments(tag).count
-            if count > 0 {
-                Button(count == 1 ? String(localized: "只改這句") : String(localized: "只改這 \(count) 句")) {
-                    model.reassignTaggedSegments(tag)
-                }
-                .buttonStyle(.link)
-                .help("只把標記蓋到的句子改成\(tag.name)說的，說話者的其他句子不變")
-            }
-            Button("套用到\(detail.speakerName(idx) ?? "")") { model.renameSpeaker(idx, to: tag.name) }
-                .buttonStyle(.link)
-        }
-        .font(.caption)
-    }
-
     @ViewBuilder
     private func row(_ segment: Segment) -> some View {
         let isCurrent = segment.id == currentSegmentId
@@ -440,7 +418,7 @@ struct TranscriptTab: View {
                 .popover(isPresented: Binding(get: { renaming?.segment == segment.id && segment.id != nil },
                                               set: { if !$0 { renaming = nil } })) {
                     RenameSpeakerForm(name: $renameText, automatic: detail.speakerSources[idx] == "voiceprint",
-                                      tagged: detail.speakerSources[idx] == "tag",
+                                      tagged: detail.speakerSources[idx] == "tag",   // MA-FORK(F2)
                                       onReject: { model.rejectVoiceprintMatch(idx); renaming = nil },
                                       mergeTargets: otherSpeakers(than: idx),
                                       onMerge: { into in
@@ -481,9 +459,7 @@ struct TranscriptTab: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .onTapGesture(count: 2) { startEdit(segment) }
                     ForEach(corrections) { correctionLine($0) }
-                    if let idx = segment.speaker {
-                        ForEach(detail.unappliedTags(on: segment.id)) { tagLine($0, speaker: idx) }
-                    }
+                    if let idx = segment.speaker { ForEach(detail.unappliedTags(on: segment.id)) { UnappliedTagLine(tag: $0, idx: idx, detail: detail) } }   // MA-FORK(F2)：沒套用的標記（F2.4）
                 }
             }
         }
@@ -689,8 +665,7 @@ struct RenameSpeakerForm: View {
     @Binding var name: String
     /// 名字是聲紋自動帶入的：多一個「不是他」（design §21.4）
     var automatic = false
-    /// 名字是錄音時標記帶入的：一樣有「不是他」（design §F2.4）
-    var tagged = false
+    var tagged = false   // MA-FORK(F2)：名字是錄音時標記帶入的（F2.9）
     var onReject: (() -> Void)? = nil
     /// 「合併到…」（design §24.2）：其他說話者
     var mergeTargets: [(idx: Int, name: String)] = []
@@ -705,9 +680,8 @@ struct RenameSpeakerForm: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("說話者名字").font(.title3).fontWeight(.bold)
             SheetTextField(placeholder: String(localized: "例如：小明"), text: $name, focusOnAppear: true, onSubmit: onSave)
-            if automatic || tagged {   // MA-FORK(F2)：標記帶入的名字（F2.9）
-                Text(tagged ? "這個名字是從錄音時的標記帶入的。不對的話直接改名，或按「不是他」。"
-                            : "這個名字是拾音認出聲音後自動帶入的。不對的話直接改名，或按「不是他」。")
+            if tagged { ForkTaggedNameNote() } else if automatic {   // MA-FORK(F2)
+                Text("這個名字是拾音認出聲音後自動帶入的。不對的話直接改名，或按「不是他」。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

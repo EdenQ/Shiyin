@@ -88,9 +88,7 @@ struct MeetingDetail: Equatable {
     var speakerSources: [Int: String] = [:]
     /// AI 猜的名字（design §21.5）、聲紋沒把握的（§21.4、R33）：還是預設名稱的說話者才有
     var speakerSuggestions: [Int: SpeakerNaming.Suggestion] = [:]
-    /// 錄音中標記的說話者（design §F2），依標記的先後；每個標記對上的說話者、逐字稿上的位置（buildIndexes 算）
-    var speakerTags: [SpeakerTag] = []
-    var tagMatches: [Int64: SpeakerTagging.Match] = [:]
+    var forkTags = ForkSpeakerTags.DetailState()   // MA-FORK(F2)：錄音中標記的說話者（F2.4）
     /// 每位說話者最像的幾位認識的人（R33）：「是別人」的選單、待確認的「不是」
     var speakerCandidates: [Int: [String]] = [:]
     /// 精簡逐字稿（R96、design §70）：段落 id → 精簡後的文字；空的是還沒產生。最後一次產生失敗的原因
@@ -145,45 +143,7 @@ struct MeetingDetail: Equatable {
         timelineStarts = ordered.map(\.start)
         timelineIds = ordered.map(\.id)
         segmentIndex = Dictionary(segments.enumerated().compactMap { i, s in s.id.map { ($0, i) } }, uniquingKeysWith: { a, _ in a })
-        tagMatches = Dictionary(uniqueKeysWithValues: speakerTags.compactMap { tag in
-            tag.id.map { ($0, SpeakerTagging.match(tag.tag, in: segments)) }
-        })
-    }
-
-    /// 「正在說話」的名單：與會者，接著是標過的名字（design §F2.2）
-    var tagRoster: [String] {
-        SpeakerTagging.roster(participants: meeting.participantList, tagged: speakerTags.map(\.name))
-    }
-
-    /// 即時逐字稿的一行有的標記：中間點落在這一行裡的，有好幾個時用最後標的（design §F2.2）
-    func liveTag(start: Double, end: Double) -> SpeakerTag? {
-        speakerTags.last { SpeakerTagging.belongs($0.tag, toLine: start, end) }
-    }
-
-    /// 錄音時標記、沒套用的名字（design §F2.4）：逐字稿上那一段的說話者現在的名字跟標記不同。依時間排
-    var unappliedTags: [SpeakerTag] {
-        speakerTags.filter(isUnapplied).sorted { $0.start < $1.start }
-    }
-
-    func unappliedTags(on segmentId: Int64?) -> [SpeakerTag] {
-        guard let segmentId else { return [] }
-        return speakerTags.filter { tag in tag.id.flatMap { tagMatches[$0]?.segmentId } == segmentId && isUnapplied(tag) }
-    }
-
-    func isUnapplied(_ tag: SpeakerTag) -> Bool {
-        guard let id = tag.id, let idx = tagMatches[id]?.segmentSpeaker else { return false }
-        return !SpeakerTagging.sameName(speakerName(idx) ?? "", tag.name)
-    }
-
-    /// 「只改這句」改哪幾句（design §F2.4、F2.12）
-    func taggedSegments(_ tag: SpeakerTag) -> [Int64] {
-        guard let id = tag.id, let match = tagMatches[id] else { return [] }
-        return SpeakerTagging.covered(tag.tag, by: match, in: segments)
-    }
-
-    /// 這場名字跟 name 一樣的說話者（不分大小寫），except 那位不算
-    func speaker(named name: String, except idx: Int?) -> Int? {
-        speakers.keys.sorted().first { $0 != idx && SpeakerTagging.sameName(speakers[$0] ?? "", name) }
+        forkTags.rebuild(segments)   // MA-FORK(F2)
     }
 
     /// 跟這段同一位說話者、在逐字稿裡前後連在一起的段落（「這段連續的話是誰說的」，design §24.3）
@@ -253,9 +213,7 @@ final class AppModel {
             if oldValue != selection {
                 reviewExpanded = false
                 userNotesExpanded = false
-                currentTopicBranch = nil   // MA-FORK(F4)：換會議時清掉議題的狀態
-                topicScrollRequest = nil
-                notesCollapsedTopics = nil
+                fork.selectionChanged()   // MA-FORK(F4)：換會議時清掉議題的狀態
                 reloadDetailAfterMouseUp()
             }
         }
@@ -312,21 +270,7 @@ final class AppModel {
     /// 紀錄頂部「還有 N 題待確認」、逐字稿頂部「我的筆記」展開了沒（design §33.1）：只記這次選取期間，換會議就收起
     var reviewExpanded = false
     var userNotesExpanded = false
-    /// 播放中的議題（fork F4.9，design §F4.3）：心智圖的第幾支。播放條在議題換了時才設，紀錄頁不用隨播放時間重算
-    var currentTopicBranch: Int?
-    /// 在紀錄分頁點議題帶：紀錄頁捲到那個議題（fork F4.10）；每次點都是新的 id，同一段連點也會捲
-    var topicScrollRequest: TopicScrollRequest?
-    /// 紀錄條列頁收起來的議題（`notes.topics` 的位置，fork F4.7）；nil 是預設（議題 > 5 個全部收起）。只記這次選取期間
-    var notesCollapsedTopics: Set<Int>?
-    /// 議題帶切段的快取（design §F4.3）：會議紀錄或長度變了才重算；播放條每 0.1 秒重畫時只查表
-    @ObservationIgnored private var topicSegmentsCache: (notes: MeetingNotes, duration: Double, segments: [MindMap.TopicRange])?
-
-    func topicSegments(notes: MeetingNotes, duration: Double) -> [MindMap.TopicRange] {
-        if let cache = topicSegmentsCache, cache.duration == duration, cache.notes == notes { return cache.segments }
-        let segments = MindMap.topicSegments(notes: notes, duration: duration, untitled: MindMap.topicLabel(.interface))
-        topicSegmentsCache = (notes, duration, segments)
-        return segments
-    }
+    let fork = ForkAppState()   // MA-FORK(F0)：fork 的畫面狀態（fork design §F0.2）
     /// 正在讀取的參考文件：會議 id → 檔名（design §39.4）
     var readingDocuments: [Int64: [String]] = [:]
     /// 已經有會議紀錄、之後才加入或移除文件的會議（R61.8）：紀錄分頁頂部提示重新整理。只記在記憶體
@@ -520,12 +464,8 @@ final class AppModel {
         if AppSettings.autoDetectLanguage { models.autoStart(.languageDetection) }
         GlobalHotKey.shared.onPress = { [weak self] in self?.toggleRecording() }
         GlobalHotKey.shared.onBookmark = { [weak self] in self?.bookmarkFromHotKey() }
-        GlobalHotKey.shared.onMute = { [weak self] in self?.toggleMicMuteFromHotKey() }
-        recorder.onStarted = { [weak self] in
-            GlobalHotKey.shared.setBookmarkEnabled(AppSettings.bookmarkHotKey)
-            GlobalHotKey.shared.setMuteEnabled(AppSettings.muteHotKey && self?.recorder.canMuteMic == true)
-        }
-        recorder.onMuteHint = { [weak self] in self?.muteHintAppeared() }
+        recorder.onStarted = { GlobalHotKey.shared.setBookmarkEnabled(AppSettings.bookmarkHotKey) }
+        ForkMute.install(self)   // MA-FORK(F3)：⌃⌥⌘M、靜音的提醒（F3.3、F3.4）
         recorder.onLevelHint = { [weak self] hint in self?.levelHintAppeared(hint) }
         recorder.microphoneUser = { [weak self] in self?.meetingDetector.microphoneUser() }
         recorder.onMicHint = { [weak self] hint in self?.micHintAppeared(hint) }
@@ -688,7 +628,7 @@ final class AppModel {
             speakers: Dictionary(uniqueKeysWithValues: speakerRows.map { ($0.idx, $0.name) }),
             bookmarks: (try? db.bookmarks(id)) ?? [], corrections: (try? db.corrections(id)) ?? [])
         loaded.loadSpeakers(speakerRows)
-        loaded.speakerTags = (try? db.speakerTags(id)) ?? []
+        loaded.speakerTags = (try? db.speakerTags(id)) ?? []   // MA-FORK(F2)
         loaded.loadDocuments((try? db.documents(id)) ?? [])
         loaded.speakerCandidates = (try? db.voiceprintCandidates(id)) ?? [:]
         loaded.cleanLines = (try? db.cleanLines(id)) ?? [:]
@@ -760,21 +700,14 @@ final class AppModel {
         }
     }
 
-    /// ⌃⌥⌘M（design §F3.3）：人多半在 Teams 裡，用聲音讓人知道按到了
-    func toggleMicMuteFromHotKey() {
-        guard recorder.canMuteMic else { return }
-        recorder.toggleMicMute()
-        NSSound(named: recorder.micMuted ? "Bottle" : "Pop")?.play()
-    }
-
     var menuBarSymbol: String {
         if bookmarkFlash { return "star.circle.fill" }
         // 收音提醒還在時換成警示的樣子（R42.2），按「知道了」或提示消失就換回來。
         // 圖示同提示列（mic.badge.exclamationmark 不是系統有的 SF Symbol，4.1～4.8.1 選單列在這時是空白的）
         if recorder.isRecording {
             if let hint = recorder.levelHint { return hint.symbol }
-            return recorder.micHint != nil || recorder.idlePrompt || recorder.muteHint ? "mic.badge.xmark"
-                : recorder.micMuted ? "mic.slash.circle.fill" : "record.circle.fill"   // MA-FORK(F3)：靜音中、忘了打開的提醒（design §F3.3）
+            if let symbol = ForkMute.menuBarSymbol(recorder) { return symbol }   // MA-FORK(F3)：靜音中（F3.3）
+            return recorder.micHint != nil || recorder.idlePrompt ? "mic.badge.xmark" : "record.circle.fill"
         }
         if runner.isBusy || queuedCount > 0 { return "waveform.circle.fill" }
         return "waveform"
@@ -794,13 +727,7 @@ final class AppModel {
         notifier.levelHint(hint.text, kind: "bluetooth", meetingId: id)
     }
 
-    /// 靜音中現場好像有人在說話（design §F3.2、F3.4）：通知的規則同收音提醒
-    private func muteHintAppeared() {
-        guard let id = recorder.meetingId, !mainWindowInFront else { return }
-        notifier.levelHint(Recorder.muteHintText, kind: "muted", meetingId: id)
-    }
-
-    private var mainWindowInFront: Bool {
+    var mainWindowInFront: Bool {   // MA-FORK(F3)：靜音的提醒也看（private → internal）
         NSApp.isActive && NSApp.windows.contains { $0.isVisible && $0.identifier?.rawValue.hasPrefix("main") == true }
     }
 
@@ -952,8 +879,8 @@ final class AppModel {
     /// 錄音結束：把錄音檔接到會議上並排轉錄（R2.5）
     private func recordingFinished(_ result: Recorder.Result) {
         MeetingPromptPanel.shared.close()   // 還開著的「要停止錄音嗎？」不用了
-        GlobalHotKey.shared.setBookmarkEnabled(false)   // 不錄音時不佔用 ⌃⌥⌘B、⌃⌥⌘M
-        GlobalHotKey.shared.setMuteEnabled(false)
+        GlobalHotKey.shared.setBookmarkEnabled(false)   // 不錄音時不佔用 ⌃⌥⌘B
+        GlobalHotKey.shared.setMuteEnabled(false)   // MA-FORK(F3)
         do {
             if let error = result.error {
                 errorMessage = error
@@ -1268,7 +1195,7 @@ final class AppModel {
     // MARK: 說話者的修正（design §24、R23）
 
     /// 轉錄或重新辨識說話者時不能改：完成時會整份寫回段落的說話者
-    private func speakerEditProblem(_ id: Int64, transcript: Bool = false) -> String? {
+    func speakerEditProblem(_ id: Int64, transcript: Bool = false) -> String? {   // MA-FORK(F2)：「只改這句」也檢查（private → internal）
         if detail?.meeting.deletedAt != nil { return String(localized: "垃圾桶裡的會議要先還原才能操作") }
         if detailStatus?.isActive == true || (try? db.hasActiveJob(id, kind: .rediarize)) == true {
             return transcript ? String(localized: "正在處理這場會議，完成後才能修改逐字稿") : String(localized: "正在處理這場會議，完成後才能改說話者")
@@ -1313,11 +1240,9 @@ final class AppModel {
         perform(.detail([.speakers, .segments, .meeting])) {
             guard try db.mergeSpeakers(id, from: from, into: into,
                                        label: String(localized: "把「\(fromName)」合併到「\(intoName)」")) != nil else { return }
-            // 使用者取的名字、錄音時標記的名字：用合併後的聲紋重新學（聲紋自動帶入的名字不學，design §21.4、§F2.3）
-            if AppSettings.voiceprints, source == "manual" || source == "suggestion" {
+            // 使用者取的名字：用合併後的聲紋重新學（自動帶入的名字不學，design §21.4）
+            if AppSettings.voiceprints, source == "manual" || source == "suggestion" || source == "tag" {   // MA-FORK(F2)：標記的名字也重新學（F2.9）
                 try db.learnVoiceprint(id, idx: into, name: intoName, source: source ?? "manual")
-            } else if AppSettings.voiceprints, source == "tag" {
-                try db.learnVoiceprint(id, idx: into, name: intoName, source: "tag", remember: db.rememberTaggedVoices(id))
             }
             noticeMessage = String(localized: "已把「\(fromName)」合併到「\(intoName)」。要復原的話，點說話者的名字選「復原」。")
         }
@@ -1335,24 +1260,6 @@ final class AppModel {
                                    : String(localized: "把 \(ids.count) 句改成「\(target)」說的")
         perform(.detail([.speakers, .segments])) {
             try db.reassignSegments(id, ids: ids, to: idx, label: label)
-        }
-    }
-
-    /// 沒套用的標記「只改這句」（F2.12，design §F2.4）：標記蓋到的句子改給叫這個名字的說話者，沒有就新增一位
-    func reassignTaggedSegments(_ tag: SpeakerTag) {
-        guard let id = selection, let detail else { return }
-        if let problem = speakerEditProblem(id) {
-            noticeMessage = problem
-            return
-        }
-        let ids = detail.taggedSegments(tag)
-        guard let tagId = tag.id, !ids.isEmpty else { return }
-        let name = tag.name.trimmingCharacters(in: .whitespacesAndNewlines)
-        let target = detail.speaker(named: name, except: detail.tagMatches[tagId]?.segmentSpeaker)
-        let label = ids.count == 1 ? String(localized: "把一句改成「\(name)」說的")
-                                   : String(localized: "把 \(ids.count) 句改成「\(name)」說的")
-        perform(.detail([.speakers, .segments])) {
-            try db.reassignSegments(id, ids: ids, to: target, name: target == nil ? name : nil, label: label)
         }
     }
 
@@ -1645,7 +1552,7 @@ final class AppModel {
         }
     }
 
-    /// 「不是他」：聲紋自動帶入、錄音時標記帶入的名字不對，回到預設名稱（design §21.4、§F2.4）；會議紀錄裡的名字也換回去
+    /// 「不是他」：聲紋自動帶入的名字不對，回到預設名稱（design §21.4）；會議紀錄裡的名字也換回去
     func rejectVoiceprintMatch(_ idx: Int) {
         guard let id = selection else { return }
         let language = detail?.meeting.meetingLanguage ?? .zh
@@ -1673,60 +1580,6 @@ final class AppModel {
         perform(.detail([.speakers])) { try db.clearSpeakerSuggestion(id, idx: idx) }
     }
 
-    // MARK: 錄音中標記說話者（design §F2、F2）
-
-    /// 一行的選單、＋ 的輸入框列出的認識的人（打開錄音畫面時讀一次）
-    var knownPeople: [String] = []
-
-    func refreshKnownPeople() {
-        knownPeople = (try? db.peopleNames()) ?? []
-    }
-
-    /// 「正在說話」的名字：標記現在這幾秒。標記的名字不加進與會者，打錯、清除之後就不會留下（design §F2.2）
-    func tagSpeakerNow(_ name: String) {
-        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let id = recorder.meetingId, !recorder.isPaused, !name.isEmpty else { return }
-        let time = recorder.elapsed
-        perform(.detail([.speakerTags])) { try db.tagNow(id, at: time, name: name) }
-        noticeMessage = String(localized: "已標記 \(TimeFormat.string(time)) 是\(name)在說話")
-    }
-
-    /// 標記即時逐字稿的一行（換成別人也是這個）
-    func tagLiveLine(_ line: Recorder.LiveLine, as name: String) {
-        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let id = recorder.meetingId, !name.isEmpty else { return }
-        perform(.detail([.speakerTags])) { try db.tagLine(id, start: line.start, end: line.end, name: name) }
-    }
-
-    func clearLiveLineTag(_ line: Recorder.LiveLine) {
-        guard let id = recorder.meetingId else { return }
-        perform(.detail([.speakerTags])) { try db.clearLineTags(id, start: line.start, end: line.end) }
-    }
-
-    /// 「正在說話」那一排的 ＋：加進與會者
-    func addParticipant(_ name: String) {
-        guard let id = recorder.meetingId ?? selection else { return }
-        perform(.detail([.meeting])) { try db.addParticipant(id, name: name) }
-    }
-
-    /// 錄完：刪掉沒套用的標記（design §F2.4）
-    func deleteSpeakerTag(_ id: Int64) {
-        perform(.detail([.speakerTags])) { try db.deleteSpeakerTag(id) }
-    }
-
-    #if DEBUG
-    /// shiyinctl tagui：add 等於按「正在說話」的 ＋，name:<行的 id> 等於一行選單裡的「其他名字…」（打開彈出視窗）
-    var debugTagUI: String?
-
-    /// shiyinctl applytags：等於重新轉錄存檔後那幾步：標記帶入的名字回到預設、套用標記、聲紋比對（design §F2.5）
-    func debugApplyTags(_ id: Int64) {
-        perform(.detail([.speakers, .meeting])) {
-            try db.resetTaggedSpeakers(id)
-            try runner.applySpeakerTags(id)
-            if AppSettings.voiceprints { try db.matchVoiceprints(id) }
-        }
-    }
-    #endif
     /// 待確認的說話者題目送出（R33.2、design §27）：回答是 YesNoAnswer 的文字（依會議語言）。
     /// 是 = 套用建議；不是而且有名字 = 改成那個名字；不是沒填、略過 = 清掉建議；還沒選的不動
     func answerSpeakerQuestions(_ answers: [Int: String], skipped: Set<Int>) {
@@ -2128,17 +1981,6 @@ final class AppModel {
     }
 
     /// 複製心智圖（design §42.4）：PNG 放進剪貼簿，貼到聊天軟體、簡報
-    /// 只複製一段（fork F4.1，design §F4.1）：從會議紀錄產生純文字，跟著會議語言
-    func copyNotesSection(_ scope: NotesSectionScope) {
-        guard let b = exportBundle(), let notes = b.notes else { return }
-        let text = NotesExporter.plainSection(scope, notes: notes, language: b.meeting.meetingLanguage)
-        guard !text.isEmpty else { return }
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
-        let title = text.split(separator: "\n", maxSplits: 1).first.map(String.init) ?? ""
-        noticeMessage = String(localized: "已複製「\(title)」")
-    }
-
     func copyMindMap() {
         guard let b = exportBundle() else { return }
         guard let layout = MindMapExport.layout(b), let png = MindMapExport.png(layout, language: b.meeting.meetingLanguage) else {
@@ -2204,8 +2046,7 @@ final class AppModel {
         static let segments = DetailParts(rawValue: 1 << 2)
         static let corrections = DetailParts(rawValue: 1 << 3)
         static let meeting = DetailParts(rawValue: 1 << 4)   // 會議本身、會議紀錄、版本數
-        static let speakerTags = DetailParts(rawValue: 1 << 5)
-        static let documents = DetailParts(rawValue: 1 << 6)
+        static let documents = DetailParts(rawValue: 1 << 5)
     }
 
     func perform(_ scope: ReloadScope = .all, _ work: () throws -> Void) {
@@ -2244,7 +2085,7 @@ final class AppModel {
             updated.cleanLines = (try? db.cleanLines(id)) ?? [:]
         }
         if parts.contains(.corrections) { updated.corrections = (try? db.corrections(id)) ?? [] }
-        if parts.contains(.speakerTags) { updated.speakerTags = (try? db.speakerTags(id)) ?? [] }
+        if parts.contains(.speakerTags) { updated.speakerTags = (try? db.speakerTags(id)) ?? [] }   // MA-FORK(F2)
         if parts.contains(.documents) { updated.loadDocuments((try? db.documents(id)) ?? []) }
         if parts.contains(.meeting), let meeting = try? db.meeting(id) {
             updated.meeting = meeting
@@ -2252,7 +2093,7 @@ final class AppModel {
             updated.versionCount = (try? db.versionCount(id)) ?? 0
             updated.linkReviewItems()
         }
-        if !parts.isDisjoint(with: [.segments, .corrections, .speakerTags]) || !segmentIds.isEmpty { updated.buildIndexes() }
+        if !parts.isDisjoint(with: [.segments, .corrections, .speakerTags]) || !segmentIds.isEmpty { updated.buildIndexes() }   // MA-FORK(F2)
         detail = updated
         syncReviewDraft()
     }

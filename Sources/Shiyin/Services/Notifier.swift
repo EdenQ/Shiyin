@@ -153,10 +153,7 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
     }
 
     private func post(_ content: UNNotificationContent) {
-        #if DEBUG
-        // -debugQuietPrompts YES：驗證時不要跳出系統的通知詢問、通知（design §24.5），內容照樣記在 recent
-        if UserDefaults.standard.bool(forKey: "debugQuietPrompts") { return }
-        #endif
+        if ForkDebugPrompts.quiet { return }   // MA-FORK(F0)：DEBUG 的 -debugQuietPrompts
         let center = UNUserNotificationCenter.current()
         Task {
             var settings = await center.notificationSettings()

@@ -6,30 +6,38 @@
 
 ## F0. 開發規則（PLAN-fork-5.0 §3.3）
 
-### F0.1 新功能
+### F0.1 以後新增功能的規則
 
-1. 先寫 `docs/fork/requirements.md`（新功能從 F10 編號），再寫這份的 §F#（重要的取捨寫成 DF#），再加 `docs/fork/tasks.md` 的任務，最後寫程式。
-2. 程式放 `Sources/Shiyin/Fork/<功能>/`。上游的檔只加「接點」：一行呼叫 fork 的程式，行尾標 `// MA-FORK(F#)`（shell 腳本用 `# MA-FORK(F#)`），並登記在 `docs/fork/manifest.json`。
-3. 不改上游函式的簽章。真的要改時寫成 DF 決策，列進 manifest 的 `highRisk`。
-4. 資料照 §F-DB。設定鍵（UserDefaults）一律 `ma` 開頭（例如 `maMuteHotKey`）；已經發布的 `muteHotKey` 不改名（使用者的設定會不見）。DEBUG 指令一律 `ma` 開頭（例如 `matagspeaker`），已經有的保留原名當別名。
-5. 介面文字照樣寫中文、照上游寫「拾音」，建置時由 `brand.py` 換（§F7）；不經過翻譯表的寫法（`ui(zh:`、`verbatim:`）不能有品牌字，`brand.py check-sources` 會擋。
-6. 只做 Mac：`windows/`、`docs/design-windows.md`、Windows 的翻譯表不動；上游文件裡 Windows 的段落照留，fork 不適用。
+1. 新功能先寫進 `docs/fork/requirements.md`（新功能從 F10 編號），再寫這份的 §F#（重要的取捨寫成 DF#），再加 `docs/fork/tasks.md` 的任務，最後寫程式。
+2. 程式放 `Sources/Shiyin/Fork/<功能>/`：邏輯、畫面、DEBUG 指令都放這裡。上游的檔只加「接點」，每個接點行尾標 `// MA-FORK(F#)`（shell 腳本用 `# MA-FORK(F#)`），規則見 §F0.3，並登記在 `docs/fork/manifest.json`（`python3 scripts/fork/isolation-check.py --write` 照程式產生）。
+3. 能用 extension 就用 extension（`extension AppModel`、`extension AppDatabase`、`extension Recorder`…寫在 Fork/ 的檔）。extension 看不到上游的 `private` 成員：真的要用時把那個成員改成 internal（參數用到 private 型別、不能改 internal 時，在同一個檔加 1 行 internal 的 `fork…` 轉呼叫），**這一行也算接點**、要標記，並列進 manifest 的 `highRisk`。
+4. 不改上游函式的簽章（不加參數、不改型別）。需要不同的行為時，fork 另寫一個函式呼叫上游的，或重用上游的 helper 自己組（例如 `reassignSegments(…naming:…)` 用上游的 `saveSpeakerUndo`、`addSpeaker`、`removeEmptySpeakers` 在同一筆交易裡做完，DF8），或在上游函式裡放 1 行接點問 fork（例如 `ForkSpeakerTags.remembersVoice`）。原本在同一筆資料庫交易裡的步驟，拆到 fork 後也要在同一筆交易裡（不能先呼叫上游的寫入、再另開一筆寫 fork 的），失敗時才會整筆回復。真的要改簽章時寫成 DF 決策，列進 manifest 的 `highRisk`。
+5. `@Observable` 的類別、struct 不能在 extension 加存起來的屬性：fork 的狀態放 fork 自己的物件，上游的型別只多一個屬性（`AppModel.fork`〔`ForkAppState`〕、`MeetingDetail.forkTags`、`Recorder.mute`〔`ForkMute.State`〕），fork 的 extension 用原本的名字讀寫（`model.currentTopicBranch`、`recorder.micMuted`），畫面照樣會跟著更新。
+6. 資料照 §F-DB：migration、新表 `ma_` 開頭，只新增、不改、不刪，`ForkMigrations.register` 在上游全部的 migration 之後。設定鍵（UserDefaults）一律 `ma` 開頭（例如 `maMuteHotKey`）；已經發布的 `muteHotKey` 不改名（使用者的設定會不見）。DEBUG 指令一律 `ma` 開頭（例如 `matagspeaker`），4.x 就有的（`tagspeaker`、`micmute`、`windowshot`…，manifest 的 `rules.legacyNames`）保留原名。fork 的 DEBUG 指令寫在 `ForkDebug`（`Fork/Debug/ForkDebug.swift` 加各功能的 `extension ForkDebug`），`state` 的欄位在 `ForkDebug.augmentState` 補上。
+7. 介面文字照樣寫中文、照上游寫「拾音」，鍵不要含「會議助手」，建置時由 `brand.py` 換（§F7）；不經過翻譯表的寫法（`ui(zh:`、`verbatim:`）不能有品牌字，`brand.py check-sources` 會擋。
+8. 只做 Mac：`windows/`、`docs/design-windows.md`、Windows 的翻譯表不動；上游文件裡 Windows 的段落照留，fork 不適用。
 
-### F0.2 接點的現況
+### F0.2 Fork/ 的配置（5.0.1 之後，PLAN-fork-5.0 階段 2）
 
-- 已經標記（`MA-FORK(F#)`，清單在 manifest 的 `markers`）：
-  - F7：`ShiyinApp.swift` 的 `BrandAboutCommand()`、`ReleaseNotes.swift` 兩行、`Reminders.swift` 兩行（5.0.1）、`build-app.sh`、`make-dmg.sh`。
-  - 5.0.1 合併時新加的（程式放 `Sources/Shiyin/Fork/`，上游檔只留 1 行）：F2 的 `ForkMigrations.register`（AppDatabase）、`ForkSpeakerTags`（MeetingEdits 4 行、`splitMeeting`、`SpeakerEdits`、封包的 Package 2 行、Exporters、AppModel 匯出）、`MeetingDetailView.speakerChip` 和 `TranscriptTab` 名字彈窗的「標記帶入」；F3 的 Recorder 收音檢查、選單列圖示（AppModel）、設定「錄音」頁的 `ForkMuteSettingsRow`、錄音島（IslandView 3 行、RecordingIsland 1 行）；F4 的換會議清狀態（AppModel）、`NotesSection` 的參數、條目列、待辦表；DF5 的 `LockedValue`；`ForkDebug`（DebugControl 的 `default:`，標 `MA-FORK(F0)`）。
-- 還沒標記：F2、F3、F4 其餘的程式還散在上游的檔裡（下表），PLAN-fork-5.0 階段 2 搬到 `Sources/Shiyin/Fork/`、上游檔只留標了 `MA-FORK` 的接點，manifest 跟著補。
-
-| 功能 | fork 自己的檔 | 改到的上游檔（4.7.6） |
+| 功能 | `Sources/Shiyin/Fork/` | 上游檔的接點（manifest 的 `markers`） |
 |---|---|---|
-| F1 名稱、圖示 | `Resources/AppIcon-1024.png`、`scripts/make-icon-from-png.sh` | `Resources/AppIcon.icns`、`Resources/Info.plist`（`ShiyinIssuesURL`、版本號）、`.github/workflows/release.yml`（標題、artifact 名稱）、`README.md` |
-| F2 說話者標記 | `Sources/Shiyin/Model/SpeakerTagging.swift`、`scripts/dev/check-fork-migrations.py` | `AppModel`、`AppDatabase`（`ma_speaker_tags_v1`、標記的存取）、`RecordingView`、`TranscriptTab`、`MeetingDetailView`、`JobRunner`、`Records`（`SpeakerTag`）、`SpeakerEdits`、`Voiceprints`、`DebugControl` |
-| F3 靜音 | — | `Recorder`（`micMuted`、`checkMuted`、`muteHint`）、`RecordingWriter`（`setMuted`）、`AppModel`、`RecordingView`、`MenuBar`、`SettingsView`（`muteHotKey`）、`GlobalHotKey`、`ShiyinApp`（⇧⌘M）、`JobRunner`、`DebugControl` |
-| F4 條列頁 | `scripts/dev/f4-check.py` | `NotesTabs`、`AppModel`、`PlayerBar`、`MindMap`（`topicSegments`）、`MeetingNotes`、`Exporters`、`Theme`、`DebugControl` |
-| F7 品牌 | `fork/brand.json`、`fork/brand-allow.txt`、`scripts/fork/`、`Sources/Shiyin/Fork/Brand.swift` | `ShiyinApp`、`ReleaseNotes`、`build-app.sh`、`make-dmg.sh`（都已標 `MA-FORK(F7)`） |
-| DF5 | — | `Capture/AudioSources.swift`（`LockedValue`，`MicrophoneSource`、`FileSource` 的 `deviceUID`、`current`） |
+| F0 共用 | `ForkState.swift`（`ForkAppState`：F2、F4 的畫面狀態）、`Debug/ForkDebug.swift`（DEBUG 指令入口、`augmentState`、`ForkDebugPrompts`） | AppModel 的 `let fork`、DebugControl 的 `default:`、`state` 的 `return out` 前、Notifier 的 `-debugQuietPrompts` |
+| F2 說話者標記 | `SpeakerTags/`：`SpeakerTagging`（規則）、`SpeakerTag`（資料表 `speaker_tags`）、`SpeakerTagStore`（`extension AppDatabase`）、`AppModel+SpeakerTags`（`MeetingDetail`、`AppModel` 的 extension）、`SpeakerTagViews`（錄音畫面、會議頁、逐字稿的畫面）、`SpeakerTagsDebug`、`ForkSpeakerTags`（跟著上游的編輯、分割、合併、封包）；`Store/ForkMigrations` | RecordingView、MeetingDetailView、TranscriptTab、JobRunner、AppModel、AppDatabase、MeetingEdits、Package、Exporters、Voiceprints、SpeakerEdits（`forkSaveSpeakerUndo`、`forkAddSpeaker`：轉呼叫 private 的 `saveSpeakerUndo`、`addSpeaker`） |
+| F3 靜音 | `Mute/`：`MicMute`（`ForkMute`、`extension Recorder/GlobalHotKey/AppSettings/AppModel`）、`MuteViews`、`MuteDebug`、`ForkMuteSettingsRow`、`ForkIslandMute` | Recorder、RecordingWriter（`muted`、`setMuted`、混音，跟寫檔的鎖綁在一起，留在原檔）、GlobalHotKey、AppModel、RecordingView、MenuBar、ShiyinApp、SettingsView、IslandView、RecordingIsland、DebugControl 的 `hotkey mute` |
+| F4 條列頁 | `Notes/`：`NotesListViews`（`ForkNotesList` 整個條列模式、`ForkNotesSection`、`NoteRow`、`TopicBlock`、`TopicChips`、`ForkActionItemsTable`、`FlowLayout`）、`NotesModel`（`NotesSectionScope`、`plainSection`、`topicSegments`、顏色、`AppModel` 的議題狀態、播放條的 `forkTrackTopic`）、`NotesDebug` | NotesTabs（條列模式換成 `ForkNotesList`；`ItemList` 的符號、`NoteRow`）、PlayerBar、AppModel、MindMap（`clean`、`shownTopics` 改 internal） |
+| F7 品牌 | `Brand.swift` | ShiyinApp、ReleaseNotes、Reminders、IslandView、`build-app.sh`、`make-dmg.sh`、`make-update-fixtures.sh` |
+| DF5 | `DF5/LockedValue.swift` | AudioSources 的 `MicrophoneSource`、`FileSource`（`deviceUID`、`current` 用 `LockedValue` 存，7 行） |
+
+- 跟上游元件長得一樣的 fork 複本（上游改了原本的，複本不會跟著變；manifest 的 `highRisk` 有列，監看要比對）：`ForkTaggedSpeakerName`（上游 `AutoSpeakerName`，多了「標記」）、`ForkSubduedTimeButton`（`TimeButton`，平常淡色）、`ForkNotesSection`（`NotesSection`，條數、色條、複製鈕）、`ForkActionItemsTable`（`ActionItemsTable`，fork 的欄位順序）。上游的原元件不動，人物頁照用上游的 `NotesSection`。
+
+### F0.3 接點的規則與檢查（`scripts/fork/isolation-check.py`）
+
+- **接點的範圍就是那一行**：上游檔加的每一行，同一行要有 `MA-FORK(F#)`（`F#` 是 manifest 的功能：F0、F1、F2、F3、F4、F7、DF5）。一個接點要多行時寫成多個標了記號的行，或把內容搬進 Fork/ 只留一行呼叫。
+- 改掉、拿掉上游的行：同一處（同一個 diff hunk）一定要有加上的接點行，等於「這幾行換成接點」；只刪不加的不行。例如 NotesPage 的條列模式整段換成 1 行 `ForkNotesList(…)`、RecordingView 即時逐字稿的一行換成 `LiveLineRow(…)`。
+- 上游的檔被搬走、改名、換類型（例如換成連結）都算拿掉上游的檔：比對時不偵測改名（`git diff --no-renames`，改名會變成刪掉舊的、加新的），舊路徑一定會被檢查到。
+- 檢查的範圍：上游 tag（manifest 的 `upstream.base.tag`，現在是 v5.0.0）裡就有的 `Sources/**/*.swift`、`Package.swift`（程式）和 `scripts/` 底下的 `.sh`、`.swift`（腳本）。程式加的行數合計不超過 `rules.upstreamLineBudget`（100）；腳本另外算。不檢查：文件、README、CLAUDE.md、翻譯表、Info.plist、圖示、`.github`（品牌由 `brand.py` 管，§F7.4；版本號照 DF6）。
+- manifest 要對得上：每個功能的 `forkFiles`、`upstreamFiles` 存在；`symbols` 找得到宣告；`markers`（`file`、`line`、`hook`＝那一行去掉接點註解）跟程式裡實際的接點一致，多的、少的都算錯，只有行號不同時提示用 `--write` 更新。
+- 跑法：`python3 scripts/fork/isolation-check.py`（exit 1 表示有問題，列出每一處）；新增、搬動接點後 `--write` 重寫 manifest 的 `markers`、`upstreamFiles`，再跑一次不加參數的。目前的檔數、行數看檢查的輸出（「上游程式 N 個檔、M 行」），這裡不寫固定的數字（會過期）。`python3 scripts/fork/isolation-check-test.py` 是檢查本身的回歸測試（未標記的修改、已 stage 和已 commit 的改名、刪檔、換類型都要失敗）。之後會串進 `scripts/fork/check.sh`（PLAN 階段 3a）。
 
 ## F1. 名稱（F1）
 
@@ -131,6 +139,7 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 ### F2.6 驗證
 
 - 比對規則：`SpeakerTagging` 用小程式單獨測（同名、不同名、不明確、沒人說話、同名兩位）。資料庫：測試用的 `SHIYIN_HOME` 建一場有說話者的會議（直接寫段落），`tagspeaker add`＋`applytags` 跑一遍，加上手動改過名字的說話者不覆蓋、聲紋有存、`tag` 的名字在重新套用時會重算。
+- 「只改這句」的交易（DF8）：`python3 scripts/fork/f2-atomic-check.py <SHIYIN_HOME> <shiyinctl> --out <資料夾>`（DEBUG 版先用那個 home 開著）：SQLite trigger 只擋「改名成丙」，按「只改這句」後說話者、句子、復原快照要跟按之前完全相同；拿掉 trigger 再按一次、再復原，輸出可以跟別的版本逐位元組比。
 - 端到端：多人真人錄音用模擬錄音（`record-sim`），在某人單獨講話時用 `tagspeaker now`、`tagspeaker line` 標記 → 停止 → 轉錄完那些說話者改成標的名字；重新轉錄後名字還在。
 - 畫面：在真的畫面上用 AX 按過「正在說話」的名字、＋ 的輸入框和「加入」、一行的選單（名單、其他名字…的「標記」、清除標記）、錄完的提示「查看」、逐字稿的「套用到…」「刪除標記」。英文介面看過。
 
@@ -169,7 +178,7 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 
 ### F3.5 驗證
 
-- 模擬錄音（`record-sim <檔案> 1 1`，兩個聲道是同一個檔）：錄一段、`micmute on` 一段、`off` 一段，停止後用 numpy 讀 WAV：靜音那段左聲道全是 0、右聲道照常，檔案長度等於錄音秒數；即時逐字稿在靜音那段照樣有字（電腦聲音那一聲道）。
+- 模擬錄音（`record-sim <檔案> 1 1`，兩個聲道是同一個檔）：`python3 scripts/fork/f3-mute-check.py <SHIYIN_HOME> <shiyinctl> --out <資料夾>` 用一直有聲音的測試音錄一段、`micmute on`、快捷鍵解除再靜音、`off`，依這次錄音的會議（`recorder.meetingId`）的 `audio_file` 讀檔（等轉錄後壓成 M4A，用 afconvert 解碼），檢查兩個聲道、靜音那段麥克風是 0、電腦聲音照常、沒靜音的區間兩個聲道都有聲音。不要掃 `audio/` 下所有的檔：同一個 home 裡別的測試放的靜音 WAV 會被當成錄音。舊的做法是停止後用 numpy 讀 WAV：靜音那段左聲道全是 0、右聲道照常，檔案長度等於錄音秒數；即時逐字稿在靜音那段照樣有字（電腦聲音那一聲道）。
 - 提醒：模擬錄音的兩個聲道一樣，電腦聲音一直有聲音，不會提示；用 `recordstall <秒數> 1` 讓電腦聲音停一段（停的部分補 0），靜音中 20 秒左右出現提示、`micmute dismiss` 收掉、再靜音一次又會出現。
 - 收音提醒在靜音時不出現；快捷鍵只在 `both` 的錄音中註冊。
 - 畫面：`windowshot` 看錄音畫面、選單列的靜音狀態和提示列。真的畫面上按圖示、真的按 ⌃⌥⌘M 待使用者。
@@ -214,7 +223,7 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 ### F4.4 條列頁（F4.2～F4.8）
 
 - 順序：摘要 → 決議 → 待辦 → 未決問題 → 自訂段落 → 議題 → 「由 X 整理．範本」。
-- `NotesSection(title:count:accent:copy:)`：標題（18 pt）、條數（`.secondary`，callout）、複製按鈕；`accent` 不是 nil 時左邊一條 3 pt 的色條（`Rectangle` 在 `overlay(alignment: .leading)`，內容往右縮 14 pt）。
+- `ForkNotesSection(title:count:accent:copy:)`（上游 `NotesSection` 的 fork 版，§F0.2）：標題（18 pt）、條數（`.secondary`，callout）、複製按鈕；`accent` 不是 nil 時左邊一條 3 pt 的色條（`Rectangle` 在 `overlay(alignment: .leading)`，內容往右縮 14 pt）。
   - 顏色（`Color` 的動態色，§9）：摘要 `slate` 淺 `#6B7A8F`／深 `#8E9CB0`（低飽和，跟待辦的藍、心智圖的 6 色分得開，對比 4.37:1／5.81:1）；決議 `celadon`；待辦 `MindMap.palette[1]`（藍 `#3E6FA8`／`#6E9BD6`）；未決問題 `signal`。議題段落本身不加段落級色條（每個議題已經有自己的色條，再加會變成兩條並排）。
 - `ItemList` 加 `symbol`（`•`、決議 `✓`、未決問題 `?`）、`symbolColor`。每一條是 `NoteRow`：`HStack(alignment: .firstTextBaseline)`：符號、文字（`.textSelection(.enabled)`、`maxWidth: .infinity, alignment: .leading`）、`ReviewMarker`、`TimeButton(style: .subdued)`。`NoteRow` 用 `.onHover` 記自己是不是被指著，傳給 `TimeButton`：平常 `.tertiary`、指著時 `celadon`。文字填滿中間，時間點就在行尾對齊成一欄。不加 `fixedSize`（CLAUDE.md），文字在 ScrollView 裡照舊換行。
 - `TimeButton` 加 `subdued: Bool`、`highlighted: Bool`（預設 false、行為不變，逐字稿、心智圖、提問不受影響）。
@@ -349,14 +358,14 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 | §43 議題時間軸、D145 | fork 的議題帶改用 `MindMap.topicSegments`（依每條重點的時間切段，同一個議題可以有好幾段），點了在紀錄分頁也捲到那個議題（§F4.2、§F4.3、DF4）。上游的 `topicRanges` 和它的標準答案不變 |
 | §44 本地 MCP | 給 AI 工具的英文訊息、`serverInfo` 照上游寫 Shiyin，不換品牌（F7.3）；設定頁和錯誤訊息這些查翻譯表的文字建置時換成會議助手 |
 | §49、§50（R73、R74） | 4.7.6 帶入上游 4.8.1 的寫法（F6）。§49.2、R73.6、R74.6 的 Windows 部分 fork 不做 |
-| §50.2 重新連接在背景 | fork 補的同步規則（DF5）：音源上會被兩個執行緒碰到的值都用 `LockedValue`（`NSLock`，每次讀寫只短暫拿鎖）存。`MicrophoneInput.deviceUID`：換麥克風時主執行緒寫、`deviceQueue` 上的 `start()` 讀；`current`（正在收音的裝置）：`start()` 在背景寫、主執行緒更新畫面時讀。`MicrophoneSource`、`FileSource` 一樣。不用 `deviceQueue.sync` 包住換麥克風：那會等整個重新連接做完，畫面又卡住（R74.4）。`start()` 一開始讀一次 UID 當這次的快照，中途換了就由 `restartAgain` 再做一次。驗證：`LockedValue` 原樣放進不碰硬體的 ThreadSanitizer 小程式，背景一直 `start()`、主執行緒一直換 UID、讀 current，沒有資料競態；改回普通屬性時 TSan 報告競態。上游的同一段沒有加鎖（上游仍有這個競態），上游哪天自己加鎖時刪掉 fork 的 |
+| §50.2 重新連接在背景 | fork 補的同步規則（DF5）：音源上會被兩個執行緒碰到的值都用 `LockedValue`（`NSLock`，每次讀寫只短暫拿鎖）存。`MicrophoneInput.deviceUID`：換麥克風時主執行緒寫、`deviceQueue` 上的 `start()` 讀；`current`（正在收音的裝置）：`start()` 在背景寫、主執行緒更新畫面時讀。`MicrophoneSource`、`FileSource` 一樣。不用 `deviceQueue.sync` 包住換麥克風：那會等整個重新連接做完，畫面又卡住（R74.4）。`start()` 一開始讀一次 UID 當這次的快照，中途換了就由 `restartAgain` 再做一次。`LockedValue` 的類別在 `Fork/DF5/LockedValue.swift`，用到的地方留在上游的 AudioSources、標 `MA-FORK(DF5)`。驗證：`LockedValue` 原樣放進不碰硬體的 ThreadSanitizer 小程式（`scripts/fork/tsan-lockedvalue/run.sh`），背景一直 `start()`、主執行緒一直換 UID、讀 current，沒有資料競態；改回普通屬性時 TSan 報告競態。上游的同一段沒有加鎖（上游仍有這個競態），上游哪天自己加鎖時刪掉 fork 的 |
 | 上游 5.0 的錄音島（R81、§57） | 靜音中（F3.7）：收起時紅點換成劃掉的麥克風（有提醒時琥珀色）；滑過去在音量下面寫「麥克風靜音中」加「打開麥克風」；靜音中好像有人說話的提醒（F3.4）跟錄音畫面的提示列一樣出現在島上，順序同提示列（沒人說話 → 靜音中好像有人說話 → 藍牙 → 收音）。`Fork/Mute/ForkIslandMute.swift` |
 | 上游 5.0 的收音檢查（R75、§51.1） | 靜音中不做麥克風的提醒（F3.5），但上游新的「錄不到電腦聲音」（系統音訊權限被拒）照樣提示：`checkLevels` 在 `checkSystemPermission` 和 `guard hasMic` 之後 1 行接點 |
 | 上游 5.0 的選單列圖示（`hint.symbol`） | 上游的收音提醒圖示優先，再來是 F3 的「忘了打開」提醒（`mic.badge.xmark`）、靜音中（`mic.slash.circle.fill`） |
 | 上游 5.0 的設定十一頁（R108） | F3 的「錄音中按 ⌃⌥⌘M 靜音」開關放在「錄音」頁的「提醒與快捷鍵」最後（`Fork/Mute/ForkMuteSettingsRow`） |
-| 上游 5.0 的會議頁上方（R84）、彈窗（R106） | `speakerChip` 的來源是 `tag` 時跟聲紋自動帶入一樣用 `AutoSpeakerName`（後面標「標記」）；說話者名字彈窗的「從錄音時的標記帶入」說明和「不是他」照舊（F2.9） |
-| 上游 5.0 的就地編輯（R100）、加到提醒事項（R76） | `NotesSection` 合成一個：fork 的條數、色條、複製鈕加上上游的 `accessory`（「待辦」的「加到提醒事項」放在複製鈕後面）；條目在編輯中用上游的 `NoteItemEditor`，其他時候用 fork 的 `NoteRow`，接上 `noteItemActions`（右鍵、⋯），可以就地編輯的條目不設成可選取；待辦表保留 fork 的欄位順序（負責人、期限、事項、時間點），負責人加上游的頭像，事項接上就地編輯和提醒事項的勾 |
-| 上游 R70 拆句、`addSpeaker()` | F2.12「只改這句」用上游的 `addSpeaker()` 新增說話者，再由 `ForkSpeakerTags.nameNewSpeaker` 設成標記的名字 |
+| 上游 5.0 的會議頁上方（R84）、彈窗（R106） | `speakerChip` 的來源是 `tag` 時用 fork 的 `ForkTaggedSpeakerName`（上游 `AutoSpeakerName` 的複本，後面標「標記」，§F0.2）；說話者名字彈窗的「從錄音時的標記帶入」說明和「不是他」照舊（F2.9） |
+| 上游 5.0 的就地編輯（R100）、加到提醒事項（R76） | 條列模式整頁是 fork 的 `ForkNotesList`（§F0.2）；段落用 `ForkNotesSection`：fork 的條數、色條、複製鈕加上上游的 `accessory`（「待辦」的「加到提醒事項」放在複製鈕後面）；條目在編輯中用上游的 `NoteItemEditor`，其他時候用 fork 的 `NoteRow`，接上 `noteItemActions`（右鍵、⋯），可以就地編輯的條目不設成可選取；待辦表（`ForkActionItemsTable`）保留 fork 的欄位順序（負責人、期限、事項、時間點），負責人加上游的頭像，事項接上就地編輯和提醒事項的勾。上游的 `NotesSection`、`ActionItemsTable` 不動 |
+| 上游 R70 拆句、`addSpeaker()` | F2.12「只改這句」在 fork 的 `AppDatabase.reassignSegments(…naming:…)` 用一筆 `pool.write` 照 5.0.1 的順序做完：上游的 `saveSpeakerUndo`（復原快照）、`addSpeaker()`（新增說話者）、`ForkSpeakerTags.nameNewSpeaker`（標記的名字）、改句子的說話者、上游的 `removeEmptySpeakers`；任何一步失敗整筆回復（DF8）。上游 private 的 `saveSpeakerUndo`、`addSpeaker` 由 SpeakerEdits 裡各 1 行接點 `forkSaveSpeakerUndo`、`forkAddSpeaker` 轉呼叫（`saveSpeakerUndo` 的參數用到 private 的 `SpeakerSnapshot`，不能直接改 internal；只加行、不改上游的行）；上游的函式不改簽章 |
 | 上游 5.0 的 DEBUG `state` | 錄音中錄音島出現時，視窗清單裡島的面板 `maxSize` 是無限大，`state` 寫 JSON 時丟例外、DEBUG 版結束（上游原樣也一樣；正式版不受影響）。fork 不改上游的檔：測錄音中的狀態時用 `-recordingIsland NO` 啟動。島的畫面用 fork 的 DEBUG 指令 `mawindowshot <輸出.png> island` 拍 |
 | 上游 5.0 的提醒事項（R101） | 列表名稱「會議助手」、舊名「拾音」列表沿用（F7.5、§F7.3 的接點） |
 
@@ -371,3 +380,4 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 | DF5 | 麥克風音源的 `deviceUID`、`current` 用短暫拿鎖的 `LockedValue` 存（上游 §50.2 的補充，見 §F-UP；2026-11-16 審查帶入的上游 R74 時發現） | 主執行緒先取 UID 的快照傳進背景：要改上游共用的 `AudioSource.restart()` 介面，`current` 從背景寫回仍然要同步，日後合併上游衝突多。換麥克風用 `deviceQueue.sync`：會等整個重新連接做完（藍牙要好幾秒），抵消 R74.4 的不卡住。改成 actor：`start()` 是同步的 AVAudioEngine 呼叫，要大改。上游 b042c94 原本是普通屬性，TSan 證實換麥克風和重新連接同時發生時有資料競態 |
 | DF6 | 版本號規則：build 號從 31 起單調遞增、不跟上游；合併上游 X.Y.Z 的那一版是 X.Y.(Z+1)，比 fork 目前的版本小時取 fork 的 patch + 1；fork 自己的發布只加 patch；說明文字第一行後面加「- 基於上游 拾音 X.Y.Z」（PLAN-fork-5.0 §2.3，2026-11-18 使用者同意） | 照上游的版本號：fork 自己的修正沒有號碼可用，跟上游同號會讓使用者以為是同一版。另外一套版本號（例如 1.0 起）：看不出基於上游哪一版，`Updater.isNewer` 只比數字，從 4.7.6 換到 1.0 使用者就收不到更新。這個規則永遠往上，app 內更新照常 |
 | DF7 | 品牌在建置時換建好的 app（`brand.py apply`），原始碼、翻譯表、Info.plist 照上游寫（F7，2026-11-18） | 原始碼直接寫「會議助手」（4.7.6 以前）：每次合併上游，32 個 Swift 檔、翻譯表 89 個鍵、Info.plist、安裝說明都衝突，而且上游新加的字串一定是「拾音」，要人工找。在建置前換一份翻譯表再編（PLAN 的原案）：繁中是來源語言，要另外寫明確的繁中值，還要處理鍵；編出來的繁中 `.strings` 本來就有全部的鍵，直接換值比較簡單，也能一起處理 `.stringsdict`、InfoPlist.strings。Swift 裡用 `Brand.name(...)` 包每一處：還是會衝突。代價：有幾處不經過翻譯表（關於、更新說明、5.0 的提醒事項）要留 1 行接點，原始碼掃描擋住上游新增的。防護要嚴：原始碼掃描只認包住字串的最內層查表呼叫，不看附近幾行；整句特例依資源規定一定要命中，不能只看有沒有殘留的「拾音」（2026-11-18 審查 P2-1、P2-2）。原始碼掃描只放行能證明會查表的參數寫法（單一常值、兩邊都是常值的三元運算），其他保守報錯；正確性用 Swift 編譯器的 `-emit-localized-strings` 依位置核對（`brand.py crosscheck`），不在每次建置都跑編譯器：那要改上游的 `swift build` 那行或多編一次整個模組（複審 P2-3） |
+| DF8 | fork 功能隔離到 `Sources/Shiyin/Fork/`，上游檔只留標了 `MA-FORK` 的單行接點（PLAN-fork-5.0 階段 2，2026-11-19）：狀態放 fork 自己的物件（`ForkAppState`、`MeetingDetail.forkTags`、`ForkMute.State`），要用的上游 `private` 成員改 internal 並標成接點，條列模式整頁、`AutoSpeakerName` 這種整塊改過的畫面用 fork 的複本；「只改這句」在 fork 的函式裡用一筆交易重用上游的 `saveSpeakerUndo`、`addSpeaker`、`removeEmptySpeakers`（兩個 private 的由 SpeakerEdits 裡各 1 行轉呼叫的接點 `forkSaveSpeakerUndo`、`forkAddSpeaker` 開出來），改句子說話者的那幾行是 fork 的複本（跟上游 `reassignSegments` 的迴圈相同）；不改成先呼叫上游的 `reassignSegments` 再另開一筆改名：第二筆失敗時第一筆已經存了（多出一位預設名稱的說話者、句子已改、留下復原快照），跟 5.0.1 的整筆回復不同（REVIEW-2 P2-1，`scripts/fork/f2-atomic-check.py` 用 SQLite trigger 讓改名失敗來檢查）；標記的名字存不存聲紋改由 `learnVoiceprint` 裡 1 行接點問 `ForkSpeakerTags.remembersVoice`；`LockedValue` 類別搬到 `Fork/DF5`；用 `isolation-check.py` 檢查（§F0.3） | 照舊在上游的函式加參數（`reassignSegments(name:)`、`learnVoiceprint(remember:)`）：改了上游函式的簽章，上游改同一個函式就衝突（§F0.1 第 4 點）。在上游元件加參數（`NotesSection` 的 count、accent、copy，`TimeButton` 的 subdued）：上游 5.0 就地編輯時已經衝突過一次，複本的代價是上游改原元件時要人工比對（manifest `highRisk`）。把上游的條列模式留著、fork 的另開一頁：同一份內容兩份程式，使用者看到的仍是 fork 的，上游的那份只是佔位。「只改這句」第二筆失敗時再補做復原：補做本身也可能失敗，中間別的寫入看得到改了一半的資料，不是原子性。接點的範圍用「開始、結束」兩個記號包住一段：可以包很長一段，失去「上游檔只留接點」的意思，行數也看不出來 |

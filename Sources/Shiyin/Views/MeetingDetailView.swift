@@ -150,8 +150,8 @@ struct MeetingHeader: View {
         let name = detail.speakers[idx] ?? ""
         HStack(spacing: 5) {
             PersonAvatar(name: name, color: Color.speaker(idx), size: 20, isMe: idx == detail.selfIdx, scales: false)
-            if let source = detail.speakerSources[idx], source == "voiceprint" || source == "tag" {   // MA-FORK(F2)：標記帶入的名字（F2.9）
-                AutoSpeakerName(idx: idx, name: name, others: detail.speakerCandidates[idx] ?? [], tagged: source == "tag")
+            if detail.speakerSources[idx] == "tag" { ForkTaggedSpeakerName(idx: idx, name: name, others: detail.speakerCandidates[idx] ?? []) } else if detail.speakerSources[idx] == "voiceprint" {   // MA-FORK(F2)：標記帶入的名字（F2.9）
+                AutoSpeakerName(idx: idx, name: name, others: detail.speakerCandidates[idx] ?? [])
             } else {
                 Button { startRenaming(idx) } label: { Text(name).foregroundStyle(Color.speaker(idx)) }
                     .buttonStyle(.plain)
@@ -559,9 +559,7 @@ struct MeetingTop: View {
             if !detail.speakerSuggestions.isEmpty && !isRecording && !trashed {
                 SpeakerSuggestionsBanner(detail: detail)
             }
-            if !detail.unappliedTags.isEmpty && !isRecording && !trashed {
-                UnappliedTagsBanner(detail: detail)
-            }
+            if !detail.unappliedTags.isEmpty && !isRecording && !trashed { UnappliedTagsBanner(detail: detail) }   // MA-FORK(F2)：沒套用的標記（F2.4）
         }
         .padding(.horizontal, 32)
         .padding(.top, 22)
@@ -583,14 +581,13 @@ struct DraftNotesBanner: View {
     }
 }
 
-/// 聲紋自動帶入的說話者名字（design §21.4、R19.3）：名字後面標「自動」；錄音時標記帶入的標「標記」（§F2.4）。
+/// 聲紋自動帶入的說話者名字（design §21.4、R19.3）：名字後面標「自動」。
 /// 點一下直接選是別人（最像的幾位認識的人，一次改名、記住聲音、改會議紀錄，R33.4），或說不是他
 private struct AutoSpeakerName: View {
     @Environment(AppModel.self) private var model
     let idx: Int
     let name: String
     let others: [String]
-    var tagged = false
 
     var body: some View {
         HStack(spacing: 3) {
@@ -612,37 +609,13 @@ private struct AutoSpeakerName: View {
             .menuIndicator(.hidden)
             .fixedSize()
             // 選單按鈕在畫面上只畫標題的文字（標籤裡的背景會被拿掉），「自動」標記要放在選單外面
-            Text(tagged ? MeetingLanguage.ui(zh: "標記", en: "Tagged") : String(localized: "自動"))
+            Text("自動")
                 .font(.caption2)
                 .padding(.horizontal, 4)
                 .padding(.vertical, 1)
                 .background(Color.secondary.opacity(0.15), in: Capsule())
         }
-        .help(tagged ? "錄音時標記的名字。不對的話點名字" : "拾音認出這個人的聲音，自動帶入名字。不對的話點名字")
-    }
-}
-
-/// 錄音時標記、沒有自動套用的名字（design §24.4、R23.5）：「查看」跳到逐字稿上的位置，在那裡套用或刪掉
-private struct UnappliedTagsBanner: View {
-    @Environment(AppModel.self) private var model
-    let detail: MeetingDetail
-
-    var body: some View {
-        let tags = detail.unappliedTags
-        let names = SpeakerTagging.roster(participants: [], tagged: tags.map(\.name))
-        HStack(spacing: 10) {
-            Label("錄音時標記的 \(names.count) 個名字沒有自動套用：\(names.joined(separator: String(localized: "、")))",
-                  systemImage: "person.crop.circle.badge.questionmark")
-            Spacer()
-            Button("查看") {
-                model.tab = .transcript
-                if let first = tags.first?.id, let segment = detail.tagMatches[first]?.segmentId { model.flashSegment(segment) }
-            }
-        }
-        .font(.callout)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
-        .background(Color.signal.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        .help("拾音認出這個人的聲音，自動帶入名字。不對的話點名字")
     }
 }
 

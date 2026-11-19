@@ -27,6 +27,7 @@ enum DebugControl {
     private static func handle(_ args: [String]) {
         let model = AppModel.shared
         guard let name = args.first else { return }
+        if ForkDebug.shadows(args, model: model) { return }   // MA-FORK(F0)：fork 的 windowshot 蓋過上游同名的指令（5.0.1 的行為）
         let id = args.count > 1 ? Int64(args[1]) : nil
         switch name {
         case "select": model.showTrash = false; model.selection = id
@@ -584,14 +585,6 @@ enum DebugControl {
             }
             for window in NSApp.windows where window.isVisible { dump(window, depth: 0) }
             try? lines.joined(separator: "\n").write(toFile: args[1], atomically: true, encoding: .utf8)
-        case "windowshot":   // windowshot <輸出.png> [main|popover]：app 自己把視窗畫成圖片，不需要螢幕錄製權限（design §24.5）
-            let popover = args.count > 2 && args[2] == "popover"
-            let window = NSApp.windows.last { $0.isVisible && (popover ? $0.className.contains("Popover") : $0.identifier?.rawValue == "main") }
-            if let view = window?.contentView?.superview ?? window?.contentView,
-               let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) {
-                view.cacheDisplay(in: view.bounds, to: rep)
-                try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: args[1]))
-            }
         case "press":
             let matches = accessibilityButtons(label: args[1])
             let index = args.count > 2 ? Int(args[2]) ?? 0 : 0
@@ -734,33 +727,6 @@ enum DebugControl {
             let windows = NSApp.windows.filter { $0.isVisible && (args.count < 3 || "\($0.windowNumber)" == args[2]) }
             windows.lazy.compactMap { $0.contentView.flatMap(find) }.first?.performClick(nil)
         case "bookmark": model.addBookmark(at: Double(args[2]) ?? 0, meetingId: id)
-        case "tagspeaker":   // tagspeaker now <名字> | line <第幾行> <名字|-> | add <會議 id> <開始> <結束> <名字> | delete <標記 id> | only <會議 id> <標記 id>（design §24.5）
-            let count = ["now": 3, "line": 4, "add": 6, "delete": 3, "only": 4][args.count > 1 ? args[1] : ""] ?? Int.max
-            guard args.count >= count else { break }
-            switch args[1] {
-            case "now": model.tagSpeakerNow(args[2])
-            case "line":
-                let lines = model.recorder.liveLines
-                guard let index = Int(args[2]), lines.indices.contains(index) else { break }
-                if args[3] == "-" { model.clearLiveLineTag(lines[index]) } else { model.tagLiveLine(lines[index], as: args[3]) }
-            case "add":
-                model.perform(.detail([.speakerTags])) {
-                    try model.db.addSpeakerTag(Int64(args[2]) ?? 0, start: Double(args[3]) ?? 0, end: Double(args[4]) ?? 0, name: args[5])
-                }
-            case "only":   // 沒套用的標記按「只改這句」（F2.12）
-                model.selection = Int64(args[2])
-                if let tag = model.detail?.speakerTags.first(where: { $0.id == Int64(args[3]) }) { model.reassignTaggedSegments(tag) }
-            default: model.deleteSpeakerTag(Int64(args[2]) ?? 0)
-            }
-        case "tagui":   // tagui add | tagui name <第幾行>：等於按 ＋、一行選單裡的「其他名字…」，打開輸入名字的彈出視窗（design §24.5）
-            if args.count > 2, args[1] == "name", let index = Int(args[2]), model.recorder.liveLines.indices.contains(index) {
-                model.debugTagUI = "name:\(model.recorder.liveLines[index].id)"
-            } else if args.count > 1, args[1] == "add" {
-                model.debugTagUI = "add"
-            }
-        case "addparticipant": model.selection = id; model.addParticipant(args[2])   // addparticipant <會議 id> <名字>：等於在 ＋ 按「加入」
-        case "applytags": model.selection = id; if let id { model.debugApplyTags(id) }   // applytags <會議 id>：重新套用標記
-        case "speakertags": write(speakerTagsReport(id ?? 0), to: args[2])   // speakertags <會議 id> <輸出.json>
         case "addterm": model.addTerms(args[1].replacingOccurrences(of: "\\n", with: "\n"))   // 一次好幾個（R94.1）：「\n」當換行
         case "dismissterm": model.dismissGlossarySuggestion(args[1])
         case "record":
@@ -812,44 +778,6 @@ enum DebugControl {
         case "systempermission":   // systempermission <denied|granted|notDetermined|real>：蓋掉查到的「錄製系統音訊」權限（design §51.1）
             SystemAudioPermission.debugOverride = SystemAudioPermission(rawValue: args[1])
         case "seek": model.player.seek(to: Double(args[1]) ?? 0, play: args.count > 2 && args[2] == "play")
-        // 紀錄條列頁（fork F4，design §F4.5）
-        case "topicsegments":   // topicsegments <輸入.json> <輸出.json>：每個 case 的 topicSegments 和 topicRanges
-            var out: [String: Any] = ["ok": false]
-            if let input = (try? JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: args[1])))) as? [String: Any] {
-                let duration = (input["duration"] as? Double) ?? 0
-                func json(_ r: [MindMap.TopicRange]) -> [[String: Any]] { r.map { ["branch": $0.branch, "start": $0.start, "end": $0.end] } }
-                out["cases"] = ((input["cases"] as? [[String: Any]]) ?? []).map { c -> [String: Any] in
-                    let notes = (c["notes"]).flatMap { try? JSONSerialization.data(withJSONObject: $0) }
-                        .flatMap { try? JSONDecoder().decode(MeetingNotes.self, from: $0) } ?? MeetingNotes(title: "")
-                    let d = (c["duration"] as? Double) ?? duration
-                    return ["name": c["name"] ?? "", "segments": json(MindMap.topicSegments(notes: notes, duration: d, untitled: "T")),
-                            "ranges": json(MindMap.topicRanges(notes: notes, duration: d, untitled: "T")),
-                            "branches": MindMap.topicBranches(notes).map { ["topic": $0.key, "branch": $0.value] }]
-                }
-                out["ok"] = true
-            }
-            write(out, to: args[2])
-        case "copysection":   // copysection <會議 id> <summary|decisions|actionItems|openQuestions|custom:N|topic:N> <輸出.txt>：不碰剪貼簿
-            let scope: NotesSectionScope? = {
-                let parts = args[2].split(separator: ":").map(String.init)
-                switch parts[0] {
-                case "summary": return .summary
-                case "decisions": return .decisions
-                case "actionItems": return .actionItems
-                case "openQuestions": return .openQuestions
-                case "custom": return parts.count > 1 ? Int(parts[1]).map { .custom($0) } : nil
-                case "topic": return parts.count > 1 ? Int(parts[1]).map { .topic($0) } : nil
-                default: return nil
-                }
-            }()
-            if let id, let scope, let meeting = try? model.db.meeting(id), let notes = meeting.decodedNotes {
-                try? NotesExporter.plainSection(scope, notes: notes, language: meeting.meetingLanguage)
-                    .write(to: URL(fileURLWithPath: args[3]), atomically: true, encoding: .utf8)
-            }
-        case "topicscroll":   // topicscroll <branch>：等於在紀錄分頁點議題帶的那一支（F4.10）
-            if model.tab == .summary, let branch = Int(args[1]) { model.topicScrollRequest = TopicScrollRequest(branch: branch) }
-        case "topiccollapse":   // topiccollapse all|none|default：議題全部收合、全部展開、回到預設（F4.7）
-            model.notesCollapsedTopics = args[1] == "default" ? nil : (args[1] == "all" ? Set(model.detail?.notes?.topics.indices ?? 0..<0) : [])
         case "rate": model.player.setRate(Float(args[1]) ?? 1)
         case "playvolume": model.player.setVolume(Float(args[1]) ?? 1)   // playvolume <0～1>（design §49.3）
         case "toggle": model.player.toggle()
@@ -1017,19 +945,8 @@ enum DebugControl {
         case "usageage": UsageStats.shared.debugAge(days: Int(args[1]) ?? 1)   // usageage <天數>：把今天的匯總改成幾天前
         case "usagesend": Task { await UsageStats.shared.sendPending() }
         // 全域快捷鍵（R11.3）：不能送按鍵，用這個模擬按下
-        case "hotkey":   // hotkey [bookmark|mute]：模擬按下 ⌃⌥⌘R（或 ⌃⌥⌘B、⌃⌥⌘M）
-            switch args.count > 1 ? args[1] : "" {
-            case "bookmark": GlobalHotKey.shared.fireBookmark()
-            case "mute": GlobalHotKey.shared.fireMute()
-            default: GlobalHotKey.shared.fire()
-            }
-        case "micmute":   // micmute on|off|toggle|dismiss：錄音畫面的麥克風圖示、提示列的「知道了」（design §F3.4）
-            switch args.count > 1 ? args[1] : "toggle" {
-            case "on": model.recorder.setMicMuted(true)
-            case "off": model.recorder.setMicMuted(false)
-            case "dismiss": model.recorder.dismissMuteHint()
-            default: model.recorder.toggleMicMute()
-            }
+        case "hotkey":   // hotkey [bookmark]：模擬按下 ⌃⌥⌘R（或 ⌃⌥⌘B）
+            if args.count > 1 && args[1] == "mute" { GlobalHotKey.shared.fireMute() } else if args.count > 1 && args[1] == "bookmark" { GlobalHotKey.shared.fireBookmark() } else { GlobalHotKey.shared.fire() }   // MA-FORK(F3)：hotkey mute
         case "hotkeyenable": GlobalHotKey.shared.setEnabled(args[1] == "1")
         // 點通知後的動作（系統的點擊沒辦法模擬，直接呼叫同一個處理函式）
         case "opennotification": if let id { model.notifier.onOpen?(id) }
@@ -1203,13 +1120,6 @@ enum DebugControl {
             "mcp": ["enabled": AppSettings.mcpEnabled, "launcher": MCPSetup.launcherURL.path,
                     "launcherExists": FileManager.default.fileExists(atPath: MCPSetup.launcherURL.path)] as [String: Any],
             // 播放條上的議題帶（design §43.3）：選取中的會議，長度同播放條
-            // 紀錄條列頁（fork F4，design §F4.5）：議題帶依重點時間切的段、目前議題、收起來的議題
-            "topicSegments": model.detail.flatMap { d in
-                d.notes.map { MindMap.topicSegments(notes: $0, duration: max(model.player.duration, Double(d.meeting.durationSeconds ?? 0)),
-                                                    untitled: MindMap.topicLabel(.interface)) }
-            }.map { $0.map { ["branch": $0.branch, "title": $0.title, "start": $0.start, "end": $0.end] } } ?? [],
-            "currentTopicBranch": model.currentTopicBranch ?? -1,
-            "notesTopicsCollapsed": model.notesCollapsedTopics.map { Array($0).sorted() as Any } ?? "default",
             "topicRanges": model.detail.flatMap { d in
                 d.notes.map { MindMap.topicRanges(notes: $0, duration: max(model.player.duration, Double(d.meeting.durationSeconds ?? 0)),
                                                   untitled: MindMap.topicLabel(.interface)) }
@@ -1293,8 +1203,6 @@ enum DebugControl {
                          "liveLines": model.recorder.liveLines.count, "volatile": model.recorder.volatileText,
                          "liveStatus": model.recorder.liveStatus, "permissionDenied": model.recorder.permissionDenied,
                          "levelCheck": model.recorder.levelCheck,   // 收音提醒（design §26.1）
-                         "micMuted": model.recorder.micMuted, "muteHint": model.recorder.muteHint,   // 靜音麥克風（design §F3.4）
-                         "muteCheck": model.recorder.muteCheck,
                          "permissionRestarts": model.recorder.permissionRestarts,   // 允許了權限而重新接上電腦聲音（design §51.1）
                          "systemSilent": model.recorder.systemSilent,
                          "idle": model.recorder.idleInfo,   // 忘了停止錄音（design §35）
@@ -1326,8 +1234,7 @@ enum DebugControl {
                        "progressText": model.updater.progress?.text ?? "",
                        "version": Updater.currentVersion, "feed": Updater.feedURLString],
             "hotkey": ["registered": GlobalHotKey.shared.isRegistered, "status": Int(GlobalHotKey.shared.status),
-                       "bookmarkRegistered": GlobalHotKey.shared.isBookmarkRegistered,
-                       "muteRegistered": GlobalHotKey.shared.isMuteRegistered],
+                       "bookmarkRegistered": GlobalHotKey.shared.isBookmarkRegistered],
             "notifications": model.notifier.recent,
             "filteredIds": model.filteredMeetings.map(\.id),
             "highlightSegment": model.highlightSegment ?? -1,
@@ -1346,13 +1253,6 @@ enum DebugControl {
         if let detail = model.detail {
             out["transcribedWith"] = detail.meeting.transcribedWith
             out["canUpgradeTranscript"] = model.canUpgradeTranscript(detail.meeting)   // design §21.17
-            // 錄音中標記說話者（design §F2.5）：即時逐字稿每一行的名字、「正在說話」的名單
-            if detail.meeting.id == model.recorder.meetingId, var recorder = out["recorder"] as? [String: Any] {
-                recorder["liveTags"] = model.recorder.liveLines.map { detail.liveTag(start: $0.start, end: $0.end)?.name ?? "" }
-                recorder["tagRoster"] = detail.tagRoster
-                out["recorder"] = recorder
-            }
-            out["unappliedTags"] = detail.unappliedTags.map(\.name)
             out["minSpeakers"] = detail.meeting.minSpeakers ?? 0   // design §23
             out["showRediarizeSheet"] = model.showRediarizeSheet
             out["speakerCheck"] = detail.meeting.speakerCheck ?? -1   // design §24.6
@@ -1360,27 +1260,8 @@ enum DebugControl {
             out["speakerUndo"] = (try? model.db.speakerUndoLabel(detail.meeting.id!)) ?? ""
             out["manualSegments"] = detail.segments.filter(\.speakerManual).count
         }
+        ForkDebug.augmentState(&out, model: model)   // MA-FORK(F0)：fork 的欄位
         return out
-    }
-
-    /// speakertags：每個標記對上的說話者、重疊比例、逐字稿上的位置、是不是沒套用；說話者的名字和來源（design §24.5）
-    private static func speakerTagsReport(_ id: Int64) -> [String: Any] {
-        let db = AppModel.shared.db
-        let segments = (try? db.segments(id)) ?? []
-        let speakers = (try? db.speakers(id)) ?? []
-        let names = Dictionary(uniqueKeysWithValues: speakers.map { ($0.idx, $0.name) })
-        let tags = ((try? db.speakerTags(id)) ?? []).map { tag -> [String: Any] in
-            let match = SpeakerTagging.match(tag.tag, in: segments)
-            return ["id": tag.id ?? 0, "start": tag.start, "end": tag.end, "name": tag.name, "kind": tag.kind,
-                    "speaker": match.speaker ?? -1, "share": match.share, "segment": match.segmentId ?? -1,
-                    "segmentSpeaker": match.segmentSpeaker ?? -1,
-                    "unapplied": match.segmentSpeaker.map { !SpeakerTagging.sameName(names[$0] ?? "", tag.name) } ?? false]
-        }
-        return ["tags": tags,
-                "speakers": speakers.map { ["idx": $0.idx, "name": $0.name, "source": $0.nameSource, "person": $0.personId ?? -1,
-                                            "seconds": $0.speechSeconds] },
-                "participants": (try? db.meeting(id))?.participants ?? "",
-                "people": ((try? db.peopleSummaries()) ?? []).map { ["name": $0.name, "voiceprints": $0.voiceprintCount] }]
     }
 
     /// 提示文字是 placeholder 的輸入框（依畫面上的順序）

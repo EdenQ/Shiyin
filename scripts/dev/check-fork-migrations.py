@@ -255,7 +255,7 @@ with tempfile.TemporaryDirectory(prefix='ma-fork-regression-') as work:
     executable = work / 'check-fork-migrations'
     subprocess.run(['xcrun', 'swiftc', '-swift-version', '5', '-module-cache-path', str(work/'modules'),
                     '-I', str(products), '-I', str(grdb), str(swift),
-                    *[str(ROOT/name) for name in ['Sources/Shiyin/Model/SpeakerTagging.swift',
+                    *[str(ROOT/name) for name in ['Sources/Shiyin/Fork/SpeakerTags/SpeakerTagging.swift',
                         'Sources/Shiyin/Model/MeetingNotes.swift',
                         'Sources/Shiyin/Model/MeetingLanguage.swift', 'Sources/Shiyin/Services/Paths.swift',
                         'Sources/Shiyin/Services/DesktopApps.swift', 'Sources/Shiyin/Transcribe/ChineseScript.swift',

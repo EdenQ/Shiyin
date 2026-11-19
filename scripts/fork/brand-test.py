@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""brand.py 的回歸測試（design §F7.5）：python3 scripts/fork/brand-test.py [-v]
+"""brand.py 的回歸測試（fork design §F7.5）：python3 scripts/fork/brand-test.py [-v]
 
 - 原始碼掃描：只認包住字串的那個查表呼叫（REVIEW-0b-brand P2-1 的 ReviewBrandProbe），真正跨行的查表呼叫要放過
 - 整句特例：Credits、授權開場白、安裝說明的整句對不到時要失敗（P2-2 的標點漂移），對換過的產物重跑不變（冪等）
@@ -139,7 +139,7 @@ struct Probe: View {
         self.assertEqual(len(problems), 7, found)
 
     def test_supported_boundary(self):
-        """design §F7.4 的語法邊界：放行的寫法"""
+        """fork design §F7.4 的語法邊界：放行的寫法"""
         problems = self.scan('''import SwiftUI
 struct Probe: View {
     let flag = true
@@ -156,7 +156,7 @@ struct Probe: View {
         self.assertEqual(problems, [])
 
     def test_conservative_boundary_reported(self):
-        """design §F7.4 的語法邊界：編譯器其實會查表，但掃描器不認得、保守報錯的寫法（要用白名單或改寫）"""
+        """fork design §F7.4 的語法邊界：編譯器其實會查表，但掃描器不認得、保守報錯的寫法（要用白名單或改寫）"""
         swift = '''import SwiftUI
 struct CustomLookup: View {
     let key: LocalizedStringKey

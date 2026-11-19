@@ -121,15 +121,14 @@ extension AppDatabase {
         }
     }
 
-    /// 改句子的說話者（R23.2）：to 是 nil 時新增一位說話者（預設名稱；有 name 時用這個名字，算手動改的，F2.12）；
-    /// 改過的句子標成 speaker_manual；沒有段落的說話者拿掉。回傳句子現在的說話者
+    /// 改句子的說話者（R23.2）：to 是 nil 時新增一位說話者（預設名稱）；改過的句子標成 speaker_manual；
+    /// 沒有段落的說話者拿掉。回傳句子現在的說話者
     @discardableResult
-    func reassignSegments(_ meetingId: Int64, ids: [Int64], to idx: Int?, name: String? = nil, label: String) throws -> Int {
+    func reassignSegments(_ meetingId: Int64, ids: [Int64], to idx: Int?, label: String) throws -> Int {
         try pool.write { db in
             try Self.saveSpeakerUndo(db, meetingId: meetingId, label: label)
             var target = idx ?? 0
             if idx == nil { target = try Self.addSpeaker(db, meetingId: meetingId) }
-            if idx == nil, let name { try ForkSpeakerTags.nameNewSpeaker(db, meetingId: meetingId, idx: target, name: name) }   // MA-FORK(F2)
             for id in ids {
                 try db.execute(sql: "UPDATE segments SET speaker = ?, speaker_manual = 1 WHERE id = ? AND meeting_id = ?",
                                arguments: [target, id, meetingId])
@@ -239,6 +238,8 @@ extension AppDatabase {
         try speaker.insert(db)
         return target
     }
+    static func forkSaveSpeakerUndo(_ db: Database, meetingId: Int64, label: String) throws { try saveSpeakerUndo(db, meetingId: meetingId, label: label) }   // MA-FORK(F2)
+    static func forkAddSpeaker(_ db: Database, meetingId: Int64) throws -> Int { try addSpeaker(db, meetingId: meetingId) }   // MA-FORK(F2)
 
     /// 沒有段落的說話者拿掉
     static func removeEmptySpeakers(_ db: Database, meetingId: Int64) throws {
