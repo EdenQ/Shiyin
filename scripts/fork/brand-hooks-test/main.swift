@@ -1,4 +1,4 @@
-// Brand 接點的測試（design §F7.5）：swiftc -swift-version 5 -o <輸出> scripts/fork/brand-hooks-test/main.swift Sources/Shiyin/Fork/Brand.swift && <輸出>
+// Brand 接點的測試（fork design §F7.5）：swiftc -swift-version 5 -o <輸出> scripts/fork/brand-hooks-test/main.swift Sources/Shiyin/Fork/Brand.swift && <輸出>
 import Foundation
 var fails = 0
 func expect(_ c: Bool, _ msg: String) { print((c ? "ok   " : "FAIL ") + msg); if !c { fails += 1 } }

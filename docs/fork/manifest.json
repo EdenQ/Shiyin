@@ -1,5 +1,5 @@
 {
-  "_comment": "給機器讀的 fork 清單（fork design §F0）：每個 fork 功能的檔、接點、關鍵字、設定鍵、DEBUG 指令、migration、資料表。上游監看（PLAN-fork-5.0 §8.2）和回歸檢查讀這份；新增或搬動接點時一起改。markers 是已經標了 MA-FORK 的接點；F2、F3、F4、DF5 在 PLAN 階段 2 才搬進 Sources/Shiyin/Fork/、標記接點，目前 upstreamFiles 列的是程式還散在哪些上游檔。",
+  "_comment": "給機器讀的 fork 清單（fork design §F0）：每個 fork 功能的檔、接點、符號、設定鍵、DEBUG 指令、migration、資料表、高風險接點。markers 是上游檔裡的 MA-FORK 接點（file、line、hook＝那一行去掉接點註解），由 scripts/fork/isolation-check.py --write 照程式產生；上游監看（PLAN-fork-5.0 §8.2）和回歸檢查讀這份。新增、搬動接點後跑 --write，再跑一次不加參數的檢查。",
   "version": 1,
   "upstream": {
     "remote": "https://github.com/juinwei7/Shiyin.git",
@@ -54,6 +54,7 @@
         "muteHotKey"
       ],
       "debugCommands": [
+        "windowshot",
         "tagspeaker",
         "tagui",
         "addparticipant",
@@ -65,7 +66,9 @@
         "topicscroll",
         "topiccollapse"
       ]
-    }
+    },
+    "upstreamLineBudget": 100,
+    "hookRule": "上游檔加的每一行同一行有 MA-FORK(F#)；改掉、拿掉上游的行要在同一處換成接點（fork design §F0.3）"
   },
   "features": {
     "F1": {
@@ -77,6 +80,7 @@
         "scripts/make-icon-from-png.sh"
       ],
       "upstreamFiles": [
+        "scripts/make-icon.swift",
         "Resources/AppIcon.icns",
         "Resources/Info.plist",
         ".github/workflows/release.yml",
@@ -93,41 +97,67 @@
         "EdenQ",
         "AppIcon-1024"
       ],
-      "markers": []
+      "markers": [
+        {
+          "file": "scripts/make-icon.swift",
+          "line": 1,
+          "hook": "// Fork（會議助手）不用這支：圖示改由 scripts/make-icon-from-png.sh 從 Resources/AppIcon-1024.png 產生（F1.6，design §F1）。跑這支會蓋掉 fork 的圖示。"
+        }
+      ],
+      "symbols": []
     },
     "F2": {
       "title": "錄音中標記說話者",
       "design": "docs/fork/design.md §F2、§F-DB",
       "forkFiles": [
+        "Sources/Shiyin/Fork/SpeakerTags/SpeakerTagging.swift",
+        "Sources/Shiyin/Fork/SpeakerTags/SpeakerTag.swift",
+        "Sources/Shiyin/Fork/SpeakerTags/SpeakerTagStore.swift",
+        "Sources/Shiyin/Fork/SpeakerTags/AppModel+SpeakerTags.swift",
+        "Sources/Shiyin/Fork/SpeakerTags/SpeakerTagViews.swift",
+        "Sources/Shiyin/Fork/SpeakerTags/SpeakerTagsDebug.swift",
         "Sources/Shiyin/Fork/SpeakerTags/ForkSpeakerTags.swift",
         "Sources/Shiyin/Fork/Store/ForkMigrations.swift",
-        "Sources/Shiyin/Model/SpeakerTagging.swift",
         "scripts/dev/check-fork-migrations.py"
       ],
       "upstreamFiles": [
-        "Sources/Shiyin/Store/AppModel.swift",
-        "Sources/Shiyin/Store/AppDatabase.swift",
-        "Sources/Shiyin/Views/RecordingView.swift",
-        "Sources/Shiyin/Views/TranscriptTab.swift",
-        "Sources/Shiyin/Views/MeetingDetailView.swift",
+        "Sources/Shiyin/IO/Exporters.swift",
+        "Sources/Shiyin/IO/Package.swift",
         "Sources/Shiyin/Services/JobRunner.swift",
-        "Sources/Shiyin/Model/Records.swift",
-        "Sources/Shiyin/Store/SpeakerEdits.swift",
+        "Sources/Shiyin/Store/AppDatabase.swift",
+        "Sources/Shiyin/Store/AppModel.swift",
+        "Sources/Shiyin/Store/MeetingEdits.swift",
         "Sources/Shiyin/Store/Voiceprints.swift",
-        "Sources/Shiyin/Debug/DebugControl.swift"
+        "Sources/Shiyin/Views/MeetingDetailView.swift",
+        "Sources/Shiyin/Views/RecordingView.swift",
+        "Sources/Shiyin/Views/TranscriptTab.swift"
       ],
       "symbols": [
         "SpeakerTag",
         "SpeakerTagging",
+        "ForkSpeakerTags",
+        "ForkSpeakerTags.DetailState",
+        "ForkSpeakerTags.remembersVoice",
+        "ForkSpeakerTags.afterTranscription",
         "tagSpeakerNow",
+        "tagLiveLine",
         "reassignTaggedSegments",
         "applySpeakerTags",
+        "rememberTaggedVoices",
         "debugApplyTags",
-        "speakerTagsReport",
-        "name_source = 'tag'"
+        "SpeakerTagBar",
+        "LiveLineRow",
+        "SpeakerNameForm",
+        "ForkTaggedSpeakerName",
+        "UnappliedTagsBanner",
+        "UnappliedTagLine",
+        "ForkTaggedNameNote",
+        "forkSpeakerTagBar",
+        "ForkMigrations"
       ],
       "keywords": [
         "speaker_tags",
+        "name_source = 'tag'",
         "tagspeaker",
         "標記",
         "Tagged"
@@ -156,78 +186,178 @@
       ],
       "markers": [
         {
-          "file": "Sources/Shiyin/Fork/SpeakerTags/ForkSpeakerTags.swift",
-          "marker": "MA-FORK(F2)",
-          "hook": ""
-        },
-        {
           "file": "Sources/Shiyin/IO/Exporters.swift",
-          "marker": "MA-FORK(F2)",
+          "line": 15,
           "hook": "var speakerTags: [SpeakerTag] = []"
         },
         {
           "file": "Sources/Shiyin/IO/Package.swift",
-          "marker": "MA-FORK(F2)",
+          "line": 98,
           "hook": "try ForkSpeakerTags.writePackage(b.speakerTags, to: dir)"
         },
         {
           "file": "Sources/Shiyin/IO/Package.swift",
-          "marker": "MA-FORK(F2)",
+          "line": 167,
           "hook": "try ForkSpeakerTags.readPackage(dir, meetingId: id, db: db)"
         },
         {
+          "file": "Sources/Shiyin/Services/JobRunner.swift",
+          "line": 456,
+          "hook": "ForkSpeakerTags.afterTranscription(db, job.meetingId)"
+        },
+        {
+          "file": "Sources/Shiyin/Services/JobRunner.swift",
+          "line": 529,
+          "hook": "if let speaker = old.first(where: { $0.idx == o }), speaker.nameSource != \"default\", speaker.nameSource != \"tag\" {"
+        },
+        {
+          "file": "Sources/Shiyin/Services/JobRunner.swift",
+          "line": 540,
+          "hook": "ForkSpeakerTags.afterTranscription(db, job.meetingId)"
+        },
+        {
+          "file": "Sources/Shiyin/Services/JobRunner.swift",
+          "line": 573,
+          "hook": "let named = Dictionary(old.filter { $0.nameSource != \"default\" && $0.nameSource != \"tag\" }.map { ($0.idx, $0) }, uniquingKeysWith: { a, _ in a })"
+        },
+        {
           "file": "Sources/Shiyin/Store/AppDatabase.swift",
-          "marker": "MA-FORK(F2)",
+          "line": 379,
           "hook": "ForkMigrations.register(&migrator)"
         },
         {
           "file": "Sources/Shiyin/Store/AppDatabase.swift",
-          "marker": "MA-FORK(F2)",
+          "line": 607,
           "hook": "try ForkSpeakerTags.split(db, from: id, to: newId, at: cut)"
         },
         {
+          "file": "Sources/Shiyin/Store/AppDatabase.swift",
+          "line": 695,
+          "hook": "let named = Dictionary(uniqueKeysWithValues: existing.filter { !Self.isDefaultSpeakerName($0.name) && $0.nameSource != \"tag\" }.map { ($0.idx, $0) })"
+        },
+        {
           "file": "Sources/Shiyin/Store/AppModel.swift",
-          "marker": "MA-FORK(F2)",
+          "line": 91,
+          "hook": "var forkTags = ForkSpeakerTags.DetailState()"
+        },
+        {
+          "file": "Sources/Shiyin/Store/AppModel.swift",
+          "line": 146,
+          "hook": "forkTags.rebuild(segments)"
+        },
+        {
+          "file": "Sources/Shiyin/Store/AppModel.swift",
+          "line": 631,
+          "hook": "loaded.speakerTags = (try? db.speakerTags(id)) ?? []"
+        },
+        {
+          "file": "Sources/Shiyin/Store/AppModel.swift",
+          "line": 1198,
+          "hook": "func speakerEditProblem(_ id: Int64, transcript: Bool = false) -> String? {"
+        },
+        {
+          "file": "Sources/Shiyin/Store/AppModel.swift",
+          "line": 1244,
+          "hook": "if AppSettings.voiceprints, source == \"manual\" || source == \"suggestion\" || source == \"tag\" {"
+        },
+        {
+          "file": "Sources/Shiyin/Store/AppModel.swift",
+          "line": 1936,
           "hook": "let b = ForkSpeakerTags.attach(b, db: db, meetingId: meetingId)"
         },
         {
+          "file": "Sources/Shiyin/Store/AppModel.swift",
+          "line": 2088,
+          "hook": "if parts.contains(.speakerTags) { updated.speakerTags = (try? db.speakerTags(id)) ?? [] }"
+        },
+        {
+          "file": "Sources/Shiyin/Store/AppModel.swift",
+          "line": 2096,
+          "hook": "if !parts.isDisjoint(with: [.segments, .corrections, .speakerTags]) || !segmentIds.isEmpty { updated.buildIndexes() }"
+        },
+        {
           "file": "Sources/Shiyin/Store/MeetingEdits.swift",
-          "marker": "MA-FORK(F2)",
+          "line": 124,
           "hook": "if firstEdit { try ForkSpeakerTags.snapshot(db, meetingId: id) }"
         },
         {
           "file": "Sources/Shiyin/Store/MeetingEdits.swift",
-          "marker": "MA-FORK(F2)",
+          "line": 154,
           "hook": "try ForkSpeakerTags.remap(db, meetingId: id, plan: plan)"
         },
         {
           "file": "Sources/Shiyin/Store/MeetingEdits.swift",
-          "marker": "MA-FORK(F2)",
+          "line": 192,
           "hook": "try ForkSpeakerTags.copyForMerge(db, into: id, from: other, plan: plan)"
         },
         {
           "file": "Sources/Shiyin/Store/MeetingEdits.swift",
-          "marker": "MA-FORK(F2)",
+          "line": 350,
           "hook": "try ForkSpeakerTags.restore(db, meetingId: id)"
         },
         {
-          "file": "Sources/Shiyin/Store/SpeakerEdits.swift",
-          "marker": "MA-FORK(F2)",
-          "hook": "if idx == nil, let name { try ForkSpeakerTags.nameNewSpeaker(db, meetingId: meetingId, idx: target, name: name"
+          "file": "Sources/Shiyin/Store/Voiceprints.swift",
+          "line": 142,
+          "hook": "guard try ForkSpeakerTags.remembersVoice(db, meetingId: meetingId, source: source), let speaker = try SpeakerName.filter(Column(\"meeting_id\") == meetingId && Column(\"idx\") == idx).fetchOne(db),"
         },
         {
           "file": "Sources/Shiyin/Views/MeetingDetailView.swift",
-          "marker": "MA-FORK(F2)",
-          "hook": "if let source = detail.speakerSources[idx], source == \"voiceprint\" || source == \"tag\" {"
+          "line": 153,
+          "hook": "if detail.speakerSources[idx] == \"tag\" { ForkTaggedSpeakerName(idx: idx, name: name, others: detail.speakerCandidates[idx] ?? []) } else if detail.speakerSources[idx] == \"voiceprint\" {"
+        },
+        {
+          "file": "Sources/Shiyin/Views/MeetingDetailView.swift",
+          "line": 562,
+          "hook": "if !detail.unappliedTags.isEmpty && !isRecording && !trashed { UnappliedTagsBanner(detail: detail) }"
+        },
+        {
+          "file": "Sources/Shiyin/Views/RecordingView.swift",
+          "line": 87,
+          "hook": ".forkSpeakerTagBar(detail)"
+        },
+        {
+          "file": "Sources/Shiyin/Views/RecordingView.swift",
+          "line": 102,
+          "hook": ".onAppear { model.refreshKnownPeople() }"
+        },
+        {
+          "file": "Sources/Shiyin/Views/RecordingView.swift",
+          "line": 199,
+          "hook": "let tagging = AppSettings.diarize, roster = detail.tagRoster"
+        },
+        {
+          "file": "Sources/Shiyin/Views/RecordingView.swift",
+          "line": 208,
+          "hook": "LiveLineRow(line: line, tagged: tagging ? detail.liveTag(start: line.start, end: line.end)?.name : nil, roster: roster, starred: starred.contains(line.id), tagging: tagging).id(line.id)"
+        },
+        {
+          "file": "Sources/Shiyin/Views/RecordingView.swift",
+          "line": 215,
+          "hook": "if tagging { Color.clear.frame(width: 64 * scale, height: 0) }"
         },
         {
           "file": "Sources/Shiyin/Views/TranscriptTab.swift",
-          "marker": "MA-FORK(F2)",
-          "hook": "if automatic || tagged {"
+          "line": 421,
+          "hook": "tagged: detail.speakerSources[idx] == \"tag\","
         },
         {
           "file": "Sources/Shiyin/Views/TranscriptTab.swift",
-          "marker": "MA-FORK(F2)",
+          "line": 462,
+          "hook": "if let idx = segment.speaker { ForEach(detail.unappliedTags(on: segment.id)) { UnappliedTagLine(tag: $0, idx: idx, detail: detail) } }"
+        },
+        {
+          "file": "Sources/Shiyin/Views/TranscriptTab.swift",
+          "line": 668,
+          "hook": "var tagged = false"
+        },
+        {
+          "file": "Sources/Shiyin/Views/TranscriptTab.swift",
+          "line": 683,
+          "hook": "if tagged { ForkTaggedNameNote() } else if automatic {"
+        },
+        {
+          "file": "Sources/Shiyin/Views/TranscriptTab.swift",
+          "line": 694,
           "hook": "if automatic || tagged, let onReject {"
         }
       ],
@@ -239,6 +369,9 @@
       "title": "錄音中靜音麥克風",
       "design": "docs/fork/design.md §F3",
       "forkFiles": [
+        "Sources/Shiyin/Fork/Mute/MicMute.swift",
+        "Sources/Shiyin/Fork/Mute/MuteViews.swift",
+        "Sources/Shiyin/Fork/Mute/MuteDebug.swift",
         "Sources/Shiyin/Fork/Mute/ForkMuteSettingsRow.swift",
         "Sources/Shiyin/Fork/Mute/ForkIslandMute.swift"
       ],
@@ -249,7 +382,6 @@
         "Sources/Shiyin/Capture/RecordingWriter.swift",
         "Sources/Shiyin/Debug/DebugControl.swift",
         "Sources/Shiyin/Services/GlobalHotKey.swift",
-        "Sources/Shiyin/Services/JobRunner.swift",
         "Sources/Shiyin/Store/AppModel.swift",
         "Sources/Shiyin/Views/IslandView.swift",
         "Sources/Shiyin/Views/MenuBar.swift",
@@ -257,14 +389,29 @@
         "Sources/Shiyin/Views/SettingsView.swift"
       ],
       "symbols": [
+        "ForkMute",
+        "ForkMute.State",
+        "ForkMute.install",
+        "ForkMute.menuBarSymbol",
         "micMuted",
+        "muteHint",
         "toggleMicMute",
+        "setMicMuted",
         "canMuteMic",
         "checkMuted",
-        "muteHint",
+        "forkMuteChanged",
         "setMuted",
+        "setMuteEnabled",
         "fireMute",
-        "muteHotKeyKey"
+        "muteHotKeyKey",
+        "MicMuteButton",
+        "ForkMuteHintBar",
+        "ForkMicMuteMeter",
+        "ForkMuteMenuBarRow",
+        "ForkMuteMenuBarHint",
+        "ForkMuteMenuCommand",
+        "ForkMuteSettingsRow",
+        "ForkIslandMute"
       ],
       "keywords": [
         "靜音",
@@ -285,37 +432,162 @@
       "markers": [
         {
           "file": "Sources/Shiyin/App/RecordingIsland.swift",
-          "marker": "MA-FORK(F3)",
+          "line": 186,
           "hook": "if let key = ForkIslandMute.hintKey(recorder) { return key }"
         },
         {
+          "file": "Sources/Shiyin/App/ShiyinApp.swift",
+          "line": 105,
+          "hook": "ForkMuteMenuCommand(recorder: model.recorder)"
+        },
+        {
           "file": "Sources/Shiyin/Capture/Recorder.swift",
-          "marker": "MA-FORK(F3)",
+          "line": 131,
+          "hook": "@ObservationIgnored let mute = ForkMute.State()"
+        },
+        {
+          "file": "Sources/Shiyin/Capture/Recorder.swift",
+          "line": 198,
+          "hook": "func forkMuteChanged(_ muted: Bool) { writer?.setMuted(0, muted); if muted { if levelHint != nil { levelHint = nil } } else { (noisySeconds, quietSeconds) = (0, 0) } }"
+        },
+        {
+          "file": "Sources/Shiyin/Capture/Recorder.swift",
+          "line": 318,
+          "hook": "guard writer.secondsSinceSamples(channel) < 1 else { continue }"
+        },
+        {
+          "file": "Sources/Shiyin/Capture/Recorder.swift",
+          "line": 462,
+          "hook": "mute.resetForStart()"
+        },
+        {
+          "file": "Sources/Shiyin/Capture/Recorder.swift",
+          "line": 634,
           "hook": "if micMuted { updateLevelHint(systemDenied ? .systemDenied : nil); checkMuted(writer); return }"
         },
         {
+          "file": "Sources/Shiyin/Capture/Recorder.swift",
+          "line": 878,
+          "hook": "mute.resetForStop()"
+        },
+        {
+          "file": "Sources/Shiyin/Capture/RecordingWriter.swift",
+          "line": 17,
+          "hook": "private var muted: [Bool]"
+        },
+        {
+          "file": "Sources/Shiyin/Capture/RecordingWriter.swift",
+          "line": 39,
+          "hook": "muted = Array(repeating: false, count: channels)"
+        },
+        {
+          "file": "Sources/Shiyin/Capture/RecordingWriter.swift",
+          "line": 72,
+          "hook": "pending[channel].append(contentsOf: muted[channel] ? [Float](repeating: 0, count: samples.count) : samples)"
+        },
+        {
+          "file": "Sources/Shiyin/Capture/RecordingWriter.swift",
+          "line": 93,
+          "hook": "func setMuted(_ channel: Int, _ value: Bool) { lock.withLock { if channel < channels { muted[channel] = value } } }"
+        },
+        {
+          "file": "Sources/Shiyin/Capture/RecordingWriter.swift",
+          "line": 170,
+          "hook": "let mutedNow = lock.withLock { muted }"
+        },
+        {
+          "file": "Sources/Shiyin/Capture/RecordingWriter.swift",
+          "line": 173,
+          "hook": "} else if mutedNow[0] != mutedNow[1] { onMix?(frames[mutedNow[0] ? 1 : 0])"
+        },
+        {
+          "file": "Sources/Shiyin/Debug/DebugControl.swift",
+          "line": 949,
+          "hook": "if args.count > 1 && args[1] == \"mute\" { GlobalHotKey.shared.fireMute() } else if args.count > 1 && args[1] == \"bookmark\" { GlobalHotKey.shared.fireBookmark() } else { GlobalHotKey.shared.fire() }"
+        },
+        {
+          "file": "Sources/Shiyin/Services/GlobalHotKey.swift",
+          "line": 44,
+          "hook": "func register(_ id: UInt32, key: Int) -> OSStatus {"
+        },
+        {
+          "file": "Sources/Shiyin/Services/GlobalHotKey.swift",
+          "line": 54,
+          "hook": "if id == ForkMute.hotKeyID { ForkMute.fireHotKey(); return }"
+        },
+        {
+          "file": "Sources/Shiyin/Services/GlobalHotKey.swift",
+          "line": 70,
+          "hook": "func unregister(_ id: UInt32) {"
+        },
+        {
           "file": "Sources/Shiyin/Store/AppModel.swift",
-          "marker": "MA-FORK(F3)",
-          "hook": ": recorder.micMuted ? \"mic.slash.circle.fill\" : \"record.circle.fill\""
+          "line": 468,
+          "hook": "ForkMute.install(self)"
+        },
+        {
+          "file": "Sources/Shiyin/Store/AppModel.swift",
+          "line": 709,
+          "hook": "if let symbol = ForkMute.menuBarSymbol(recorder) { return symbol }"
+        },
+        {
+          "file": "Sources/Shiyin/Store/AppModel.swift",
+          "line": 730,
+          "hook": "var mainWindowInFront: Bool {"
+        },
+        {
+          "file": "Sources/Shiyin/Store/AppModel.swift",
+          "line": 883,
+          "hook": "GlobalHotKey.shared.setMuteEnabled(false)"
         },
         {
           "file": "Sources/Shiyin/Views/IslandView.swift",
-          "marker": "MA-FORK(F3)",
+          "line": 105,
           "hook": "} else if recorder.micMuted { ForkIslandMutedDot(alert: state.hintKey != nil)"
         },
         {
           "file": "Sources/Shiyin/Views/IslandView.swift",
-          "marker": "MA-FORK(F3)",
+          "line": 156,
           "hook": "ForkIslandMuteRow(recorder: recorder)"
         },
         {
           "file": "Sources/Shiyin/Views/IslandView.swift",
-          "marker": "MA-FORK(F3)",
+          "line": 247,
           "hook": "if let hint = ForkIslandMute.hint(recorder) { return hint }"
         },
         {
+          "file": "Sources/Shiyin/Views/MenuBar.swift",
+          "line": 62,
+          "hook": "ForkMuteMenuBarRow(recorder: recorder)"
+        },
+        {
+          "file": "Sources/Shiyin/Views/MenuBar.swift",
+          "line": 64,
+          "hook": "RecorderMeter(recorder: recorder, system: false, segments: 24).opacity(recorder.micMuted ? 0.35 : 1)"
+        },
+        {
+          "file": "Sources/Shiyin/Views/MenuBar.swift",
+          "line": 101,
+          "hook": "ForkMuteMenuBarHint(recorder: recorder)"
+        },
+        {
+          "file": "Sources/Shiyin/Views/RecordingView.swift",
+          "line": 63,
+          "hook": "ForkMuteHintBar(recorder: recorder)"
+        },
+        {
+          "file": "Sources/Shiyin/Views/RecordingView.swift",
+          "line": 113,
+          "hook": "if recorder.canMuteMic { ForkMicMuteMeter(recorder: recorder) }"
+        },
+        {
+          "file": "Sources/Shiyin/Views/RecordingView.swift",
+          "line": 117,
+          "hook": ".forkHidden(recorder.canMuteMic)"
+        },
+        {
           "file": "Sources/Shiyin/Views/SettingsView.swift",
-          "marker": "MA-FORK(F3)",
+          "line": 1274,
           "hook": "ForkMuteSettingsRow()"
         }
       ]
@@ -324,26 +596,38 @@
       "title": "紀錄條列頁的閱讀與複製",
       "design": "docs/fork/design.md §F4",
       "forkFiles": [
+        "Sources/Shiyin/Fork/Notes/NotesListViews.swift",
+        "Sources/Shiyin/Fork/Notes/NotesModel.swift",
+        "Sources/Shiyin/Fork/Notes/NotesDebug.swift",
         "scripts/dev/f4-check.py"
       ],
       "upstreamFiles": [
-        "Sources/Shiyin/Views/NotesTabs.swift",
-        "Sources/Shiyin/Store/AppModel.swift",
-        "Sources/Shiyin/Views/PlayerBar.swift",
         "Sources/Shiyin/Notes/MindMap.swift",
-        "Sources/Shiyin/Model/MeetingNotes.swift",
-        "Sources/Shiyin/IO/Exporters.swift",
-        "Sources/Shiyin/Views/Theme.swift",
-        "Sources/Shiyin/Debug/DebugControl.swift"
+        "Sources/Shiyin/Store/AppModel.swift",
+        "Sources/Shiyin/Views/NotesTabs.swift",
+        "Sources/Shiyin/Views/PlayerBar.swift"
       ],
       "symbols": [
-        "topicSegments",
-        "TopicRange",
-        "copyNotesSection",
-        "plainSection",
+        "ForkNotesList",
+        "ForkNotesSection",
+        "ForkActionItemsTable",
+        "NoteRow",
+        "TopicBlock",
+        "TopicChips",
+        "SectionCopyButton",
+        "FlowLayout",
+        "ForkSubduedTimeButton",
         "NotesSectionScope",
-        "currentBranch",
-        "actionBlue"
+        "TopicScrollRequest",
+        "topicSegments",
+        "topicBranches",
+        "plainSection",
+        "copyNotesSection",
+        "ForkTopics",
+        "forkTrackTopic",
+        "slate",
+        "actionBlue",
+        "TopicRange"
       ],
       "keywords": [
         "複製這一段",
@@ -362,24 +646,59 @@
       "tables": [],
       "markers": [
         {
+          "file": "Sources/Shiyin/Notes/MindMap.swift",
+          "line": 39,
+          "hook": "static func clean(_ s: String) -> String {"
+        },
+        {
+          "file": "Sources/Shiyin/Notes/MindMap.swift",
+          "line": 45,
+          "hook": "static func shownTopics(_ notes: MeetingNotes) -> [MeetingNotes.Topic] {"
+        },
+        {
           "file": "Sources/Shiyin/Store/AppModel.swift",
-          "marker": "MA-FORK(F4)",
-          "hook": "currentTopicBranch = nil"
+          "line": 216,
+          "hook": "fork.selectionChanged()"
         },
         {
           "file": "Sources/Shiyin/Views/NotesTabs.swift",
-          "marker": "MA-FORK(F4)",
-          "hook": "var count: Int? = nil"
+          "line": 69,
+          "hook": "var symbol = \"•\", symbolColor: Color? = nil"
         },
         {
           "file": "Sources/Shiyin/Views/NotesTabs.swift",
-          "marker": "MA-FORK(F4)",
+          "line": 81,
           "hook": "NoteRow(item: item, symbol: symbol, symbolColor: symbolColor, ref: ref, detail: detail)"
         },
         {
           "file": "Sources/Shiyin/Views/NotesTabs.swift",
-          "marker": "MA-FORK(F4)",
-          "hook": "Text(item.owner.isEmpty ? String(localized: \"未指定\") : item.owner).meetingText()"
+          "line": 230,
+          "hook": "ForkNotesList(detail: detail, notes: notes, header: { header(notes) }, templateName: templateName)"
+        },
+        {
+          "file": "Sources/Shiyin/Views/PlayerBar.swift",
+          "line": 11,
+          "hook": "let topics = detail.notes.map { model.topicSegments(notes: $0, duration: duration) } ?? []"
+        },
+        {
+          "file": "Sources/Shiyin/Views/PlayerBar.swift",
+          "line": 29,
+          "hook": "onSeek: { seconds in player.seek(to: seconds, play: true) }, onTopic: { ForkTopics.tapped(model, branch: $0) })"
+        },
+        {
+          "file": "Sources/Shiyin/Views/PlayerBar.swift",
+          "line": 66,
+          "hook": ".forkTrackTopic(topics, player: player, model: model)"
+        },
+        {
+          "file": "Sources/Shiyin/Views/PlayerBar.swift",
+          "line": 89,
+          "hook": "var onTopic: ((Int) -> Void)? = nil"
+        },
+        {
+          "file": "Sources/Shiyin/Views/PlayerBar.swift",
+          "line": 109,
+          "hook": "return Button { onSeek(range.start); onTopic?(range.branch) } label: {"
         }
       ]
     },
@@ -397,7 +716,10 @@
       "upstreamFiles": [
         "Sources/Shiyin/App/ShiyinApp.swift",
         "Sources/Shiyin/Services/ReleaseNotes.swift",
+        "Sources/Shiyin/Services/Reminders.swift",
+        "Sources/Shiyin/Views/IslandView.swift",
         "scripts/build-app.sh",
+        "scripts/dev/make-update-fixtures.sh",
         "scripts/make-dmg.sh"
       ],
       "symbols": [
@@ -406,14 +728,15 @@
         "Brand.name",
         "Brand.names",
         "Brand.isListTitle",
-        "MABrand",
-        "Brand.short"
+        "Brand.short",
+        "Brand.shortName"
       ],
       "keywords": [
         "拾音",
         "Shiyin",
         "會議助手",
-        "Meeting Assistant"
+        "Meeting Assistant",
+        "MABrand"
       ],
       "settingsKeys": [],
       "debugCommands": [],
@@ -422,96 +745,106 @@
       "markers": [
         {
           "file": "Sources/Shiyin/App/ShiyinApp.swift",
-          "marker": "MA-FORK(F7)",
+          "line": 82,
           "hook": "BrandAboutCommand()"
         },
         {
           "file": "Sources/Shiyin/Services/ReleaseNotes.swift",
-          "marker": "MA-FORK(F7)",
-          "hook": "? paragraphs.first { p in Brand.names(\"Shiyin\").contains { p[0].lowercased().hasPrefix($0.lowercased()) } } ??"
+          "line": 25,
+          "hook": "? paragraphs.first { p in Brand.names(\"Shiyin\").contains { p[0].lowercased().hasPrefix($0.lowercased()) } } ?? paragraphs[paragraphs.count - 1]"
         },
         {
           "file": "Sources/Shiyin/Services/ReleaseNotes.swift",
-          "marker": "MA-FORK(F7)",
+          "line": 26,
           "hook": ": paragraphs.first { p in Brand.names(\"拾音\").contains { p[0].hasPrefix($0) } } ?? paragraphs[0]"
         },
         {
           "file": "Sources/Shiyin/Services/Reminders.swift",
-          "marker": "MA-FORK(F7)",
+          "line": 91,
           "hook": "static var listTitle: String { Brand.name(MeetingLanguage.ui(zh: \"拾音\", en: \"Shiyin\")) }"
         },
         {
           "file": "Sources/Shiyin/Services/Reminders.swift",
-          "marker": "MA-FORK(F7)",
+          "line": 115,
           "hook": "if let calendar = store.calendars(for: .reminder).first(where: { Brand.isListTitle($0.title) }) {"
         },
         {
           "file": "Sources/Shiyin/Views/IslandView.swift",
-          "marker": "MA-FORK(F7)",
+          "line": 177,
           "hook": "IslandButton(title: Brand.short(String(localized: \"打開拾音\")), symbol: \"macwindow\") {"
         },
         {
           "file": "scripts/build-app.sh",
-          "marker": "MA-FORK(F7)",
+          "line": 13,
           "hook": "APP=\"$SCRATCH/app/Meeting Assistant.app\""
         },
         {
           "file": "scripts/build-app.sh",
-          "marker": "MA-FORK(F7)",
+          "line": 85,
           "hook": "/usr/bin/python3 scripts/fork/brand.py apply \"$APP\""
         },
         {
           "file": "scripts/build-app.sh",
-          "marker": "MA-FORK(F7)",
+          "line": 135,
           "hook": "rm -rf \"$HOME/Applications/Meeting Assistant.app\""
         },
         {
           "file": "scripts/build-app.sh",
-          "marker": "MA-FORK(F7)",
+          "line": 136,
           "hook": "cp -R \"$APP\" \"$HOME/Applications/Meeting Assistant.app\""
         },
         {
           "file": "scripts/build-app.sh",
-          "marker": "MA-FORK(F7)",
+          "line": 137,
           "hook": "echo \"已安裝：$HOME/Applications/Meeting Assistant.app\""
         },
         {
+          "file": "scripts/dev/make-update-fixtures.sh",
+          "line": 2,
+          "hook": "# 驗證 app 內更新用（tasks T-F6）：用 build/Meeting Assistant.app（先跑 scripts/build-app.sh）做出測試用的更新檔。"
+        },
+        {
+          "file": "scripts/dev/make-update-fixtures.sh",
+          "line": 11,
+          "hook": "SRC=\"$HOME/Library/Caches/ShiyinBuild/app/Meeting Assistant.app\""
+        },
+        {
           "file": "scripts/make-dmg.sh",
-          "marker": "MA-FORK(F7)",
+          "line": 19,
           "hook": "ditto \"$SCRATCH/app/Meeting Assistant.app\" \"$STAGE/Meeting Assistant.app\""
         },
         {
           "file": "scripts/make-dmg.sh",
-          "marker": "MA-FORK(F7)",
-          "hook": "/usr/bin/python3 scripts/fork/brand.py guides \"$SCRATCH/brand-guides\" scripts/install-guide.html scripts/insta"
+          "line": 23,
+          "hook": "/usr/bin/python3 scripts/fork/brand.py guides \"$SCRATCH/brand-guides\" scripts/install-guide.html scripts/install-guide.en.html"
         },
         {
           "file": "scripts/make-dmg.sh",
-          "marker": "MA-FORK(F7)",
+          "line": 24,
           "hook": "swift scripts/html-to-pdf.swift \"$SCRATCH/brand-guides/install-guide.html\" \"$STAGE/安裝說明.pdf\""
         },
         {
           "file": "scripts/make-dmg.sh",
-          "marker": "MA-FORK(F7)",
+          "line": 25,
           "hook": "swift scripts/html-to-pdf.swift \"$SCRATCH/brand-guides/install-guide.en.html\" \"$STAGE/Install Guide.pdf\""
         },
         {
           "file": "scripts/make-dmg.sh",
-          "marker": "MA-FORK(F7)",
-          "hook": "cp \"$SCRATCH/app/Meeting Assistant.app/Contents/Resources/ThirdPartyLicenses.txt\" \"$STAGE/Third-Party Licenses"
+          "line": 26,
+          "hook": "cp \"$SCRATCH/app/Meeting Assistant.app/Contents/Resources/ThirdPartyLicenses.txt\" \"$STAGE/Third-Party Licenses.txt\"   # 第三方授權（design §12.1、R13.1）；"
         },
         {
           "file": "scripts/make-dmg.sh",
-          "marker": "MA-FORK(F7)",
-          "hook": "hdiutil create -volname \"Meeting Assistant ${VERSION}\" -srcfolder \"$STAGE\" -fs HFS+ -format UDZO -ov \"$DMG\" >/"
+          "line": 31,
+          "hook": "hdiutil create -volname \"Meeting Assistant ${VERSION}\" -srcfolder \"$STAGE\" -fs HFS+ -format UDZO -ov \"$DMG\" >/dev/null && break"
         }
-      ],
-      "plannedHooks": []
+      ]
     },
     "DF5": {
       "title": "麥克風音源的 LockedValue（上游 R74 的同步修正）",
       "design": "docs/fork/design.md §F-UP（上游 §50.2）、DF5",
       "forkFiles": [
+        "Sources/Shiyin/Fork/DF5/LockedValue.swift",
         "scripts/fork/tsan-lockedvalue/main.swift",
         "scripts/fork/tsan-lockedvalue/run.sh"
       ],
@@ -520,8 +853,7 @@
       ],
       "symbols": [
         "LockedValue",
-        "MicrophoneSource.deviceUID",
-        "MicrophoneSource.current",
+        "MicrophoneSource",
         "FileSource"
       ],
       "keywords": [
@@ -531,48 +863,140 @@
       "markers": [
         {
           "file": "Sources/Shiyin/Capture/AudioSources.swift",
-          "marker": "MA-FORK(DF5)",
-          "hook": "final class LockedValue<Value>: @unchecked Sendable {"
+          "line": 117,
+          "hook": "private let uidState: LockedValue<String>, currentState = LockedValue<AudioDevices.Device?>(nil)"
+        },
+        {
+          "file": "Sources/Shiyin/Capture/AudioSources.swift",
+          "line": 118,
+          "hook": "var deviceUID: String { get { uidState.value } set { uidState.value = newValue } }"
+        },
+        {
+          "file": "Sources/Shiyin/Capture/AudioSources.swift",
+          "line": 119,
+          "hook": "private(set) var current: AudioDevices.Device? { get { currentState.value } set { currentState.value = newValue } }"
+        },
+        {
+          "file": "Sources/Shiyin/Capture/AudioSources.swift",
+          "line": 122,
+          "hook": "uidState = LockedValue(deviceUID)"
+        },
+        {
+          "file": "Sources/Shiyin/Capture/AudioSources.swift",
+          "line": 273,
+          "hook": "private let uidState = LockedValue(\"\"), currentState = LockedValue<AudioDevices.Device?>(nil)"
+        },
+        {
+          "file": "Sources/Shiyin/Capture/AudioSources.swift",
+          "line": 274,
+          "hook": "var deviceUID: String { get { uidState.value } set { uidState.value = newValue } }"
+        },
+        {
+          "file": "Sources/Shiyin/Capture/AudioSources.swift",
+          "line": 275,
+          "hook": "private(set) var current: AudioDevices.Device? { get { currentState.value } set { currentState.value = newValue } }"
         }
       ],
-      "note": "上游哪天自己加鎖時刪掉 fork 的",
+      "note": "LockedValue 的類別放 Fork/DF5，用的地方（MicrophoneSource、FileSource 的 deviceUID、current）留在上游的 AudioSources、標成接點；上游哪天自己加鎖時刪掉 fork 的",
       "checks": [
         "scripts/fork/tsan-lockedvalue/run.sh"
       ]
     },
     "F0": {
-      "title": "fork 的 DEBUG 指令入口（fork design §F0.1）",
+      "title": "fork 的共用入口：DEBUG 指令、state 欄位、畫面狀態（fork design §F0.1、§F0.2）",
+      "design": "docs/fork/design.md §F0",
       "forkFiles": [
-        "Sources/Shiyin/Fork/Debug/ForkDebug.swift"
+        "Sources/Shiyin/Fork/Debug/ForkDebug.swift",
+        "Sources/Shiyin/Fork/ForkState.swift",
+        "scripts/fork/isolation-check.py"
       ],
+      "symbols": [
+        "ForkDebug",
+        "ForkDebug.handle",
+        "ForkDebug.augmentState",
+        "ForkDebugPrompts",
+        "ForkAppState"
+      ],
+      "settingsKeys": [],
       "debugCommands": [
-        "mawindowshot"
+        "mawindowshot",
+        "windowshot"
+      ],
+      "launchArguments": [
+        "debugQuietPrompts"
+      ],
+      "checks": [
+        "python3 scripts/fork/isolation-check.py"
       ],
       "markers": [
         {
           "file": "Sources/Shiyin/Debug/DebugControl.swift",
-          "marker": "MA-FORK(F0)",
+          "line": 30,
+          "hook": "if ForkDebug.shadows(args, model: model) { return }"
+        },
+        {
+          "file": "Sources/Shiyin/Debug/DebugControl.swift",
+          "line": 1088,
           "hook": "default: if !ForkDebug.handle(args, model: model) { log.error(\"unknown debug command \\(name)\") }"
+        },
+        {
+          "file": "Sources/Shiyin/Debug/DebugControl.swift",
+          "line": 1263,
+          "hook": "ForkDebug.augmentState(&out, model: model)"
+        },
+        {
+          "file": "Sources/Shiyin/Services/Notifier.swift",
+          "line": 156,
+          "hook": "if ForkDebugPrompts.quiet { return }"
+        },
+        {
+          "file": "Sources/Shiyin/Store/AppModel.swift",
+          "line": 273,
+          "hook": "let fork = ForkAppState()"
         }
+      ],
+      "upstreamFiles": [
+        "Sources/Shiyin/Debug/DebugControl.swift",
+        "Sources/Shiyin/Services/Notifier.swift",
+        "Sources/Shiyin/Store/AppModel.swift"
       ]
     }
   },
   "highRisk": [
     {
       "what": "fork 的 migration 順序",
-      "why": "5.0.1 起 ForkMigrations.register 在上游最後一個 migration 之後；上游新增 migration 時要確認還在最後（check-fork-migrations.py 會檢查）"
+      "where": "Sources/Shiyin/Store/AppDatabase.swift ForkMigrations.register",
+      "why": "ForkMigrations.register 在上游最後一個 migration 之後；上游新增 migration 時要確認還在最後（check-fork-migrations.py 會檢查）"
     },
     {
-      "what": "NotesTabs 的 NotesSection 介面（F4 加了 count、accent、copy 參數）",
-      "why": "改了上游元件的介面，上游 5.0 的就地編輯（R100）會改同一個檔"
+      "what": "RecordingWriter 的 muted、setMuted、混音（F3）",
+      "where": "Sources/Shiyin/Capture/RecordingWriter.swift",
+      "why": "跟寫檔的鎖、音框綁在一起，留在上游檔（6 行接點）；上游改寫檔、混音時要重看"
     },
     {
-      "what": "RecordingWriter.setMuted（F3）",
-      "why": "跟寫檔的鎖綁在一起，留在上游檔"
+      "what": "Recorder 收音檢查的靜音分支、soundsLikeSpeech 的 1 秒判斷（F3）",
+      "where": "Sources/Shiyin/Capture/Recorder.swift",
+      "why": "接點在上游收音檢查（R75）的流程中間；上游還在改"
     },
     {
-      "what": "IslandView、Recorder.checkLevels 的接點",
-      "why": "上游錄音島、收音檢查還在改，F3 的接點在它們的流程中間"
+      "what": "上游成員從 private 改成 internal",
+      "where": "GlobalHotKey.register/unregister、MindMap.clean/shownTopics、AppModel.mainWindowInFront/speakerEditProblem",
+      "why": "fork 的 extension 要用；上游改名或改簽章時 fork 跟著改"
+    },
+    {
+      "what": "NotesPage 的條列模式整頁換成 ForkNotesList（F4）",
+      "where": "Sources/Shiyin/Views/NotesTabs.swift",
+      "why": "上游的條列頁（NotesSection、ActionItemsTable 的用法）被接點取代；上游改條列頁時要把改動搬進 Fork/Notes/NotesListViews.swift"
+    },
+    {
+      "what": "fork 照上游元件做的複本",
+      "where": "ForkTaggedSpeakerName（AutoSpeakerName）、ForkSubduedTimeButton（TimeButton）、ForkNotesSection（NotesSection）、ForkActionItemsTable（ActionItemsTable）",
+      "why": "上游改了原本的元件，fork 的複本不會跟著變；監看看到這幾個上游元件有改時要比對"
+    },
+    {
+      "what": "IslandView 的接點（F3、F7）",
+      "where": "Sources/Shiyin/Views/IslandView.swift",
+      "why": "上游錄音島還在改，接點在它的版面中間"
     }
   ],
   "brand": {

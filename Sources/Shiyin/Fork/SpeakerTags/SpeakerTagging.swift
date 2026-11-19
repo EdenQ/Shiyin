@@ -8,14 +8,14 @@ protocol SpeakerSpan {
     var speaker: Int? { get }
 }
 
-/// 錄音中標記的說話者怎麼對到正式轉錄分出的說話者（design §24、R23、D37）。
+/// 錄音中標記的說話者怎麼對到正式轉錄分出的說話者（fork design §F2、R23、DF1）。
 /// 不依賴資料庫，規則可以單獨測
 enum SpeakerTagging {
     /// 標記的範圍裡說話不到這麼多秒（那段沒人說話）就不算
     static let minimumSpeech = 0.5
     /// 重疊最多的說話者至少要佔這個比例才算對上他，不然這個標記不明確
     static let dominance = 0.7
-    /// 「正在說話」標記的範圍：按下前 3 秒到按下後 1 秒。通常是聽了一兩秒、認出是誰才按（design §24.2）
+    /// 「正在說話」標記的範圍：按下前 3 秒到按下後 1 秒。通常是聽了一兩秒、認出是誰才按（fork design §F2.2）
     static let nowBefore = 3.0
     static let nowAfter = 1.0
     /// 前一個「正在說話」的標記，中間點差不到這麼多秒就取代它（按錯馬上改按另一個人）
@@ -33,7 +33,7 @@ enum SpeakerTagging {
         var speaker: Int?
         /// 重疊最多的說話者佔的比例（沒人說話是 0）
         var share: Double
-        /// 逐字稿上的位置：重疊最多的一段，沒有重疊就用時間最近的一段（design §24.4）
+        /// 逐字稿上的位置：重疊最多的一段，沒有重疊就用時間最近的一段（fork design §F2.4）
         var segmentId: Int64?
         /// 那一段的說話者
         var segmentSpeaker: Int?
@@ -73,7 +73,7 @@ enum SpeakerTagging {
                      segmentId: target?.id, segmentSpeaker: target?.speaker)
     }
 
-    /// 「只改這句」改哪幾句（design §F2.4、F2.12）：那一段的說話者的段落裡，跟標記範圍重疊至少佔這一句一半長度的，加上那一段本身
+    /// 「只改這句」改哪幾句（fork design §F2.4、F2.12）：那一段的說話者的段落裡，跟標記範圍重疊至少佔這一句一半長度的，加上那一段本身
     static func covered<S: SpeakerSpan>(_ tag: Tag, by match: Match, in spans: [S]) -> [Int64] {
         guard let anchor = match.segmentId, let speaker = match.segmentSpeaker else { return [] }
         return spans.compactMap { span in
@@ -84,7 +84,7 @@ enum SpeakerTagging {
         }
     }
 
-    /// 每位說話者要套用的名字（design §24.3）：只看 candidates 裡的說話者（名字還是預設的），
+    /// 每位說話者要套用的名字（fork design §F2.3）：只看 candidates 裡的說話者（名字還是預設的），
     /// 對上他的標記都是同一個名字才套用，寫法用第一個標記的（tags 依標記的先後）
     static func names<S: SpeakerSpan>(for tags: [Tag], in spans: [S], candidates: Set<Int>) -> [Int: String] {
         var votes: [Int: [String]] = [:]
@@ -98,7 +98,7 @@ enum SpeakerTagging {
         }
     }
 
-    /// 「正在說話」的名單（design §24.2）：與會者照原本的順序，接著是標過、不在與會者裡的名字；不分大小寫去掉重複
+    /// 「正在說話」的名單（fork design §F2.2）：與會者照原本的順序，接著是標過、不在與會者裡的名字；不分大小寫去掉重複
     static func roster(participants: [String], tagged: [String]) -> [String] {
         var result: [String] = []
         for name in participants + tagged {
@@ -108,7 +108,7 @@ enum SpeakerTagging {
         return result
     }
 
-    /// 即時逐字稿的一行有的標記：中間點落在這一行裡的（design §24.2）
+    /// 即時逐字稿的一行有的標記：中間點落在這一行裡的（fork design §F2.2）
     static func belongs(_ tag: Tag, toLine start: Double, _ end: Double) -> Bool {
         tag.center >= start && tag.center <= end
     }

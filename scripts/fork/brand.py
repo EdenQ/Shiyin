@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""fork 的品牌替換（design §F7、DF7）：原始碼照上游寫「拾音」「Shiyin」，建置時換成 fork/brand.json 的名稱。
+"""fork 的品牌替換（fork design §F7、DF7）：原始碼照上游寫「拾音」「Shiyin」，建置時換成 fork/brand.json 的名稱。
 
 用法：
   brand.py apply <App.app>             換掉 app 裡的翻譯（各 .lproj 的 .strings、.stringsdict、InfoPlist.strings）、
@@ -9,7 +9,7 @@
   brand.py check-sources               只檢查原始碼：包住字串的最內層呼叫不是查表的，字串裡卻有「拾音」「Shiyin」
                                        （白名單 fork/brand-allow.txt 比對字串全文）
   brand.py crosscheck <stringsdata 資料夾>  用 Swift 編譯器抽出的字串（位置）核對掃描器：放行的每個字串，
-                                       編譯器在同一個位置也要抽得到（design §F7.4；合併上游後跑）。產生方式：
+                                       編譯器在同一個位置也要抽得到（fork design §F7.4；合併上游後跑）。產生方式：
                                        swift build … --scratch-path <別的資料夾> --target Shiyin -Xswiftc -emit-localized-strings
                                        -Xswiftc -emit-localized-strings-path -Xswiftc <stringsdata 資料夾>
   測試：python3 scripts/fork/brand-test.py -v
@@ -281,7 +281,7 @@ def swift_literals(source):
     """把 Swift 原始碼切成字串常值（Literal），並判斷每一個會不會查翻譯表。
     認得註解、一般／多行／raw 字串、字串插值（插值裡的字串另算一個，包住它的是插值）。
     呼叫是包住字串的「最內層括號」：( 前面的名稱；[ ] 和 { } 也算一層（陣列、字典、closure 裡的字串不查表）。
-    查表只放行兩種參數寫法（design §F7.4）：整個參數就是一個字串常值；三元運算兩邊都是字串常值。
+    查表只放行兩種參數寫法（fork design §F7.4）：整個參數就是一個字串常值；三元運算兩邊都是字串常值。
     其他運算式（變數、.uppercased()、as String、+ 串接、??、多一層括號）判斷不了型別，一律當成不查表"""
     literals, comments, arg_end = [], [], {}
     frames = []

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""紀錄條列頁（fork F4，design §F4.6）的驗證：議題帶依重點時間切段、分段複製的格式。
+"""紀錄條列頁（fork F4，fork design §F4.6）的驗證：議題帶依重點時間切段、分段複製的格式。
 
 要先用暫存的 SHIYIN_HOME 開 DEBUG 版，並 `shiyinctl seedfixtures shared/golden/fixtures.json zh en ja`。
 用法：scripts/dev/f4-check.py <SHIYIN_HOME> [shiyinctl 路徑]

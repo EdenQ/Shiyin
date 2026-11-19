@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// Fork 的品牌（design §F7、DF7）：原始碼照上游寫「拾音」「Shiyin」，建置時 `scripts/fork/brand.py apply`
+/// Fork 的品牌（fork design §F7、DF7）：原始碼照上游寫「拾音」「Shiyin」，建置時 `scripts/fork/brand.py apply`
 /// 換掉翻譯表、InfoPlist.strings、Info.plist、Credits，並把名稱對照寫進 Info.plist 的 `MABrand`。
 /// 不經過翻譯表的少數地方（關於面板、更新說明選段落、5.0 的提醒事項列表）用這裡的 1 行接點。
 /// 沒有 `MABrand`（`swift build` 直接跑、上游原樣）時一律回傳上游的名稱，行為跟上游相同。
@@ -55,11 +55,11 @@ enum Brand {
     }
 
     /// 上游 5.0 的提醒事項（R101）找已存在的列表時用：新名稱「會議助手」、舊名稱「拾音」「Shiyin」都認得，
-    /// 使用者在舊版建立的列表沿用、不重複建立。新建的列表用 `name(Reminders.listTitle)`（design §F7.3）
+    /// 使用者在舊版建立的列表沿用、不重複建立。新建的列表用 `name(Reminders.listTitle)`（fork design §F7.3）
     static func isListTitle(_ title: String) -> Bool { names("拾音", "Shiyin").contains(title) }   // l10n-skip
 }
 
-/// 「關於 MA」：系統預設的關於面板顯示 CFBundleName（MA），fork 要顯示完整名稱（design §F7.3）
+/// 「關於 MA」：系統預設的關於面板顯示 CFBundleName（MA），fork 要顯示完整名稱（fork design §F7.3）
 struct BrandAboutCommand: Commands {
     var body: some Commands {
         CommandGroup(replacing: .appInfo) {

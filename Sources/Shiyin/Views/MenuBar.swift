@@ -59,20 +59,9 @@ struct MenuBarContent: View {
                     Button(recorder.isPaused ? "繼續" : "暫停") { recorder.isPaused ? recorder.resume() : recorder.pause() }
                     Button("停止") { recorder.stop() }
                 }
-                if recorder.canMuteMic {
-                    // 靜音麥克風（design §F3.3）
-                    HStack(spacing: 8) {
-                        MicMuteButton(recorder: recorder)
-                        Text(recorder.micMuted ? "麥克風已靜音" : "麥克風")
-                            .font(.caption)
-                            .foregroundStyle(recorder.micMuted ? Color.red : Color.secondary)
-                        Spacer()
-                        Button(recorder.micMuted ? "打開麥克風" : "靜音麥克風") { recorder.toggleMicMute() }
-                            .font(.caption)
-                    }
-                }
+                ForkMuteMenuBarRow(recorder: recorder)   // MA-FORK(F3)
                 if recorder.hasMic {
-                    RecorderMeter(recorder: recorder, system: false, segments: 24).opacity(recorder.micMuted ? 0.35 : 1)
+                    RecorderMeter(recorder: recorder, system: false, segments: 24).opacity(recorder.micMuted ? 0.35 : 1)   // MA-FORK(F3)
                     // 正在用哪一支麥克風（design §38.3）
                     if let device = recorder.micDevice {
                         Text("麥克風：\(device.name)").font(.caption).foregroundStyle(.secondary).lineLimit(1)
@@ -109,20 +98,7 @@ struct MenuBarContent: View {
                         .font(.caption)
                     }
                 }
-                if recorder.muteHint {
-                    // 靜音中現場好像有人在說話（design §F3.3）：同錄音畫面
-                    VStack(alignment: .leading, spacing: 6) {
-                        Label(Recorder.muteHintText, systemImage: "mic.slash")
-                            .font(.caption)
-                            .foregroundStyle(Color.signal)
-                            .fixedSize(horizontal: false, vertical: true)
-                        HStack {
-                            Button("打開麥克風") { recorder.setMicMuted(false) }
-                            Button("知道了") { recorder.dismissMuteHint() }
-                        }
-                        .font(.caption)
-                    }
-                }
+                ForkMuteMenuBarHint(recorder: recorder)   // MA-FORK(F3)
                 if let hint = recorder.levelHint {
                     // 收音提醒（R42.2）：跟錄音畫面同一句，「知道了」這場不再提示
                     VStack(alignment: .leading, spacing: 6) {

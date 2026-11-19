@@ -102,10 +102,7 @@ struct AppCommands: Commands {
             }
             .keyboardShortcut("p", modifiers: [.command, .shift])
             .disabled(!model.recorder.isRecording)
-            // 麥克風＋電腦聲音的錄音才能靜音麥克風（design §F3.3）
-            Button(model.recorder.micMuted ? "打開麥克風" : "麥克風靜音") { model.recorder.toggleMicMute() }
-                .keyboardShortcut("m", modifiers: [.command, .shift])
-                .disabled(!model.recorder.canMuteMic)
+            ForkMuteMenuCommand(recorder: model.recorder)   // MA-FORK(F3)：⇧⌘M（F3.3）
             Button("標記重點") {
                 model.addBookmark(at: model.recorder.elapsed, meetingId: model.recorder.meetingId)
                 model.noticeMessage = String(localized: "已標記 \(TimeFormat.string(model.recorder.elapsed)) 為重點")
