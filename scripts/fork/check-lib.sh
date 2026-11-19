@@ -51,6 +51,46 @@ compare_status() {
   esac
 }
 
+# DEBUG 版本來就會寫進共用設定的鍵：開 DEBUG 版前記下，結束後改回（fork design §F0.4 #12）。
+#   settingsPage：preview settings 記住開到哪一頁
+#   NSWindow Frame main：主視窗的位置。螢幕配置跟上次存的不同（例如接了外接螢幕）時，AppKit 一打開視窗就重存
+#   （2026-11-19 FIX-3a 接了兩台外接螢幕後的完整模式 #12 抓到）
+# 只改回這幾個、而且是值真的變了的；其他鍵的差異交給 #12 回報，不自動改（可能是使用者同時改的）
+WRITTEN_KEYS=("settingsPage" "NSWindow Frame main")
+SAVED_KEYS=""
+# save_keys／restore_keys 用 $RUN/keys 存開始前的值
+save_keys() {
+  [ -n "$SAVED_KEYS" ] && return 0
+  mkdir -p "$RUN/keys"
+  local i k
+  for i in "${!WRITTEN_KEYS[@]}"; do
+    k="${WRITTEN_KEYS[$i]}"
+    if defaults read com.weiwei.shiyin "$k" > "$RUN/keys/$i" 2>/dev/null; then echo set > "$RUN/keys/$i.state"; else echo unset > "$RUN/keys/$i.state"; fi
+    defaults read-type com.weiwei.shiyin "$k" 2>/dev/null | awk '{print $NF}' > "$RUN/keys/$i.type"
+  done
+  SAVED_KEYS=1
+}
+restore_keys() {
+  [ -n "$SAVED_KEYS" ] || return 0
+  local i k now now_state saved
+  for i in "${!WRITTEN_KEYS[@]}"; do
+    k="${WRITTEN_KEYS[$i]}"
+    if now="$(defaults read com.weiwei.shiyin "$k" 2>/dev/null)"; then now_state=set; else now_state=unset; fi
+    saved="$(cat "$RUN/keys/$i")"
+    if [ "$(cat "$RUN/keys/$i.state")" = unset ]; then
+      [ "$now_state" = set ] && defaults delete com.weiwei.shiyin "$k" && echo "改回：刪掉「${k}」（檢查前沒有這個鍵）"
+    elif [ "$now_state" = unset ] || [ "$now" != "$saved" ]; then
+      case "$(cat "$RUN/keys/$i.type")" in
+        integer) defaults write com.weiwei.shiyin "$k" -int "$saved";;
+        boolean) defaults write com.weiwei.shiyin "$k" -bool "$saved";;
+        *) defaults write com.weiwei.shiyin "$k" -string "$saved";;
+      esac
+      echo "改回：「${k}」= ${saved}（檢查中被 DEBUG 版改成 ${now}）"
+    fi
+  done
+  SAVED_KEYS=""
+}
+
 # validate_only <逗號分隔的項目>：每一項都在白名單、至少一項。0 通過；2 參數錯
 validate_only() {
   local list="$1" id n=0 IFS=','

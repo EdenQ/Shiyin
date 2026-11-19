@@ -241,36 +241,7 @@ stop_debug() {   # kill，不用 quit：正常結束會把視窗位置寫進共�
   owned_pid "$DBG_PID" "$DBG_APP" && kill -KILL "$DBG_PID" 2>/dev/null
   DBG_PID=""
 }
-# DEBUG 指令本來就會寫進共用設定的鍵（preview settings 記住開到哪一頁）：開 DEBUG 版前記下，結束後改回。
-# 只改回這幾個、而且是值真的變了的；其他鍵的差異交給 #12 回報，不自動改（可能是使用者同時改的）
-WRITTEN_KEYS="settingsPage"
-SAVED_KEYS=""
-save_keys() {
-  [ -n "$SAVED_KEYS" ] && return 0
-  mkdir -p "$RUN/keys"
-  for k in $WRITTEN_KEYS; do
-    if defaults read com.weiwei.shiyin "$k" > "$RUN/keys/$k" 2>/dev/null; then echo set > "$RUN/keys/$k.state"; else echo unset > "$RUN/keys/$k.state"; fi
-    defaults read-type com.weiwei.shiyin "$k" 2>/dev/null | awk '{print $NF}' > "$RUN/keys/$k.type"
-  done
-  SAVED_KEYS=1
-}
-restore_keys() {
-  [ -n "$SAVED_KEYS" ] || return 0
-  local k now type
-  for k in $WRITTEN_KEYS; do
-    now="$(defaults read com.weiwei.shiyin "$k" 2>/dev/null)"; now_state=$([ $? = 0 ] && echo set || echo unset)
-    if [ "$(cat "$RUN/keys/$k.state")" = unset ]; then
-      [ "$now_state" = set ] && defaults delete com.weiwei.shiyin "$k" && echo "改回：刪掉 ${k}（檢查前沒有這個鍵）"
-    elif [ "$now_state" = unset ] || [ "$now" != "$(cat "$RUN/keys/$k")" ]; then
-      type="$(cat "$RUN/keys/$k.type")"
-      case "$type" in integer) defaults write com.weiwei.shiyin "$k" -int "$(cat "$RUN/keys/$k")";;
-        boolean) defaults write com.weiwei.shiyin "$k" -bool "$(cat "$RUN/keys/$k")";;
-        *) defaults write com.weiwei.shiyin "$k" -string "$(cat "$RUN/keys/$k")";; esac
-      echo "改回：$k = $(cat "$RUN/keys/$k")（檢查中被 DEBUG 指令改成 ${now}）"
-    fi
-  done
-  SAVED_KEYS=""
-}
+# save_keys、restore_keys、WRITTEN_KEYS 在 check-lib.sh（check-test.py 有測）
 dbg() { run python3 "$ROOT/scripts/fork/check-debug.py" "$1" "$HOME_DIR" "$CTL" --out "$OUT/$2" "${@:3}"; }
 SESSION_OK=0
 i_f2() {

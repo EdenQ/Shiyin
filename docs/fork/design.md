@@ -76,7 +76,7 @@ exit 0：沒有 FAIL（SKIP、需人工不算失敗）；1：有 FAIL；2：沒�
 | 10 | F4 加上 5.0 | **只自動驗證刪除**：`noteitem delete actionItems 0` 之後 `copysection` 的待辦少一條、其他條和別的段落照舊（示範會議的決議只有 1 條，刪了整段變空）；刪除後的 windowshot 放進截圖。`noteitem edit` 之後的樣式、「人物」頁不套 F4 樣式沒有自動驗證，摘要的說明欄寫明，留給 S 和使用者 |
 | S | 截圖 | 繁中、英文各開一次 DEBUG 版：示範會議的紀錄、逐字稿分頁（`windowshot`）、設定「錄音」頁（`preview settings recording` 加 `mawindowshot`），加上 #8、#10 的圖，放在輸出資料夾的 `shots/`；狀態一律「需人工」（看條數、色條、「加到提醒事項」、靜音開關、提示列；還沒有基準圖，不做像素比對） |
 | 11 | DF5 | Q：`scripts/fork/tsan-lockedvalue/run.sh` |
-| 12 | 設定殘留 | Q：開始、結束各 `defaults export com.weiwei.shiyin`，要逐位元組相同（不同時列出哪幾個鍵；快照的規則見下面「失敗一律不放行」）。DEBUG 指令本來就會寫的鍵（`preview settings` 記住的 `settingsPage`）在開 DEBUG 版前記下、結束後改回（只改值真的變了的）；其他鍵不自動改回，免得蓋掉使用者同時改的設定 |
+| 12 | 設定殘留 | Q：開始、結束各 `defaults export com.weiwei.shiyin`，要逐位元組相同（不同時列出哪幾個鍵；快照的規則見下面「失敗一律不放行」）。DEBUG 版本來就會寫的鍵（`preview settings` 記住的 `settingsPage`；`NSWindow Frame main`：螢幕配置跟上次存的不同時，AppKit 一打開視窗就重存主視窗位置）在開 DEBUG 版前記下、結束後改回（只改值真的變了的）；其他鍵不自動改回，免得蓋掉使用者同時改的設定 |
 | 13 | 實機更新 | 不自動：列為「需人工」（4.7.6 → 新版的 app 內更新，開舊會議看標記、靜音、條列頁） |
 
 另外四項也標 Q：`check-test.py`（T，check.sh 自己的負對照，見下）、`isolation-check.py`（I1）、`isolation-check-test.py`（I2，§F0.3）、`l10n.py check`（L；跑之前存一份翻譯表，跑完翻譯表有變就算 FAIL 並放回原本的內容：檢查不該改到 repo）。摘要列在 #3 之後。#4 的子項（例如 CI 的更新網址）讀不到時整項照樣 PASS，說明欄寫哪一個子項 SKIP。
@@ -106,6 +106,7 @@ exit 0：沒有 FAIL（SKIP、需人工不算失敗）；1：有 FAIL；2：沒�
 | `compare_status` | brand.py compare 回 0、1、2、其他 | PASS、需人工、FAIL、FAIL |
 | `validate_only` | `999`、空字串、`3,999`、`3,I1,S` | 前三個 return 2，最後一個通過 |
 | `owned_pid` | pid 的執行檔是這次的 app、是別的程式、pid 不在 | 只有第一個通過 |
+| `save_keys`、`restore_keys` | DEBUG 版改了 `settingsPage` 和 `NSWindow Frame main`（鍵名有空白、值有結尾空白）、寫了開始前沒有的鍵、都沒變 | 原樣改回、刪掉新寫的、沒變的不動 |
 
 另外 `brand-test.py` 加 `brand.py compare` 的測試：相同 0、有差異 1、基準缺 `Info.plist` 或沒有翻譯 2。
 

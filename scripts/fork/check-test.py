@@ -43,6 +43,17 @@ exit 1
 [ -n "${STUB_LSOF_FILE:-}" ] && cat "$STUB_LSOF_FILE"
 exit "${STUB_LSOF_EXIT:-0}"
 ''',
+    # 有狀態的 defaults（STUB_STORE 資料夾，一個鍵一個檔）：測 save_keys／restore_keys
+    'sdefaults': r'''#!/bin/bash
+store="$STUB_STORE"; f="$store/$(printf %s "$3" | shasum | cut -c1-12)"
+case "$1" in
+  read) [ -f "$f" ] && { cat "$f"; echo; exit 0; }; echo "does not exist" >&2; exit 1;;
+  read-type) [ -f "$f" ] && { echo "Type is string"; exit 0; }; exit 1;;
+  write) printf %s "$5" > "$f"; exit 0;;
+  delete) rm -f "$f"; exit 0;;
+esac
+exit 1
+''',
     # ps -o comm= -p <pid>：印 STUB_PS_COMM；空的時候等於 pid 不在
     'ps': r'''#!/bin/bash
 [ -n "${STUB_PS_COMM:-}" ] || exit 1
@@ -186,6 +197,38 @@ class Lib(unittest.TestCase):
                             (',3,5,', 0), ('T', 0), ('13', 0)):
             code, msg = self.call('validate_only', value)
             self.assertEqual(code, want, f'--only {value!r}：{msg}')
+
+    # ---------- DEBUG 版會寫的鍵：開前記下、結束後改回 ----------
+    def test_save_restore_keys(self):
+        store = self.tmp / 'store'
+        store.mkdir(exist_ok=True)
+        run = self.tmp / 'run keys'
+        sbin = self.tmp / 'sbin'
+        sbin.mkdir(exist_ok=True)
+        shutil.copy(self.bin / 'sdefaults', sbin / 'defaults')
+        env = {'PATH': f'{sbin}:/usr/bin:/bin', 'HOME': str(self.tmp), 'STUB_STORE': str(store), 'RUN': str(run)}
+        def sh(script):
+            p = subprocess.run(['/bin/bash', '-c', f'. "{LIB}"; {script}'], capture_output=True, text=True, env=env)
+            return p.returncode, p.stdout + p.stderr
+        # 開始前：settingsPage = provider、視窗位置有結尾空白；之後 DEBUG 版改了兩個
+        sh('defaults write com.weiwei.shiyin settingsPage -string provider; '
+           'defaults write com.weiwei.shiyin "NSWindow Frame main" -string "274 187 1180 780 0 0 1728 1084 "')
+        code, msg = sh('save_keys; defaults write com.weiwei.shiyin settingsPage -string recording; '
+                       'defaults write com.weiwei.shiyin "NSWindow Frame main" -string "-1550 172 1180 780 -1920 37 1920 1050 "; '
+                       'restore_keys; defaults read com.weiwei.shiyin settingsPage; defaults read com.weiwei.shiyin "NSWindow Frame main" | od -c | tail -3')
+        self.assertEqual(code, 0, msg)
+        self.assertIn('改回：「NSWindow Frame main」', msg)
+        self.assertIn('provider', msg)
+        code, out = sh('defaults read com.weiwei.shiyin "NSWindow Frame main"')
+        self.assertEqual(out, '274 187 1180 780 0 0 1728 1084 \n', '結尾空白也要原樣改回')
+        # 開始前沒有的鍵，DEBUG 版寫了：刪掉
+        sh('defaults delete com.weiwei.shiyin settingsPage')
+        code, msg = sh('save_keys; defaults write com.weiwei.shiyin settingsPage -string x; restore_keys; '
+                       'defaults read com.weiwei.shiyin settingsPage')
+        self.assertNotEqual(code, 0, msg)
+        # 沒變的不動
+        code, msg = sh('save_keys; restore_keys')
+        self.assertNotIn('改回', msg)
 
     # ---------- stop_debug 的 pid 核對 ----------
     def test_owned_pid(self):
