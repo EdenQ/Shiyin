@@ -76,7 +76,7 @@ exit 0：沒有 FAIL（SKIP、需人工不算失敗）；1：有 FAIL；2：沒�
 | 10 | F4 加上 5.0 | **只自動驗證刪除**：`noteitem delete actionItems 0` 之後 `copysection` 的待辦少一條、其他條和別的段落照舊（示範會議的決議只有 1 條，刪了整段變空）；刪除後的 windowshot 放進截圖。`noteitem edit` 之後的樣式、「人物」頁不套 F4 樣式沒有自動驗證，摘要的說明欄寫明，留給 S 和使用者 |
 | S | 截圖 | 繁中、英文各開一次 DEBUG 版：示範會議的紀錄、逐字稿分頁（`windowshot`）、設定「錄音」頁（`preview settings recording` 加 `mawindowshot`），加上 #8、#10 的圖，放在輸出資料夾的 `shots/`；狀態一律「需人工」（看條數、色條、「加到提醒事項」、靜音開關、提示列；還沒有基準圖，不做像素比對） |
 | 11 | DF5 | Q：`scripts/fork/tsan-lockedvalue/run.sh` |
-| 12 | 設定殘留 | Q：開始、結束各 `defaults export com.weiwei.shiyin`，要逐位元組相同（不同時列出哪幾個鍵；快照的規則見下面「失敗一律不放行」）。DEBUG 版本來就會寫的鍵（`preview settings` 記住的 `settingsPage`；`NSWindow Frame main`：螢幕配置跟上次存的不同時，AppKit 一打開視窗就重存主視窗位置）在開 DEBUG 版前記下、結束後改回（只改值真的變了的）；其他鍵不自動改回，免得蓋掉使用者同時改的設定 |
+| 12 | 設定殘留 | Q：開始、結束各 `defaults export com.weiwei.shiyin`（正式 app 的網域），要逐位元組相同；不同時列出哪幾個鍵、FAIL，**保留現值、不改寫也不刪**（分不出是檢查還是使用者同時改的，例如使用者自己移動了主視窗）。DEBUG 版用測試專用的 bundle id（見安全規則），本來就不寫正式網域，所以這一項不靠任何還原。完整模式另外核對 `shiyin://` 和 `.shiyin`（`com.weiwei.shiyin.meeting`）的預設處理程式在檢查前後相同 |
 | 13 | 實機更新 | 不自動：列為「需人工」（4.7.6 → 新版的 app 內更新，開舊會議看標記、靜音、條列頁） |
 
 另外四項也標 Q：`check-test.py`（T，check.sh 自己的負對照，見下）、`isolation-check.py`（I1）、`isolation-check-test.py`（I2，§F0.3）、`l10n.py check`（L；跑之前存一份翻譯表，跑完翻譯表有變就算 FAIL 並放回原本的內容：檢查不該改到 repo）。摘要列在 #3 之後。#4 的子項（例如 CI 的更新網址）讀不到時整項照樣 PASS，說明欄寫哪一個子項 SKIP。
@@ -85,6 +85,7 @@ exit 0：沒有 FAIL（SKIP、需人工不算失敗）；1：有 FAIL；2：沒�
 
 - 開始前看 `~/Library/Application Support/Shiyin/audio/recording/`：有檔案就停（exit 2）。有別的 DEBUG 版在跑也停（`shiyinctl` 是廣播）；檢查中同時只開自己的一個 DEBUG 版。
 - 建置：`build-app.sh` 的複本，`APP` 在這次的暫存資料夾（`~/Library/Caches/ShiyinBuild/check/run-<時間>/`），`SCRATCH` 是 check 自己的建置快取 `~/Library/Caches/ShiyinBuild/check/scratch`；不碰 `~/Library/Caches/ShiyinBuild/app`（使用者可能拿它錄音）、不跑 `--install`。`shiyinctl` 也編到暫存資料夾。
+- DEBUG 版用**測試專用的 bundle id**（`com.weiwei.shiyin.macheck`）：建好的 DEBUG 版（#3、#4 檢查的那一份不動）複製一份到 `run-<時間>/debug-test/`，Info.plist 的 `CFBundleIdentifier` 換成測試 id、拿掉 `CFBundleURLTypes`（`shiyin://`）、`CFBundleDocumentTypes`、`UTExportedTypeDeclarations`（`.shiyin`、`meeting-ids`），再 ad-hoc 重簽。AppKit 存的視窗位置、`preview settings` 記住的頁面、其他 `UserDefaults.standard` 都寫進測試網域，不碰正式 app 的設定；系統的 `shiyin://`、`.shiyin` 處理程式也不會被測試版搶走（開 DEBUG 版後核對候選的 app 裡沒有測試版，結束後預設處理程式跟開始前相同）。換 id 不影響檢查要用的東西：控制通道是固定名稱的 distributed notification（`com.weiwei.shiyin.debug`，`shiyinctl` 照用）、`SHIYIN_HOME` 是環境變數、啟動參數是這次執行的 argument domain；寫死 `com.weiwei.shiyin` 的其他地方是 log subsystem、DispatchQueue 名稱、鑰匙圈 service（DEBUG 預設不讀）、UTType 名稱、`Notification.Name`，都跟偏好設定網域無關。結束時（含失敗、Ctrl-C）先 `lsregister -u` 取消登記測試版，再刪測試網域（`defaults delete com.weiwei.shiyin.macheck`、`~/Library/Preferences`、`HTTPStorages`、`Caches`、`Saved Application State`、`WebKit` 底下那個 id 的檔）；刪之前核對 id 不是正式的。
 - DEBUG 版：暫存 `SHIYIN_HOME`，`open -g -n --env SHIYIN_HOME=…`，參數 `-ApplePersistenceIgnoreState YES -llmProvider none -autoSummarize NO -correctTranscript NO -debugQuietPrompts YES -recordingIsland NO -mcpEnabled NO -autoCheckUpdates NO -muteHotKey YES`（設定只在這次執行有效）；啟動後用 `lsof` 確認開的是暫存的資料庫，開到正式資料庫就結束 app、FAIL。錄音島關掉：上游 5.0 的 DEBUG `state` 在島出現時寫不出 JSON。結束用 `kill`（TERM，10 秒後 KILL），不用 `quit`：正常結束會把視窗位置寫進共用設定。
 - 不送按鍵、不用 System Events、不用 AX：畫面一律 `windowshot`、`mawindowshot`（app 自己畫）。
 - 結束（含失敗、Ctrl-C）時結束自己的 DEBUG 版、刪掉這次的暫存資料夾（app、home、`shiyinctl`）；輸出資料夾留著（摘要和證據）。建置快取和基準版留著給下次用（`--clean-cache` 才刪）。
@@ -106,7 +107,9 @@ exit 0：沒有 FAIL（SKIP、需人工不算失敗）；1：有 FAIL；2：沒�
 | `compare_status` | brand.py compare 回 0、1、2、其他 | PASS、需人工、FAIL、FAIL |
 | `validate_only` | `999`、空字串、`3,999`、`3,I1,S` | 前三個 return 2，最後一個通過 |
 | `owned_pid` | pid 的執行檔是這次的 app、是別的程式、pid 不在 | 只有第一個通過 |
-| `save_keys`、`restore_keys` | DEBUG 版改了 `settingsPage` 和 `NSWindow Frame main`（鍵名有空白、值有結尾空白）、寫了開始前沒有的鍵、都沒變 | 原樣改回、刪掉新寫的、沒變的不動 |
+| `isolate_debug_app` | 複製出來的 DEBUG 版 | `CFBundleIdentifier` 是測試 id、沒有 URL scheme、文件類型、匯出的 UTType；簽章驗得過；id 給成正式的就拒絕 |
+| `cleanup_test_domain` | 測試網域、它的 Preferences／HTTPStorages／Caches 檔 | 只刪測試 id 的；給正式 id 就拒絕、什麼都不刪 |
+| `snapshot_diff` 和結束流程 | 檢查中使用者把正式網域的既有值改了（移動主視窗）、建立了原本沒有的鍵（`settingsPage`） | #12 FAIL、列出那些鍵；正式網域一次 `write`、`delete` 都沒有，使用者的值原樣留著 |
 
 另外 `brand-test.py` 加 `brand.py compare` 的測試：相同 0、有差異 1、基準缺 `Info.plist` 或沒有翻譯 2。
 
