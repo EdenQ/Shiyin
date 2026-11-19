@@ -58,10 +58,10 @@ mkdir -p "$RUN" || exit 2
 # 開始時拿不到有效的設定快照就不跑：沒有快照，#12 證明不了什麼（fork design §F0.4）
 if ! defaults_snapshot "$OUT/defaults-before.plist"; then echo "停止：拿不到開始時的設定快照"; rm -rf "$RUN"; exit 2; fi
 
-DBG_PID=""; DBG_APP=""; REL_APP=""; CTL=""; BUILT=""; BUILD_FAILED=0
+DBG_PID=""; DBG_APP=""; TEST_APP=""; REL_APP=""; CTL=""; BUILT=""; BUILD_FAILED=0
 cleanup() {
   stop_debug
-  restore_keys
+  [ -n "$TEST_APP" ] && cleanup_test_domain "$MA_TEST_DOMAIN" "$TEST_APP"
   if [ "$KEEP" = 1 ]; then echo "留下暫存資料夾：$RUN"; else rm -rf "$RUN"; fi
   if [ "$CLEAN" = 1 ]; then rm -rf "$SCRATCH" "$CACHE/scratch-base" "$CACHE/base"; fi
 }
@@ -214,10 +214,14 @@ i_l10n() {
 # ---------- DEBUG 版 ----------
 start_debug() {   # start_debug <AppleLanguages 的語言：zh-Hant、en>（只寫 zh 會解析成簡體）
   local lang="$1" home="$RUN/home-$1" exe pid=""
-  exe="$DBG_APP/Contents/MacOS/Shiyin"
   [ -z "$(debug_apps)" ] || { echo "已經有 DEBUG 版在跑：$(debug_apps)"; return 1; }
+  if [ -z "$TEST_APP" ]; then   # 測試專用 bundle id 的複本：不寫正式網域、不搶 shiyin://、.shiyin（fork design §F0.4）
+    TEST_APP="$(isolate_debug_app "$DBG_APP" "$RUN/debug-test")" || { echo "做不出測試 id 的 DEBUG 版"; TEST_APP=""; return 1; }
+    echo "DEBUG 版複本：${TEST_APP}（bundle id ${MA_TEST_DOMAIN}）"
+  fi
+  exe="$TEST_APP/Contents/MacOS/Shiyin"
   rm -rf "$home"; mkdir -p "$home"
-  open -g -n --env SHIYIN_HOME="$home" "$DBG_APP" --args -ApplePersistenceIgnoreState YES -llmProvider none \
+  open -g -n --env SHIYIN_HOME="$home" "$TEST_APP" --args -ApplePersistenceIgnoreState YES -llmProvider none \
     -autoSummarize NO -correctTranscript NO -debugQuietPrompts YES -recordingIsland NO -mcpEnabled NO \
     -autoCheckUpdates NO -muteHotKey YES -AppleLanguages "($lang)" || return 1
   for _ in $(seq 1 60); do pid="$(pgrep -f "$exe" | head -1)"; [ -n "$pid" ] && [ -f "$home/shiyin.sqlite" ] && break; sleep 0.5; done
@@ -229,19 +233,26 @@ start_debug() {   # start_debug <AppleLanguages 的語言：zh-Hant、en>（只�
     echo "DEBUG 版開的不只是暫存資料庫（或核對不了），結束它"; stop_debug; return 1
   fi
   echo "DEBUG 版 pid=${pid}，SHIYIN_HOME=${home}（lsof 確認只開暫存的資料庫）"
+  # 測試版開著時，shiyin://、.shiyin 的候選 app 裡不能有它（沒有 URL scheme、文件類型宣告才對）
+  if [ -x "$RUN/handlers" ]; then
+    "$RUN/handlers" > "$OUT/logs/handlers-$lang.txt" 2>&1 || { echo "讀不了預設處理程式"; stop_debug; return 1; }
+    if grep -qF "$TEST_APP" "$OUT/logs/handlers-$lang.txt"; then
+      echo "測試版出現在 shiyin://、.shiyin 的處理程式裡：$(cat "$OUT/logs/handlers-$lang.txt")"; stop_debug; return 1
+    fi
+    echo "shiyin://、.shiyin 的處理程式裡沒有測試版"
+  fi
   "$CTL" closewindow onboarding >/dev/null 2>&1
   sleep 1
 }
 stop_debug() {   # kill，不用 quit：正常結束會把視窗位置寫進共用設定
   [ -n "$DBG_PID" ] || return 0
   # 送訊號前核對 pid 還是這次的 app（pid 可能已經結束、被別的程序重用）
-  if ! owned_pid "$DBG_PID" "$DBG_APP"; then echo "pid $DBG_PID 已經不是這次的 DEBUG 版，不送訊號"; DBG_PID=""; return 0; fi
+  if ! owned_pid "$DBG_PID" "$TEST_APP"; then echo "pid $DBG_PID 已經不是這次的 DEBUG 版，不送訊號"; DBG_PID=""; return 0; fi
   kill -TERM "$DBG_PID" 2>/dev/null
-  for _ in $(seq 1 20); do owned_pid "$DBG_PID" "$DBG_APP" || break; sleep 0.5; done
-  owned_pid "$DBG_PID" "$DBG_APP" && kill -KILL "$DBG_PID" 2>/dev/null
+  for _ in $(seq 1 20); do owned_pid "$DBG_PID" "$TEST_APP" || break; sleep 0.5; done
+  owned_pid "$DBG_PID" "$TEST_APP" && kill -KILL "$DBG_PID" 2>/dev/null
   DBG_PID=""
 }
-# save_keys、restore_keys、WRITTEN_KEYS 在 check-lib.sh（check-test.py 有測）
 dbg() { run python3 "$ROOT/scripts/fork/check-debug.py" "$1" "$HOME_DIR" "$CTL" --out "$OUT/$2" "${@:3}"; }
 SESSION_OK=0
 i_f2() {
@@ -284,20 +295,20 @@ i_session_fail() { NOTE="DEBUG 版沒有開起來（看 logs/debug-start.log）"
 # ---------- 11、12、13 ----------
 i_tsan() { run bash "$ROOT/scripts/fork/tsan-lockedvalue/run.sh"; }
 i_defaults() {
+  # 正式網域前後不同就 FAIL、保留現值：DEBUG 版用測試 id 本來就不寫正式網域，分不出來源的變更不改寫也不刪（REVIEW-3a2 P2-4）
+  local fail=0
   EVID="defaults-before.plist、defaults-after.plist"
   defaults_snapshot "$OUT/defaults-after.plist" || { NOTE="結束時拿不到設定快照，無法比對"; return 1; }
-  if cmp -s "$OUT/defaults-before.plist" "$OUT/defaults-after.plist"; then NOTE="defaults export 前後逐位元組相同"; return 0; fi
-  python3 - "$OUT/defaults-before.plist" "$OUT/defaults-after.plist" <<'PY'
-import plistlib, sys
-def load(p):
-    raw = open(p, 'rb').read()
-    return {} if raw.startswith(b'MA-CHECK: domain absent') else plistlib.loads(raw)
-a, b = (load(p) for p in sys.argv[1:])
-for k in sorted(set(a) | set(b)):
-    if a.get(k) != b.get(k):
-        print(f'{k}: {a.get(k)!r} → {b.get(k)!r}'[:300])
-PY
-  NOTE="設定跟開始前不同（鍵列在 log；可能是檢查留下的，也可能是使用者同時改的），沒有自動改回"; return 1
+  if snapshot_diff "$OUT/defaults-before.plist" "$OUT/defaults-after.plist"; then NOTE="正式網域 defaults export 前後逐位元組相同"
+  else NOTE="正式網域跟開始前不同（鍵列在 log；可能是使用者同時改的），保留現值、沒有改寫"; fail=1; fi
+  if [ -f "$OUT/handlers-before.txt" ]; then   # 完整模式：shiyin://、.shiyin 的預設處理程式前後相同
+    "$RUN/handlers" > "$OUT/handlers-after.txt" 2>&1 || { NOTE="${NOTE}；讀不了預設處理程式"; return 1; }
+    if ! diff <(grep -- '-default' "$OUT/handlers-before.txt") <(grep -- '-default' "$OUT/handlers-after.txt"); then
+      NOTE="${NOTE}；shiyin://、.shiyin 的預設處理程式跟開始前不同"; fail=1
+    else NOTE="${NOTE}；shiyin://、.shiyin 的預設處理程式前後相同"; fi
+    EVID="${EVID}、handlers-before.txt、handlers-after.txt"
+  fi
+  return $fail
 }
 i_manual() { NOTE="4.7.6 → 新版的 app 內更新：開舊會議看標記、靜音、條列頁（使用者在電腦前做）"; return 4; }
 
@@ -313,7 +324,10 @@ item I2 "隔離檢查的回歸測試" i_isotest
 item L "介面字串（l10n.py check）" i_l10n
 item 4 "F1 名稱、網址、圖示、接點" i_f1
 if want 5 || want 6 || want 7 || want 8 || want 9 || want 10 || want S; then
-  need_build && save_keys
+  # 測試網域如果是上次中斷留下的，先清掉；記下 shiyin://、.shiyin 的預設處理程式（#12 比對）
+  cleanup_test_domain "$MA_TEST_DOMAIN"
+  need_build && xcrun swiftc "$ROOT/scripts/fork/check-handlers.swift" -module-cache-path "$RUN/mc" -o "$RUN/handlers" > "$OUT/logs/handlers-build.log" 2>&1 \
+    && "$RUN/handlers" > "$OUT/handlers-before.txt" 2>&1
   if need_build && start_debug zh-Hant > "$OUT/logs/debug-start.log" 2>&1; then
     item 5 "F2 標記（錄音中標記、套用、只改這句的交易）" i_f2
     item 6 "F2 加上 5.0（編輯會議、分割、合併、封包）" i_f2edit
@@ -323,7 +337,7 @@ if want 5 || want 6 || want 7 || want 8 || want 9 || want 10 || want S; then
     item 10 "F4 加上 5.0（noteitem 刪除後）" i_f4items
     item S "截圖（#7～#10 要看一眼的畫面，zh、en）" i_shots
     stop_debug
-    restore_keys >> "$OUT/logs/debug-start.log" 2>&1
+    cleanup_test_domain "$MA_TEST_DOMAIN" "$TEST_APP" && echo "已取消登記測試版、刪掉測試網域 $MA_TEST_DOMAIN" >> "$OUT/logs/debug-start.log"
   else
     cat "$OUT/logs/debug-start.log" 2>/dev/null
     for id in 5 6 7 8 9 10 S; do item "$id" "DEBUG 版的項目" i_session_fail; done

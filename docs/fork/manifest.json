@@ -930,7 +930,8 @@
         "scripts/fork/check-debug.py",
         "scripts/fork/check-f1.py",
         "scripts/fork/check-lib.sh",
-        "scripts/fork/check-test.py"
+        "scripts/fork/check-test.py",
+        "scripts/fork/check-handlers.swift"
       ],
       "symbols": [
         "ForkDebug",

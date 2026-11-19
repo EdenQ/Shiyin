@@ -1,5 +1,5 @@
 # check.sh 的判斷（fork design §F0.4「失敗一律不放行」）：check.sh source 這支；scripts/fork/check-test.py 用假的
-# defaults／lsof／ps／plutil 跑同樣的函式（負對照）。只定義函式，不執行任何東西。
+# defaults／lsof／ps／lsregister 跑同樣的函式（負對照）。只定義函式，不執行任何東西。
 # 判斷不了的情況一律算失敗：拿不到快照、lsof 失敗、比對工具出錯都不能當成「相同」「通過」。
 
 MA_DOMAIN="com.weiwei.shiyin"
@@ -51,44 +51,58 @@ compare_status() {
   esac
 }
 
-# DEBUG 版本來就會寫進共用設定的鍵：開 DEBUG 版前記下，結束後改回（fork design §F0.4 #12）。
-#   settingsPage：preview settings 記住開到哪一頁
-#   NSWindow Frame main：主視窗的位置。螢幕配置跟上次存的不同（例如接了外接螢幕）時，AppKit 一打開視窗就重存
-#   （2026-11-19 FIX-3a 接了兩台外接螢幕後的完整模式 #12 抓到）
-# 只改回這幾個、而且是值真的變了的；其他鍵的差異交給 #12 回報，不自動改（可能是使用者同時改的）
-WRITTEN_KEYS=("settingsPage" "NSWindow Frame main")
-SAVED_KEYS=""
-# save_keys／restore_keys 用 $RUN/keys 存開始前的值
-save_keys() {
-  [ -n "$SAVED_KEYS" ] && return 0
-  mkdir -p "$RUN/keys"
-  local i k
-  for i in "${!WRITTEN_KEYS[@]}"; do
-    k="${WRITTEN_KEYS[$i]}"
-    if defaults read com.weiwei.shiyin "$k" > "$RUN/keys/$i" 2>/dev/null; then echo set > "$RUN/keys/$i.state"; else echo unset > "$RUN/keys/$i.state"; fi
-    defaults read-type com.weiwei.shiyin "$k" 2>/dev/null | awk '{print $NF}' > "$RUN/keys/$i.type"
+# ---------- DEBUG 版用測試專用的 bundle id（fork design §F0.4 安全規則；REVIEW-3a2 P2-4） ----------
+# 正式網域一律不寫：AppKit 的視窗位置、preview settings 的頁面都寫進測試網域，結束時整個刪掉。
+# 不再「記下、改回」正式網域：分不出是檢查還是使用者同時改的，改回會蓋掉使用者的操作。
+MA_TEST_DOMAIN="com.weiwei.shiyin.macheck"
+MA_LSREGISTER="${MA_LSREGISTER:-/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister}"
+
+# isolate_debug_app <建好的 DEBUG 版> <放複本的資料夾> [測試 id]：複製一份、換 bundle id、拿掉 URL scheme／文件類型／
+# 匯出的 UTType（不搶 shiyin://、.shiyin）、ad-hoc 重簽。印出複本的路徑；0 成功、1 失敗（id 是正式的也算失敗）
+isolate_debug_app() {
+  local src="$1" dir="$2" id="${3:-$MA_TEST_DOMAIN}" app plist key
+  case "$id" in "$MA_DOMAIN"|"") echo "測試 id 不能是正式的 $MA_DOMAIN" >&2; return 1;; esac
+  app="$dir/$(basename "$src")"; plist="$app/Contents/Info.plist"
+  rm -rf "$app"; mkdir -p "$dir" || return 1
+  ditto "$src" "$app" || return 1
+  /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $id" "$plist" >&2 || return 1
+  for key in CFBundleURLTypes CFBundleDocumentTypes UTExportedTypeDeclarations; do
+    /usr/libexec/PlistBuddy -c "Delete :$key" "$plist" >/dev/null 2>&1
   done
-  SAVED_KEYS=1
+  [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$plist" 2>/dev/null)" = "$id" ] || { echo "換不了 bundle id" >&2; return 1; }
+  for key in CFBundleURLTypes CFBundleDocumentTypes UTExportedTypeDeclarations; do
+    /usr/libexec/PlistBuddy -c "Print :$key" "$plist" >/dev/null 2>&1 && { echo "$key 還在" >&2; return 1; }
+  done
+  codesign --force --sign - --identifier "$id" "$app" >&2 2>&1 || return 1
+  codesign --verify --strict "$app" >&2 2>&1 || { echo "重簽後驗不過" >&2; return 1; }
+  echo "$app"
 }
-restore_keys() {
-  [ -n "$SAVED_KEYS" ] || return 0
-  local i k now now_state saved
-  for i in "${!WRITTEN_KEYS[@]}"; do
-    k="${WRITTEN_KEYS[$i]}"
-    if now="$(defaults read com.weiwei.shiyin "$k" 2>/dev/null)"; then now_state=set; else now_state=unset; fi
-    saved="$(cat "$RUN/keys/$i")"
-    if [ "$(cat "$RUN/keys/$i.state")" = unset ]; then
-      [ "$now_state" = set ] && defaults delete com.weiwei.shiyin "$k" && echo "改回：刪掉「${k}」（檢查前沒有這個鍵）"
-    elif [ "$now_state" = unset ] || [ "$now" != "$saved" ]; then
-      case "$(cat "$RUN/keys/$i.type")" in
-        integer) defaults write com.weiwei.shiyin "$k" -int "$saved";;
-        boolean) defaults write com.weiwei.shiyin "$k" -bool "$saved";;
-        *) defaults write com.weiwei.shiyin "$k" -string "$saved";;
-      esac
-      echo "改回：「${k}」= ${saved}（檢查中被 DEBUG 版改成 ${now}）"
-    fi
-  done
-  SAVED_KEYS=""
+
+# cleanup_test_domain <測試 id> [複本 app]：取消登記複本、刪測試網域和它的快取。id 不是測試網域就什麼都不做、return 1
+cleanup_test_domain() {
+  local id="$1" app="${2:-}" lib="$HOME/Library"
+  case "$id" in "$MA_TEST_DOMAIN"|"$MA_TEST_DOMAIN".*) ;; *) echo "拒絕清理：$id 不是測試網域" >&2; return 1;; esac
+  [ -n "$app" ] && [ -d "$app" ] && "$MA_LSREGISTER" -u "$app" >/dev/null 2>&1
+  defaults delete "$id" >/dev/null 2>&1
+  rm -rf "$lib/Preferences/$id.plist" "$lib/HTTPStorages/$id" "$lib/HTTPStorages/$id.binarycookies" \
+         "$lib/Caches/$id" "$lib/Saved Application State/$id.savedState" "$lib/WebKit/$id"
+  return 0
+}
+
+# snapshot_diff <開始的快照> <結束的快照>：逐位元組相同 return 0；不同時列出哪幾個鍵、return 1（只讀，不改任何設定）
+snapshot_diff() {
+  cmp -s "$1" "$2" && return 0
+  python3 - "$1" "$2" <<'PY'
+import plistlib, sys
+def load(p):
+    raw = open(p, 'rb').read()
+    return {} if raw.startswith(b'MA-CHECK: domain absent') else plistlib.loads(raw)
+a, b = (load(p) for p in sys.argv[1:])
+for k in sorted(set(a) | set(b)):
+    if a.get(k) != b.get(k):
+        print(f'{k}: {a.get(k)!r} → {b.get(k)!r}'[:300])
+PY
+  return 1
 }
 
 # validate_only <逗號分隔的項目>：每一項都在白名單、至少一項。0 通過；2 參數錯

@@ -5,7 +5,9 @@ source scripts/fork/check-lib.sh，在暫存資料夾放假的 defaults、lsof�
 不讀寫真的設定、不碰任何資料庫、不送訊號。plutil 用系統的（只檢查暫存檔）。
 用法：python3 scripts/fork/check-test.py [-v]；全部符合 exit 0，否則 exit 1。
 """
+import json
 import os
+import plistlib
 import shutil
 import subprocess
 import sys
@@ -43,16 +45,37 @@ exit 1
 [ -n "${STUB_LSOF_FILE:-}" ] && cat "$STUB_LSOF_FILE"
 exit "${STUB_LSOF_EXIT:-0}"
 ''',
-    # 有狀態的 defaults（STUB_STORE 資料夾，一個鍵一個檔）：測 save_keys／restore_keys
-    'sdefaults': r'''#!/bin/bash
-store="$STUB_STORE"; f="$store/$(printf %s "$3" | shasum | cut -c1-12)"
-case "$1" in
-  read) [ -f "$f" ] && { cat "$f"; echo; exit 0; }; echo "does not exist" >&2; exit 1;;
-  read-type) [ -f "$f" ] && { echo "Type is string"; exit 0; }; exit 1;;
-  write) printf %s "$5" > "$f"; exit 0;;
-  delete) rm -f "$f"; exit 0;;
-esac
-exit 1
+    # 有狀態的 defaults（python）：STUB_STORE/<網域>.json 存值，每次呼叫記在 STUB_LOG。測正式網域不被改寫、測試網域被清掉
+    'sdefaults': r'''#!/usr/bin/python3
+import json, os, plistlib, sys
+store, log = os.environ['STUB_STORE'], os.environ['STUB_LOG']
+open(log, 'a').write(json.dumps(sys.argv[1:]) + '\n')
+cmd, domain = sys.argv[1], sys.argv[2]
+path = os.path.join(store, domain + '.json')
+data = json.load(open(path)) if os.path.exists(path) else None
+if cmd == 'export':
+    if data is None:
+        sys.exit('Domain %s does not exist' % domain)
+    plistlib.dump(data, open(sys.argv[3], 'wb')); sys.exit(0)
+if cmd == 'read':
+    if data is None:
+        sys.exit('Domain %s does not exist' % domain)
+    if len(sys.argv) > 3:
+        if sys.argv[3] not in data: sys.exit('does not exist')
+        print(data[sys.argv[3]]); sys.exit(0)
+    print(data); sys.exit(0)
+if cmd == 'write':
+    data = data or {}; data[sys.argv[3]] = sys.argv[-1]; json.dump(data, open(path, 'w')); sys.exit(0)
+if cmd == 'delete':
+    if data is None: sys.exit(1)
+    if len(sys.argv) > 3: data.pop(sys.argv[3], None); json.dump(data, open(path, 'w'))
+    else: os.remove(path)
+    sys.exit(0)
+sys.exit(1)
+''',
+    # lsregister：只記下呼叫
+    'lsregister': r'''#!/bin/bash
+echo "lsregister $*" >> "$STUB_LOG"
 ''',
     # ps -o comm= -p <pid>：印 STUB_PS_COMM；空的時候等於 pid 不在
     'ps': r'''#!/bin/bash
@@ -198,37 +221,116 @@ class Lib(unittest.TestCase):
             code, msg = self.call('validate_only', value)
             self.assertEqual(code, want, f'--only {value!r}：{msg}')
 
-    # ---------- DEBUG 版會寫的鍵：開前記下、結束後改回 ----------
-    def test_save_restore_keys(self):
-        store = self.tmp / 'store'
-        store.mkdir(exist_ok=True)
-        run = self.tmp / 'run keys'
-        sbin = self.tmp / 'sbin'
-        sbin.mkdir(exist_ok=True)
+    # ---------- P2-4：DEBUG 版用測試 id；正式網域分不出來源的變更不改寫、不刪 ----------
+    def stateful(self):
+        store, sbin = Path(tempfile.mkdtemp(dir=self.tmp)), Path(tempfile.mkdtemp(dir=self.tmp))
+        log = store / 'calls.log'
         shutil.copy(self.bin / 'sdefaults', sbin / 'defaults')
-        env = {'PATH': f'{sbin}:/usr/bin:/bin', 'HOME': str(self.tmp), 'STUB_STORE': str(store), 'RUN': str(run)}
+        env = {'PATH': f'{sbin}:/usr/bin:/bin', 'HOME': str(store / 'home'), 'STUB_STORE': str(store),
+               'STUB_LOG': str(log), 'MA_LSREGISTER': str(self.bin / 'lsregister')}
         def sh(script):
             p = subprocess.run(['/bin/bash', '-c', f'. "{LIB}"; {script}'], capture_output=True, text=True, env=env)
             return p.returncode, p.stdout + p.stderr
-        # 開始前：settingsPage = provider、視窗位置有結尾空白；之後 DEBUG 版改了兩個
-        sh('defaults write com.weiwei.shiyin settingsPage -string provider; '
-           'defaults write com.weiwei.shiyin "NSWindow Frame main" -string "274 187 1180 780 0 0 1728 1084 "')
-        code, msg = sh('save_keys; defaults write com.weiwei.shiyin settingsPage -string recording; '
-                       'defaults write com.weiwei.shiyin "NSWindow Frame main" -string "-1550 172 1180 780 -1920 37 1920 1050 "; '
-                       'restore_keys; defaults read com.weiwei.shiyin settingsPage; defaults read com.weiwei.shiyin "NSWindow Frame main" | od -c | tail -3')
+        def domain(name):
+            f = store / f'{name}.json'
+            return json.loads(f.read_text()) if f.exists() else None
+        def put(name, data):
+            (store / f'{name}.json').write_text(json.dumps(data))
+        def calls():
+            return [json.loads(x) if x.startswith('[') else x for x in log.read_text().splitlines()] if log.exists() else []
+        return store, sh, domain, put, calls
+
+    def end_of_run(self, sh, store):
+        # check.sh 結束時做的事：清測試網域、拿結束的快照、比對（#12）
+        return sh(f'cleanup_test_domain com.weiwei.shiyin.macheck; defaults_snapshot "{store}/after.plist" && '
+                  f'snapshot_diff "{store}/before.plist" "{store}/after.plist"')
+
+    def assert_production_untouched_by_check(self, calls):
+        bad = [c for c in calls if isinstance(c, list) and c[0] in ('write', 'delete') and c[1] == 'com.weiwei.shiyin']
+        self.assertEqual(bad, [], f'檢查不能寫、刪正式網域：{bad}')
+
+    def test_user_changes_existing_value_is_kept(self):
+        store, sh, domain, put, calls = self.stateful()
+        put('com.weiwei.shiyin', {'NSWindow Frame main': '274 187 1180 780 0 0 1728 1084 ', 'llmProvider': 'claude'})
+        self.assertEqual(sh(f'defaults_snapshot "{store}/before.plist"')[0], 0)
+        put('com.weiwei.shiyin.macheck', {'NSWindow Frame main': '-1550 172 1180 780 -1920 37 1920 1050 ', 'settingsPage': 'recording'})
+        # 檢查中使用者自己移動了正式 app 的主視窗
+        user = '10 20 1180 780 -1920 37 1920 1050 '
+        put('com.weiwei.shiyin', {'NSWindow Frame main': user, 'llmProvider': 'claude'})
+        code, msg = self.end_of_run(sh, store)
+        self.assertEqual(code, 1, msg)
+        self.assertIn('NSWindow Frame main', msg, '#12 要列出不同的鍵')
+        self.assertEqual(domain('com.weiwei.shiyin')['NSWindow Frame main'], user, '使用者的值要原樣留著')
+        self.assertIsNone(domain('com.weiwei.shiyin.macheck'), '測試網域要清掉')
+        self.assert_production_untouched_by_check(calls())
+
+    def test_user_creates_new_key_is_kept(self):
+        store, sh, domain, put, calls = self.stateful()
+        put('com.weiwei.shiyin', {'llmProvider': 'claude'})
+        self.assertEqual(sh(f'defaults_snapshot "{store}/before.plist"')[0], 0)
+        put('com.weiwei.shiyin', {'llmProvider': 'claude', 'settingsPage': 'models'})   # 使用者中途打開設定的「模型」頁
+        code, msg = self.end_of_run(sh, store)
+        self.assertEqual(code, 1, msg)
+        self.assertIn('settingsPage', msg)
+        self.assertEqual(domain('com.weiwei.shiyin').get('settingsPage'), 'models', '使用者建立的鍵不能被刪')
+        self.assert_production_untouched_by_check(calls())
+
+    def test_unchanged_production_passes(self):
+        store, sh, domain, put, calls = self.stateful()
+        put('com.weiwei.shiyin', {'llmProvider': 'claude'})
+        sh(f'defaults_snapshot "{store}/before.plist"')
+        put('com.weiwei.shiyin.macheck', {'settingsPage': 'recording'})   # 只有測試網域被寫
+        code, msg = self.end_of_run(sh, store)
         self.assertEqual(code, 0, msg)
-        self.assertIn('改回：「NSWindow Frame main」', msg)
-        self.assertIn('provider', msg)
-        code, out = sh('defaults read com.weiwei.shiyin "NSWindow Frame main"')
-        self.assertEqual(out, '274 187 1180 780 0 0 1728 1084 \n', '結尾空白也要原樣改回')
-        # 開始前沒有的鍵，DEBUG 版寫了：刪掉
-        sh('defaults delete com.weiwei.shiyin settingsPage')
-        code, msg = sh('save_keys; defaults write com.weiwei.shiyin settingsPage -string x; restore_keys; '
-                       'defaults read com.weiwei.shiyin settingsPage')
-        self.assertNotEqual(code, 0, msg)
-        # 沒變的不動
-        code, msg = sh('save_keys; restore_keys')
-        self.assertNotIn('改回', msg)
+        self.assertIsNone(domain('com.weiwei.shiyin.macheck'))
+        self.assert_production_untouched_by_check(calls())
+
+    def test_cleanup_only_test_domain(self):
+        store, sh, domain, put, calls = self.stateful()
+        lib = store / 'home/Library'
+        prod = [lib / 'Preferences/com.weiwei.shiyin.plist', lib / 'HTTPStorages/com.weiwei.shiyin']
+        test = [lib / 'Preferences/com.weiwei.shiyin.macheck.plist', lib / 'HTTPStorages/com.weiwei.shiyin.macheck',
+                lib / 'Caches/com.weiwei.shiyin.macheck', lib / 'Saved Application State/com.weiwei.shiyin.macheck.savedState']
+        for f in prod + test:
+            f.parent.mkdir(parents=True, exist_ok=True); f.write_text('x')
+        put('com.weiwei.shiyin', {'a': 'b'})
+        put('com.weiwei.shiyin.macheck', {'a': 'b'})
+        for refused in ('com.weiwei.shiyin', '', 'com.weiwei.shiyinX', 'other.domain'):
+            code, msg = sh(f'cleanup_test_domain "{refused}" "/x/Meeting Assistant.app"')
+            self.assertEqual(code, 1, f'{refused!r}：{msg}')
+        self.assertEqual(calls(), [], '拒絕時一個指令都不能下')
+        self.assertTrue(all(f.exists() for f in prod + test))
+        app = store / 'debug-test/Meeting Assistant.app'
+        app.mkdir(parents=True)
+        code, msg = sh(f'cleanup_test_domain com.weiwei.shiyin.macheck "{app}"')
+        self.assertEqual(code, 0, msg)
+        self.assertTrue(all(f.exists() for f in prod), '正式的檔不能動')
+        self.assertFalse(any(f.exists() for f in test), '測試網域的檔要刪掉')
+        self.assertIsNone(domain('com.weiwei.shiyin.macheck'))
+        self.assertEqual(domain('com.weiwei.shiyin'), {'a': 'b'})
+        self.assertIn(f'lsregister -u {app}', calls())
+        self.assert_production_untouched_by_check(calls())
+
+    def test_isolate_debug_app(self):
+        src = self.tmp / 'iso-src/Meeting Assistant.app'
+        (src / 'Contents/MacOS').mkdir(parents=True, exist_ok=True)
+        shutil.copy(ROOT / 'Resources/Info.plist', src / 'Contents/Info.plist')
+        shutil.copy('/usr/bin/true', src / 'Contents/MacOS/Shiyin')
+        e = {'PATH': '/usr/bin:/bin', 'HOME': str(self.tmp)}
+        p = subprocess.run(['/bin/bash', '-c', f'. "{LIB}"; isolate_debug_app "$1" "$2"', 'x', src, self.tmp / 'iso out'],
+                           capture_output=True, text=True, env=e)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        app = Path(p.stdout.strip())
+        info = plistlib.loads((app / 'Contents/Info.plist').read_bytes())
+        self.assertEqual(info['CFBundleIdentifier'], 'com.weiwei.shiyin.macheck')
+        for key in ('CFBundleURLTypes', 'CFBundleDocumentTypes', 'UTExportedTypeDeclarations'):
+            self.assertNotIn(key, info)
+        self.assertEqual(plistlib.loads((src / 'Contents/Info.plist').read_bytes())['CFBundleIdentifier'], 'com.weiwei.shiyin',
+                         '原本那一份（#3、#4 檢查的）不能動')
+        self.assertEqual(subprocess.run(['codesign', '--verify', '--strict', app]).returncode, 0)
+        p = subprocess.run(['/bin/bash', '-c', f'. "{LIB}"; isolate_debug_app "$1" "$2" com.weiwei.shiyin', 'x', src, self.tmp / 'iso2'],
+                           capture_output=True, text=True, env=e)
+        self.assertEqual(p.returncode, 1, '測試 id 給成正式的要拒絕')
 
     # ---------- stop_debug 的 pid 核對 ----------
     def test_owned_pid(self):
