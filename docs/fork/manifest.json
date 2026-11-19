@@ -90,6 +90,7 @@
       "infoPlistKeys": {
         "ShiyinIssuesURL": "https://github.com/EdenQ/Shiyin/issues"
       },
+      "iconSha256": "00cf00b92a364bd6d9f84c2aead132c8e97bdc3568061ed165846b757d5799f7",
       "keywords": [
         "MA",
         "Meeting Assistant",
@@ -924,7 +925,10 @@
         "Sources/Shiyin/Fork/Debug/ForkDebug.swift",
         "Sources/Shiyin/Fork/ForkState.swift",
         "scripts/fork/isolation-check.py",
-        "scripts/fork/isolation-check-test.py"
+        "scripts/fork/isolation-check-test.py",
+        "scripts/fork/check.sh",
+        "scripts/fork/check-debug.py",
+        "scripts/fork/check-f1.py"
       ],
       "symbols": [
         "ForkDebug",
@@ -942,7 +946,9 @@
         "debugQuietPrompts"
       ],
       "checks": [
-        "python3 scripts/fork/isolation-check.py"
+        "python3 scripts/fork/isolation-check.py",
+        "scripts/fork/check.sh --quick",
+        "scripts/fork/check.sh"
       ],
       "markers": [
         {

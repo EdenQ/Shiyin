@@ -50,7 +50,7 @@ scripts/fork/check.sh                 # 完整：建置、DEBUG 版實際操作�
 scripts/fork/check.sh --quick         # 只跑靜態的（不建 app、不開 DEBUG 版，約 1～2 分鐘）
 scripts/fork/check.sh --base-app <舊版.app>   # 品牌逐鍵比對的基準（預設：HEAD 之前最近的 fork tag 的 release 建置，見下）
 scripts/fork/check.sh --base-ref v5.0.1        # 基準改用這個 tag 建
-scripts/fork/check.sh --only 3,5,7    # 只跑這幾項（1、2、11 這類自己會建需要的東西）
+scripts/fork/check.sh --only 3,5,7    # 只跑這幾項（1～12、I1、I2、L、S；要用到的建置、DEBUG 版自己會建、會開）
 scripts/fork/check.sh --out <資料夾>  # 摘要、log、截圖放這裡（預設 $TMPDIR/shiyin-check-<時間>）
 scripts/fork/check.sh --keep          # 留下這次的 app、暫存 SHIYIN_HOME（除錯用）
 scripts/fork/check.sh --clean-cache   # 結束時連建置快取、基準版也刪掉
@@ -68,15 +68,16 @@ exit 0：沒有 FAIL（SKIP、需人工不算失敗）；1：有 FAIL；2：沒�
 | 4 | F1 | Q：repo 的 `Resources/AppIcon.icns` sha256 等於 manifest `F1.iconSha256`、`Info.plist` 的 `ShiyinIssuesURL` 等於 manifest、`BrandAboutCommand()   // MA-FORK(F7)` 和 ReleaseNotes 的 F7 接點在、`brand-hooks-test`（更新說明選段落）；完整：建好的 app 的 icns、`ShiyinIssuesURL` 也一樣；更新網址（CI 的 `vars.SHIYIN_UPDATE_URL`）用 `gh variable get` 讀得到時要指到 fork（`EdenQ/Shiyin`），讀不到是 SKIP |
 | 5 | F2 標記 | `record-sim` 中 `tagspeaker now 甲`、停止：`speaker_tags` 有這一筆、時間在送出指令時的 elapsed 附近；`f2-atomic-check.py`（套用：說話者 1 變「甲」、說話者 2 有乙又有丙不套用；「只改這句」的交易、復原） |
 | 6 | F2 加上 5.0 | 兩場示範會議加標記：`editmeeting` 裁頭尾、刪中間、分割、合併，標記跟著平移、分到新會議、合併後加上偏移；每次 `restoreedit` 都回到原本；`.shiyin` 封包帶標記、匯入回來一樣，舊封包沒有標記也能匯入 |
-| 7 | F3 靜音 | `f3-mute-check.py`（狀態、⌃⌥⌘M、錄音檔兩聲道、靜音那段麥克風是 0）；靜音中 `recordstall 32 1`：20 秒左右 `muteHint` 出現、`micmute dismiss` 收掉；windowshot 主畫面（提示列）放證據，「需人工」看一眼 |
-| 8 | F3 加上 5.0 | 靜音中 `levelCheck` 沒有收音提示；選單列圖示是 `mic.slash.circle.fill`；`hotkey.muteRegistered` 錄音中是 true、停止後 false；設定「錄音」頁 `preview settings recording` 加 `mawindowshot`（需人工） |
-| 9 | F4 | `scripts/dev/f4-check.py`；示範會議的紀錄分頁 windowshot（繁中、英文，需人工；還沒有基準圖，不做像素比對） |
-| 10 | F4 加上 5.0 | `noteitem delete decisions 0` 之後 `copysection` 少一條、其他條照舊；windowshot（需人工看條數、色條、「加到提醒事項」） |
+| 7 | F3 靜音 | `f3-mute-check.py`（狀態、⌃⌥⌘M、錄音檔兩聲道、靜音那段麥克風是 0、電腦聲音照常） |
+| 8 | F3 加上 5.0 | `check-debug.py f3-hint`：靜音中 `levelCheck` 沒有收音提示；選單列圖示是 `mic.slash.circle.fill`；`hotkey.muteRegistered` 錄音中是 true、停止後 false；靜音中 `recordstall 32 1`（電腦聲音停下）：20 秒左右 `muteHint` 出現、`micmute dismiss` 收掉；提示列的 windowshot 放進截圖 |
+| 9 | F4 | `scripts/dev/f4-check.py`（議題切段、中英日的分段複製） |
+| 10 | F4 加上 5.0 | `noteitem delete actionItems 0` 之後 `copysection` 的待辦少一條、其他條和別的段落照舊（示範會議的決議只有 1 條，刪了整段變空）；刪除後的 windowshot 放進截圖 |
+| S | 截圖 | 繁中、英文各開一次 DEBUG 版：示範會議的紀錄、逐字稿分頁（`windowshot`）、設定「錄音」頁（`preview settings recording` 加 `mawindowshot`），加上 #8、#10 的圖，放在輸出資料夾的 `shots/`；狀態一律「需人工」（看條數、色條、「加到提醒事項」、靜音開關、提示列；還沒有基準圖，不做像素比對） |
 | 11 | DF5 | Q：`scripts/fork/tsan-lockedvalue/run.sh` |
-| 12 | 設定殘留 | Q：開始、結束各 `defaults export com.weiwei.shiyin`，要逐位元組相同（不同時列出哪幾個鍵；檢查不自己改回，免得蓋掉使用者同時改的設定） |
+| 12 | 設定殘留 | Q：開始、結束各 `defaults export com.weiwei.shiyin`，要逐位元組相同（不同時列出哪幾個鍵）。DEBUG 指令本來就會寫的鍵（`preview settings` 記住的 `settingsPage`）在開 DEBUG 版前記下、結束後改回（只改值真的變了的）；其他鍵不自動改回，免得蓋掉使用者同時改的設定 |
 | 13 | 實機更新 | 不自動：列為「需人工」（4.7.6 → 新版的 app 內更新，開舊會議看標記、靜音、條列頁） |
 
-另外 Q 一定跑：`isolation-check.py`、`isolation-check-test.py`（§F0.3）、`l10n.py check`（跑之前存一份翻譯表，跑完翻譯表有變就算 FAIL 並放回原本的內容：檢查不該改到 repo）。這三項在摘要列在 #3 之後（編號 I1、I2、L）。
+另外三項也標 Q：`isolation-check.py`（I1）、`isolation-check-test.py`（I2，§F0.3）、`l10n.py check`（L；跑之前存一份翻譯表，跑完翻譯表有變就算 FAIL 並放回原本的內容：檢查不該改到 repo）。摘要列在 #3 之後。#4 的子項（例如 CI 的更新網址）讀不到時整項照樣 PASS，說明欄寫哪一個子項 SKIP。
 
 **安全規則**（CLAUDE.md「驗證時要注意」）
 
