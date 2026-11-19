@@ -2,7 +2,7 @@
 # fork 的回歸檢查（fork design §F0.4；PLAN-fork-5.0 §8.1、階段 3a）：一個指令跑完能自動化的 1～12 項，輸出 markdown 摘要。
 # 用法：scripts/fork/check.sh [--quick] [--only 3,5,I1] [--base-app <舊版.app> | --base-ref <tag>] [--out <資料夾>] [--keep] [--clean-cache]
 #   --quick        只跑靜態的（不建 app、不開 DEBUG 版）：3（原始碼）、4（repo）、I1、I2、L、11、12
-#   --only         只跑這幾項（逗號分隔：1～12、I1、I2、L、S〔截圖〕）；需要的建置會自己做
+#   --only         只跑這幾項（逗號分隔：1～12、I1、I2、L、S〔截圖〕）；需要的建置會自己做（加 --quick 時 3、4 只做靜態的部分）
 #   --base-app     品牌逐鍵比對的基準；預設用 HEAD^ 之前最近的 fork tag 在本機建（快取在 ~/Library/Caches/ShiyinBuild/check/base/<tag>）
 #   --out          摘要、log、截圖放這裡（預設 $TMPDIR/shiyin-check-<時間>）
 #   --keep         留下這次的暫存資料夾（app、SHIYIN_HOME、shiyinctl）
@@ -81,6 +81,9 @@ item() {
   t0=$(date +%s)
   "$fn" >> "$LOG" 2>&1; code=$?
   case $code in 0) status=PASS;; 3) status=SKIP;; 4) status=需人工;; *) status=FAIL;; esac
+  if [ "$status" = FAIL ] && [ -z "$NOTE" ]; then   # 說明沒寫時，帶 log 裡第一個不符的地方
+    NOTE="$(grep -E 'FAIL|不符|Error|錯誤' "$LOG" | grep -v '^\$ ' | head -1 | cut -c1-100)"
+  fi
   echo "${status}（$(( $(date +%s) - t0 )) 秒）${NOTE:+：$NOTE}"
   ROWS+=("$id|$title|$status|$(( $(date +%s) - t0 ))|$EVID|$NOTE")
 }
@@ -140,10 +143,10 @@ base_app() {   # 品牌比對的基準
 }
 i_brand() {
   local fail=0 review=0 base
-  run python3 "$ROOT/scripts/fork/brand.py" check-sources || fail=1
-  run python3 "$ROOT/scripts/fork/brand-test.py" || fail=1
-  if [ "$MODE" = quick ] && [ -z "$ONLY" ]; then NOTE="原始碼掃描、brand-test（--quick 不檢查建置結果）"; return $fail; fi
-  need_build || { NOTE="建置失敗"; return 1; }
+  run python3 "$ROOT/scripts/fork/brand.py" check-sources || { fail=1; NOTE="brand.py check-sources 有違規；"; }
+  run python3 "$ROOT/scripts/fork/brand-test.py" || { fail=1; NOTE="${NOTE}brand-test 失敗；"; }
+  if [ "$MODE" = quick ]; then NOTE="${NOTE:-原始碼掃描、brand-test 通過}（--quick 不檢查建置結果）"; return $fail; fi
+  need_build || { NOTE="${NOTE}建置失敗（build-app 的 brand.py apply 也會擋品牌違規）"; return 1; }
   run python3 "$ROOT/scripts/fork/brand.py" check "$REL_APP" || fail=1
   run python3 "$ROOT/scripts/fork/brand.py" check "$DBG_APP" || fail=1
   base="$(base_app)"
@@ -160,19 +163,25 @@ i_brand() {
 # ---------- 4 F1 ----------
 i_f1() {
   local fail=0 apps=()
-  if [ "$MODE" = full ] || [ -n "$ONLY" ]; then
+  if [ "$MODE" = full ]; then
     need_build || { NOTE="建置失敗"; return 1; }
     apps=(--app "$REL_APP" --app "$DBG_APP")
   fi
   run python3 "$ROOT/scripts/fork/check-f1.py" ${apps[@]+"${apps[@]}"} --update-url || fail=1
   run xcrun swiftc -swift-version 5 -module-cache-path "$RUN/mc" -o "$RUN/brand-hooks" \
     "$ROOT/scripts/fork/brand-hooks-test/main.swift" "$ROOT/Sources/Shiyin/Fork/Brand.swift" && run "$RUN/brand-hooks" || fail=1
-  grep -q '^SKIP' "$LOG" && NOTE="$(grep '^SKIP' "$LOG" | head -1 | cut -c6-60)…"
+  if [ $fail = 1 ]; then NOTE="$(grep -E '^FAIL|^ok   |^FAIL ' "$LOG" | grep '^FAIL' | head -2 | cut -c6-80 | tr '\n' '；')"
+  elif grep -q '^SKIP' "$LOG"; then NOTE="子項 SKIP：$(grep '^SKIP' "$LOG" | head -1 | cut -c6-60)…"; fi
   return $fail
 }
 
 # ---------- 隔離、l10n ----------
-i_iso() { run python3 "$ROOT/scripts/fork/isolation-check.py"; local c=$?; NOTE="$(grep -o "上游程式裡 fork 的行數：[0-9]*（上限 [0-9]*）" "$LOG" | head -1)"; return $c; }
+i_iso() {
+  run python3 "$ROOT/scripts/fork/isolation-check.py"; local c=$?
+  NOTE="$(grep -o "上游程式裡 fork 的行數：[0-9]*（上限 [0-9]*）" "$LOG" | head -1)"
+  [ $c = 0 ] || NOTE="$(grep -E '^  - ' "$LOG" | head -2 | sed 's/^  - //' | cut -c1-90 | tr '\n' '；')${NOTE}"
+  return $c
+}
 i_isotest() { run python3 "$ROOT/scripts/fork/isolation-check-test.py"; }
 i_l10n() {
   local table="$ROOT/Resources/Localizable.xcstrings" before after code
