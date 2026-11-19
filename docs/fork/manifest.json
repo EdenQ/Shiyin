@@ -505,7 +505,10 @@
     "DF5": {
       "title": "麥克風音源的 LockedValue（上游 R74 的同步修正）",
       "design": "docs/fork/design.md §F-UP（上游 §50.2）、DF5",
-      "forkFiles": [],
+      "forkFiles": [
+        "scripts/fork/tsan-lockedvalue/main.swift",
+        "scripts/fork/tsan-lockedvalue/run.sh"
+      ],
       "upstreamFiles": [
         "Sources/Shiyin/Capture/AudioSources.swift"
       ],
@@ -526,7 +529,10 @@
           "hook": "final class LockedValue<Value>: @unchecked Sendable {"
         }
       ],
-      "note": "上游哪天自己加鎖時刪掉 fork 的"
+      "note": "上游哪天自己加鎖時刪掉 fork 的",
+      "checks": [
+        "scripts/fork/tsan-lockedvalue/run.sh"
+      ]
     },
     "F0": {
       "title": "fork 的 DEBUG 指令入口（fork design §F0.1）",
