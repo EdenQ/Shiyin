@@ -1,13 +1,14 @@
 #!/bin/bash
 # fork 的回歸檢查（fork design §F0.4；PLAN-fork-5.0 §8.1、階段 3a）：一個指令跑完能自動化的 1～12 項，輸出 markdown 摘要。
 # 用法：scripts/fork/check.sh [--quick] [--only 3,5,I1] [--base-app <舊版.app> | --base-ref <tag>] [--out <資料夾>] [--keep] [--clean-cache]
-#   --quick        只跑靜態的（不建 app、不開 DEBUG 版）：3（原始碼）、4（repo）、I1、I2、L、11、12
-#   --only         只跑這幾項（逗號分隔：1～12、I1、I2、L、S〔截圖〕）；需要的建置會自己做（加 --quick 時 3、4 只做靜態的部分）
+#   --quick        只跑靜態的（不建 app、不開 DEBUG 版）：3（原始碼）、4（repo）、T、I1、I2、L、11、12
+#   --only         只跑這幾項（逗號分隔，只收 1～13、I1、I2、L、T、S；不認得或一項都沒有就 exit 2）；
+#                  需要的建置、DEBUG 版會自己做（加 --quick 時 3、4 只做靜態的部分，選到的其他項目照常建置）
 #   --base-app     品牌逐鍵比對的基準；預設用 HEAD^ 之前最近的 fork tag 在本機建（快取在 ~/Library/Caches/ShiyinBuild/check/base/<tag>）
 #   --out          摘要、log、截圖放這裡（預設 $TMPDIR/shiyin-check-<時間>）
 #   --keep         留下這次的暫存資料夾（app、SHIYIN_HOME、shiyinctl）
 #   --clean-cache  結束時連 check 的建置快取、基準版也刪掉
-# exit 0：沒有 FAIL；1：有 FAIL；2：沒開始（使用者在錄音、有別的 DEBUG 版在跑、參數錯）
+# exit 0：沒有 FAIL；1：有 FAIL；2：沒開始（使用者在錄音、有別的 DEBUG 版在跑、拿不到設定快照、參數錯）
 # 安全規則（CLAUDE.md「驗證時要注意」）：不碰 ~/Library/Caches/ShiyinBuild/app 和正式資料；DEBUG 版用暫存 SHIYIN_HOME、
 # 同時只開一個；不送按鍵、不用 System Events；結束時結束自己的 DEBUG 版、刪掉暫存資料夾。
 set -u
@@ -15,6 +16,8 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 CACHE="$HOME/Library/Caches/ShiyinBuild/check"
 SCRATCH="$CACHE/scratch"
 REAL="$HOME/Library/Application Support/Shiyin"
+# shellcheck source=check-lib.sh
+. "$ROOT/scripts/fork/check-lib.sh" || exit 2
 MODE=full; ONLY=""; BASE_APP=""; BASE_REF=""; OUT=""; KEEP=0; CLEAN=0
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -30,6 +33,7 @@ while [ $# -gt 0 ]; do
   esac
   shift
 done
+if [ -n "$ONLY" ]; then validate_only "$ONLY" || exit 2; fi
 TS="$(date +%Y%m%d-%H%M%S)"
 RUN="$CACHE/run-$TS"
 if [ -z "$OUT" ]; then OUT="${TMPDIR:-/tmp}"; OUT="${OUT%/}/shiyin-check-$TS"; fi
@@ -51,7 +55,8 @@ debug_apps() {   # 正在跑的 DEBUG 版（只有 DEBUG 版的執行檔有控�
 others="$(debug_apps)"
 if [ -n "$others" ]; then echo "停止：已經有 DEBUG 版在跑（shiyinctl 是廣播，同時只能一個）：$others"; exit 2; fi
 mkdir -p "$RUN" || exit 2
-defaults export com.weiwei.shiyin "$OUT/defaults-before.plist" 2>/dev/null || cp /dev/null "$OUT/defaults-before.plist"
+# 開始時拿不到有效的設定快照就不跑：沒有快照，#12 證明不了什麼（fork design §F0.4）
+if ! defaults_snapshot "$OUT/defaults-before.plist"; then echo "停止：拿不到開始時的設定快照"; rm -rf "$RUN"; exit 2; fi
 
 DBG_PID=""; DBG_APP=""; REL_APP=""; CTL=""; BUILT=""; BUILD_FAILED=0
 cleanup() {
@@ -69,7 +74,7 @@ want() {   # 這一項要不要跑
   local id="$1"
   if [ -n "$ONLY" ]; then case "$ONLY" in *",$id,"*) return 0;; *) return 1;; esac; fi
   [ "$MODE" = full ] && return 0
-  case "$id" in 3|4|I1|I2|L|11|12) return 0;; esac
+  case "$id" in 3|4|T|I1|I2|L|11|12) return 0;; esac
   return 1
 }
 # item <編號> <名稱> <函式>：函式 return 0 PASS、1 FAIL、3 SKIP、4 需人工；可以設 NOTE、EVID；輸出寫到 $LOG
@@ -120,7 +125,10 @@ i_build() {
 need_build() {   # 後面的項目要用到建置；--only 沒選 1 時在這裡建
   [ -n "$BUILT" ] && return 0
   [ "$BUILD_FAILED" = 1 ] && return 1
-  i_build >> "$OUT/logs/1.log" 2>&1 || { BUILD_FAILED=1; return 1; }
+  local keep_note="$NOTE" keep_evid="$EVID" c=0   # i_build 會設 NOTE、EVID：不要蓋掉呼叫它的那一項的
+  i_build >> "$OUT/logs/1.log" 2>&1 || c=1
+  NOTE="$keep_note"; EVID="$keep_evid"
+  [ $c = 0 ] || { BUILD_FAILED=1; return 1; }
 }
 
 # ---------- 2 migration ----------
@@ -152,11 +160,16 @@ i_brand() {
   base="$(base_app)"
   if [ -z "$base" ] || [ ! -d "$base" ]; then NOTE="基準版建不出來（--base-app 指定）"; return 1; fi
   echo "基準：$base"
-  python3 "$ROOT/scripts/fork/brand.py" compare "$base" "$REL_APP" > "$OUT/brand-compare.txt" 2>&1 || review=1
-  tail -1 "$OUT/brand-compare.txt"
+  # brand.py compare：0 相同、1 比完有差異（需人工）、2 工具或輸入錯誤（FAIL）；其他非 0 也是 FAIL
+  python3 "$ROOT/scripts/fork/brand.py" compare "$base" "$REL_APP" > "$OUT/brand-compare.txt" 2>&1
+  local ccode=$? cstatus
+  cstatus="$(compare_status $ccode)"
+  echo "brand.py compare exit $ccode → $cstatus"
+  tail -3 "$OUT/brand-compare.txt"
   EVID="logs/3.log、brand-compare.txt"
+  if [ "$cstatus" = FAIL ]; then NOTE="${NOTE}brand.py compare 沒有比完（exit ${ccode}）：$(tail -1 "$OUT/brand-compare.txt" | cut -c1-120)"; return 1; fi
   [ $fail = 1 ] && return 1
-  if [ $review = 1 ]; then NOTE="跟 $(basename "$(dirname "$base")") 逐鍵比對有差異：$(tail -1 "$OUT/brand-compare.txt")，看 brand-compare.txt"; return 4; fi
+  if [ "$cstatus" = 需人工 ]; then NOTE="跟 $(basename "$(dirname "$base")") 逐鍵比對有差異：$(tail -1 "$OUT/brand-compare.txt")，看 brand-compare.txt"; return 4; fi
   NOTE="跟 $(basename "$(dirname "$base")") 逐鍵比對：$(tail -1 "$OUT/brand-compare.txt" | sed 's/^brand.py compare：//')"
 }
 
@@ -182,6 +195,7 @@ i_iso() {
   [ $c = 0 ] || NOTE="$(grep -E '^  - ' "$LOG" | head -2 | sed 's/^  - //' | cut -c1-90 | tr '\n' '；')${NOTE}"
   return $c
 }
+i_selftest() { run python3 "$ROOT/scripts/fork/check-test.py"; }
 i_isotest() { run python3 "$ROOT/scripts/fork/isolation-check-test.py"; }
 i_l10n() {
   local table="$ROOT/Resources/Localizable.xcstrings" before after code
@@ -210,9 +224,9 @@ start_debug() {   # start_debug <AppleLanguages 的語言：zh-Hant、en>（只�
   [ -n "$pid" ] || { echo "DEBUG 版沒有啟動"; return 1; }
   DBG_PID="$pid"; HOME_DIR="$home"
   sleep 4
-  lsof -p "$pid" 2>/dev/null | awk '/sqlite/ {print $NF}' | sort -u > "$OUT/logs/sqlite-$lang.txt"
-  if grep -qF "$REAL/shiyin.sqlite" "$OUT/logs/sqlite-$lang.txt" || ! grep -qF "$home/shiyin.sqlite" "$OUT/logs/sqlite-$lang.txt"; then
-    echo "DEBUG 版開的不是暫存資料庫：$(cat "$OUT/logs/sqlite-$lang.txt")"; stop_debug; return 1
+  lsof -p "$pid" -Fn > "$OUT/logs/lsof-$lang.txt" 2>&1
+  if ! verify_db_files "$pid" "$home" "$REAL"; then
+    echo "DEBUG 版開的不只是暫存資料庫（或核對不了），結束它"; stop_debug; return 1
   fi
   echo "DEBUG 版 pid=${pid}，SHIYIN_HOME=${home}（lsof 確認只開暫存的資料庫）"
   "$CTL" closewindow onboarding >/dev/null 2>&1
@@ -220,9 +234,11 @@ start_debug() {   # start_debug <AppleLanguages 的語言：zh-Hant、en>（只�
 }
 stop_debug() {   # kill，不用 quit：正常結束會把視窗位置寫進共用設定
   [ -n "$DBG_PID" ] || return 0
+  # 送訊號前核對 pid 還是這次的 app（pid 可能已經結束、被別的程序重用）
+  if ! owned_pid "$DBG_PID" "$DBG_APP"; then echo "pid $DBG_PID 已經不是這次的 DEBUG 版，不送訊號"; DBG_PID=""; return 0; fi
   kill -TERM "$DBG_PID" 2>/dev/null
-  for _ in $(seq 1 20); do kill -0 "$DBG_PID" 2>/dev/null || break; sleep 0.5; done
-  kill -KILL "$DBG_PID" 2>/dev/null
+  for _ in $(seq 1 20); do owned_pid "$DBG_PID" "$DBG_APP" || break; sleep 0.5; done
+  owned_pid "$DBG_PID" "$DBG_APP" && kill -KILL "$DBG_PID" 2>/dev/null
   DBG_PID=""
 }
 # DEBUG 指令本來就會寫進共用設定的鍵（preview settings 記住開到哪一頁）：開 DEBUG 版前記下，結束後改回。
@@ -271,7 +287,13 @@ i_f4() {
   run "$CTL" seedfixtures "$ROOT/shared/golden/fixtures.json" zh en ja; sleep 3
   run python3 "$ROOT/scripts/dev/f4-check.py" "$HOME_DIR" "$CTL"
 }
-i_f4items() { dbg f4-items f4-items; local c=$?; cp "$OUT/f4-items/f4-after-delete.png" "$OUT/shots/f4-after-delete-zh.png" 2>/dev/null; EVID="logs/10.log、f4-items/"; return $c; }
+i_f4items() {
+  dbg f4-items f4-items; local c=$?
+  cp "$OUT/f4-items/f4-after-delete.png" "$OUT/shots/f4-after-delete-zh.png" 2>/dev/null
+  EVID="logs/10.log、f4-items/"
+  NOTE="只自動驗證刪除待辦；noteitem edit 之後的樣式、人物頁不套 F4 樣式仍需人工（S、使用者）"
+  return $c
+}
 i_shots() {
   local fail=0
   dbg shots shots --lang zh || fail=1
@@ -291,12 +313,15 @@ i_session_fail() { NOTE="DEBUG 版沒有開起來（看 logs/debug-start.log）"
 # ---------- 11、12、13 ----------
 i_tsan() { run bash "$ROOT/scripts/fork/tsan-lockedvalue/run.sh"; }
 i_defaults() {
-  defaults export com.weiwei.shiyin "$OUT/defaults-after.plist" 2>/dev/null || cp /dev/null "$OUT/defaults-after.plist"
   EVID="defaults-before.plist、defaults-after.plist"
+  defaults_snapshot "$OUT/defaults-after.plist" || { NOTE="結束時拿不到設定快照，無法比對"; return 1; }
   if cmp -s "$OUT/defaults-before.plist" "$OUT/defaults-after.plist"; then NOTE="defaults export 前後逐位元組相同"; return 0; fi
   python3 - "$OUT/defaults-before.plist" "$OUT/defaults-after.plist" <<'PY'
 import plistlib, sys
-a, b = (plistlib.load(open(p, 'rb')) if open(p, 'rb').read(1) else {} for p in sys.argv[1:])
+def load(p):
+    raw = open(p, 'rb').read()
+    return {} if raw.startswith(b'MA-CHECK: domain absent') else plistlib.loads(raw)
+a, b = (load(p) for p in sys.argv[1:])
 for k in sorted(set(a) | set(b)):
     if a.get(k) != b.get(k):
         print(f'{k}: {a.get(k)!r} → {b.get(k)!r}'[:300])
@@ -311,6 +336,7 @@ item 1 "編譯（swift build、release、DEBUG）" i_build
 [ -n "$ONLY" ] || [ "$MODE" = quick ] || [ -n "$BUILT" ] || BUILD_FAILED=1
 item 2 "migration（check-fork-migrations）" i_mig
 item 3 "品牌（掃描、brand-test、建置結果、逐鍵比對）" i_brand
+item T "check.sh 自己的負對照（check-test.py）" i_selftest
 item I1 "接點隔離（isolation-check）" i_iso
 item I2 "隔離檢查的回歸測試" i_isotest
 item L "介面字串（l10n.py check）" i_l10n
@@ -334,7 +360,7 @@ if want 5 || want 6 || want 7 || want 8 || want 9 || want 10 || want S; then
 fi
 item 11 "DF5（TSan LockedValue）" i_tsan
 item 12 "設定殘留（defaults 前後比對）" i_defaults
-want 13 && [ -z "$ONLY" ] && item 13 "4.7.6 → 新版實機更新" i_manual
+want 13 && item 13 "4.7.6 → 新版實機更新" i_manual
 
 # ---------- 摘要 ----------
 fails=0

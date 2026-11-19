@@ -928,7 +928,9 @@
         "scripts/fork/isolation-check-test.py",
         "scripts/fork/check.sh",
         "scripts/fork/check-debug.py",
-        "scripts/fork/check-f1.py"
+        "scripts/fork/check-f1.py",
+        "scripts/fork/check-lib.sh",
+        "scripts/fork/check-test.py"
       ],
       "symbols": [
         "ForkDebug",
@@ -947,6 +949,7 @@
       ],
       "checks": [
         "python3 scripts/fork/isolation-check.py",
+        "python3 scripts/fork/check-test.py",
         "scripts/fork/check.sh --quick",
         "scripts/fork/check.sh"
       ],
