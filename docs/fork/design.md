@@ -37,7 +37,58 @@
 - 上游的檔被搬走、改名、換類型（例如換成連結）都算拿掉上游的檔：比對時不偵測改名（`git diff --no-renames`，改名會變成刪掉舊的、加新的），舊路徑一定會被檢查到。
 - 檢查的範圍：上游 tag（manifest 的 `upstream.base.tag`，現在是 v5.0.0）裡就有的 `Sources/**/*.swift`、`Package.swift`（程式）和 `scripts/` 底下的 `.sh`、`.swift`（腳本）。程式加的行數合計不超過 `rules.upstreamLineBudget`（100）；腳本另外算。不檢查：文件、README、CLAUDE.md、翻譯表、Info.plist、圖示、`.github`（品牌由 `brand.py` 管，§F7.4；版本號照 DF6）。
 - manifest 要對得上：每個功能的 `forkFiles`、`upstreamFiles` 存在；`symbols` 找得到宣告；`markers`（`file`、`line`、`hook`＝那一行去掉接點註解）跟程式裡實際的接點一致，多的、少的都算錯，只有行號不同時提示用 `--write` 更新。
-- 跑法：`python3 scripts/fork/isolation-check.py`（exit 1 表示有問題，列出每一處）；新增、搬動接點後 `--write` 重寫 manifest 的 `markers`、`upstreamFiles`，再跑一次不加參數的。目前的檔數、行數看檢查的輸出（「上游程式 N 個檔、M 行」），這裡不寫固定的數字（會過期）。`python3 scripts/fork/isolation-check-test.py` 是檢查本身的回歸測試（未標記的修改、已 stage 和已 commit 的改名、刪檔、換類型都要失敗）。之後會串進 `scripts/fork/check.sh`（PLAN 階段 3a）。
+- 跑法：`python3 scripts/fork/isolation-check.py`（exit 1 表示有問題，列出每一處）；新增、搬動接點後 `--write` 重寫 manifest 的 `markers`、`upstreamFiles`，再跑一次不加參數的。目前的檔數、行數看檢查的輸出（「上游程式 N 個檔、M 行」），這裡不寫固定的數字（會過期）。`python3 scripts/fork/isolation-check-test.py` 是檢查本身的回歸測試（未標記的修改、已 stage 和已 commit 的改名、刪檔、換類型都要失敗）。兩支都串在 `scripts/fork/check.sh`（§F0.4）。
+
+### F0.4 回歸檢查（`scripts/fork/check.sh`，PLAN-fork-5.0 §8.1、階段 3a）
+
+合併上游、改 fork 功能之後，一個指令跑完 PLAN §8.1 的回歸清單裡能自動化的項目（1～12），輸出 markdown 摘要。
+
+**用法**
+
+```bash
+scripts/fork/check.sh                 # 完整：建置、DEBUG 版實際操作（約 15～25 分鐘，第一次要建基準版更久）
+scripts/fork/check.sh --quick         # 只跑靜態的（不建 app、不開 DEBUG 版，約 1～2 分鐘）
+scripts/fork/check.sh --base-app <舊版.app>   # 品牌逐鍵比對的基準（預設：HEAD 之前最近的 fork tag 的 release 建置，見下）
+scripts/fork/check.sh --base-ref v5.0.1        # 基準改用這個 tag 建
+scripts/fork/check.sh --only 3,5,7    # 只跑這幾項（1、2、11 這類自己會建需要的東西）
+scripts/fork/check.sh --out <資料夾>  # 摘要、log、截圖放這裡（預設 $TMPDIR/shiyin-check-<時間>）
+scripts/fork/check.sh --keep          # 留下這次的 app、暫存 SHIYIN_HOME（除錯用）
+scripts/fork/check.sh --clean-cache   # 結束時連建置快取、基準版也刪掉
+```
+
+exit 0：沒有 FAIL（SKIP、需人工不算失敗）；1：有 FAIL；2：沒開始（使用者正在錄音、有別的 DEBUG 版在跑、參數錯）。摘要是輸出資料夾的 `summary.md`，最後也印在終端機。每一項一列：狀態（PASS／FAIL／SKIP／需人工）、耗時、證據路徑（log、JSON、截圖），細項寫在下面。
+
+**項目**（編號照 PLAN §8.1；`--quick` 只跑標 Q 的）
+
+| # | 項目 | 做法 |
+|---|---|---|
+| 1 | 編譯 | `swift build -c debug`；release、DEBUG 版用 `build-app.sh` 的複本建到這次的暫存資料夾（只換 `SCRATCH`、`APP` 兩行，其他照 repo 的腳本） |
+| 2 | migration | `scripts/dev/check-fork-migrations.py --scratch-path <check 的建置快取>` |
+| 3 | 品牌 | Q：`brand.py check-sources`、`brand-test.py`；完整：`brand.py check` release 和 DEBUG 版、`brand.py compare <基準> <release>`（有差異是「需人工」，差異清單在證據；新版本本來就可能多字串） |
+| 4 | F1 | Q：repo 的 `Resources/AppIcon.icns` sha256 等於 manifest `F1.iconSha256`、`Info.plist` 的 `ShiyinIssuesURL` 等於 manifest、`BrandAboutCommand()   // MA-FORK(F7)` 和 ReleaseNotes 的 F7 接點在、`brand-hooks-test`（更新說明選段落）；完整：建好的 app 的 icns、`ShiyinIssuesURL` 也一樣；更新網址（CI 的 `vars.SHIYIN_UPDATE_URL`）用 `gh variable get` 讀得到時要指到 fork（`EdenQ/Shiyin`），讀不到是 SKIP |
+| 5 | F2 標記 | `record-sim` 中 `tagspeaker now 甲`、停止：`speaker_tags` 有這一筆、時間在送出指令時的 elapsed 附近；`f2-atomic-check.py`（套用：說話者 1 變「甲」、說話者 2 有乙又有丙不套用；「只改這句」的交易、復原） |
+| 6 | F2 加上 5.0 | 兩場示範會議加標記：`editmeeting` 裁頭尾、刪中間、分割、合併，標記跟著平移、分到新會議、合併後加上偏移；每次 `restoreedit` 都回到原本；`.shiyin` 封包帶標記、匯入回來一樣，舊封包沒有標記也能匯入 |
+| 7 | F3 靜音 | `f3-mute-check.py`（狀態、⌃⌥⌘M、錄音檔兩聲道、靜音那段麥克風是 0）；靜音中 `recordstall 32 1`：20 秒左右 `muteHint` 出現、`micmute dismiss` 收掉；windowshot 主畫面（提示列）放證據，「需人工」看一眼 |
+| 8 | F3 加上 5.0 | 靜音中 `levelCheck` 沒有收音提示；選單列圖示是 `mic.slash.circle.fill`；`hotkey.muteRegistered` 錄音中是 true、停止後 false；設定「錄音」頁 `preview settings recording` 加 `mawindowshot`（需人工） |
+| 9 | F4 | `scripts/dev/f4-check.py`；示範會議的紀錄分頁 windowshot（繁中、英文，需人工；還沒有基準圖，不做像素比對） |
+| 10 | F4 加上 5.0 | `noteitem delete decisions 0` 之後 `copysection` 少一條、其他條照舊；windowshot（需人工看條數、色條、「加到提醒事項」） |
+| 11 | DF5 | Q：`scripts/fork/tsan-lockedvalue/run.sh` |
+| 12 | 設定殘留 | Q：開始、結束各 `defaults export com.weiwei.shiyin`，要逐位元組相同（不同時列出哪幾個鍵；檢查不自己改回，免得蓋掉使用者同時改的設定） |
+| 13 | 實機更新 | 不自動：列為「需人工」（4.7.6 → 新版的 app 內更新，開舊會議看標記、靜音、條列頁） |
+
+另外 Q 一定跑：`isolation-check.py`、`isolation-check-test.py`（§F0.3）、`l10n.py check`（跑之前存一份翻譯表，跑完翻譯表有變就算 FAIL 並放回原本的內容：檢查不該改到 repo）。這三項在摘要列在 #3 之後（編號 I1、I2、L）。
+
+**安全規則**（CLAUDE.md「驗證時要注意」）
+
+- 開始前看 `~/Library/Application Support/Shiyin/audio/recording/`：有檔案就停（exit 2）。有別的 DEBUG 版在跑也停（`shiyinctl` 是廣播）；檢查中同時只開自己的一個 DEBUG 版。
+- 建置：`build-app.sh` 的複本，`APP` 在這次的暫存資料夾（`~/Library/Caches/ShiyinBuild/check/run-<時間>/`），`SCRATCH` 是 check 自己的建置快取 `~/Library/Caches/ShiyinBuild/check/scratch`；不碰 `~/Library/Caches/ShiyinBuild/app`（使用者可能拿它錄音）、不跑 `--install`。`shiyinctl` 也編到暫存資料夾。
+- DEBUG 版：暫存 `SHIYIN_HOME`，`open -g -n --env SHIYIN_HOME=…`，參數 `-ApplePersistenceIgnoreState YES -llmProvider none -autoSummarize NO -correctTranscript NO -debugQuietPrompts YES -recordingIsland NO -mcpEnabled NO -autoCheckUpdates NO -muteHotKey YES`（設定只在這次執行有效）；啟動後用 `lsof` 確認開的是暫存的資料庫，開到正式資料庫就結束 app、FAIL。錄音島關掉：上游 5.0 的 DEBUG `state` 在島出現時寫不出 JSON。結束用 `kill`（TERM，10 秒後 KILL），不用 `quit`：正常結束會把視窗位置寫進共用設定。
+- 不送按鍵、不用 System Events、不用 AX：畫面一律 `windowshot`、`mawindowshot`（app 自己畫）。
+- 結束（含失敗、Ctrl-C）時結束自己的 DEBUG 版、刪掉這次的暫存資料夾（app、home、`shiyinctl`）；輸出資料夾留著（摘要和證據）。建置快取和基準版留著給下次用（`--clean-cache` 才刪）。
+
+**品牌比對的基準**：`--base-app` 沒給時，用 `git describe --tags --abbrev=0 --match 'v[0-9]*' HEAD^` 找到的 fork tag（現在是 v5.0.1），`git archive` 那個 tag 到暫存資料夾、用它自己的 `build-app.sh`（同樣的複本規則）建 release，放在 `~/Library/Caches/ShiyinBuild/check/base/<tag>/`，之後直接用。用同一台電腦、同一版 Xcode 建，`xcstringstool` 的版本差異不會變成假的差異（F7.5 跟 GitHub 上的 4.7.6 比時就多了 3 條）。
+
+**怎麼確定檢查會抓到問題**（PLAN 階段 3a 的驗收）：在暫存 worktree 故意弄壞、不 commit，跑對應的項目要 FAIL、整體 exit 1，例如拿掉一個 `MA-FORK` 接點（I1）、原始碼加一句不查表的品牌字（#3）、讓「只改這句」不在同一筆交易或標記不套用（#5）。結果寫在 commit 訊息。
 
 ## F1. 名稱（F1）
 
