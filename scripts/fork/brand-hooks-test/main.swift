@@ -23,4 +23,14 @@ expect(!Brand.isListTitle("會議"), "不相干的列表不算")
 // ReleaseNotes 的接點：fork 的 Release 說明（會議助手開頭）和上游的（拾音開頭）都認得
 expect(Brand.names("拾音").contains { "會議助手 4.7.6：…".hasPrefix($0) }, "更新說明「會議助手 X」選得到中文段落")
 expect(Brand.names("Shiyin").contains { "meeting assistant 4.7.6: …".hasPrefix($0.lowercased()) }, "英文段落「Meeting Assistant X」選得到")
+// 錄音島的簡稱（F7.7）：完整名稱換成 MA，跟中文相鄰時補空白；沒有 shortName 時不換
+Brand.shortName = nil
+expect(Brand.short("打開會議助手") == "打開會議助手", "沒有 shortName 時 short() 不換")
+Brand.shortName = "MA"
+expect(Brand.short("打開會議助手") == "打開 MA", "繁中：打開會議助手 → 打開 MA")
+expect(Brand.short("打开会议助手") == "打开 MA", "簡中：打开会议助手 → 打开 MA")
+expect(Brand.short("Open Meeting Assistant") == "Open MA", "英文：Open Meeting Assistant → Open MA")
+expect(Brand.short("會議助手正在錄音") == "MA 正在錄音", "名稱在開頭、後面接中文時補空白")
+expect(Brand.short("打開拾音") == "打開拾音", "上游的名稱（沒換過品牌）不動")
+expect(Brand.short("停止並轉錄") == "停止並轉錄", "沒有品牌名的不動")
 print(fails == 0 ? "全部通過" : "\(fails) 項失敗"); exit(fails == 0 ? 0 : 1)

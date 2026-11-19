@@ -174,7 +174,7 @@ struct IslandRoot: View {
                     bookmarked = true
                     Task { try? await Task.sleep(for: .seconds(1.5)); bookmarked = false }
                 }
-                IslandButton(title: String(localized: "打開拾音"), symbol: "macwindow") {
+                IslandButton(title: Brand.short(String(localized: "打開拾音")), symbol: "macwindow") {   // MA-FORK(F7)：島上寫「打開 MA」（F7.7）
                     if let id = recorder.meetingId { model.reveal(id) }
                     NSApp.activate()
                 }

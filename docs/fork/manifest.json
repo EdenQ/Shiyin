@@ -406,7 +406,8 @@
         "Brand.name",
         "Brand.names",
         "Brand.isListTitle",
-        "MABrand"
+        "MABrand",
+        "Brand.short"
       ],
       "keywords": [
         "拾音",
@@ -443,6 +444,11 @@
           "file": "Sources/Shiyin/Services/Reminders.swift",
           "marker": "MA-FORK(F7)",
           "hook": "if let calendar = store.calendars(for: .reminder).first(where: { Brand.isListTitle($0.title) }) {"
+        },
+        {
+          "file": "Sources/Shiyin/Views/IslandView.swift",
+          "marker": "MA-FORK(F7)",
+          "hook": "IslandButton(title: Brand.short(String(localized: \"打開拾音\")), symbol: \"macwindow\") {"
         },
         {
           "file": "scripts/build-app.sh",

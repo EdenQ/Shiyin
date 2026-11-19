@@ -8,6 +8,7 @@
   "bundleName": "MA",
   "displayName": {"en": "Meeting Assistant", "zh-Hant": "會議助手", "zh-Hans": "会议助手"},
   "aboutName": "MA — Meeting Assistant",
+  "shortName": "MA",
   "_phrases": "整句特例：先換、不再被名稱對照影響。required 列的資源（相對 Contents/Resources；guide: 是安裝說明）換完一定要看得到 to，上游改了句子、對不到就建置失敗（design §F7.1）",
   "phrases": [
     {"from": "「拾音」選單", "to": "「MA」選單", "required": ["zh-Hant.lproj/Localizable.strings", "guide:install-guide.html"]},

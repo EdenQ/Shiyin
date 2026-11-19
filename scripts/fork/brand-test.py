@@ -67,6 +67,7 @@ struct Probe: View {
              : "拾音認出的名字")
             .help(tagged ? "Shiyin 1" : "Shiyin 2")
         Button("結束拾音") { }
+        Text(Brand.short(String(localized: "打開拾音")))
         Window("拾音", id: "main")
     }
     func message() -> String {
@@ -299,9 +300,9 @@ class Phrases(unittest.TestCase):
         key = next(k for k in catalog if "「拾音」選單" in k)
         en = catalog[key]["localizations"]["en"]["stringUnit"]["value"]
         hans = catalog[key]["localizations"]["zh-Hans"]["stringUnit"]["value"]
-        (res / "zh-Hant.lproj/Localizable.strings").write_bytes(plistlib.dumps({key: key, "結束拾音": "結束拾音"}))
-        (res / "en.lproj/Localizable.strings").write_bytes(plistlib.dumps({key: en, "結束拾音": "Quit Shiyin"}))
-        (res / "zh-Hans.lproj/Localizable.strings").write_bytes(plistlib.dumps({key: hans, "結束拾音": "退出拾音"}))
+        (res / "zh-Hant.lproj/Localizable.strings").write_bytes(plistlib.dumps({key: key, "結束拾音": "結束拾音", "打開拾音": "打開拾音"}))
+        (res / "en.lproj/Localizable.strings").write_bytes(plistlib.dumps({key: en, "結束拾音": "Quit Shiyin", "打開拾音": "Open Shiyin"}))
+        (res / "zh-Hans.lproj/Localizable.strings").write_bytes(plistlib.dumps({key: hans, "結束拾音": "退出拾音", "打開拾音": "打开拾音"}))
         self.res = res
 
     def tearDown(self):
@@ -339,6 +340,17 @@ class Phrases(unittest.TestCase):
         code, out = run("apply", self.app)
         self.assertEqual(code, 1, out)
         self.assertIn("zh-Hant.lproj/Credits.html：缺少必要的整句", out)
+
+    def test_island_short_name_only_at_runtime(self):
+        """F7.7：錄音島的「打開 MA」在執行時由 Brand.short 換；翻譯表裡同一條鍵（選單列也在用）照舊是完整名稱，
+        簡稱寫進 Info.plist 的 MABrand"""
+        code, out = run("apply", self.app)
+        self.assertEqual(code, 0, out)
+        values = {lang: plistlib.loads((self.res / f"{lang}.lproj/Localizable.strings").read_bytes())["打開拾音"]
+                  for lang in ("zh-Hant", "zh-Hans", "en")}
+        self.assertEqual(values, {"zh-Hant": "打開會議助手", "zh-Hans": "打开会议助手", "en": "Open Meeting Assistant"})
+        info = plistlib.loads((self.app / "Contents/Info.plist").read_bytes())
+        self.assertEqual(info["MABrand"]["shortName"], "MA")
 
     def test_zh_hans_credits_drift_fails(self):
         """上游 4.8 起有簡體的 Credits：贊助句漂移也要失敗"""

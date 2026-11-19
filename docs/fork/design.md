@@ -247,7 +247,7 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 ### F7.1 設定（`fork/brand.json`）
 
 - `names`：每個介面語言的名稱對照。zh-Hant「拾音→會議助手」、zh-Hans「拾音→会议助手」、en「Shiyin→Meeting Assistant」（en 的值偶爾夾中文，也換「拾音」）。之後才有的語言（日、韓介面）用 en 那一份。
-- `bundleName` = MA、`displayName`（各語言）、`aboutName` = MA — Meeting Assistant。
+- `bundleName` = MA、`displayName`（各語言）、`aboutName` = MA — Meeting Assistant、`shortName` = MA（錄音島上用的簡稱，F7.7）。
 - `phrases`：整句的特例（`from`、`to`、`required`），先換、不再被名稱對照影響：「「拾音」選單」→「「MA」選單」（應用程式選單叫 MA，F1.1）、`/Applications/Shiyin.app` → 加引號的 `Meeting Assistant.app`、第三方授權的開場白、Credits 的贊助說明（「會議助手改自 juinwei7 的開源專案拾音 Shiyin…請原作者喝杯咖啡」）。`required` 依資源指定哪些整句一定要命中（相對 `Contents/Resources` 的檔案，`guide:` 開頭是安裝說明）：換完的資源裡看不到 `to` 就失敗。上游改了句子（連一個標點）時，整句對不到，一般的名稱替換會把句子換成「Enjoying Meeting Assistant?」、署名消失，殘留檢查看不出來，所以要靠 `required`（2026-11-18 審查 P2-2）。檢查的是輸出有沒有 `to`，對換過的產物重跑結果不變。
 - `keep`：不換的片段（正規表示式，F7.2）。`Shiyin(?=[A-Z])` 是 `ShiyinIssuesURL` 這類鍵名、識別。
 
@@ -271,6 +271,7 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 - 更新說明選段落（`ReleaseNotes.items`）：`Brand.names("拾音")`、`Brand.names("Shiyin")` 認得 fork（會議助手、Meeting Assistant）和上游開頭的段落。
 - 上游 5.0 的提醒事項（5.0.1 接上，F7.5）：`Reminders.listTitle` 包成 `Brand.name(MeetingLanguage.ui(zh: "拾音", en: "Shiyin"))`；`EventKitReminders.list()` 找已存在的列表時把 `["拾音", "Shiyin"].contains($0.title)` 換成 `Brand.isListTitle($0.title)`（會議助手、Meeting Assistant、拾音、Shiyin 都認得，舊列表沿用）。
 - MCP 給 AI 工具的英文訊息、`serverInfo`：不換（F7.3），列白名單。
+- 錄音島的「打開拾音」按鈕（F7.7，5.0.1）：`IslandView` 的按鈕標題包成 `Brand.short(String(localized: "打開拾音"))`。同一個鍵「打開拾音」選單列也在用（要照舊寫「打開會議助手」），翻譯表的整句特例（`phrases`）是以資源為單位、分不出是哪個畫面在用，所以不用 `phrases`，改在執行時換：`Brand.short` 把查表後的字串裡的完整品牌名（`names` 的值：會議助手、会议助手、Meeting Assistant）換成 `MABrand.shortName`（brand.json 的 `shortName`，`brand.py apply` 寫進 Info.plist），跟中文相鄰時前後補一個空白（「打開 MA」「打开 MA」，英文「Open MA」）。沒有 `MABrand`（上游原樣）時原樣回傳。上游檔只多 1 行接點。
 
 ### F7.4 檢查（`brand.py check <app>`、`check-sources`）
 
