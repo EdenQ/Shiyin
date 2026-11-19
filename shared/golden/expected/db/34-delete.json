@@ -33,14 +33,16 @@
       "deleted_at" : null,
       "duration_seconds" : 3912,
       "folder" : "專案 A",
+      "folder_decided" : 0,
       "id" : 1,
       "language" : "zh",
       "meeting_date" : "2026-10-15",
       "min_speakers" : null,
-      "notes" : "{\"actionItems\":[{\"due\":\"2026-10-21\",\"owner\":\"王小明\",\"task\":\"確認 <admin> 權限 | 部署\",\"time\":\"1:02:05\"},{\"due\":\"\",\"owner\":\"\",\"task\":\"Valkey 快取測試\\n第二行\",\"time\":\"\"}],\"custom\":[{\"items\":[{\"text\":\"部署 \\\"腳本\\\" OK\",\"time\":\"00:15\"}],\"title\":\"近況與進展\"}],\"decisions\":[{\"text\":\"部署腳本路徑維持 /deploy/k8s\",\"time\":\"00:15\"}],\"openQuestions\":[{\"text\":\"Kubernetes 版本？\",\"time\":\"00:09\"}],\"reviewItems\":[],\"summary\":[{\"text\":\"確認 v3.6 上線時程\",\"time\":\"00:00\"},{\"text\":\"Valkey 快取下週三完成\",\"time\":\"\"}],\"title\":\"v3.6 上線週會\",\"topics\":[{\"points\":[{\"text\":\"目標 10/21\",\"time\":\"1:02:05\"}],\"start\":\"00:00\",\"title\":\"上線時程\"},{\"points\":[],\"start\":\"00:04\",\"title\":\"快取 & 部署\"}]}",
+      "notes" : "{\"actionItems\":[{\"due\":\"2026-10-21\",\"owner\":\"王小明\",\"task\":\"確認 <admin> 權限 | 部署\",\"time\":\"1:02:05\"},{\"due\":\"\",\"owner\":\"\",\"task\":\"Valkey 快取測試\\n第二行\",\"time\":\"\"}],\"custom\":[{\"items\":[{\"text\":\"部署 \\\"腳本\\\" OK\",\"time\":\"00:15\"}],\"title\":\"近況與進展\"}],\"decisions\":[{\"text\":\"部署腳本路徑維持 /deploy/k8s\",\"time\":\"00:15\"}],\"openQuestions\":[{\"text\":\"Kubernetes 版本？\",\"time\":\"00:09\"}],\"people\":[{\"name\":\"王小明\",\"points\":[{\"text\":\"回報 Valkey 快取下週三完成\",\"time\":\"00:04\"},{\"text\":\"負責確認 <admin> 權限 | 部署\",\"time\":\"1:02:05\"}]},{\"name\":\"說話者 2\",\"points\":[{\"text\":\"建議部署腳本路徑維持 /deploy/k8s\",\"time\":\"00:15\"},{\"text\":\"想先確認 Kubernetes 版本\",\"time\":\"\"}]},{\"name\":\"說話者 3\",\"points\":[]}],\"reviewItems\":[],\"summary\":[{\"text\":\"確認 v3.6 上線時程\",\"time\":\"00:00\"},{\"text\":\"Valkey 快取下週三完成\",\"time\":\"\"}],\"title\":\"v3.6 上線週會\",\"topics\":[{\"points\":[{\"text\":\"目標 10/21\",\"time\":\"1:02:05\"}],\"start\":\"00:00\",\"title\":\"上線時程\"},{\"points\":[],\"start\":\"00:04\",\"title\":\"快取 & 部署\"}]}",
       "notes_by" : "claude",
       "notes_draft" : 0,
       "participants" : "王小明, 李大華、Amy，陳美玲",
+      "series_id" : null,
       "source" : "import",
       "source_filename" : "2026-10-15 產品週會.m4a",
       "speaker_check" : null,
@@ -59,6 +61,7 @@
       "deleted_at" : "<time>",
       "duration_seconds" : 125,
       "folder" : "",
+      "folder_decided" : 0,
       "id" : 2,
       "language" : "en",
       "meeting_date" : "2026-10-18",
@@ -67,6 +70,7 @@
       "notes_by" : "claude",
       "notes_draft" : 0,
       "participants" : "Alice, Bob",
+      "series_id" : null,
       "source" : "import",
       "source_filename" : "sync.wav",
       "speaker_check" : null,
@@ -82,28 +86,28 @@
   "notes_versions" : [
     {
       "created_at" : "<time>",
-      "id" : 1,
+      "id" : 2,
       "meeting_id" : 1,
-      "notes" : "{\"actionItems\":[{\"due\":\"2026-10-21\",\"owner\":\"王小明\",\"task\":\"確認 <admin> 權限 | 部署\",\"time\":\"1:02:05\"},{\"due\":\"\",\"owner\":\"\",\"task\":\"Redis 快取測試\\n第二行\",\"time\":\"\"}],\"custom\":[{\"items\":[{\"text\":\"部署 \\\"腳本\\\" OK\",\"time\":\"00:15\"}],\"title\":\"近況與進展\"}],\"decisions\":[{\"text\":\"部署腳本路徑維持 /deploy/k8s\",\"time\":\"00:15\"}],\"openQuestions\":[{\"text\":\"Kubernetes 版本？\",\"time\":\"00:09\"}],\"reviewItems\":[{\"question\":\"「Kubernetes」的寫法對嗎？\",\"time\":\"00:09\"},{\"question\":\"負責人是誰？\",\"time\":\"\"}],\"summary\":[{\"text\":\"確認 v3.6 上線時程\",\"time\":\"00:00\"},{\"text\":\"Redis 快取下週三完成\",\"time\":\"\"}],\"title\":\"v3.6 上線週會\",\"topics\":[{\"points\":[{\"text\":\"目標 10/21\",\"time\":\"1:02:05\"}],\"start\":\"00:00\",\"title\":\"上線時程\"},{\"points\":[],\"start\":\"00:04\",\"title\":\"快取 & 部署\"}]}",
+      "notes" : "{\"actionItems\":[{\"due\":\"2026-10-21\",\"owner\":\"王小明\",\"task\":\"確認 <admin> 權限 | 部署\",\"time\":\"1:02:05\"},{\"due\":\"\",\"owner\":\"\",\"task\":\"Redis 快取測試\\n第二行\",\"time\":\"\"}],\"custom\":[{\"items\":[{\"text\":\"部署 \\\"腳本\\\" OK\",\"time\":\"00:15\"}],\"title\":\"近況與進展\"}],\"decisions\":[{\"text\":\"部署腳本路徑維持 /deploy/k8s\",\"time\":\"00:15\"}],\"openQuestions\":[{\"text\":\"Kubernetes 版本？\",\"time\":\"00:09\"}],\"people\":[{\"name\":\"王小明\",\"points\":[{\"text\":\"回報 Redis 快取下週三完成\",\"time\":\"00:04\"},{\"text\":\"負責確認 <admin> 權限 | 部署\",\"time\":\"1:02:05\"}]},{\"name\":\"說話者 2\",\"points\":[{\"text\":\"建議部署腳本路徑維持 /deploy/k8s\",\"time\":\"00:15\"},{\"text\":\"想先確認 Kubernetes 版本\",\"time\":\"\"}]},{\"name\":\"說話者 3\",\"points\":[]}],\"reviewItems\":[{\"question\":\"「Kubernetes」的寫法對嗎？\",\"time\":\"00:09\"},{\"question\":\"負責人是誰？\",\"time\":\"\"}],\"summary\":[{\"text\":\"確認 v3.6 上線時程\",\"time\":\"00:00\"},{\"text\":\"Redis 快取下週三完成\",\"time\":\"\"}],\"title\":\"v3.6 上線週會\",\"topics\":[{\"points\":[{\"text\":\"目標 10/21\",\"time\":\"1:02:05\"}],\"start\":\"00:00\",\"title\":\"上線時程\"},{\"points\":[],\"start\":\"00:04\",\"title\":\"快取 & 部署\"}]}",
       "reason" : "取代「Redis」→「Valkey」"
-    },
-    {
-      "created_at" : "<time>",
-      "id" : 4,
-      "meeting_id" : 1,
-      "notes" : "{\"actionItems\":[{\"due\":\"2026-10-21\",\"owner\":\"王小明\",\"task\":\"確認 <admin> 權限 | 部署\",\"time\":\"1:02:05\"},{\"due\":\"\",\"owner\":\"\",\"task\":\"Valkey 快取測試\\n第二行\",\"time\":\"\"}],\"custom\":[{\"items\":[{\"text\":\"部署 \\\"腳本\\\" OK\",\"time\":\"00:15\"}],\"title\":\"近況與進展\"}],\"decisions\":[{\"text\":\"部署腳本路徑維持 /deploy/k8s\",\"time\":\"00:15\"}],\"openQuestions\":[{\"text\":\"Kubernetes 版本？\",\"time\":\"00:09\"}],\"reviewItems\":[{\"question\":\"「Kubernetes」的寫法對嗎？\",\"time\":\"00:09\"},{\"question\":\"負責人是誰？\",\"time\":\"\"}],\"summary\":[{\"text\":\"確認 v3.6 上線時程\",\"time\":\"00:00\"},{\"text\":\"Valkey 快取下週三完成\",\"time\":\"\"}],\"title\":\"v3.6 上線週會\",\"topics\":[{\"points\":[{\"text\":\"目標 10/21\",\"time\":\"1:02:05\"}],\"start\":\"00:00\",\"title\":\"上線時程\"},{\"points\":[],\"start\":\"00:04\",\"title\":\"快取 & 部署\"}]}",
-      "reason" : "略過待確認"
     },
     {
       "created_at" : "<time>",
       "id" : 5,
       "meeting_id" : 1,
-      "notes" : "{\"actionItems\":[{\"due\":\"2026-10-21\",\"owner\":\"王小明\",\"task\":\"確認 <admin> 權限 | 部署\",\"time\":\"1:02:05\"},{\"due\":\"\",\"owner\":\"\",\"task\":\"Valkey 快取測試\\n第二行\",\"time\":\"\"}],\"custom\":[{\"items\":[{\"text\":\"部署 \\\"腳本\\\" OK\",\"time\":\"00:15\"}],\"title\":\"近況與進展\"}],\"decisions\":[{\"text\":\"部署腳本路徑維持 /deploy/k8s\",\"time\":\"00:15\"}],\"openQuestions\":[{\"text\":\"Kubernetes 版本？\",\"time\":\"00:09\"}],\"reviewItems\":[{\"question\":\"「Kubernetes」的寫法對嗎？\",\"time\":\"00:09\"}],\"summary\":[{\"text\":\"確認 v3.6 上線時程\",\"time\":\"00:00\"},{\"text\":\"Valkey 快取下週三完成\",\"time\":\"\"}],\"title\":\"v3.6 上線週會\",\"topics\":[{\"points\":[{\"text\":\"目標 10/21\",\"time\":\"1:02:05\"}],\"start\":\"00:00\",\"title\":\"上線時程\"},{\"points\":[],\"start\":\"00:04\",\"title\":\"快取 & 部署\"}]}",
-      "reason" : "確認待確認"
+      "notes" : "{\"actionItems\":[{\"due\":\"2026-10-21\",\"owner\":\"王小明\",\"task\":\"確認 <admin> 權限 | 部署\",\"time\":\"1:02:05\"},{\"due\":\"\",\"owner\":\"\",\"task\":\"Valkey 快取測試\\n第二行\",\"time\":\"\"}],\"custom\":[{\"items\":[{\"text\":\"部署 \\\"腳本\\\" OK\",\"time\":\"00:15\"}],\"title\":\"近況與進展\"}],\"decisions\":[{\"text\":\"部署腳本路徑維持 /deploy/k8s\",\"time\":\"00:15\"}],\"openQuestions\":[{\"text\":\"Kubernetes 版本？\",\"time\":\"00:09\"}],\"people\":[{\"name\":\"王小明\",\"points\":[{\"text\":\"回報 Valkey 快取下週三完成\",\"time\":\"00:04\"},{\"text\":\"負責確認 <admin> 權限 | 部署\",\"time\":\"1:02:05\"}]},{\"name\":\"說話者 2\",\"points\":[{\"text\":\"建議部署腳本路徑維持 /deploy/k8s\",\"time\":\"00:15\"},{\"text\":\"想先確認 Kubernetes 版本\",\"time\":\"\"}]},{\"name\":\"說話者 3\",\"points\":[]}],\"reviewItems\":[{\"question\":\"「Kubernetes」的寫法對嗎？\",\"time\":\"00:09\"},{\"question\":\"負責人是誰？\",\"time\":\"\"}],\"summary\":[{\"text\":\"確認 v3.6 上線時程\",\"time\":\"00:00\"},{\"text\":\"Valkey 快取下週三完成\",\"time\":\"\"}],\"title\":\"v3.6 上線週會\",\"topics\":[{\"points\":[{\"text\":\"目標 10/21\",\"time\":\"1:02:05\"}],\"start\":\"00:00\",\"title\":\"上線時程\"},{\"points\":[],\"start\":\"00:04\",\"title\":\"快取 & 部署\"}]}",
+      "reason" : "略過待確認"
     },
     {
       "created_at" : "<time>",
       "id" : 6,
+      "meeting_id" : 1,
+      "notes" : "{\"actionItems\":[{\"due\":\"2026-10-21\",\"owner\":\"王小明\",\"task\":\"確認 <admin> 權限 | 部署\",\"time\":\"1:02:05\"},{\"due\":\"\",\"owner\":\"\",\"task\":\"Valkey 快取測試\\n第二行\",\"time\":\"\"}],\"custom\":[{\"items\":[{\"text\":\"部署 \\\"腳本\\\" OK\",\"time\":\"00:15\"}],\"title\":\"近況與進展\"}],\"decisions\":[{\"text\":\"部署腳本路徑維持 /deploy/k8s\",\"time\":\"00:15\"}],\"openQuestions\":[{\"text\":\"Kubernetes 版本？\",\"time\":\"00:09\"}],\"people\":[{\"name\":\"王小明\",\"points\":[{\"text\":\"回報 Valkey 快取下週三完成\",\"time\":\"00:04\"},{\"text\":\"負責確認 <admin> 權限 | 部署\",\"time\":\"1:02:05\"}]},{\"name\":\"說話者 2\",\"points\":[{\"text\":\"建議部署腳本路徑維持 /deploy/k8s\",\"time\":\"00:15\"},{\"text\":\"想先確認 Kubernetes 版本\",\"time\":\"\"}]},{\"name\":\"說話者 3\",\"points\":[]}],\"reviewItems\":[{\"question\":\"「Kubernetes」的寫法對嗎？\",\"time\":\"00:09\"}],\"summary\":[{\"text\":\"確認 v3.6 上線時程\",\"time\":\"00:00\"},{\"text\":\"Valkey 快取下週三完成\",\"time\":\"\"}],\"title\":\"v3.6 上線週會\",\"topics\":[{\"points\":[{\"text\":\"目標 10/21\",\"time\":\"1:02:05\"}],\"start\":\"00:00\",\"title\":\"上線時程\"},{\"points\":[],\"start\":\"00:04\",\"title\":\"快取 & 部署\"}]}",
+      "reason" : "確認待確認"
+    },
+    {
+      "created_at" : "<time>",
+      "id" : 7,
       "meeting_id" : 2,
       "notes" : "{\"actionItems\":[{\"due\":\"2026-10-23\",\"owner\":\"Bob\",\"task\":\"Send the email via SendGrid\",\"time\":\"00:03\"}],\"custom\":[{\"items\":[{\"text\":\"Roadmap on track\",\"time\":\"00:00\"}],\"title\":\"Updates and progress\"}],\"decisions\":[],\"openQuestions\":[],\"reviewItems\":[{\"question\":\"Is \\\"beta\\\" the right term?\",\"time\":\"00:08\"}],\"summary\":[{\"text\":\"Reviewed the Q4 roadmap\",\"time\":\"00:00\"}],\"title\":\"Q4 roadmap\",\"topics\":[]}",
       "reason" : "確認、略過待確認"
@@ -150,7 +154,7 @@
       "meeting_id" : 1,
       "ref" : 6,
       "rowid" : 6,
-      "text" : "說話者 1 剛剛說的我同意 😀，Valkey 的 TTL 設 100% 沒問題"
+      "text" : "說話者 1 剛剛說的我同意 😀，"
     },
     {
       "kind" : "segment",
@@ -178,7 +182,7 @@
       "meeting_id" : 2,
       "ref" : 10,
       "rowid" : 10,
-      "text" : "I'll send the email via SendGrid by Friday."
+      "text" : "I'll send the email via SendGrid"
     },
     {
       "kind" : "segment",
@@ -202,6 +206,20 @@
       "text" : "The beta list is ready."
     },
     {
+      "kind" : "segment",
+      "meeting_id" : 1,
+      "ref" : 18,
+      "rowid" : 18,
+      "text" : "Valkey 的 TTL 設 100% 沒問題"
+    },
+    {
+      "kind" : "segment",
+      "meeting_id" : 2,
+      "ref" : 19,
+      "rowid" : 19,
+      "text" : "by Friday."
+    },
+    {
       "kind" : "title",
       "meeting_id" : 1,
       "ref" : 0,
@@ -213,7 +231,7 @@
       "meeting_id" : 1,
       "ref" : 0,
       "rowid" : 1125899906842630,
-      "text" : "v3.6 上線週會\n確認 v3.6 上線時程\nValkey 快取下週三完成\n部署腳本路徑維持 /deploy/k8s\nKubernetes 版本？\n王小明 確認 <admin> 權限 | 部署 2026-10-21\n Valkey 快取測試\n第二行 \n上線時程\n目標 10/21\n快取 & 部署\n近況與進展\n部署 \"腳本\" OK"
+      "text" : "v3.6 上線週會\n確認 v3.6 上線時程\nValkey 快取下週三完成\n部署腳本路徑維持 /deploy/k8s\nKubernetes 版本？\n王小明\n回報 Valkey 快取下週三完成\n負責確認 <admin> 權限 | 部署\n說話者 2\n建議部署腳本路徑維持 /deploy/k8s\n想先確認 Kubernetes 版本\n說話者 3\n王小明 確認 <admin> 權限 | 部署 2026-10-21\n Valkey 快取測試\n第二行 \n上線時程\n目標 10/21\n快取 & 部署\n近況與進展\n部署 \"腳本\" OK"
     },
     {
       "kind" : "user_notes",
@@ -305,7 +323,7 @@
     },
     {
       "channel" : null,
-      "end" : 70.299999999999997,
+      "end" : 67.319999999999993,
       "id" : 6,
       "kind" : "final",
       "low_confidence" : 0,
@@ -314,7 +332,7 @@
       "speaker" : 2,
       "speaker_manual" : 0,
       "start" : 65,
-      "text" : "說話者 1 剛剛說的我同意 😀，Valkey 的 TTL 設 100% 沒問題"
+      "text" : "說話者 1 剛剛說的我同意 😀，"
     },
     {
       "channel" : null,
@@ -323,7 +341,7 @@
       "kind" : "final",
       "low_confidence" : 0,
       "meeting_id" : 1,
-      "seq" : 6,
+      "seq" : 7,
       "speaker" : 1,
       "speaker_manual" : 0,
       "start" : 3725.4000000000001,
@@ -336,7 +354,7 @@
       "kind" : "final",
       "low_confidence" : 0,
       "meeting_id" : 1,
-      "seq" : 7,
+      "seq" : 8,
       "speaker" : 1,
       "speaker_manual" : 1,
       "start" : 3731,
@@ -357,7 +375,7 @@
     },
     {
       "channel" : null,
-      "end" : 8,
+      "end" : 6.8799999999999999,
       "id" : 10,
       "kind" : "final",
       "low_confidence" : 0,
@@ -366,7 +384,7 @@
       "speaker" : 2,
       "speaker_manual" : 0,
       "start" : 3.5,
-      "text" : "I'll send the email via SendGrid by Friday."
+      "text" : "I'll send the email via SendGrid"
     },
     {
       "channel" : null,
@@ -375,7 +393,7 @@
       "kind" : "final",
       "low_confidence" : 1,
       "meeting_id" : 2,
-      "seq" : 2,
+      "seq" : 3,
       "speaker" : 1,
       "speaker_manual" : 0,
       "start" : 8,
@@ -388,7 +406,7 @@
       "kind" : "final",
       "low_confidence" : 0,
       "meeting_id" : 2,
-      "seq" : 3,
+      "seq" : 4,
       "speaker" : null,
       "speaker_manual" : 0,
       "start" : 12.25,
@@ -401,11 +419,37 @@
       "kind" : "final",
       "low_confidence" : 0,
       "meeting_id" : 2,
-      "seq" : 4,
+      "seq" : 5,
       "speaker" : 3,
       "speaker_manual" : 0,
       "start" : 13,
       "text" : "The beta list is ready."
+    },
+    {
+      "channel" : null,
+      "end" : 70.299999999999997,
+      "id" : 18,
+      "kind" : "final",
+      "low_confidence" : 0,
+      "meeting_id" : 1,
+      "seq" : 6,
+      "speaker" : 2,
+      "speaker_manual" : 1,
+      "start" : 67.319999999999993,
+      "text" : "Valkey 的 TTL 設 100% 沒問題"
+    },
+    {
+      "channel" : null,
+      "end" : 8,
+      "id" : 19,
+      "kind" : "final",
+      "low_confidence" : 0,
+      "meeting_id" : 2,
+      "seq" : 2,
+      "speaker" : 4,
+      "speaker_manual" : 1,
+      "start" : 6.8799999999999999,
+      "text" : "by Friday."
     }
   ],
   "speakers" : [
@@ -493,6 +537,19 @@
       "idx" : 4,
       "meeting_id" : 1,
       "name" : "說話者 4",
+      "name_source" : "default",
+      "person_id" : null,
+      "speech_seconds" : 0,
+      "suggested_name" : null,
+      "suggestion_reason" : null,
+      "suggestion_time" : null
+    },
+    {
+      "audio_source" : "mic",
+      "embedding" : null,
+      "idx" : 4,
+      "meeting_id" : 2,
+      "name" : "Speaker 4",
       "name_source" : "default",
       "person_id" : null,
       "speech_seconds" : 0,

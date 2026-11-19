@@ -10,6 +10,8 @@ enum Brand {
     nonisolated(unsafe) static var table: [String: [String: String]] = loadTable()
     /// 「關於」面板的 app 名稱（MA — Meeting Assistant）；沒有就用系統預設（CFBundleName）
     nonisolated(unsafe) static var aboutName: String? = info["aboutName"] as? String
+    /// 簡稱（MA）：只用在放不下完整名稱的地方（錄音島，F7.7）；沒有就不換
+    nonisolated(unsafe) static var shortName: String? = info["shortName"] as? String
 
     private static var info: [String: Any] { Bundle.main.object(forInfoDictionaryKey: "MABrand") as? [String: Any] ?? [:] }
 
@@ -30,6 +32,26 @@ enum Brand {
         var out: [String] = []
         for name in upstream.map(name(_:)) + upstream where !out.contains(name) { out.append(name) }
         return out
+    }
+
+    /// 查表後的字串裡的完整品牌名（會議助手、会议助手、Meeting Assistant）換成簡稱，跟中文相鄰時前後補一個空白：
+    /// 「打開會議助手」→「打開 MA」、"Open Meeting Assistant" → "Open MA"（錄音島，F7.7、fork design §F7.3）
+    static func short(_ text: String) -> String {
+        guard let short = shortName, !short.isEmpty else { return text }
+        let full = Set(table.values.flatMap { $0.values }).sorted { $0.count > $1.count }
+        var out = text
+        for name in full where !name.isEmpty {
+            while let range = out.range(of: name) {
+                let before = out[..<range.lowerBound].last, after = out[range.upperBound...].first
+                out.replaceSubrange(range, with: (isCJK(before) ? " " : "") + short + (isCJK(after) ? " " : ""))
+            }
+        }
+        return out
+    }
+
+    private static func isCJK(_ c: Character?) -> Bool {
+        guard let scalar = c?.unicodeScalars.first?.value else { return false }
+        return (0x3400...0x4DBF).contains(scalar) || (0x4E00...0x9FFF).contains(scalar) || (0xF900...0xFAFF).contains(scalar)
     }
 
     /// 上游 5.0 的提醒事項（R101）找已存在的列表時用：新名稱「會議助手」、舊名稱「拾音」「Shiyin」都認得，

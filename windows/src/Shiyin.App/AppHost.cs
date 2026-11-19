@@ -38,6 +38,8 @@ public sealed class AppHost
     public Recorder Recorder { get; }
     public AppController Controller { get; }
     public MeetingDetector Detector { get; }
+    /// <summary>會議結束時倒數自動停止錄音（R95、design-windows §11.28）</summary>
+    public MeetingEndCountdown MeetingEnd { get; }
     public GlobalHotKeys HotKeys { get; }
     public Updater? Updater { get; }
     public VelopackUpdates? Updates { get; }
@@ -69,7 +71,10 @@ public sealed class AppHost
         Paths.EnsureDirectories();
         Log.Configure(Paths.Logs);
         Settings = AppSettings.Load(Paths.Settings, AppSettings.ParseOverrides(args));
+        WindowCapture.Set(Settings.HideFromScreenSharing);   // 分享畫面時藏起拾音的視窗（R77），之後開的視窗照這個值
         UseInterfaceLanguage(Settings.String(AppSettings.InterfaceLanguageKey));
+        // 中文會議用簡體時，新增的預設說話者名稱也是簡體（M§48.2）
+        MeetingLanguages.SimplifiedChineseContent = () => Settings.SimplifiedChinese(MeetingLanguage.Zh);
         // 換了介面語言時，開始功能表、桌面的捷徑和檔案類型的名稱跟著換（R27 R12.3）
         if (Shortcuts.IsInstalledApp)
         {
@@ -78,6 +83,8 @@ public sealed class AppHost
         }
         // 遷移在交易裡進行，失敗時原本的資料不會被改到（N3）；App 顯示原因後結束
         Db = new AppDatabase(Paths.Database, Paths.Backups, Paths.Documents);
+        // 拿掉定期會議（D177）：migration v14 換成資料夾的定期會議，側欄展開、排序的鍵跟著換（同 Mac 的 replaceSeriesKeys）
+        if (Db.MigratedSeries.Count > 0) SidebarCollapse.ReplaceSeriesKeys(Settings, Db.MigratedSeries);
         Models = new ModelStore(Paths.Models, Http);
         // 顯示卡加速：NVIDIA 用官方的 CUDA 版（R27 R4.6）、AMD 用拾音的 Vulkan 版（R4.7）、只有 Intel 時也用 Vulkan 版但先檢查（R4.8），都只有 x64。
         // DEBUG 的 --set debugNvidia=YES、--set debugAmd=YES、--set debugIntel=YES 當作有那張顯示卡（虛擬機測自動下載）
@@ -107,6 +114,8 @@ public sealed class AppHost
         Enterprise = new EnterpriseServer(Settings, EnterpriseHttp, new KeySecrets(Keys), Version, Environment.MachineName)
         {
             AllowLocalHttp = Debug,
+            // DEBUG 的 --set debugEnterpriseUnreachable=YES：假裝登入了一台連不上的伺服器，只在記憶體（R93、design-windows §11.26）
+            DebugUnreachable = Debug && Settings.Flag("debugEnterpriseUnreachable", false),
             // 公司詞彙表（R53）存在 SHIYIN_HOME
             Glossary = new CompanyGlossary(Path.Combine(Paths.Home, "enterprise-glossary.json")),
         };
@@ -121,22 +130,34 @@ public sealed class AppHost
         Settings.CliLoggedIn = CliLogin.Cached;
         // 匿名使用統計（design-windows §12.10）：正式版用打包時寫進 app 的網址；DEBUG 不讀，只用控制通道的 usageurl
         Usage = new UsageStats(Paths.Usage, Settings, Http,
-            () => new UsageStats.AppInfo(Version, SystemInfo.UsageOs(), SystemInfo.CpuName(), L.English ? "en" : "zh-Hant"))
+            () => new UsageStats.AppInfo(Version, SystemInfo.UsageOs(), SystemInfo.CpuName(), MeetingLanguages.InterfaceCode))
         {
             Url = Debug ? null : BuiltUsageUrl, AlwaysOffered = Debug,
         };
         var engines = new SpeechEngines(Models, () => Gpu.QwenRuntime, Gpu);
         var power = new PowerRequests();
-        Runner = new JobRunner(Db, Settings, Paths, Models, Llm, Decoder, engines, Compressor, power) { Usage = Usage, Enterprise = Enterprise };
-        Recorder = new Recorder(Settings, Paths, power, new Recorder.Hooks(MakeSources, MakeLive, DetectLanguage, Shell.AvailableBytes, MicrophoneList, DefaultMicrophone));
+        // 企業伺服器連不上多久自動改本機（R93）：DEBUG 用 --set serverAutoLocalSeconds=20 縮短
+        var autoLocal = Debug && double.TryParse(Settings.String("serverAutoLocalSeconds"), NumberStyles.Float, CultureInfo.InvariantCulture, out var autoLocalSeconds) && autoLocalSeconds > 0
+            ? TimeSpan.FromSeconds(autoLocalSeconds) : ServerTranscriber.DefaultAutoLocalAfter;
+        Runner = new JobRunner(Db, Settings, Paths, Models, Llm, Decoder, engines, Compressor, power) { Usage = Usage, Enterprise = Enterprise, ServerAutoLocalAfter = autoLocal };
+        Recorder = new Recorder(Settings, Paths, power, new Recorder.Hooks(MakeSources, MakeLive, DetectLanguage, Shell.AvailableBytes, MicrophoneList, DefaultMicrophone, PlayingApps));
         // 忘了停止錄音（M§35.2）：DEBUG 用 --set idleRemindSeconds=60 --set idleStopSeconds=180 縮短
         if (Debug)
         {
             if (double.TryParse(Settings.String("idleRemindSeconds"), System.Globalization.CultureInfo.InvariantCulture, out var remind) && remind > 0) Recorder.IdleRemindSeconds = remind;
             if (double.TryParse(Settings.String("idleStopSeconds"), System.Globalization.CultureInfo.InvariantCulture, out var stop) && stop > 0) Recorder.IdleStopSeconds = stop;
         }
-        Controller = new AppController(Db, Settings, Paths, Models, Runner, Recorder, Decoder, new ExportPlatform(this), Version) { Usage = Usage, Ocr = new WindowsOcr() };
+        Controller = new AppController(Db, Settings, Paths, Models, Runner, Recorder, Decoder, new ExportPlatform(this), Version) { Usage = Usage, Ocr = new WindowsOcr(), AudioEditor = new MediaFoundationAudioEditor() };
         Detector = new MeetingDetector(new ConsentStoreMicrophoneUsage(), Settings) { IsRecording = () => Recorder.IsRecording };
+        // 會議結束的倒數（R95）：時間到時停止錄音，通知「會議結束，已自動停止錄音」（內文是會議標題，停止前先拿）
+        MeetingEnd = new MeetingEndCountdown(() => Recorder.IsRecording ? Recorder.MeetingId : null, () => Detector.MeetingAppActive, id =>
+        {
+            var title = Db.Meeting(id)?.DisplayTitle ?? "";
+            Recorder.Stop();
+            Post(() => Notifier.MeetingEndStopped(id, title));
+        });
+        // DEBUG 用 --set meetingEndCountdownSeconds=8 縮短（同 Mac 的 -meetingEndCountdownSeconds）
+        if (Debug && int.TryParse(Settings.String("meetingEndCountdownSeconds"), out var countdown) && countdown > 0) MeetingEnd.Seconds = countdown;
         HotKeys = new GlobalHotKeys();
         Ask = new AskService(Db, Settings, Llm) { Usage = Usage };
         Notifier = new Notifier(this);
@@ -208,12 +229,13 @@ public sealed class AppHost
     static string? BuiltUsageUrl => typeof(AppHost).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>()
         .FirstOrDefault(a => a.Key == "ShiyinUsageURL")?.Value;
 
-    /// <summary>介面語言（design-windows §11.4、D57）：設定的 zh、en，沒設定時跟著 Windows 的顯示語言（中文以外都用英文）</summary>
-    public static bool UsesEnglish(string? setting) => setting switch
+    /// <summary>介面語言（design-windows §11.4、§11.15、D57）：設定的 zh、zh-Hans、en，沒設定時跟著 Windows 的顯示語言：
+    /// 中國大陸、新加坡的中文（zh-CN、zh-SG、zh-Hans*）是簡體，其他中文是繁體，中文以外都用英文</summary>
+    public static string InterfaceLanguage(string? setting) => setting switch
     {
-        "zh" => false,
-        "en" => true,
-        _ => CultureInfo.CurrentUICulture.TwoLetterISOLanguageName != "zh",
+        "zh" or "zh-Hans" or "en" => setting,
+        _ => CultureInfo.CurrentUICulture.TwoLetterISOLanguageName != "zh" ? "en"
+            : CultureInfo.CurrentUICulture.Name is "zh-CN" or "zh-SG" || CultureInfo.CurrentUICulture.Name.StartsWith("zh-Hans", StringComparison.Ordinal) ? "zh-Hans" : "zh",
     };
 
     /// <summary>Velopack 的安裝、更新 hook 用（這時還沒有 AppHost）：照設定的介面語言，捷徑、檔案類型的名稱才會對</summary>
@@ -225,7 +247,22 @@ public sealed class AppHost
 
     static void UseInterfaceLanguage(string? setting)
     {
-        if (!UsesEnglish(setting)) { L.Use(null); return; }
+        var language = InterfaceLanguage(setting);
+        if (language == "zh") { L.Use(null); return; }
+        if (language == "zh-Hans")
+        {
+            // 簡體（M§48.3）：兩份翻譯表的 zh-Hans，同一個鍵以 Windows 的為準；查不到的鍵 L.T 執行時轉
+            var hans = new Dictionary<string, string>();
+            foreach (var name in new[] { "Localizable.xcstrings", "Windows.xcstrings" })
+            {
+                using var stream = typeof(AppHost).Assembly.GetManifestResourceStream(name);
+                if (stream is null) continue;
+                using var reader = new StreamReader(stream);
+                foreach (var (k, v) in L.ReadXcstringsHans(reader.ReadToEnd())) hans[k] = v;
+            }
+            L.UseSimplified(hans);
+            return;
+        }
         var table = new Dictionary<string, string>();
         var plurals = new Dictionary<string, (string, string)>();
         // 先讀 Mac 的，再讀 Windows 才有的（同一個鍵以 Windows 的為準）
@@ -279,6 +316,8 @@ public sealed class AppHost
         Recorder.Finished += _ => Post(() => HotKeys.SetBookmarkEnabled(false));
         HotKeyError = HotKeys.SetRecordEnabled(Settings.GlobalHotKey);
         Runner.Finished += (job, error) => Post(() => Notifier.JobFinished(job, error));
+        // 企業伺服器連不上太久，自動改在這台電腦轉錄了（R93）
+        Runner.ServerFallback += id => Post(() => Notifier.ServerFallback(id));
         // claude、codex 的登入狀態（M§34.1）：沒登入時不自動整理
         Post(() => _ = CliLogin.RefreshIfStale());
         // 企業伺服器：公司在後台加了模型、改了設定，不用重新登入（R51.5）
@@ -354,6 +393,17 @@ public sealed class AppHost
         if (FakeMicrophones.Count > 0) return FakeMicrophones[0];
         try { return Microphones.Default(); }
         catch (Exception e) when (e is System.Runtime.InteropServices.COMException) { return null; }
+    }
+
+    /// <summary>DEBUG 的 playingapp（design-windows §11.18）：假的「正在出聲的 app」，蓋掉真的（虛擬機沒有音效裝置）</summary>
+    public IReadOnlyList<Recorder.PlayingApp>? FakePlayingApps { get; set; }
+
+    /// <summary>正在出聲的 app（R75.3）：Recorder 在電腦聲音全是 0 時才來問；讀不到時是空的</summary>
+    public IReadOnlyList<Recorder.PlayingApp> PlayingApps()
+    {
+        if (FakePlayingApps is { } fake) return fake;
+        try { return AudioOutputs.Playing(); }
+        catch (Exception e) when (e is System.Runtime.InteropServices.COMException) { return []; }
     }
 
     IReadOnlyList<(int Channel, IAudioSource Source)> MakeSources(string source, string device) => source switch

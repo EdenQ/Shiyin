@@ -5,6 +5,7 @@ using Shiyin.Localization;
 using Shiyin.Model;
 using Shiyin.Notes;
 using Shiyin.Services.Capture;
+using Shiyin.Text;
 
 namespace Shiyin.Services;
 
@@ -18,7 +19,8 @@ public interface IExportPlatform
     Task MindMapPng(Notes.MindMap.Layout layout, MeetingLanguage language, string path, CancellationToken cancel);
     Task MindMapPdf(Notes.MindMap.Layout layout, MeetingLanguage language, string path, CancellationToken cancel);
     /// <summary>錄音轉成 m4a 或 wav（同格式時直接複製）</summary>
-    Task Audio(string source, string format, string path, CancellationToken cancel);
+    /// <summary>mixChannels：「麥克風＋電腦聲音」的錄音，m4a 兩個聲道混在一起（R73.2）</summary>
+    Task Audio(string source, string format, string path, bool mixChannels, CancellationToken cancel);
 }
 
 public enum ExportItem { Notes, MindMap, Transcript, Audio, Package }
@@ -48,7 +50,7 @@ public static class ExportItems
 /// 會議的操作（同 Mac 的 AppModel，不含畫面的狀態）：匯入、錄音存檔、當掉後復原、垃圾桶、重新轉錄、說話者的修正、整理、校正。
 /// 畫面（ViewModel）傳入要操作哪一場會議；結果用 Notice、Error 事件告訴使用者，資料改了用 Changed 通知重讀
 /// </summary>
-public sealed class AppController
+public sealed partial class AppController
 {
     public AppDatabase Db { get; }
     public AppSettings Settings { get; }
@@ -71,6 +73,12 @@ public sealed class AppController
     public event Action<long?>? Changed;
     /// <summary>要顯示這場會議（匯入完、錄音開始、點了通知）</summary>
     public event Action<long>? Reveal;
+    /// <summary>一次還原了好幾場（R88、M§62）：回到會議列表、選取那幾場</summary>
+    public event Action<IReadOnlyList<long>>? RevealMany;
+    /// <summary>要換掉、刪掉這場會議的錄音檔（編輯會議、分成兩場、還原、永久刪除）：畫面先停止播放、放掉檔案。在呼叫的執行緒上同步觸發</summary>
+    public event Action<long>? ReleasingAudio;
+    /// <summary>錄音檔換了（編輯會議、分成兩場、還原，design-windows §11.40）：畫面重新載入播放器</summary>
+    public event Action<long>? AudioReplaced;
 
     /// <summary>正在匯入的檔案數，側邊欄下方顯示（M§21.13、R20.4）</summary>
     public int ImportingCount => Volatile.Read(ref importing);
@@ -103,6 +111,8 @@ public sealed class AppController
         runner.EditedDraftReplaced += _ =>
             Notice?.Invoke(L.T("正式版的會議紀錄好了；你改過的草稿留在版本紀錄裡，按紀錄分頁「編輯」旁的「復原上一版」可以找回"));
         runner.Changed += () => Changed?.Invoke(null);
+        // 自動放進資料夾了（M§72）
+        runner.Organized += Organized;
     }
 
     /// <summary>啟動時：內建範本、清掉上次的暫存、過期的垃圾桶、復原錄音、開始工作佇列（同 Mac 的 AppModel.start）</summary>
@@ -111,6 +121,7 @@ public sealed class AppController
         Db.SeedTemplates();
         CleanUpPreviousRun();
         PurgeExpiredTrash();
+        PurgeExpiredEdits();
         RecoverRecordings();
         Runner.Start();
         // 語言偵測模型很小（60 MB），開著自動偵測就先下載好
@@ -157,27 +168,59 @@ public sealed class AppController
         meetings.Where(m => m.Meeting.Folder.Length > 0).GroupBy(m => m.Meeting.Folder)
             .Select(g => (g.Key, g.Count())).OrderBy(f => f.Key, NaturalComparer.Instance).ToList();
 
-    public void MoveToFolder(long id, string folder)
+    public void MoveToFolder(long id, string folder) => MoveToFolder([id], folder);
+
+    /// <summary>移到資料夾（R9.2）；多選時一起移（R88、M§62），已經在那裡的跳過</summary>
+    public void MoveToFolder(IReadOnlyList<long> ids, string folder)
     {
         var name = folder.Trim();
-        if (Db.Meeting(id)?.Folder == name)
+        var targets = ids.Where(id => Db.Meeting(id)?.Folder != name).ToList();
+        if (targets.Count == 0)
         {
-            Notice?.Invoke(name.Length == 0 ? L.T("這場會議沒有在任何資料夾裡") : L.F("這場會議已經在「%@」", name));
+            if (ids.Count == 1) Notice?.Invoke(name.Length == 0 ? L.T("這場會議沒有在任何資料夾裡") : L.F("這場會議已經在「%@」", name));
+            else if (ids.Count > 1) Notice?.Invoke(name.Length == 0 ? L.T("這些會議都沒有在資料夾裡") : L.F("這些會議都已經在「%@」", name));
             return;
         }
-        Perform(null, () => Db.SetFolder([id], name));
-        Notice?.Invoke(name.Length == 0 ? L.T("已移出資料夾") : L.F("已移到「%@」", name));
+        Perform(null, () => Db.SetFolder(targets, name));
+        if (targets.Count == 1) Notice?.Invoke(name.Length == 0 ? L.T("已移出資料夾") : L.F("已移到「%@」", name));
+        else Notice?.Invoke(name.Length == 0 ? L.F("已把 %lld 場會議移出資料夾", targets.Count) : L.F("已把 %lld 場會議移到「%@」", targets.Count, name));
+    }
+
+    /// <summary>這幾場會議都在同一個資料夾時是那個資料夾（空字串是不在資料夾裡），不一樣時是 null（「移到資料夾」的選單，M§62）</summary>
+    public static string? CommonFolder(IEnumerable<MeetingRow> rows, IReadOnlyCollection<long> ids)
+    {
+        var folders = rows.Where(r => ids.Contains(r.Id)).Select(r => r.Meeting.Folder).Distinct().ToList();
+        return folders.Count == 1 ? folders[0] : null;
     }
 
     public void RenameFolder(string old, string newName)
     {
         var name = newName.Trim();
         if (name.Length == 0 || name == old) return;
+        // 側欄展開的資料夾、排序的鍵跟著改名（R101、R103，design-windows §11.34、§11.36）
+        SidebarCollapse.RenameFolder(Settings, old, name);
+        SidebarDrag.RenameFolder(Settings, old, name);
         Perform(null, () => Db.RenameFolder(old, name));
     }
 
-    /// <summary>刪除資料夾：會議留著，移回「不在資料夾」</summary>
-    public void DeleteFolder(string name) => Perform(null, () => Db.RenameFolder(name, ""));
+    /// <summary>
+    /// 建一個空的資料夾（R104、M§78，「資料夾」標題的「+」、DEBUG 的 foldernew）：已經有同名的資料夾（資料夾表、會議的資料夾、自動加入條件）時不建
+    /// </summary>
+    public void CreateFolder(string name)
+    {
+        var trimmed = name.Trim();
+        if (trimmed.Length == 0 || Organizing.Folders(Db.MeetingRows(), Db.FolderRules(), Db.FolderNames()).Any(f => f.Name == trimmed)) return;
+        Perform(null, () => Db.CreateFolder(trimmed));
+        Notice?.Invoke(L.F("已建立資料夾「%@」", trimmed));
+    }
+
+    /// <summary>刪除資料夾：會議留著，移回「不在資料夾」；側欄展開、排序的鍵拿掉（R101、R103）</summary>
+    public void DeleteFolder(string name)
+    {
+        SidebarCollapse.SetRow(Settings, SidebarCollapse.FolderKey(name), false);
+        SidebarDrag.Remove(Settings, SidebarCollapse.FolderKey(name));
+        Perform(null, () => Db.RenameFolder(name, ""));
+    }
 
     // MARK: 匯入（R3）
 
@@ -344,7 +387,7 @@ public sealed class AppController
     }
 
     /// <summary>DEBUG：用音訊檔模擬錄音（record-sim）</summary>
-    public long? StartSimulatedRecording(string file, double speed, bool both, string folder)
+    public long? StartSimulatedRecording(string file, double speed, bool both, string folder, bool systemSilent = false)
     {
         if (Recorder.IsRecording) return null;
         var meeting = Db.InsertMeeting(new Meeting
@@ -352,7 +395,7 @@ public sealed class AppController
             MeetingDate = DateText.String(Importer.Today), SourceFilename = L.T("模擬錄音"), Source = "recording",
             Channels = both ? "both" : "mic", Folder = folder, Language = Settings.DefaultMeetingLanguage.Code(),
         }, null);
-        Recorder.StartSimulated(meeting.Id!.Value, file, speed, both, meeting.MeetingLanguage, decoder);
+        Recorder.StartSimulated(meeting.Id!.Value, file, speed, both, meeting.MeetingLanguage, decoder, systemSilent);
         Changed?.Invoke(null);
         Reveal?.Invoke(meeting.Id!.Value);
         return meeting.Id;
@@ -526,38 +569,59 @@ public sealed class AppController
 
     public void SetTemplate(long id, string templateId) => Perform(id, () => Db.SetTemplate(id, templateId));
 
-    /// <summary>移到垃圾桶（R9.3）</summary>
-    public void MoveToTrash(long id)
+    public void MoveToTrash(long id) => MoveToTrash([id]);
+
+    /// <summary>移到垃圾桶（R9.3）；多選時一起移（R88.2），正在錄音的那場跳過、說明原因</summary>
+    public void MoveToTrash(IReadOnlyList<long> ids)
     {
-        if (Recorder.IsRecording && Recorder.MeetingId == id)
-        {
-            Error?.Invoke(L.T("這場會議還在錄音，請先停止錄音再移到垃圾桶"));
-            return;
-        }
+        long? recording = Recorder.IsRecording ? Recorder.MeetingId : null;
+        if (recording is long r && ids.Contains(r))
+            Error?.Invoke(ids.Count == 1 ? L.T("這場會議還在錄音，請先停止錄音再移到垃圾桶") : L.T("還在錄音的那場會議沒有移到垃圾桶，請先停止錄音"));
         // 已經在垃圾桶裡就不再處理，不然 30 天的期限會重新計算
-        if (Db.Meeting(id)?.DeletedAt is not null) return;
-        Runner.Cancel(id);
-        Perform(null, () => Db.SetTrashed(id, true));
-        Notice?.Invoke(L.T("已移到垃圾桶，30 天內都可以還原"));
+        var targets = ids.Where(id => id != recording && Db.Meeting(id) is { DeletedAt: null }).ToList();
+        if (targets.Count == 0) return;
+        foreach (var id in targets) Runner.Cancel(id);
+        Perform(null, () => { foreach (var id in targets) Db.SetTrashed(id, true); });
+        Notice?.Invoke(targets.Count == 1 ? L.T("已移到垃圾桶，30 天內都可以還原") : L.F("已把 %lld 場會議移到垃圾桶，30 天內都可以還原", targets.Count));
     }
 
-    public void Restore(long id)
+    public void Restore(long id) => Restore([id]);
+
+    /// <summary>還原（多選時一起，R88）：回到會議列表，選取還原的那幾場</summary>
+    public void Restore(IReadOnlyList<long> ids)
     {
-        Perform(null, () => Db.SetTrashed(id, false));
-        Reveal?.Invoke(id);
+        if (ids.Count == 0) return;
+        Perform(null, () => { foreach (var id in ids) Db.SetTrashed(id, false); });
+        if (ids.Count == 1) Reveal?.Invoke(ids[0]);
+        else RevealMany?.Invoke(ids);
     }
 
-    /// <summary>永久刪除（垃圾桶裡的「立即刪除」）</summary>
-    public void DeletePermanently(long id)
+    public void DeletePermanently(long id) => DeletePermanently([id]);
+
+    /// <summary>永久刪除（垃圾桶裡的「永久刪除」，多選時一起，R88）；正在錄音的那場不刪</summary>
+    public void DeletePermanently(IReadOnlyList<long> ids)
     {
-        if (Db.Meeting(id) is not { } meeting || (Recorder.IsRecording && Recorder.MeetingId == id)) return;
-        Runner.Cancel(id);
+        var meetings = ids.Select(Db.Meeting).OfType<Meeting>().Where(m => !(Recorder.IsRecording && Recorder.MeetingId == m.Id)).ToList();
+        if (meetings.Count == 0) return;
+        foreach (var meeting in meetings)
+        {
+            Runner.Cancel(meeting.Id!.Value);
+            ReleasingAudio?.Invoke(meeting.Id!.Value);
+        }
         Perform(null, () =>
         {
-            Db.DeleteMeeting(id);
-            if (Paths.HasAudio(meeting)) try { File.Delete(Paths.AudioPath(meeting)); } catch (IOException) { }
+            foreach (var meeting in meetings)
+            {
+                Db.DeleteMeeting(meeting.Id!.Value);
+                if (Paths.HasAudio(meeting)) try { File.Delete(Paths.AudioPath(meeting)); } catch (IOException) { }
+            }
+            // 編輯前的錄音（M§81.3）跟著快照刪掉
+            PurgeExpiredEdits();
         });
     }
+
+    /// <summary>清空垃圾桶（R88.3）</summary>
+    public void EmptyTrash() => DeletePermanently(Db.MeetingRows(trash: true).Select(r => r.Id).ToList());
 
     void PurgeExpiredTrash()
     {
@@ -645,11 +709,56 @@ public sealed class AppController
     // MARK: 說話者的修正（M§24、R23）
 
     /// <summary>轉錄或重新辨識說話者時不能改：完成時會整份寫回段落的說話者</summary>
-    string? SpeakerEditProblem(long id, MeetingDetail detail)
+    string? SpeakerEditProblem(long id, MeetingDetail detail, bool transcript = false)
     {
         if (detail.Meeting.DeletedAt is not null) return L.T("垃圾桶裡的會議要先還原才能操作");
-        if (Status(detail).IsActive || Db.HasActiveJob(id, JobKind.Rediarize)) return L.T("正在處理這場會議，完成後才能改說話者");
+        if (Status(detail).IsActive || Db.HasActiveJob(id, JobKind.Rediarize))
+            return transcript ? L.T("正在處理這場會議，完成後才能修改逐字稿") : L.T("正在處理這場會議，完成後才能改說話者");
         return null;
+    }
+
+    /// <summary>「刪除這句」（R89、M§63）：不用確認，跟說話者的調整共用「復原」（D171）</summary>
+    public void DeleteSegment(long id, long segmentId)
+    {
+        if (MeetingDetail.Load(Db, id) is not { } detail || detail.Segments.FirstOrDefault(s => s.Id == segmentId) is not { } segment) return;
+        if (SpeakerEditProblem(id, detail, transcript: true) is { } problem) { Notice?.Invoke(problem); return; }
+        // 復原的說明：前 12 個字（Swift 的字形叢集）
+        var preview = SwiftText.Count(segment.Text) > 12 ? SwiftText.Prefix(segment.Text, 12) + "…" : segment.Text;
+        Perform(id, () =>
+        {
+            if (Db.DeleteSegment(id, segmentId, L.F("刪除一句「%@」", preview)))
+                Notice?.Invoke(L.T("已刪除這句。要復原的話，在逐字稿按右鍵選「復原」。"));
+        });
+    }
+
+    /// <summary>
+    /// 從某一句分成兩場（R90、M§64）：走編輯會議的套用（整場保留、在這句切開，M§81.6），所以一樣能還原（D180）。
+    /// 片段是整場（會議長度、錄音長度、最後一句的結尾取大的）、切點是那一句的開始（四捨五入到 0.01 秒）。選取留在原本那場
+    /// </summary>
+    public async Task SplitMeeting(long id, long segmentId)
+    {
+        if (MeetingDetail.Load(Db, id) is not { } detail || detail.Segments.FirstOrDefault(s => s.Id == segmentId) is not { } segment) return;
+        var cut = Math.Round(segment.Start * 100, MidpointRounding.AwayFromZero) / 100;
+        if (cut <= 0) return;
+        var meeting = detail.Meeting;
+        var audio = Paths.HasAudio(meeting) ? AudioSeconds(Paths.AudioPath(meeting)) ?? 0 : 0;
+        var end = new[] { meeting.DurationSeconds ?? 0, audio, Db.Segments(id).Select(s => s.End).DefaultIfEmpty(0).Max(),
+            Db.Segments(id, "live").Select(s => s.End).DefaultIfEmpty(0).Max() }.Max();
+        await ApplyMeetingEdit(id, new EditPlan([new EditPlan.Piece(id, 0, end)]), cut);
+    }
+
+    /// <summary>搬檔案、取代舊的；播放器剛放掉的檔案可能還被系統開著一下子：遇到 IOException 每 0.2 秒重試，最多 2 秒</summary>
+    static async Task MoveWithRetry(string source, string destination)
+    {
+        for (var attempt = 0; ; attempt++)
+        {
+            try
+            {
+                File.Move(source, destination, overwrite: true);
+                return;
+            }
+            catch (Exception e) when ((e is IOException or UnauthorizedAccessException) && attempt < 10) { await Task.Delay(200); }
+        }
     }
 
     /// <summary>「合併到…」（R23.1）：from 說的話全部算 into 的；會議紀錄裡的名字跟著換</summary>
@@ -677,6 +786,19 @@ public sealed class AppController
         var target = to is int t ? detail.SpeakerName(t)! : L.T("新的說話者");
         var label = ids.Count == 1 ? L.F("把一句改成「%@」說的", target) : L.F("把 %lld 句改成「%@」說的", ids.Count, target);
         Perform(id, () => Db.ReassignSegments(id, ids, to, label));
+    }
+
+    /// <summary>「拆成兩句…」（R70、M§46）：at 是 UTF-16 的位置，to 是後半句的說話者（null 是新的說話者）</summary>
+    public void SplitSegment(long id, long segmentId, int at, int? to)
+    {
+        if (MeetingDetail.Load(Db, id) is not { } detail) return;
+        if (SpeakerEditProblem(id, detail) is { } problem) { Notice?.Invoke(problem); return; }
+        var target = to is int t ? detail.SpeakerName(t)! : L.T("新的說話者");
+        Perform(id, () =>
+        {
+            if (Db.SplitSegment(id, segmentId, at, to, L.F("把一句拆成兩句（後半句是「%@」說的）", target)) is not null)
+                Notice?.Invoke(L.T("已拆成兩句。要復原的話，在逐字稿按右鍵選「復原」。"));
+        });
     }
 
     /// <summary>說話者改名視窗、右鍵選單的「復原：…」（R44.4）：只復原最近一次合併或改句子</summary>
@@ -781,6 +903,48 @@ public sealed class AppController
         if (Settings.SummarizerProblem is { } problem) { Error?.Invoke(problem.Message); return; }
         DocumentsChanged.Remove(id);
         Perform(id, () => Db.Enqueue(id, JobKind.Summarize));
+        Runner.Wake();
+    }
+
+    /// <summary>「人物」的「產生每個人的重點」（R92、M§66）：只補上這一段，摘要、決議、待辦這些段落不動</summary>
+    /// <summary>
+    /// 逐字稿「精簡」的「產生精簡版」（R96、M§70）：擋法和訊息同「產生每個人的重點」；在輔助線跑，不發通知。
+    /// 已經在產生（排隊或進行中）時不再排
+    /// </summary>
+    public void GenerateCleanTranscript(long id)
+    {
+        if (!ReadyForAction(id)) return;
+        if (Settings.Provider == LLMProvider.None)
+        {
+            Error?.Invoke(Settings.NeedsProviderSetup ? L.T("還沒設定整理工具，請先到設定選擇 Claude、Codex 或 API")
+                : L.T("整理工具設定為「不整理」，請先到設定改成 Claude、Codex 或 API"));
+            return;
+        }
+        if (Settings.SummarizerProblem is { } problem) { Error?.Invoke(problem.Message); return; }
+        if (Db.HasActiveJob(id, JobKind.Clean)) return;
+        Perform(id, () => Db.Enqueue(id, JobKind.Clean));
+        Runner.Wake();
+    }
+
+    /// <summary>正在產生這場會議的精簡版（Active）和進度（0～1，排隊中、第一批還沒回來是 null）</summary>
+    public (bool Active, double? Progress) CleaningProgress(long meetingId)
+    {
+        if (Runner.Running(JobLane.Assist) is { } running && running.Job.Kind == JobKind.Clean && running.Job.MeetingId == meetingId)
+            return (true, running.Progress);
+        return (Db.HasActiveJob(meetingId, JobKind.Clean), null);
+    }
+
+    public void GeneratePeopleNotes(long id)
+    {
+        if (!ReadyForAction(id)) return;
+        if (Settings.Provider == LLMProvider.None)
+        {
+            Error?.Invoke(Settings.NeedsProviderSetup ? L.T("還沒設定整理工具，請先到設定選擇 Claude、Codex 或 API")
+                : L.T("整理工具設定為「不整理」，請先到設定改成 Claude、Codex 或 API"));
+            return;
+        }
+        if (Settings.SummarizerProblem is { } problem) { Error?.Invoke(problem.Message); return; }
+        Perform(id, () => Db.Enqueue(id, JobKind.Summarize, JobRunner.Encode(new SummarizePayload(People: true))));
         Runner.Wake();
     }
 
@@ -1013,6 +1177,30 @@ public sealed class AppController
     }
 
     public void AddTerm(string term) => Perform(null, () => Db.AddTerm(term));
+
+    /// <summary>
+    /// 新增詞彙（R94.1、M§68）：一次貼上好幾個時用換行、逗號、頓號、分號分開，已經有的跳過。
+    /// 一個詞而且已經有、或一次好幾個時說明結果（Notice，同 Mac 的 noticeMessage）；回傳同一句（設定頁也寫在輸入框下面），沒有要說的是 null
+    /// </summary>
+    public string? AddTerms(string text)
+    {
+        var terms = GlossaryInput.Split(text);
+        if (terms.Count == 0) return null;
+        var added = 0;
+        Perform(null, () => added = Db.AddTerms(terms));
+        string? message = null;
+        if (terms.Count == 1 && added == 0) message = L.F("「%@」已經在詞彙表裡了", terms[0]);
+        else if (terms.Count > 1)
+            message = added == terms.Count ? L.F("已加入 %lld 個詞彙", (long)added) : L.F("已加入 %lld 個詞彙，%lld 個已經有了", (long)added, (long)(terms.Count - added));
+        if (message is not null) Notice?.Invoke(message);
+        return message;
+    }
+
+    /// <summary>刪除勾選的詞彙（R94.3）</summary>
+    public void DeleteTerms(IReadOnlyCollection<long> ids)
+    {
+        if (ids.Count > 0) Perform(null, () => Db.DeleteTerms(ids));
+    }
     public void DismissGlossarySuggestion(string term) => Perform(null, () => Db.DismissGlossarySuggestion(term));
     public void DeleteTerm(long id) => Perform(null, () => Db.DeleteTerm(id));
     public void SaveTemplate(TemplateRecord template) => Perform(null, () => Db.SaveTemplate(template));
@@ -1020,6 +1208,28 @@ public sealed class AppController
     public void RenamePerson(long id, string name) => Perform(null, () => Db.RenamePerson(id, name));
     public void DeletePerson(long id) => Perform(null, () => Db.DeletePerson(id));
     public void DeleteAllPeople() => Perform(null, Db.DeleteAllPeople);
+
+    /// <summary>錄好的「我的聲音」算聲紋、存成「我」（R80、M§56）。回傳錯誤訊息，成功是 null</summary>
+    public async Task<string?> EnrollVoice(string name, float[] samples)
+    {
+        try
+        {
+            // ConfigureAwait(false)：DEBUG 的控制通道在 UI 執行緒上等結果
+            var embedding = await Task.Run(() => VoiceEnrollment.BestVoiceprint(Runner.DiarizeClip(samples))).ConfigureAwait(false);
+            if (embedding is null) return L.T("沒聽清楚你的聲音：請在安靜的地方再錄一次，照著畫面上的文字唸完。");
+            Db.EnrollVoiceprint(name, embedding);
+            Changed?.Invoke(null);
+            return null;
+        }
+        catch (Exception e)
+        {
+            Log.Error($"enroll voice failed: {e.GetType().Name}");
+            return L.F("沒辦法算出聲音特徵：%@", e.Message);
+        }
+    }
+
+    /// <summary>只刪那份聲紋，會議裡的名字照舊（R80.4）</summary>
+    public void DeleteEnrollment() => Perform(null, Db.DeleteEnrollment);
 
     // MARK: 匯出（R7）
 
@@ -1041,11 +1251,11 @@ public sealed class AppController
         {
             case ExportItem.Notes when format == "pdf": await Platform().NotesPdf(b, path, cancel); break;
             case ExportItem.Notes when format == "docx": await Platform().NotesDocx(b, path, cancel); break;
-            case ExportItem.Notes: await Task.Run(() => File.WriteAllText(path, NotesExporter.Markdown(b)), cancel); break;
+            case ExportItem.Notes: await Task.Run(() => File.WriteAllText(path, Shiyin.Services.Export.ExportScript.Text(Settings, b, NotesExporter.Markdown(b))), cancel); break;
             case ExportItem.MindMap:
             {
                 // 心智圖（M§42.4）：段落名稱跟著會議語言，同其他匯出
-                var layout = MindMapLayout(b) ?? throw new ExportException(L.T("這場會議還沒有會議紀錄，畫不出心智圖"));
+                var layout = MindMapLayout(b, Settings) ?? throw new ExportException(L.T("這場會議還沒有會議紀錄，畫不出心智圖"));
                 var language = b.Meeting.MeetingLanguage;
                 if (format == "svg") await Task.Run(() => File.WriteAllText(path, Notes.MindMap.Svg(layout, language)), cancel);
                 else if (format == "pdf") await Platform().MindMapPdf(layout, language, path, cancel);
@@ -1053,10 +1263,12 @@ public sealed class AppController
                 break;
             }
             case ExportItem.Transcript when format == "docx": await Platform().TranscriptDocx(b, times, speakers, path, cancel); break;
-            case ExportItem.Transcript: await Task.Run(() => File.WriteAllText(path, TranscriptExporter.Text(b, format, times, speakers)), cancel); break;
+            case ExportItem.Transcript:
+                await Task.Run(() => File.WriteAllText(path, Shiyin.Services.Export.ExportScript.Text(Settings, b, TranscriptExporter.Text(b, format, times, speakers))), cancel);
+                break;
             case ExportItem.Audio:
                 if (!Paths.HasAudio(b.Meeting)) throw new ExportException(L.T("這場會議沒有錄音檔"));
-                await Platform().Audio(Paths.AudioPath(b.Meeting), format, path, cancel);
+                await Platform().Audio(Paths.AudioPath(b.Meeting), format, path, b.Meeting.Channels == "both", cancel);
                 break;
             case ExportItem.Package: await Task.Run(() => MeetingPackage.Export(b, path, Paths, appVersion), cancel); break;
         }
@@ -1064,12 +1276,13 @@ public sealed class AppController
 
     IExportPlatform Platform() => exporter ?? throw new ExportException(L.T("這個格式在這裡不能匯出"));
 
-    /// <summary>匯出用的心智圖排版（會議語言的段落名稱）；沒有紀錄時 null</summary>
-    public static Notes.MindMap.Layout? MindMapLayout(ExportBundle b)
+    /// <summary>匯出用的心智圖排版（會議語言的段落名稱；中文會議用簡體時轉，M§47.2）；沒有紀錄時 null</summary>
+    public static Notes.MindMap.Layout? MindMapLayout(ExportBundle b, AppSettings? settings = null)
     {
         if (b.Notes is not { IsEmpty: false } notes) return null;
         var language = b.Meeting.MeetingLanguage;
-        return Notes.MindMap.LayoutOf(Notes.MindMap.Tree(notes, b.Meeting.DisplayTitle, Notes.MindMap.Labels.For(language)));
+        Func<string, string>? script = settings is null ? null : s => settings.Script(s, language);
+        return Notes.MindMap.LayoutOf(Notes.MindMap.Tree(notes, b.Meeting.DisplayTitle, Notes.MindMap.Labels.For(language, script)));
     }
 
     public static string SuggestedFilename(ExportItem item, string format, Meeting? meeting)
@@ -1090,33 +1303,4 @@ public sealed class AppController
     // MARK: 搜尋（R9.1）
 
     public List<SearchHit> Search(string query) => query.Trim().Length == 0 ? [] : Db.Search(query);
-}
-
-/// <summary>名稱排序跟 Finder 一樣：數字照大小（「第 2 週」排在「第 10 週」前面）</summary>
-public sealed class NaturalComparer : IComparer<string>
-{
-    public static readonly NaturalComparer Instance = new();
-
-    public int Compare(string? x, string? y)
-    {
-        if (x is null || y is null) return string.Compare(x, y, StringComparison.Ordinal);
-        int i = 0, j = 0;
-        while (i < x.Length && j < y.Length)
-        {
-            if (char.IsAsciiDigit(x[i]) && char.IsAsciiDigit(y[j]))
-            {
-                var si = i; while (i < x.Length && char.IsAsciiDigit(x[i])) i++;
-                var sj = j; while (j < y.Length && char.IsAsciiDigit(y[j])) j++;
-                var a = x[si..i].TrimStart('0');
-                var b = y[sj..j].TrimStart('0');
-                var c = a.Length != b.Length ? a.Length.CompareTo(b.Length) : string.CompareOrdinal(a, b);
-                if (c != 0) return c;
-                continue;
-            }
-            var d = string.Compare(x[i].ToString(), y[j].ToString(), System.Globalization.CultureInfo.CurrentCulture, System.Globalization.CompareOptions.IgnoreCase);
-            if (d != 0) return d;
-            i++; j++;
-        }
-        return (x.Length - i).CompareTo(y.Length - j);
-    }
 }

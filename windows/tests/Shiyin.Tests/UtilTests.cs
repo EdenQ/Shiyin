@@ -27,6 +27,38 @@ public class UtilTests
         Assert.Equal(3, settings.TextSize);
     }
 
+    /// <summary>雙聲道的錄音混在一起（R73、M§49.1）：(L + R) × 0.7071、截在 ±1；其他聲道數取平均</summary>
+    [Fact]
+    public void ChannelMixSumsStereo()
+    {
+        var mono = new float[3];
+        Shiyin.Services.Capture.ChannelMix.Mix([0.5f, 0, -0.5f, 0.2f, 0.9f, 0.9f], 2, mono);
+        Assert.Equal([0.35355f, -0.21213f, 1f], mono.Select(v => MathF.Round(v, 5)));
+        var three = new float[1];
+        Shiyin.Services.Capture.ChannelMix.Mix([0.3f, 0.6f, 0.9f], 3, three);
+        Assert.Equal(0.6f, three[0], 5);
+    }
+
+    /// <summary>左聲道有聲音、右聲道靜音的 WAV 讀成單聲道：峰值是左聲道 × 0.7071、長度不變</summary>
+    [Fact]
+    public void ChannelMixReadsStereoWavAsMono()
+    {
+        using var home = new TempHome();
+        var path = Path.Combine(home.Path, "both.wav");
+        var count = 16000;
+        var left = Enumerable.Range(0, count).Select(i => 0.5f * MathF.Sin(i * 0.1f)).ToArray();
+        using (var writer = new WavWriter(path, 2)) writer.Write([left, new float[count]], count);
+        using var reader = new NAudio.Wave.WaveFileReader(path);
+        var mono = new Shiyin.Services.Capture.ChannelMix.ToMono(NAudio.Wave.WaveExtensionMethods.ToSampleProvider(reader));
+        Assert.Equal(1, mono.WaveFormat.Channels);
+        var all = new List<float>();
+        var buffer = new float[1600];
+        int n;
+        while ((n = mono.Read(buffer)) > 0) all.AddRange(buffer[..n]);
+        Assert.Equal(count, all.Count);
+        Assert.Equal(0.5f * 0.7071f, all.Max(MathF.Abs), 3);
+    }
+
     static IEnumerable<JsonElement> Items(string path) => Golden.ExpectedJson(path).EnumerateArray();
 
     /// <summary>語言檔推出來的東西（M§41.8）：每種語言的名稱、預設說話者、轉錄的參數、給人看的字、提示詞的字，跟 Mac 逐項相同</summary>
@@ -75,6 +107,40 @@ public class UtilTests
     }
 
     [Fact]
+    public void TaiwanToSimplified()
+    {
+        // 繁轉簡（M§47.1）：跟 Mac 的 ChineseScript.toSimplified 逐字相同
+        foreach (var item in Items("util/tw2s.json"))
+            Assert.Equal(item.Str("out"), ChineseScript.ToSimplified(item.Str("in")!));
+    }
+
+    [Fact]
+    public void SimplifiedInterfaceTerms()
+    {
+        // 簡體介面的用語（M§48.1）：跟 Mac 的 ChineseScript.toSimplifiedUI 逐字相同
+        foreach (var item in Items("util/ui-hans.json"))
+            Assert.Equal(item.Str("out"), ChineseScript.ToSimplifiedUI(item.Str("in")!));
+    }
+
+    [Fact]
+    public void SimplifiedInterfaceTables()
+    {
+        // 兩份翻譯表的中文條目都有簡體（l10n.py hans 產生），沒有繁體字
+        foreach (var path in new[] { "Resources/Localizable.xcstrings", "windows/src/Shiyin.App/Strings/Windows.xcstrings" })
+        {
+            var file = Path.Combine(Golden.Root, "..", "..", path);
+            var hans = Localization.L.ReadXcstringsHans(File.ReadAllText(file));
+            using var doc = JsonDocument.Parse(File.ReadAllText(file));
+            foreach (var entry in doc.RootElement.GetProperty("strings").EnumerateObject())
+            {
+                if (!entry.Name.Any(c => c >= 0x4E00 && c <= 0x9FFF)) continue;
+                Assert.True(hans.TryGetValue(entry.Name, out var value), $"{path}：{entry.Name} 沒有簡體");
+                Assert.Equal(value, ChineseScript.ToSimplified(value!));
+            }
+        }
+    }
+
+    [Fact]
     public void ReleaseNotesBrief()
     {
         // 更新說明只列前幾項（R10.6）：取段落、取條目跟 Mac 的 ReleaseNotes.brief 相同
@@ -113,6 +179,49 @@ public class UtilTests
             Assert.Equal(item.Str("speakerName"), notes.ReplacingSpeakerName(old, replacement, SpeakerNames.IsDefault(old)).JsonString());
             Assert.Equal(item.Str("replacing"), notes.Replacing(old, replacement).JsonString());
         }
+    }
+
+    /// <summary>每個人的重點（R92、M§66、design-windows §11.25）：空的時候不寫進 JSON（以前的紀錄一字不差）；
+    /// 解碼的寬鬆規則同 Mac 的 Person.init(from:)；改說話者名字、簡體、搜尋；待確認的連結（排序值在 custom 後面）</summary>
+    [Fact]
+    public void PeopleNotes()
+    {
+        const string old = """{"actionItems":[],"custom":[],"decisions":[],"openQuestions":[],"reviewItems":[],"summary":[{"text":"a","time":"00:01"}],"title":"t","topics":[]}""";
+        Assert.Equal(old, MeetingNotes.Decode(old)!.JsonString());
+        var empty = MeetingNotes.Decode(old.Replace("\"title\"", "\"people\":[],\"title\"", StringComparison.Ordinal))!;
+        Assert.Empty(empty.People);
+        Assert.Equal(old, empty.JsonString());
+
+        // 陣列裡有不是物件的：整個 people 當作沒有；name、points 型別不對當作空的；條目可以是字串（v1）
+        Assert.Empty(MeetingNotes.Decode("""{"people":[{"name":"A","points":[]},3]}""")!.People);
+        var loose = MeetingNotes.Decode("""{"people":[{"name":5,"points":"x"},{"points":["提議"]}]}""")!;
+        Assert.Equal(new[] { "", "" }, loose.People.Select(p => p.Name));
+        Assert.Empty(loose.People[0].Points);
+        Assert.Equal("提議", loose.People[1].Points[0].Text);
+        Assert.False(loose.IsEmpty);
+        Assert.Equal("""{"actionItems":[],"custom":[],"decisions":[],"openQuestions":[],"people":[{"name":"","points":[]},{"name":"","points":[{"text":"提議","time":""}]}],"reviewItems":[],"summary":[],"title":"","topics":[]}""",
+            loose.JsonString());
+
+        // 改說話者名字：名字、重點都換；預設名稱後面接數字的（說話者 10）不換
+        var notes = new MeetingNotes
+        {
+            People = [new("說話者 1", [new("同意說話者 10 的提議", "00:05")]), new("說話者 10", [new("負責測試", "00:20")])],
+            Summary = [new("摘要", "00:30")],
+            ReviewItems = [new("00:20", "負責人是說話者 10 嗎？", true)],
+        };
+        var renamed = notes.ReplacingSpeakerName("說話者 1", "王小明", isDefaultName: true);
+        Assert.Equal(new[] { "王小明", "說話者 10" }, renamed.People.Select(p => p.Name));
+        Assert.Equal("同意說話者 10 的提議", renamed.People[0].Points[0].Text);
+        Assert.Equal("00:05", renamed.People[0].Points[0].Time);
+        Assert.Contains("王小明\n同意說話者 10 的提議\n說話者 10\n負責測試", renamed.PlainText);
+        Assert.Equal("说话者 10", notes.Simplified().People[1].Name);
+
+        // 待確認的連結：第幾個人的第幾條
+        var links = ReviewLinks.Compute(notes);
+        Assert.Equal(new[] { 0 }, links[NoteItemRef.Person(1, 0)]);
+        Assert.Single(links);
+        Assert.True(NoteSection.Person > NoteSection.Custom);
+        Assert.Equal("person", NoteItemRef.Person(1, 0).SectionName);
     }
 
     [Fact]
@@ -165,6 +274,17 @@ public class UtilTests
             Assert.Equal(item.Strings("list"), new Meeting { Participants = item.Str("text")! }.ParticipantList);
         foreach (var item in Items("util/default-speaker-names.json"))
             Assert.Equal(item.Bool("isDefault"), SpeakerNames.IsDefault(item.Str("name")!));
+        // 頭像的字和釉色（M§58、design-windows §11.22）：Mac 的 PersonAvatar.initials、Color.person、Color.speaker
+        static string[] Hexes((uint Light, uint Dark) c) => [c.Light.ToString("X6"), c.Dark.ToString("X6")];
+        var avatars = Golden.ExpectedJson("util/avatars.json");
+        foreach (var item in avatars.GetProperty("people").EnumerateArray())
+        {
+            var name = item.Str("name")!;
+            Assert.True(item.Str("initials") == Avatars.Initials(name), $"「{name}」的頭像：預期 {item.Str("initials")}，實際 {Avatars.Initials(name)}");
+            Assert.Equal(item.Strings("color"), Hexes(Avatars.Speaker(Avatars.PersonIndex(name))));
+        }
+        foreach (var item in avatars.GetProperty("speakers").EnumerateArray())
+            Assert.Equal(item.Strings("color"), Hexes(Avatars.Speaker((int)item.Long("idx")!)));
         foreach (var item in Items("util/transcript-import.json"))
         {
             var input = Golden.Fixtures.GetProperty("transcriptImports").EnumerateArray().First(x => x.Str("ext") == item.Str("ext")).Str("text")!;
@@ -254,6 +374,33 @@ public class UtilTests
             Assert.Equal(e.Str("applied"), applied);
             Assert.Equal(e.Str("reverted"), applied is null ? null : TranscriptCorrection.Revert(s.Original, s.Suggestion, applied));
         }
+
+        // 精簡逐字稿的驗證（R96、M§70）：輸入同 Mac 的 GoldenDump（去頭尾空白、重複的留第一個、跟原文一樣的丟、空字串留、比原文長太多的丟、範圍外的丟）
+        var clean = new TranscriptCleanup.Context(MeetingLanguage.Zh, zh.Segments.Select(s => (s.Text, (string?)null)).ToList());
+        var first = zh.Segments[0].Text;
+        TranscriptCleanup.Line[] cleanRaw =
+        [
+            new(0, "  " + SwiftText.Prefix(first, SwiftText.Count(first) - 1) + " "), new(0, "重複的第二個"), new(1, zh.Segments[1].Text),
+            new(2, ""), new(3, zh.Segments[3].Text + new string('補', 40)), new(9, "範圍外"),
+        ];
+        var validClean = TranscriptCleanup.Validate(cleanRaw, clean, 0, 4);
+        var expectedClean = Items("util/validate-clean.json").ToList();
+        Assert.Equal(expectedClean.Count, validClean.Count);
+        for (var i = 0; i < validClean.Count; i++)
+        {
+            Assert.Equal(expectedClean[i].Long("segment"), validClean[i].Segment);
+            Assert.Equal(expectedClean[i].Str("text"), validClean[i].Text);
+        }
+    }
+
+    /// <summary>一次貼上好幾個詞彙（R94.1、M§68）：分隔、去空白、去重複同 Mac 的 GlossaryInput.split</summary>
+    [Fact]
+    public void GlossarySplitMatchesMac()
+    {
+        var expected = Items("util/glossary-split.json").ToList();
+        Assert.NotEmpty(expected);
+        foreach (var e in expected)
+            Assert.Equal(e.Strings("terms") ?? [], GlossaryInput.Split(e.Str("input")!));
     }
 }
 

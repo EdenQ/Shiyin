@@ -50,11 +50,16 @@ struct ShiyinApp: App {
         .defaultSize(width: 680, height: 720)
         .defaultLaunchBehavior(.suppressed)
 
-        Settings {
+        // 設定（R108、design §82）：一般視窗才拉得大，SwiftUI 的 Settings 視窗固定大小（D185）
+        Window("設定", id: SettingsPage.windowID) {
             SettingsView()
                 .environment(AppModel.shared)
                 .chineseGlyphs()
         }
+        .windowResizability(.contentMinSize)
+        .defaultSize(width: 820, height: 620)
+        .restorationBehavior(.disabled)
+        .defaultLaunchBehavior(.suppressed)
 
         MenuBarExtra {
             MenuBarContent()
@@ -78,10 +83,18 @@ struct AppCommands: Commands {
         CommandGroup(after: .appInfo) {
             Button("檢查更新…") { Task { await model.checkForUpdatesFromMenu() } }
         }
+        // 設定是一般視窗（D185），選單列的「設定⋯」、⌘, 自己接
+        CommandGroup(replacing: .appSettings) {
+            Button("設定⋯") { openWindow.settings() }
+                .keyboardShortcut(",")
+        }
         CommandGroup(replacing: .newItem) {
             // 主視窗關著時先打開，不然對話框要等到下次打開主視窗才會跳出來
             Button("匯入…") { model.openMainWindow?(); model.showFileImporter = true }
                 .keyboardShortcut("o")
+            // 建一個空的資料夾（R104、design §78）
+            Button("新資料夾…") { model.openMainWindow?(); model.renameTarget = .newFolder([]) }
+                .keyboardShortcut("n", modifiers: [.command, .shift])
             Button(model.recorder.isRecording ? "停止錄音" : "開始錄音") { model.toggleRecording() }
                 .keyboardShortcut("r")
             Button(model.recorder.isPaused ? "繼續錄音" : "暫停錄音") {
@@ -106,6 +119,10 @@ struct AppCommands: Commands {
         }
         // 會議內容的文字大小（design §38.5、R59）：「顯示」選單；⌘= 不用按 Shift 也算放大（AppDelegate 攔下來）
         CommandGroup(after: .toolbar) {
+            Divider()
+            // 會議列表的排序、分組、篩選（R97、design §71）；人物模式時用不到
+            MeetingListMenu(model: model, submenus: true)
+                .disabled(model.sidebarMode == .people && !model.showTrash)
             Divider()
             Button("放大文字") { TextSize.change(1) }
                 .keyboardShortcut("+")
@@ -161,10 +178,10 @@ struct AppCommands: Commands {
 }
 
 extension View {
-    /// 會議內容裡的中文一律用繁體中文的字形（design §16.2）：英文介面時系統會改用簡體的字型，
-    /// 全形逗號、問號的位置跟繁體不同。只影響中文字的字形，英文不受影響
+    /// 介面上的中文用繁體中文的字形（design §16.2）：英文介面時系統會改用簡體的字型，
+    /// 全形逗號、問號的位置跟繁體不同。簡體介面用簡體的字形（§48.2）。只影響中文字的字形，英文不受影響
     func chineseGlyphs() -> some View {
-        typesettingLanguage(Locale.Language(identifier: "zh-Hant"))
+        typesettingLanguage(Locale.Language(identifier: MeetingLanguage.simplifiedInterface ? "zh-Hans" : "zh-Hant"))  // l10n-skip
     }
 
     /// 單獨一段會議內容（會議列表的標題、搜尋結果）的字形跟著會議語言（design §18.6）

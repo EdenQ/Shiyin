@@ -1,6 +1,57 @@
 {
   "sourceLanguage": "zh-Hant",
   "strings": {
+    "%1$@ 的聲音從「%2$@」播出，拾音錄的是預設的「%3$@」，所以錄不到。請把 Windows 的預設輸出裝置改成「%2$@」（設定 → 系統 → 音效 → 輸出），或在 %1$@ 裡把喇叭改成預設的裝置。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ is playing through “%2$@”, but Shiyin records the default device “%3$@”, so it can't hear it. Set Windows' default output device to “%2$@” (Settings → System → Sound → Output), or switch the speaker in %1$@ to the default device."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ 的声音从“%2$@”播出，拾音录的是默认的“%3$@”，所以录不到。请把 Windows 的默认输出装置改成“%2$@”（设置 → 系统 → 音效 → 输出），或在 %1$@ 里把扬声器改成默认的装置。"
+          }
+        }
+      }
+    },
+    "%@ 正在播放聲音，但拾音錄不到電腦的聲音。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ is playing audio, but Shiyin can't record the computer's audio."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 正在播放声音，但拾音录不到电脑的声音。"
+          }
+        }
+      }
+    },
+    "%@ 的標記": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bookmark at %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 的标记"
+          }
+        }
+      }
+    },
     "%@失敗（錯誤代碼 %@）": {
       "extractionState": "manual",
       "localizations": {
@@ -8,6 +59,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "%1$@ failed (error %2$@)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@失败（错误代码 %@）"
           }
         }
       }
@@ -20,6 +77,12 @@
             "state": "translated",
             "value": "%@ (Auto)"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@（自动）"
+          }
         }
       }
     },
@@ -30,6 +93,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "- Enterprise server: %@ (server %@)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "- 企业服务器：%@（服务器 %@）"
           }
         }
       }
@@ -42,6 +111,12 @@
             "state": "translated",
             "value": "- Graphics: %1$@; whisper: %2$@"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "- 显卡：%@；whisper：%@"
+          }
         }
       }
     },
@@ -52,6 +127,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "100% (Default)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "100%（标准）"
           }
         }
       }
@@ -64,6 +145,12 @@
             "state": "translated",
             "value": "AMD GPU acceleration is ready. Reopen Shiyin and transcription will use the GPU."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AMD 显卡加速下载好了，重新打开拾音后，转录就会用显卡"
+          }
         }
       }
     },
@@ -74,6 +161,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "AMD GPU acceleration (Vulkan)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AMD 显卡加速（Vulkan）"
           }
         }
       }
@@ -86,6 +179,12 @@
             "state": "translated",
             "value": "AMD and Intel GPU acceleration (Vulkan)"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AMD、Intel 显卡加速（Vulkan）"
+          }
         }
       }
     },
@@ -96,6 +195,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "API keys are stored in Windows Credential Manager and never written to any file."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "API key 存在 Windows 的凭据管理器，不会写进任何文件。"
           }
         }
       }
@@ -108,6 +213,12 @@
             "state": "translated",
             "value": "Breeze ASR 25 (recommended)"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Breeze ASR 25（建议）"
+          }
         }
       }
     },
@@ -118,6 +229,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "CPU (the Intel GPU didn’t pass the check)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CPU（Intel 显卡没通过检查）"
           }
         }
       }
@@ -130,6 +247,12 @@
             "state": "translated",
             "value": "CPU (the Intel GPU hasn’t been checked yet)"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CPU（Intel 显卡还没检查）"
+          }
         }
       }
     },
@@ -141,16 +264,28 @@
             "state": "translated",
             "value": "AI tools that support MCP, such as Claude Code, Claude Desktop and Codex, can search and read your meeting notes and transcripts (read-only), even when Shiyin isn't open. What they read is handled by that AI tool and leaves this PC, just like when meeting notes are written."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude Code、Claude Desktop、Codex 等支持 MCP 的 AI 工具可以搜索、读你的会议记录和逐字稿（只能读、不能改），拾音不用开着。读到的内容会交给那个 AI 工具处理，跟整理会议记录一样会离开这台电脑。"
+          }
         }
       }
     },
-    "Claude Code、Claude Desktop、Codex 等支援 MCP 的 AI 工具可以直接讀拾音的會議：到「設定 → 進階 → AI 工具（MCP）」打開「讓 AI 工具讀取會議」，再按「加到 Claude Code」「加到 Codex」或「加到 Claude Desktop」。其他工具用「複製」自己貼上設定。拾音不用開著。": {
+    "Claude Code、Claude Desktop、Codex 等支援 MCP 的 AI 工具可以直接讀拾音的會議：到「設定 → AI 工具」打開「讓 AI 工具讀取會議」，再按「加到 Claude Code」「加到 Codex」或「加到 Claude Desktop」。其他工具用「複製」自己貼上設定。拾音不用開著。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "AI tools that support MCP, such as Claude Code, Claude Desktop and Codex, can read your Shiyin meetings directly: in Settings › Advanced › AI tools (MCP), turn on “Let AI tools read meetings”, then click “Add to Claude Code”, “Add to Codex” or “Add to Claude Desktop”. For other tools, use Copy and paste the settings yourself. Shiyin doesn't need to be open."
+            "value": "AI tools that support MCP, such as Claude Code, Claude Desktop and Codex, can read your Shiyin meetings directly: in Settings › AI Tools, turn on “Let AI tools read meetings”, then click “Add to Claude Code”, “Add to Codex” or “Add to Claude Desktop”. For other tools, use Copy and paste the settings yourself. Shiyin doesn't need to be open."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude Code、Claude Desktop、Codex 等支持 MCP 的 AI 工具可以直接读拾音的会议：到“设置 → AI 工具”打开“让 AI 工具读取会议”，再按“加到 Claude Code”“加到 Codex”或“加到 Claude Desktop”。其他工具用“复制”自己粘贴设置。拾音不用开着。"
           }
         }
       }
@@ -163,6 +298,12 @@
             "state": "translated",
             "value": "Claude Code (the claude CLI is installed on this PC)"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude Code（这台电脑已经装了 claude CLI）"
+          }
         }
       }
     },
@@ -173,6 +314,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "Codex (the codex CLI is installed on this PC)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Codex（这台电脑已经装了 codex CLI）"
+          }
+        }
+      }
+    },
+    "Enter 儲存、Esc 取消": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter to save, Esc to cancel"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter 保存、Esc 取消"
           }
         }
       }
@@ -185,6 +349,12 @@
             "state": "translated",
             "value": "Intel GPU acceleration is ready. Reopen Shiyin and the next transcription will first check whether the GPU is faster, and use it if it is."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Intel 显卡加速下载好了，重新打开拾音后，下一次转录会先检查显卡是不是比较快，是的话就改用显卡"
+          }
         }
       }
     },
@@ -195,6 +365,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "NVIDIA GPU acceleration is ready. Reopen Shiyin to transcribe on the GPU."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NVIDIA 显卡加速下载好了，重新打开拾音后，转录就会用显卡"
           }
         }
       }
@@ -207,6 +383,12 @@
             "state": "translated",
             "value": "NVIDIA GPU acceleration (CUDA)"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NVIDIA 显卡加速（CUDA）"
+          }
         }
       }
     },
@@ -217,6 +399,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "NVIDIA GPU acceleration: much faster transcription, 685 MB (about 1.1 GB unpacked)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NVIDIA 显卡加速：转录会快很多，685 MB（解开约 1.1 GB）"
           }
         }
       }
@@ -229,6 +417,12 @@
             "state": "translated",
             "value": "PDF and docx use a serif font for section headings; Markdown is good for pasting into Notion or GitHub."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PDF 和 docx 的段落标题使用明体；Markdown 适合贴到 Notion、GitHub。"
+          }
         }
       }
     },
@@ -239,6 +433,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "AMD GPU acceleration for Qwen3-ASR (Vulkan)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Qwen3-ASR 的 AMD 显卡加速（Vulkan）"
           }
         }
       }
@@ -251,6 +451,12 @@
             "state": "translated",
             "value": "NVIDIA GPU acceleration for Qwen3-ASR (CUDA)"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Qwen3-ASR 的 NVIDIA 显卡加速（CUDA）"
+          }
         }
       }
     },
@@ -261,6 +467,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "The Qwen3-ASR transcription program (llama-server) failed. Try again; if it keeps failing, switch back to Breeze in Settings."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Qwen3-ASR 的转录程序（llama-server）出错，请再试一次；一直失败的话到设置改回 Breeze"
           }
         }
       }
@@ -273,6 +485,12 @@
             "state": "translated",
             "value": "The WAV file has no format chunk"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "WAV 缺少格式区段"
+          }
         }
       }
     },
@@ -283,6 +501,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Windows can’t decode .%@ files. Convert it to m4a, mp3, or wav and import again (for ogg and opus, install “Web Media Extensions” from the Microsoft Store)."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Windows 解不开 .%@ 的文件：请先转成 m4a、mp3 或 wav 再导入（ogg、opus 可以从 Microsoft Store 安装“Web 媒体延伸模组”）"
           }
         }
       }
@@ -295,6 +519,12 @@
             "state": "translated",
             "value": "claude returned no result (exit code %lld)"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "claude 没有返回结果（退出代码 %lld）"
+          }
         }
       }
     },
@@ -305,6 +535,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "codex returned no result (exit code %lld)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "codex 没有返回结果（退出代码 %lld）"
           }
         }
       }
@@ -317,6 +553,29 @@
             "state": "translated",
             "value": "No text could be read from “%@”. This PC has no text recognition for %@: add %@ in Settings → Time & language → Language & region, then try again."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@”里读不到文字。这台电脑没有%@的文字识别：到“设置 → 时间与语言 → 语言与地区”加入%@再试。"
+          }
+        }
+      }
+    },
+    "「一般」的「分享畫面時藏起拾音的視窗」：打開後，用 Zoom、Teams、Google Meet 分享整個螢幕時別人看不到拾音，截圖、螢幕錄影也拍不到。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "General, “Hide Shiyin's windows when sharing the screen”: when on, people can't see Shiyin when you share your whole screen in Zoom, Teams, or Google Meet, and screenshots and screen recordings won't show it either."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“一般”的“分享画面时藏起拾音的窗口”：打开后，用 Zoom、Teams、Google Meet 分享整个屏幕时别人看不到拾音，截图、屏幕录像也拍不到。"
+          }
         }
       }
     },
@@ -327,6 +586,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "“To confirm” lists names, terms, owners and deadlines the summarizer wasn't sure about. Type in “Your answer” and click “Submit”, and the notes are revised from your answers; check “Skip” for anything unclear or unimportant. You can also click “Edit” in “Summary” to change things directly. To undo a mistake, choose “Revert to previous notes” from “More”."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“待确认”列出整理时没把握的人名、专有名词、负责人和期限。在“你的回答”字段直接回答，按“送出”，会议记录就会依你的答案修正；看不懂或不重要的勾“略过”。也可以在“摘要”按“编辑”直接改。改错了可以从“更多”选“恢复上一版会议记录”。"
           }
         }
       }
@@ -339,6 +604,29 @@
             "state": "translated",
             "value": "“To confirm” lists the names, terms, owners and deadlines the summarizer wasn’t sure about. The note in question gets a “?” next to it: click it to answer right there, or open the “To confirm” tab to go through them all. Questions that take yes or no have “Yes” and “No” buttons (“Yes” confirms on the spot, no waiting for the summarizer); answer the others in “Your answer”, then click “Submit” and the notes are revised to match. Click “Skip” on anything unclear or unimportant, or “Skip all”. You can also edit the notes directly with “Edit” on the Summary tab. If something goes wrong, choose “Restore previous notes” from “More”."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“待确认”列出整理时没把握的人名、专有名词、负责人和期限。记录里有疑问的那一条旁边会有“？”，点了就能当场回答；也可以到“待确认”标签页一次看完。能用是或否回答的直接按“是”“不是”（按“是”不用等整理工具），其他的在“你的回答”字段回答，按“送出”，会议记录就会依你的答案修正；看不懂或不重要的按“略过”，或一次“全部略过”。也可以在“摘要”按“编辑”直接改。改错了可以从“更多”选“恢复上一版会议记录”。"
+          }
+        }
+      }
+    },
+    "「設定 → 一般」的「分享畫面時藏起拾音的視窗」：打開後，用 Zoom、Teams、Google Meet 分享整個螢幕時別人看不到拾音，截圖、螢幕錄影也拍不到。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Settings → General, “Hide Shiyin's windows when sharing the screen”: when on, people can't see Shiyin when you share your whole screen in Zoom, Teams, or Google Meet, and screenshots and screen recordings won't show it either."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“设置 → 一般”的“分享画面时藏起拾音的窗口”：打开后，用 Zoom、Teams、Google Meet 分享整个屏幕时别人看不到拾音，截图、屏幕录像也拍不到。"
+          }
         }
       }
     },
@@ -349,6 +637,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "• Import: drag a recording into the window, or click Import (Ctrl+O)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "・导入：把录音文件拖进窗口，或按“导入”（Ctrl+O）"
           }
         }
       }
@@ -361,6 +655,12 @@
             "state": "translated",
             "value": "• Shiyin stays in the system tray at the bottom right of the taskbar; closing the window keeps recording and processing."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "・拾音会常驻在工作列右下角的系统托盘，关掉窗口也会继续录音和整理。"
+          }
         }
       }
     },
@@ -371,6 +671,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "• Record: click Record at the top of the sidebar (Ctrl+R), or press Ctrl+Alt+Shift+R in any app"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "・录音：侧边栏上方的“录音”（Ctrl+R），或在其他 app 里按 Ctrl+Alt+Shift+R"
           }
         }
       }
@@ -383,6 +689,12 @@
             "state": "translated",
             "value": "The downloaded archive is missing required files. Please download it again."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载的压缩文件里少了需要的文件，请重新下载"
+          }
         }
       }
     },
@@ -393,6 +705,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "The download is incomplete"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载的文件不完整"
           }
         }
       }
@@ -405,6 +723,12 @@
             "state": "translated",
             "value": "%lld-bit audio is not supported"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不支持 %lld 位元"
+          }
         }
       }
     },
@@ -415,6 +739,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Unsupported WAV format %lld"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不支持的 WAV 格式 %lld"
           }
         }
       }
@@ -427,6 +757,12 @@
             "state": "translated",
             "value": "Not %@"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不是%@"
+          }
         }
       }
     },
@@ -437,6 +773,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Optional engine for Chinese and English (open-sourced by Alibaba), about 2.5 GB including the llama.cpp program; used only when selected under Final transcription."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "中文、英文可选的引擎（阿里巴巴开源），约 2.5 GB，含 llama.cpp 的可执行文件；“正式转录”选了它才会用。"
           }
         }
       }
@@ -449,6 +791,12 @@
             "state": "translated",
             "value": "Optional engine for Chinese and English (open-sourced by Alibaba), about 2.5 GB including the llama.cpp program; used when selected under Final transcription, and always for %@ meetings."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "中文、英文可选的引擎（阿里巴巴开源），约 2.5 GB，含 llama.cpp 的可执行文件；“正式转录”选了它才会用，%@会议一律用。"
+          }
         }
       }
     },
@@ -459,6 +807,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Previously chosen microphone (not connected; using system default)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "之前选的麦克风（没有接上，会用系统默认）"
           }
         }
       }
@@ -471,6 +825,12 @@
             "state": "translated",
             "value": "New recordings will use %@"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "之后的录音用 %@"
+          }
         }
       }
     },
@@ -481,6 +841,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "New recordings will use the system default microphone (%@)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "之后的录音用系统默认的麦克风（%@）"
           }
         }
       }
@@ -493,6 +859,29 @@
             "state": "translated",
             "value": "You can open this guide again any time from the system tray or Settings → Advanced."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "之后随时可以从系统托盘或设置的“高级”再打开使用说明。"
+          }
+        }
+      }
+    },
+    "也可以在側欄的「人物」管理": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You can also manage them under People in the sidebar."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "也可以在侧边栏的“人物”管理"
+          }
         }
       }
     },
@@ -503,6 +892,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "You can also press Ctrl+Plus or Ctrl+Minus."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "也可以用 Ctrl＋＋、Ctrl＋－ 调整"
           }
         }
       }
@@ -515,6 +910,12 @@
             "state": "translated",
             "value": "Interface"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "界面"
+          }
         }
       }
     },
@@ -525,6 +926,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Interface language"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "界面语言"
           }
         }
       }
@@ -537,6 +944,12 @@
             "state": "translated",
             "value": "This computer doesn't trust the enterprise server's certificate. Ask your company's administrator to install it."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "企业服务器的证书不受这台电脑信任，请公司的管理者协助安装证书"
+          }
         }
       }
     },
@@ -547,6 +960,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Identifying speakers on the enterprise server"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "企业服务器识别说话者"
           }
         }
       }
@@ -559,6 +978,12 @@
             "state": "translated",
             "value": "Using the codex bundled with %@ (Codex CLI isn't installed separately on this PC)"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用 %@ 附的 codex（这台电脑没有另外安装 Codex CLI）"
+          }
         }
       }
     },
@@ -569,6 +994,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "Revising with your answers"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "依回答修正"
+          }
+        }
+      }
+    },
+    "修改「%@」": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edit “%@”"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "修改“%@”"
           }
         }
       }
@@ -581,6 +1029,29 @@
             "state": "translated",
             "value": "Stop recording and start transcribing (Ctrl+R)"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停止录音并开始转录（Ctrl+R）"
+          }
+        }
+      }
+    },
+    "側欄上方切到「人物」，可以看拾音認識的每個人：一起開過的會議（每場他說了多久）、所有會議紀錄裡他負責的待辦，點了打開那場會議、從那個時間點播放。人物頁的名字下面可以重新命名、把被記成兩個名字的同一個人合併，或移除這個人；側欄的人按右鍵或滑過時右邊的「⋯」也一樣。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switch to People at the top of the sidebar to see everyone Shiyin knows: the meetings you had together (how long they spoke in each) and the action items they own across all notes; click one to open that meeting and play from there. Below a person’s name you can rename them, merge two names that are the same person, or remove them; right-click a person in the sidebar, or use the “⋯” that appears when you hover, to do the same."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "侧边栏上方切到“人物”，可以看拾音认识的每个人：一起开过的会议（每场他说了多久）、所有会议记录里他负责的待办，点了打开那场会议、从那个时间点播放。人物页的名字下面可以重新命名、把被记成两个名字的同一个人合并，或移除这个人；侧边栏的人按右键或滑过时右边的“⋯”也一样。"
+          }
         }
       }
     },
@@ -592,27 +1063,45 @@
             "state": "translated",
             "value": "Global shortcut Ctrl+Alt+Shift+R: start or stop recording from any app"
           }
-        }
-      }
-    },
-    "公司的伺服器還沒登入或登入已失效，請到設定 → 進階 → 企業伺服器登入": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
+        },
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "You're not signed in to the company server, or your sign-in has expired. Sign in under Settings → Advanced → Enterprise Server."
+            "value": "全局快捷键 Ctrl+Alt+Shift+R：在其他 app 里也能开始或停止录音"
           }
         }
       }
     },
-    "公司的伺服器還沒登入或登入已失效：到「進階 → 企業伺服器」登入。設定好之前不會自動整理。": {
+    "公司的伺服器還沒登入或登入已失效，請到設定 → 企業伺服器登入": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "You're not signed in to the company server, or your sign-in has expired. Sign in under Advanced → Enterprise Server. Meetings won't be summarized automatically until this is fixed."
+            "value": "You're not signed in to the company server, or your sign-in has expired. Sign in under Settings → Enterprise server."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "公司的服务器还没登录或登录已失效，请到设置 → 企业服务器登录"
+          }
+        }
+      }
+    },
+    "公司的伺服器還沒登入或登入已失效：到「企業伺服器」那一頁登入。設定好之前不會自動整理。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You're not signed in to the company server, or your sign-in has expired. Sign in under the Enterprise server page. Meetings won't be summarized automatically until this is fixed."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "公司的服务器还没登录或登录已失效：到“企业服务器”那一页登录。设置好之前不会自动整理。"
           }
         }
       }
@@ -625,6 +1114,12 @@
             "state": "translated",
             "value": "Other"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "其他"
+          }
         }
       }
     },
@@ -635,6 +1130,97 @@
           "stringUnit": {
             "state": "translated",
             "value": "Switch between Notes, Transcript, and Ask"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "切换记录、逐字稿、提问"
+          }
+        }
+      }
+    },
+    "刪除資料夾": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete Folder"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除文件夹"
+          }
+        }
+      }
+    },
+    "刪除資料夾…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete Folder…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除文件夹…"
+          }
+        }
+      }
+    },
+    "刪除資料夾「%@」？": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete the folder “%@”?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除文件夹“%@”？"
+          }
+        }
+      }
+    },
+    "刪除這一條": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete This Item"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除这一条"
+          }
+        }
+      }
+    },
+    "到「設定 → 說話者 → 我的聲音」錄一段自己的聲音（照著畫面上的文字唸約 20 秒），第一場會議就認得你：聲音像你的說話者會直接帶入你的名字，沒把握時在待確認問你。錄音只用來算聲音特徵，算完就刪掉。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Record your own voice in Settings → Speakers → My voice (read the passage on screen for about 20 seconds), and Shiyin recognizes you from your first meeting: a speaker who sounds like you gets your name, or Shiyin asks you in the questions to confirm when it isn't sure. The recording is used only to work out your voice profile and is deleted right after."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "到“设置 → 说话者 → 我的声音”录一段自己的声音（照着画面上的文字念约 20 秒），第一场会议就认得你：声音像你的说话者会直接带入你的名字，没把握时在待确认问你。录音只用来算声音特征，算完就删掉。"
           }
         }
       }
@@ -647,6 +1233,12 @@
             "state": "translated",
             "value": "Rename in Transcript"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "到逐字稿改名"
+          }
         }
       }
     },
@@ -657,6 +1249,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "Then just ask in the AI tool, for example “List my meetings this week”, “What are the action items from last week's meetings?” or “Find the meetings that discussed the budget and summarize them for my manager”. It also works together with your other tools (turning action items into tickets, writing a weekly report). Meeting links in the answers open Shiyin at that moment."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "加好之后在 AI 工具里直接问，例如“列出我这周的会议”“上周所有会议的待办有哪些”“找出提到预算的会议，整理成一段给主管”，也可以跟其他工具一起用（把待办开成工单、写周报）。回答里的会议链接点了会打开拾音、跳到那个时间点。"
+          }
+        }
+      }
+    },
+    "匯入到「%@」": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Import into “%@”"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导入到“%@”"
           }
         }
       }
@@ -669,6 +1284,12 @@
             "state": "translated",
             "value": "Import a recording, video, transcript or .shiyin package (Ctrl+O)"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导入录音、视频、逐字稿或 .shiyin 文件包（Ctrl+O）"
+          }
         }
       }
     },
@@ -679,6 +1300,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Couldn't export the PDF"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导出 PDF 失败"
           }
         }
       }
@@ -691,6 +1318,12 @@
             "state": "translated",
             "value": "Exporting PDF needs the Microsoft Edge WebView2 Runtime, which isn't installed on this PC. You can download it free from Microsoft, or export to Word instead."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导出 PDF 需要 Microsoft Edge WebView2 运行时，这台电脑没有安装。可以到微软的网站下载安装（免费），或先导出成 Word。"
+          }
         }
       }
     },
@@ -701,6 +1334,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Export failed"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导出失败"
           }
         }
       }
@@ -713,6 +1352,12 @@
             "state": "translated",
             "value": "Export notes, transcript, or audio (Ctrl+E). Use the arrow to copy the notes."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导出会议记录、逐字稿或录音（Ctrl+E）；箭头可以直接复制会议记录"
+          }
         }
       }
     },
@@ -723,6 +1368,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Used for the live transcript and Quick recognition, about 240 MB."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "实时逐字稿和快速识别用，约 240 MB。"
           }
         }
       }
@@ -735,6 +1386,46 @@
             "state": "translated",
             "value": "Read-only: AI tools can't change anything, and meetings in the Trash or still being recorded aren't available. The meeting content they read is handled by that AI tool and leaves this PC, just like when meeting notes are written. Turn the switch off to stop access."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只能读、不能改；回收站里的会议、正在录的会议读不到。读到的会议内容会交给那个 AI 工具处理，跟整理会议记录一样会离开这台电脑；关掉开关就读不到了。"
+          }
+        }
+      }
+    },
+    "可以合併的會議": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meetings you can merge"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可以合并的会议"
+          }
+        }
+      }
+    },
+    "同一個人被記成兩個名字時，合併成一個": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When the same person was saved under two names, merge them into one"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同一个人被记成两个名字时，合并成一个"
+          }
         }
       }
     },
@@ -745,6 +1436,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sign in on the page that opened; you'll come back to Shiyin afterwards"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在打开的网页登录，登录完会回到拾音"
           }
         }
       }
@@ -757,6 +1454,12 @@
             "state": "translated",
             "value": "Full License Terms"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完整的授权条款"
+          }
         }
       }
     },
@@ -767,6 +1470,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Saved in Credential Manager"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已保存在凭据管理器"
           }
         }
       }
@@ -779,6 +1488,29 @@
             "state": "translated",
             "value": "Saved in Credential Manager (type a new one to replace it)"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已保存在凭据管理器（输入新的会取代）"
+          }
+        }
+      }
+    },
+    "已刪除一條紀錄，可以按紀錄分頁「編輯」旁的「復原上一版」還原": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deleted the item. To bring it back, use Restore previous version next to Edit on the Notes tab."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已删除一条记录，可以按记录标签页“编辑”旁的“恢复上一版”还原"
+          }
         }
       }
     },
@@ -789,6 +1521,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Switched to %@. New recordings will use it too."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已改用 %@，之后的录音也用这个"
           }
         }
       }
@@ -801,6 +1539,29 @@
             "state": "translated",
             "value": "Signed in to the enterprise server"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已登录企业服务器"
+          }
+        }
+      }
+    },
+    "待辦可以加到 macOS 的「提醒事項」：在紀錄的「待辦」右邊按「加到提醒事項」，會加進「拾音」列表；期限是日期的會設成到期日，點提醒裡的連結就回到這場會議的那個時間點。加過的不會重複加，在提醒事項裡完成的，紀錄裡那一條會打勾。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "To-dos can go into the macOS Reminders app: click “Add to Reminders” next to To-dos in the notes, and they're added to the “Shiyin” list. Deadlines that are dates become due dates, and the link in each reminder takes you back to that moment in the meeting. To-dos already added aren't added again, and ones you complete in Reminders get a check mark in the notes."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "待办可以加到 macOS 的“提醒事项”：在记录的“待办”右边按“加到提醒事项”，会加进“拾音”列表；期限是日期的会设成到期日，点提醒里的链接就回到这场会议的那个时间点。加过的不会重复加，在提醒事项里完成的，记录里那一条会打勾。"
+          }
         }
       }
     },
@@ -811,6 +1572,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Choose More → Export… (Ctrl+E): notes can be saved as Markdown, PDF or Word; transcripts as txt, srt, vtt or Word; recordings as m4a or wav. Send a “Whole meeting (.shiyin)” to a colleague and they can import it with a double-click (on the Mac version too). “Copy meeting notes” pastes straight into Notion, Slack or email."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从“更多”选“导出…”（Ctrl+E）：会议记录可以存成 Markdown、PDF、Word；逐字稿可以存成 txt、srt、vtt、Word；录音可以存成 m4a、wav；“整场会议（.shiyin）”可以传给同事，对方双击就能导入（Mac 版也可以）。“复制会议记录”可以直接贴到 Notion、Slack 或邮件。"
           }
         }
       }
@@ -835,6 +1602,12 @@
               }
             }
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从对话内容猜到 %lld 位说话者的名字"
+          }
         }
       }
     },
@@ -845,6 +1618,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "The shortcut didn't respond"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "快捷键没有回应"
           }
         }
       }
@@ -857,6 +1636,12 @@
             "state": "translated",
             "value": "Quick recognition"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "快速识别"
+          }
         }
       }
     },
@@ -867,6 +1652,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Quick recognition model SenseVoice"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "快速识别模型 SenseVoice"
           }
         }
       }
@@ -879,6 +1670,12 @@
             "state": "translated",
             "value": "Quick recognition model SenseVoice: live transcript, about 240 MB"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "快速识别模型 SenseVoice：实时逐字稿，约 240 MB"
+          }
         }
       }
     },
@@ -889,6 +1686,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "The quick recognition model is still downloading"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "快速识别的模型还在下载"
           }
         }
       }
@@ -901,6 +1704,12 @@
             "state": "translated",
             "value": "Open PowerShell and paste this line to install:"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开 PowerShell，粘贴这一行安装："
+          }
         }
       }
     },
@@ -911,6 +1720,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Open Settings"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开设置"
           }
         }
       }
@@ -923,6 +1738,12 @@
             "state": "translated",
             "value": "Can't find the %@ command"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找不到 %@ 命令"
+          }
         }
       }
     },
@@ -933,6 +1754,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "The license file is missing. Please reinstall Shiyin."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找不到授权条款的文件，请重新安装拾音。"
+          }
+        }
+      }
+    },
+    "拆成兩句": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Split into Two Lines"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拆成两句"
           }
         }
       }
@@ -945,6 +1789,12 @@
             "state": "translated",
             "value": "Shiyin turns meetings into transcripts and meeting notes: you see a live transcript while recording, then it transcribes on this PC (Breeze ASR 25 for Chinese and English, Whisper for Japanese), tells speakers apart, and uses Claude, Codex or an API to write a summary, decisions and action items."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拾音帮你把会议变成逐字稿和会议记录：录音时就能看到实时逐字稿，录完会在这台电脑上正式转录（中文、英文用 Breeze ASR 25，日文用 Whisper）、分辨说话者，再用 Claude、Codex 或 API 整理成摘要、决议和待办。"
+          }
         }
       }
     },
@@ -955,6 +1805,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Shiyin turns meetings into transcripts and meeting notes. Recording, transcription and speaker recognition all happen on this PC."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拾音把会议变成逐字稿和会议记录。录音、转录、说话者识别都在这台电脑上完成。"
           }
         }
       }
@@ -967,6 +1823,29 @@
             "state": "translated",
             "value": "Shiyin is open-source software under the MIT License. It uses the following software and models:"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拾音是 MIT 授权的开源软件，用到下列软件和模型："
+          }
+        }
+      }
+    },
+    "拾音會在這台電腦上把會議錄下來，轉成逐字稿，再整理成會議紀錄。我現在唸這一段，是要讓拾音記住我的聲音。之後開會的時候，拾音聽到這個聲音，就會在逐字稿上標出我的名字。聲音特徵只存在這台電腦裡，不會上傳。下午三點，我們要討論下一季的計畫，請大家先看一下上週的數字。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shiyin records meetings on this computer, turns them into transcripts, and writes up meeting notes. I'm reading this so Shiyin can learn my voice. In future meetings, when Shiyin hears this voice, it will put my name next to what I said. The voice profile stays on this computer and is never uploaded. At three this afternoon we'll talk about next quarter's plan, so please take a look at last week's numbers first."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拾音会在这台电脑上把会议录下来，转成逐字稿，再整理成会议记录。我现在念这一段，是要让拾音记住我的声音。之后开会的时候，拾音听到这个声音，就会在逐字稿上标出我的名字。声音特征只存在这台电脑里，不会上传。下午三点，我们要讨论下一季的计划，请大家先看一下上周的数字。"
+          }
         }
       }
     },
@@ -977,6 +1856,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "Shiyin stays in the system tray at the bottom right of the taskbar; recording and processing continue after you close the window."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拾音会常驻在工作列右下角的系统托盘，关掉窗口也会继续录音和整理。"
+          }
+        }
+      }
+    },
+    "拾音會忘記「%@」的聲音，之後的會議不會再自動帶入這個名字。已經帶入的名字會留著。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shiyin will forget %@'s voice, and later meetings won't fill in this name automatically. Names already filled in stay as they are."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拾音会忘记“%@”的声音，之后的会议不会再自动带入这个名字。已经带入的名字会留着。"
           }
         }
       }
@@ -989,6 +1891,12 @@
             "state": "translated",
             "value": "Shiyin meeting package"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拾音会议文件包"
+          }
         }
       }
     },
@@ -999,6 +1907,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "Shiyin doesn't have permission to use the microphone"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拾音没有麦克风的使用权限"
+          }
+        }
+      }
+    },
+    "拾音錄音島": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shiyin recording island"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拾音录音岛"
           }
         }
       }
@@ -1011,6 +1942,12 @@
             "state": "translated",
             "value": "Shiyin: opening %@. After you sign in there, come back to Shiyin and click “Check Again”."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拾音：正在打开 %@。在那里登录之后，回到拾音按“重新检查”。"
+          }
         }
       }
     },
@@ -1021,6 +1958,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Shiyin: working"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拾音：处理中"
           }
         }
       }
@@ -1033,6 +1976,12 @@
             "state": "translated",
             "value": "Shiyin: recording %@"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拾音：录音中 %@"
+          }
         }
       }
     },
@@ -1043,6 +1992,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "Shiyin: recording %@, %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拾音：录音中 %@，%@"
+          }
+        }
+      }
+    },
+    "按 Alt+↑、Alt+↓ 可以往上移、往下移": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Press Alt+Up or Alt+Down to move up or down"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按 Alt+↑、Alt+↓ 可以往上移、往下移"
           }
         }
       }
@@ -1055,6 +2027,12 @@
             "state": "translated",
             "value": "After you click Stop and transcribe, Shiyin transcribes again on this PC (Breeze ASR 25 for Chinese and English, Whisper large-v3-turbo for %@, Qwen3-ASR for %@) and tells the speakers apart. While you wait, a draft of the notes is written from the live transcript and replaced automatically when the final version is ready. Click “Speaker 1” in the transcript to give a real name and the whole meeting updates; Shiyin remembers that voice and fills in the name in later meetings (marked Auto — click it if it's wrong)."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按“停止并转录”后，拾音会在这台电脑上重新转录（中文、英文用 Breeze ASR 25，%@用 Whisper large-v3-turbo，%@用 Qwen3-ASR），并分辨不同的说话者。等待的时候，会议记录会先用实时逐字稿整理一份草稿，正式版好了会自动换掉。逐字稿上点“说话者 1”可以改成人名，整场都会跟着改；拾音会记住这个人的声音，之后的会议自动带入名字（标“自动”，认错了点一下就能改）。"
+          }
         }
       }
     },
@@ -1065,6 +2043,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "After you click Stop and transcribe, Shiyin transcribes again on this PC (Breeze ASR 25 for Chinese and English, Whisper large-v3-turbo for Japanese) and tells the speakers apart. While you wait, a draft of the notes is written from the live transcript and replaced automatically when the final version is ready. Click “Speaker 1” in the transcript to give a real name and the whole meeting updates; Shiyin remembers that voice and fills in the name in later meetings (marked Auto — click it if it's wrong)."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按“停止并转录”后，拾音会在这台电脑上重新转录（中文、英文用 Breeze ASR 25，日文用 Whisper large-v3-turbo），并分辨不同的说话者。等待的时候，会议记录会先用实时逐字稿整理一份草稿，正式版好了会自动换掉。逐字稿上点“说话者 1”可以改成人名，整场都会跟着改；拾音会记住这个人的声音，之后的会议自动带入名字（标“自动”，认错了点一下就能改）。"
           }
         }
       }
@@ -1077,6 +2061,29 @@
             "state": "translated",
             "value": "Click Get started, then record or import."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按“开始使用”后就可以录音或导入了。"
+          }
+        }
+      }
+    },
+    "按住 Ctrl 點選可以加入或取消，按住 Shift 點選一次選一段。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ctrl-click to add or remove a meeting. Shift-click to select a range."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按住 Ctrl 点击可以加入或取消，按住 Shift 点击一次选一段。"
+          }
         }
       }
     },
@@ -1087,6 +2094,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Click Record at the top of the sidebar (Ctrl+R) to start. The arrow next to it chooses the source and microphone — for online meetings pick “Microphone + computer audio (online meeting)” so the other side is recorded too. While recording, the microphone in use is shown and you can click it to switch; if a Bluetooth headset is connected, Windows may switch to its microphone, and Shiyin will let you know. If you already have a recording, drag it into the window, click Import (Ctrl+O), or right-click it in File Explorer and open it with Shiyin."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按侧边栏上方的“录音”（Ctrl+R）开始录；点按钮旁的箭头可以选录音来源和麦克风，线上会议请选“麦克风＋电脑声音（线上会议）”，对方的声音也会录进来。录音画面会写出正在用哪一支麦克风，点一下可以换；蓝牙耳机连着时 Windows 可能自动改用耳机的麦克风，拾音会提醒你。已经有录音文件的话，拖进窗口、按“导入”（Ctrl+O），或在文件资源管理器按右键用拾音打开都可以。"
           }
         }
       }
@@ -1099,6 +2112,12 @@
             "state": "translated",
             "value": "Click Record at the top of the sidebar (Ctrl+R) to start. The arrow next to it chooses the source — for online meetings pick “Microphone + computer audio (online meeting)” so the other side is recorded too. If you already have a recording, drag it into the window, click Import (Ctrl+O), or right-click it in File Explorer and open it with Shiyin."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按侧边栏上方的“录音”（Ctrl+R）开始录；点按钮旁的箭头可以选录音来源，线上会议请选“麦克风＋电脑声音（线上会议）”，对方的声音也会录进来。已经有录音文件的话，拖进窗口、按“导入”（Ctrl+O），或在文件资源管理器按右键用拾音打开都可以。"
+          }
         }
       }
     },
@@ -1109,6 +2128,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Click Export at the top right (Ctrl+E): notes can be saved as Markdown, PDF or Word, and the mind map as PNG, PDF or SVG; transcripts as txt, srt, vtt or Word; recordings as m4a or wav. Send a “Whole meeting (.shiyin)” to a colleague and they can import it with a double-click (on the Mac version too). The arrow next to Export copies the notes, or the mind map as an image, so you can paste them straight into Notion, Slack or email."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按右上角的“导出”（Ctrl+E）：会议记录可以存成 Markdown、PDF、Word，心智图可以存成 PNG、PDF、SVG；逐字稿可以存成 txt、srt、vtt、Word；录音可以存成 m4a、wav；“整场会议（.shiyin）”可以传给同事，对方双击就能导入（Mac 版也可以）。“导出”旁边的箭头可以直接复制会议记录或心智图的图片，贴到 Notion、Slack 或邮件。"
           }
         }
       }
@@ -1121,6 +2146,12 @@
             "state": "translated",
             "value": "Click Export at the top right (Ctrl+E): notes can be saved as Markdown, PDF or Word; transcripts as txt, srt, vtt or Word; recordings as m4a or wav. Send a “Whole meeting (.shiyin)” to a colleague and they can import it with a double-click (on the Mac version too). The arrow next to Export copies the notes so you can paste them straight into Notion, Slack or email."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按右上角的“导出”（Ctrl+E）：会议记录可以存成 Markdown、PDF、Word；逐字稿可以存成 txt、srt、vtt、Word；录音可以存成 m4a、wav；“整场会议（.shiyin）”可以传给同事，对方双击就能导入（Mac 版也可以）。“导出”旁边的箭头可以直接复制会议记录，贴到 Notion、Slack 或邮件。"
+          }
         }
       }
     },
@@ -1131,6 +2162,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Text in scanned PDFs and images is read with Windows text recognition (it needs recognition for the meeting language: Settings → Time & language → Language & region). A meeting's documents can total up to 40,000 characters; for longer ones only the beginning is sent. Export Keynote and Pages files as PDF first."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "扫描的 PDF、图片用 Windows 的文字识别读出文字（要有会议语言的识别：设置 → 时间与语言 → 语言与地区）。一场会议的文档合计最多 4 万字，太长的只送前面的部分。Keynote、Pages 请先导出成 PDF。"
           }
         }
       }
@@ -1143,6 +2180,12 @@
             "state": "translated",
             "value": "Play"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "播放"
+          }
         }
       }
     },
@@ -1153,6 +2196,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Use %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "改用 %@"
           }
         }
       }
@@ -1165,6 +2214,29 @@
             "state": "translated",
             "value": "Make meeting text bigger or smaller"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "放大、缩小会议内容的文字"
+          }
+        }
+      }
+    },
+    "放大時間軸（也可以在時間軸上按住 Ctrl 滾動滑鼠滾輪）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zoom in (you can also hold Ctrl and scroll the mouse wheel on the timeline)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "放大时间轴（也可以在时间轴上按住 Ctrl 滚动鼠标滚轮）"
+          }
         }
       }
     },
@@ -1175,6 +2247,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "When writing notes, answering questions and guessing speakers, the transcript text, your notes, the glossary and basic meeting info are sent to a service on this PC (%@) and never leave it. Recordings are never sent."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "整理、提问、猜说话者时会把逐字稿文字、你的笔记、词汇表和会议基本资料送到这台电脑上的服务（%@），不会离开电脑。录音文件不会送出。"
           }
         }
       }
@@ -1187,6 +2265,12 @@
             "state": "translated",
             "value": "Pause recording (Ctrl+Shift+P)"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂停录音（Ctrl+Shift+P）"
+          }
         }
       }
     },
@@ -1197,6 +2281,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "the update key doesn't match"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新密钥不符"
           }
         }
       }
@@ -1209,6 +2299,12 @@
             "state": "translated",
             "value": "When you name a speaker, Shiyin saves that person's voice features. When it recognizes the same person in a later meeting, it fills in the name and marks it Auto; you can change it if it's wrong. Voice features stay in the database on this PC — never uploaded and never included in exported .shiyin packages."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "替说话者取名时，拾音会记下这个人的声音特征。之后的会议认出同一个人，就自动带入名字并标“自动”，不对可以改。声音特征只存在这台电脑的数据库，不会上传，也不会放进导出的 .shiyin 文件包。"
+          }
         }
       }
     },
@@ -1219,6 +2315,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Uses your glossary and handles mixed Chinese and English and proper nouns better; downloads a model of about 1.7 GB. Japanese meetings use Whisper large-v3-turbo (574 MB) instead."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会参考词汇表，中英夹杂、专有名词比较准；需要下载约 1.7 GB 的模型。日文会议改用 Whisper large-v3-turbo（574 MB）。"
           }
         }
       }
@@ -1231,6 +2333,12 @@
             "state": "translated",
             "value": "Uses your glossary; fewer dropped words and homophone errors than Breeze in multi-speaker meetings. An open-source model from Alibaba that runs entirely on this PC without network access; output is converted to Taiwanese Traditional Chinese. Downloads about 2.5 GB of model files plus the llama.cpp program."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会参考词汇表，多人会议的漏字和同音字比 Breeze 少；阿里巴巴开源的模型，全程在这台电脑上跑、不连网，输出会转成台湾繁体；需要下载约 2.5 GB 的模型和 llama.cpp 的可执行文件。"
+          }
         }
       }
     },
@@ -1241,6 +2349,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "Uses your glossary; fewer dropped words and homophone errors than Breeze in multi-speaker meetings. An open-source model from Alibaba that runs entirely on this PC without network access; output is converted to Taiwanese Traditional Chinese. Downloads about 2.5 GB of model files plus the llama.cpp program. Japanese meetings use Whisper large-v3-turbo (574 MB) instead."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会参考词汇表，多人会议的漏字和同音字比 Breeze 少；阿里巴巴开源的模型，全程在这台电脑上跑、不连网，输出会转成台湾繁体；需要下载约 2.5 GB 的模型和 llama.cpp 的可执行文件。日文会议改用 Whisper large-v3-turbo（574 MB）。"
+          }
+        }
+      }
+    },
+    "會從「人物」拿掉，也會刪掉他的聲音特徵。會議裡已經帶入的名字會留著，之後的會議不會再自動認出他。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "They’ll be removed from People and their voice profile will be deleted. Names already filled in your meetings stay, but future meetings won’t recognize them automatically."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会从“人物”中移除，并删除其声音特征。会议中已经填入的名字会保留，之后的会议不会再自动识别此人。"
           }
         }
       }
@@ -1253,6 +2384,12 @@
             "state": "translated",
             "value": "Reset meeting text to actual size"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会议内容的文字回到实际大小"
+          }
         }
       }
     },
@@ -1263,6 +2400,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Meeting text size"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会议内容的文字大小"
           }
         }
       }
@@ -1275,16 +2418,28 @@
             "state": "translated",
             "value": "Meeting text size: %@"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会议内容的文字大小：%@"
+          }
         }
       }
     },
-    "會議可以分資料夾：在會議上按右鍵（或「更多」）選「移到資料夾」→「新資料夾…」。正在看某個資料夾時，新錄的和匯入的會議都會放進去。": {
+    "會議多了可以整理：會議列表上方那一行右邊的漏斗按鈕可以照日期、標題、長度排序，依月份或資料夾分組，只看有待確認、有你的待辦、某個人參加或某個範本的會議。資料夾按右鍵選「自動加入的條件…」，例如標題有「週會」、某幾個人都參加，新的會議整理完就自動放進去。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Meetings can go in folders: right-click a meeting (or use More) and choose Move to folder → New folder…. While you're viewing a folder, new recordings and imports go into it."
+            "value": "To organize lots of meetings, use the funnel button at the right of the meeting list heading: sort by date, title or length, group by month or folder, and show only meetings that need review, have your action items, include a certain person or use a certain template. Right-click a folder and choose Auto-Add Rules… (for example, the title contains “weekly” or certain people all attend), and new meetings are moved there once their notes are ready."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会议多了可以整理：会议列表上方那一行右边的漏斗按钮可以照日期、标题、长度排序，依月份或文件夹分组，只看有待确认、有你的待办、某个人参加或某个模板的会议。文件夹按右键选“自动加入的条件…”，例如标题有“周会”、某几个人都参加，新的会议整理完就自动放进去。"
           }
         }
       }
@@ -1297,6 +2452,12 @@
             "state": "translated",
             "value": "Meeting date: from each file's name or modification date"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会议日期：依各文件的文件名或修改日期"
+          }
         }
       }
     },
@@ -1307,6 +2468,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Downloaded automatically when this PC has an AMD GPU and Qwen3-ASR is selected, so Qwen transcribes on the GPU. %@, about %@ unpacked (the official llama.cpp Vulkan build). Once deleted, it won’t be downloaded again automatically."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有 AMD 显卡、选了 Qwen3-ASR 时自动下载，Qwen 改用显卡转录。%@，解开约 %@（llama.cpp 官方的 Vulkan 版）。删除后不会再自动下载。"
           }
         }
       }
@@ -1319,6 +2486,12 @@
             "state": "translated",
             "value": "Downloaded automatically when this PC has an AMD GPU, so final transcription runs on the GPU. %@, about %@ unpacked (a Vulkan build Shiyin makes from the same whisper.cpp version). Once deleted, it won’t be downloaded again automatically."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有 AMD 显卡时自动下载，正式转录改用显卡。%@，解开约 %@（拾音用同一版 whisper.cpp 建的 Vulkan 版）。删除后不会再自动下载。"
+          }
         }
       }
     },
@@ -1329,6 +2502,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Downloaded automatically when this PC has an Intel GPU. The first final transcription compares the GPU with the CPU on part of that recording, and switches to the GPU only if the results match and the GPU is faster. %@, about %@ unpacked (a Vulkan build Shiyin makes from the same whisper.cpp version). Once deleted, it won’t be downloaded again automatically."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有 Intel 显卡时自动下载。第一次正式转录时，先用这场录音的一段比对显卡和 CPU，结果一样、显卡又比较快才改用显卡。%@，解开约 %@（拾音用同一版 whisper.cpp 建的 Vulkan 版）。删除后不会再自动下载。"
           }
         }
       }
@@ -1341,6 +2520,12 @@
             "state": "translated",
             "value": "Downloaded automatically when you have an NVIDIA GPU and choose Qwen3-ASR; makes Qwen transcription much faster. 272 MB, about 610 MB unpacked (the official llama.cpp CUDA build; requires the NVIDIA GPU acceleration above). It is not downloaded again after you delete it."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有 NVIDIA 显卡、选了 Qwen3-ASR 时自动下载，Qwen 的转录会快很多。272 MB，解开约 610 MB（llama.cpp 官方的 CUDA 版，要先有上面的 NVIDIA 显卡加速）。删除后不会再自动下载。"
+          }
         }
       }
     },
@@ -1351,6 +2536,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Downloaded automatically when an NVIDIA GPU is present; transcription is much faster. 685 MB, about 1.1 GB unpacked (the official CUDA build of whisper.cpp). Once deleted, it won't be downloaded automatically again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有 NVIDIA 显卡时自动下载，转录会快很多。685 MB，解开约 1.1 GB（whisper.cpp 官方的 CUDA 版）。删除后不会再自动下载。"
           }
         }
       }
@@ -1363,6 +2554,12 @@
             "state": "translated",
             "value": "Mark this moment (Ctrl+B); it's treated as a highlight when writing notes"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "标记这个时间点（Ctrl+B），整理时会被当成重点"
+          }
         }
       }
     },
@@ -1373,6 +2570,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Models only need to be downloaded once; transcription works offline after that. You can click Next and let them download in the background. Once the quick recognition model is ready you can record, and Quick recognition is used until the transcription model is ready."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模型只需要下载一次，之后转录都不需要网络。可以先按“下一步”，在背景继续下载；快速识别的模型下载好就能录音，正式转录的模型下载好之前先用快速识别。"
           }
         }
       }
@@ -1385,6 +2588,12 @@
             "state": "translated",
             "value": "Check passed: final transcription runs on the GPU."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "检查通过：正式转录用显卡。"
+          }
         }
       }
     },
@@ -1395,6 +2604,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Downloading %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在下载%@"
           }
         }
       }
@@ -1407,6 +2622,12 @@
             "state": "translated",
             "value": "Downloading update %lld%%"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在下载更新 %lld%%"
+          }
         }
       }
     },
@@ -1417,6 +2638,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Downloading update %lld%%…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在下载更新 %lld%%…"
           }
         }
       }
@@ -1429,6 +2656,12 @@
             "state": "translated",
             "value": "Checking the GPU."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在检查显卡。"
+          }
         }
       }
     },
@@ -1439,6 +2672,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Recording with “%@”, a Bluetooth headset microphone. If you're not near it, it won't pick up the room."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在用“%@”收音：这是蓝牙耳机的麦克风，人不在旁边时录不到现场的声音。"
           }
         }
       }
@@ -1451,6 +2690,29 @@
             "state": "translated",
             "value": "Recording with this microphone. Click to switch."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在用这个麦克风收音，点一下可以换"
+          }
+        }
+      }
+    },
+    "每一種東西都可以直接改：側欄的會議、資料夾、人物按右鍵，或滑鼠移上去時右邊的「⋯」；選到時按 Enter 或 F2 重新命名、按 Delete 刪除。會議紀錄的每一條按兩下就能改，按右鍵可以刪掉那一條（改錯了按紀錄分頁「編輯」旁的「復原上一版」）。會議頁上方的說話者點名字就能重新命名。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You can change anything in place: right-click a meeting, folder or person in the sidebar, or use the “⋯” that appears when you hover; with one selected, press Enter or F2 to rename it or Delete to delete it. Double-click any item in the meeting notes to edit it, or right-click to delete it (if you make a mistake, use Restore previous version next to Edit on the Notes tab). Click a speaker’s name at the top of a meeting to rename them."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每一种东西都可以直接改：侧边栏的会议、文件夹、人物按右键，或鼠标移上去时右边的“⋯”；选到时按 Enter 或 F2 重新命名、按 Delete 删除。会议记录的每一条按两下就能改，按右键可以删掉那一条（改错了按记录标签页“编辑”旁的“恢复上一版”）。会议页上方的说话者点名字就能重新命名。"
+          }
         }
       }
     },
@@ -1461,6 +2723,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Couldn't delete the key from Credential Manager (error %lld)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没办法删除凭据管理器里的 key（错误代码 %lld）"
           }
         }
       }
@@ -1473,6 +2741,12 @@
             "state": "translated",
             "value": "Couldn't run the codex bundled with %@ (%@). You can install Codex CLI (npm install -g @openai/codex) and try again."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没办法运行 %@ 附的 codex（%@）。可以另外安装 Codex CLI（npm install -g @openai/codex）再试。"
+          }
         }
       }
     },
@@ -1483,6 +2757,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "Couldn't save the key to Credential Manager (error %lld)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没办法把 key 存进凭据管理器（错误代码 %lld）"
+          }
+        }
+      }
+    },
+    "沒辦法算出聲音特徵：%@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't work out the voice profile: %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没办法算出声音特征：%@"
           }
         }
       }
@@ -1495,6 +2792,12 @@
             "state": "translated",
             "value": "Couldn't register Ctrl+Alt+Shift+R: %@"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没办法注册 Ctrl+Alt+Shift+R：%@"
+          }
         }
       }
     },
@@ -1505,6 +2808,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Couldn't register the shortcut (error %lld)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没办法注册快捷键（错误代码 %lld）"
           }
         }
       }
@@ -1517,6 +2826,12 @@
             "state": "translated",
             "value": "Couldn't read “%1$@” (Media Foundation error 0x%2$@)"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没办法读取“%@”（Media Foundation 错误代码 0x%@）"
+          }
         }
       }
     },
@@ -1527,6 +2842,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Version %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "版本 %@"
           }
         }
       }
@@ -1539,6 +2860,12 @@
             "state": "translated",
             "value": "When you’re signed in to your company’s enterprise server: recordings are uploaded to your company’s own server for transcription and speaker identification, without passing through any other cloud service, and deleted once transcribed; voiceprints aren’t kept on the server. With the “Company” summarizer, the transcript goes to your company’s server and is summarized by the model your company chose (one in its own data center, or an AI service it uses). The company’s admin console shows only usage numbers (minutes, counts), never meeting content."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登录公司的企业服务器时：录音会上传到公司自己的服务器转录和识别说话者，不经过其他云端服务，转完就删，声纹不存在服务器；选“公司”整理时，逐字稿送到公司的服务器，由公司选的模型整理（公司机房里的模型，或公司接的 AI 服务）。公司的后台只看得到用量的数字（几分钟、几次），看不到会议内容。"
+          }
         }
       }
     },
@@ -1549,6 +2876,80 @@
           "stringUnit": {
             "state": "translated",
             "value": "Notes are off: recordings, transcription and transcripts all stay on this PC."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目前不整理：录音、转录、逐字稿全部留在这台电脑。"
+          }
+        }
+      }
+    },
+    "移到「%@」": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move to “%@”"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移到“%@”"
+          }
+        }
+      }
+    },
+    "移除「%@」（會議裡的名字留著）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove “%@” (names in meetings are kept)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除“%@”（会议里的名字留着）"
+          }
+        }
+      }
+    },
+    "移除「%@」？": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove “%@”?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除“%@”？"
+          }
+        }
+      }
+    },
+    "移除這個人…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove This Person…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除这个人…"
           }
         }
       }
@@ -1561,6 +2962,12 @@
             "state": "translated",
             "value": "System default (%@)"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "系统默认（%@）"
+          }
         }
       }
     },
@@ -1571,6 +2978,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "Text in Notes, Transcript, Ask, the live transcript and My notes. You can also press Ctrl+Plus or Ctrl+Minus, and Ctrl+0 to return to the default size."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "记录、逐字稿、提问、实时逐字稿和我的笔记的文字。也可以用 Ctrl+加号、Ctrl+减号调整，Ctrl+0 回到标准大小。"
+          }
+        }
+      }
+    },
+    "編輯這一條": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edit This Item"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "编辑这一条"
           }
         }
       }
@@ -1583,6 +3013,12 @@
             "state": "translated",
             "value": "Resume recording (Ctrl+Shift+P)"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "继续录音（Ctrl+Shift+P）"
+          }
         }
       }
     },
@@ -1593,6 +3029,58 @@
           "stringUnit": {
             "state": "translated",
             "value": "Voiceprints (a speaker's voice features: a list of numbers, not audio) stay on this PC and are never included in exported .shiyin packages."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "声纹（说话者的声音特征，一组数字，不是录音）只存在这台电脑，不会放进导出的 .shiyin 文件包。"
+          }
+        }
+      }
+    },
+    "自動加入的條件也會刪掉。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Its auto-add rules are deleted too."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自动加入的条件也会删掉。"
+          }
+        }
+      }
+    },
+    "裡面的 %lld 場會議會留著，移到「不在資料夾」。自動加入的條件也會刪掉。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "The %lld meeting in it is kept and moves to Not in a Folder. Its auto-add rules are deleted too."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "The %lld meetings in it are kept and move to Not in a Folder. Its auto-add rules are deleted too."
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "里面的 %lld 场会议会留着，移到“不在文件夹”。自动加入的条件也会删掉。"
           }
         }
       }
@@ -1605,6 +3093,12 @@
             "state": "translated",
             "value": "Copy Notes: Markdown"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制会议记录：Markdown"
+          }
         }
       }
     },
@@ -1615,6 +3109,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Copy Notes: Formatted (for Word, Notion, email)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制会议记录：保留格式（贴到 Word、Notion、邮件）"
           }
         }
       }
@@ -1627,6 +3127,12 @@
             "state": "translated",
             "value": "Copy Notes: Plain Text (for Slack, Messages)"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制会议记录：纯文本（贴到 Slack、消息）"
+          }
         }
       }
     },
@@ -1637,6 +3143,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Install and sign in to the CLI first. Then click Test in Settings → Notes engine to check it works."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要先安装并登录对应的 CLI。登录后可以在“设置 → 整理工具”按“测试整理工具”确认。"
           }
         }
       }
@@ -1649,6 +3161,29 @@
             "state": "translated",
             "value": "Enjoying Shiyin? Buy me a coffee."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "觉得拾音好用的话，可以请我喝杯咖啡。"
+          }
+        }
+      }
+    },
+    "詞彙": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Term"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "词汇"
+          }
         }
       }
     },
@@ -1659,6 +3194,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "If too few speakers were found (many people, noisy room, a phone on the table far from the speakers), choose More → Reprocess → Re-identify Speakers… and tell Shiyin roughly how many people there were."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "说话者分得太少（人多、吵杂、手机放在桌上远距收音）时，从“更多 → 重新处理”选“重新识别说话者…”，告诉拾音大约几个人。"
           }
         }
       }
@@ -1671,6 +3212,12 @@
             "state": "translated",
             "value": "If too few speakers were found (many people, noise, a phone on the table), choose More → Re-identify speakers… and tell Shiyin roughly how many people there were."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "说话者分得太少（人多、吵杂、手机放在桌上远距收音）时，从“更多”选“重新识别说话者…”，告诉拾音大约几个人。"
+          }
         }
       }
     },
@@ -1681,6 +3228,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "If speakers are wrong: when one person was split into two, click the speaker's name and choose Merge into…; when a few lines have the wrong speaker, right-click them in the transcript and choose Who said this."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "说话者分错了：同一个人被分成两位，点说话者的名字选“合并到…”；某几句分错人，在逐字稿按右键选“这句是谁说的”。"
           }
         }
       }
@@ -1693,6 +3246,12 @@
             "state": "translated",
             "value": "Speaker recognition model: tells who is speaking, about 46 MB"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "说话者识别模型：分辨是谁在说话，约 46 MB"
+          }
         }
       }
     },
@@ -1703,6 +3262,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Used for speaker recognition, about 46 MB."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "说话者识别用，约 46 MB。"
           }
         }
       }
@@ -1715,6 +3280,12 @@
             "state": "translated",
             "value": "The speaker recognition model is still downloading. Try again when it's ready"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "说话者识别的模型还在下载，下载好后再试一次"
+          }
         }
       }
     },
@@ -1725,6 +3296,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Go to Settings → Privacy & security → Microphone, turn on “Microphone access” and “Let desktop apps access your microphone”, then start recording again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请到“设置 → 隐私与安全性 → 麦克风”打开“麦克风访问”和“让传统型应用程序访问您的麦克风”，再重新开始录音。"
           }
         }
       }
@@ -1737,6 +3314,12 @@
             "state": "translated",
             "value": "Couldn't read the key from Credential Manager (error %lld)"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "读不到凭据管理器里的 key（错误代码 %lld）"
+          }
         }
       }
     },
@@ -1747,6 +3330,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "No computer audio for over 15 seconds: check that the online meeting is playing sound"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "超过 15 秒没有收到电脑的声音：请确认线上会议有声音在播"
           }
         }
       }
@@ -1759,6 +3348,29 @@
             "state": "translated",
             "value": "Same as Windows"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跟着 Windows"
+          }
+        }
+      }
+    },
+    "跳到這裡": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Go Here"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跳到这里"
+          }
         }
       }
     },
@@ -1769,6 +3381,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Transcribe: transcription and speaker identification run on this PC; nothing is uploaded."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "转成逐字稿：在这台电脑上转录、分辨说话者，不会上传。"
           }
         }
       }
@@ -1781,6 +3399,12 @@
             "state": "translated",
             "value": "Notifies you when transcription and meeting notes are done. Allowed."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "转录完成、会议记录整理好时通知你。已允许。"
+          }
         }
       }
     },
@@ -1791,6 +3415,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Notifies you when transcription and meeting notes are done. If notifications are off, turn them on in Windows Settings → System → Notifications."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "转录完成、会议记录整理好时通知你。通知被关掉时，可以在 Windows 的“系统 → 通知”打开。"
           }
         }
       }
@@ -1803,6 +3433,12 @@
             "state": "translated",
             "value": "Compress recordings to m4a after transcription (about 43 MB per hour)"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "转录完成后把录音压缩成 m4a（约每小时 43 MB）"
+          }
         }
       }
     },
@@ -1813,6 +3449,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Notes are written automatically after transcription. Summary has key points, decisions, action items and open questions; Details is split by topic; click the time after any item to play the recording from there. The template menu switches to formats like one-on-one, interview, lecture or brainstorm — then choose More → Regenerate meeting notes. To find something, ask in the Ask tab and the answer comes with timestamps; the Ask button at the top of the sidebar asks all meetings at once."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "转录完会自动整理。“摘要”有重点、决议、待办和未决问题；“详细”依议题分段；每一条后面的时间点点一下，就从录音那里开始播放。模板菜单可以换成一对一、访谈、课堂／演讲、脑力激荡等格式，换完从“更多”选“重新整理会议记录”。想找某件事，可以在“提问”标签页直接问，回答会附上时间点；侧边栏上方的提问按钮可以一次问所有会议。"
           }
         }
       }
@@ -1825,6 +3467,12 @@
             "state": "translated",
             "value": "Notes are generated automatically after transcription. The Notes tab shows, from top to bottom, the summary, decisions, action items, open questions, and the discussion by topic; click the timestamp after any item to play the recording from there. Switch “List | Mind map” at the top to draw the notes as a mind map and see every topic at a glance. The template menu switches to formats such as one-on-one, interview, lecture, or brainstorming; afterwards choose More → Reprocess → Regenerate Notes. To find something, ask in the Ask tab and the answer comes with timestamps; the Ask button above the sidebar asks across all meetings."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "转录完会自动整理。“记录”标签页由上而下是摘要、决议、待办、未决问题和依议题分段的讨论；每一条后面的时间点点一下，就从录音那里开始播放。上方的“条列｜心智图”可以把记录画成心智图，一眼看出有哪些议题。模板菜单可以换成一对一、访谈、课堂／演讲、脑力激荡等格式，换完从“更多 → 重新处理”选“重新整理会议记录”。想找某件事，可以在“提问”标签页直接问，回答会附上时间点；侧边栏上方的提问按钮可以一次问所有会议。"
+          }
         }
       }
     },
@@ -1835,6 +3483,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Notes are generated automatically after transcription. The Notes tab shows, from top to bottom, the summary, decisions, action items, open questions, and the discussion by topic; click the timestamp after any item to play the recording from there. The template menu switches to formats such as one-on-one, interview, lecture, or brainstorming; afterwards choose More → Reprocess → Regenerate Notes. To find something, ask in the Ask tab and the answer comes with timestamps; the Ask button above the sidebar asks across all meetings."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "转录完会自动整理。“记录”标签页由上而下是摘要、决议、待办、未决问题和依议题分段的讨论；每一条后面的时间点点一下，就从录音那里开始播放。模板菜单可以换成一对一、访谈、课堂／演讲、脑力激荡等格式，换完从“更多 → 重新处理”选“重新整理会议记录”。想找某件事，可以在“提问”标签页直接问，回答会附上时间点；侧边栏上方的提问按钮可以一次问所有会议。"
           }
         }
       }
@@ -1847,16 +3501,28 @@
             "state": "translated",
             "value": "Transcription model %lld%% downloaded; fast recognition is used until it finishes."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "转录模型下载中 %lld%%，下载好之前先用快速识别转录。"
+          }
         }
       }
     },
-    "轉錄模型還沒下載好，會先用快速辨識轉錄；可以到「設定 → 錄音與轉錄」下載，用模型轉錄比較準。": {
+    "轉錄模型還沒下載好，會先用快速辨識轉錄；可以到「設定 → 模型與空間」下載，用模型轉錄比較準。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The transcription model is not downloaded yet, so fast recognition is used for now. You can download it in Settings → Recording & Transcription; the model is more accurate."
+            "value": "The transcription model is not downloaded yet, so fast recognition is used for now. You can download it in Settings → Models & Storage; the model is more accurate."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "转录模型还没下载好，会先用快速识别转录；可以到“设置 → 模型与空间”下载，用模型转录比较准。"
           }
         }
       }
@@ -1869,6 +3535,12 @@
             "state": "translated",
             "value": "Transcription is using this component. Reopen Shiyin to delete it."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "转录正在用这个元件，重新打开拾音后才能删除"
+          }
         }
       }
     },
@@ -1879,6 +3551,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Transcribing (quick recognition)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "转录（快速识别）"
           }
         }
       }
@@ -1891,6 +3569,12 @@
             "state": "translated",
             "value": "Transcription: recordings are sent to %1$@ (your company's server) and deleted after transcription. Speakers are also identified on the server; voiceprints stay on this computer, and notes and meeting notes are not sent for transcription. Transcription engine on the server: %2$@."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "转录：录音会送到 %@（公司的服务器），转完就删。说话者识别也在服务器上做，声纹只存在这台电脑；笔记、会议记录不会因为转录送出。服务器用的转录引擎：%@。"
+          }
         }
       }
     },
@@ -1901,6 +3585,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Amber segments in the transcript have lower recognition confidence and are worth listening to again. On the timeline, triangles are questions to confirm and dots are your bookmarks; the colored blocks above it are topics — click one to listen from where that topic starts."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "逐字稿里琥珀色的段落识别置信度比较低，值得回头听；时间轴上的三角形是待确认题目、圆点是你标的重点；时间轴上面的色块是议题，点了从那个议题开始听。"
           }
         }
       }
@@ -1913,6 +3603,12 @@
             "state": "translated",
             "value": "This format can't be exported here"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个格式在这里不能导出"
+          }
         }
       }
     },
@@ -1923,6 +3619,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "This build has no update key (development build), so it doesn't check for updates."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个版本没有更新密钥（开发版），不会检查更新。"
           }
         }
       }
@@ -1935,6 +3637,12 @@
             "state": "translated",
             "value": "%@ not found on this PC. For other tools that support MCP, use Copy and paste the settings yourself."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这台电脑上找不到 %@；其他支持 MCP 的工具可以用“复制”自己粘贴设置。"
+          }
         }
       }
     },
@@ -1945,6 +3653,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "This PC is signed in as %@ on %@."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这台电脑已经用 %@ 登录 %@。"
           }
         }
       }
@@ -1957,6 +3671,12 @@
             "state": "translated",
             "value": "Claude Code (the command-line version) isn't installed on this PC. The Claude desktop app can't be used directly: go to Settings → Summarizer and follow the steps to install Claude Code, or choose an API (with an API key) or “Don't summarize”."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这台电脑找不到 Claude Code（命令行版）。Claude 桌面版不能直接用，请到设置 → 整理工具照说明安装 Claude Code；或改用 API（填 API key）、选“不整理”"
+          }
         }
       }
     },
@@ -1967,6 +3687,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "claude isn't installed on this PC. If you don't use Claude Code, go to Settings → Summarizer and choose an API (with an API key) or “Don't summarize”."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这台电脑找不到 claude。没有在用 Claude Code 的话，请到设置 → 整理工具改用 API（填 API key）或选“不整理”"
           }
         }
       }
@@ -1979,6 +3705,12 @@
             "state": "translated",
             "value": "codex isn't installed on this PC. If you don't use Codex, go to Settings → Summarizer and choose an API (with an API key) or “Don't summarize”."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这台电脑找不到 codex。没有在用 Codex 的话，请到设置 → 整理工具改用 API（填 API key）或选“不整理”"
+          }
         }
       }
     },
@@ -1989,6 +3721,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "This PC doesn't have Claude Code or Codex. To have AI write your meeting notes, choose an API and paste an API key (there's a link to get one). You can also set this up later; recording and transcripts work either way."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这台电脑没有 Claude Code 或 Codex。要用 AI 整理会议记录，选一个 API 并粘贴 API key（有取得 key 的链接）；也可以之后再设置，录音和逐字稿照常能用。"
           }
         }
       }
@@ -2001,6 +3739,12 @@
             "state": "translated",
             "value": "Claude Code (the command-line version) isn't installed on this PC. See how to install it below"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这台电脑没有安装 Claude Code（命令行版），安装方法在下面"
+          }
         }
       }
     },
@@ -2011,6 +3755,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "claude isn't installed on this PC. If you don't use Claude Code, choose an API instead"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这台电脑没有安装 claude：没有在用 Claude Code 的话，请改选 API"
           }
         }
       }
@@ -2023,6 +3773,12 @@
             "state": "translated",
             "value": "codex isn't installed on this PC. If you don't use Codex, choose an API instead"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这台电脑没有安装 codex：没有在用 Codex 的话，请改选 API"
+          }
         }
       }
     },
@@ -2033,6 +3789,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "This PC’s GPU didn’t pass the check (it wasn’t faster than the CPU, its results didn’t match, or it hit an error): final transcription runs on the CPU."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这台电脑的显卡没有通过检查（没有比 CPU 快、结果跟 CPU 不一样，或出错）：正式转录用 CPU。"
           }
         }
       }
@@ -2045,6 +3807,12 @@
             "state": "translated",
             "value": "This meeting was transcribed with Quick recognition before the model finished downloading. Re-transcribing with Breeze is usually more accurate."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这场会议是在模型下载好之前，用快速识别转录的。可以用 Breeze 重新转录，通常比较准。"
+          }
         }
       }
     },
@@ -2055,6 +3823,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "This meeting was transcribed with Quick recognition before the model finished downloading. Re-transcribing with Qwen3-ASR is usually more accurate."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这场会议是在模型下载好之前，用快速识别转录的。可以用 Qwen3-ASR 重新转录，通常比较准。"
           }
         }
       }
@@ -2067,6 +3841,12 @@
             "state": "translated",
             "value": "This meeting was transcribed with Quick recognition before the model finished downloading. Re-transcribing with the %@ transcription model is usually more accurate."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这场会议是在模型下载好之前，用快速识别转录的。可以用%@转录模型重新转录，通常比较准。"
+          }
         }
       }
     },
@@ -2077,6 +3857,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "This meeting was transcribed with Quick recognition before the model finished downloading. Re-transcribing with the Japanese model is usually more accurate."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这场会议是在模型下载好之前，用快速识别转录的。可以用日文转录模型重新转录，通常比较准。"
           }
         }
       }
@@ -2089,6 +3875,12 @@
             "state": "translated",
             "value": "Another app is already using this shortcut"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这组快捷键已经被别的 app 用了"
+          }
         }
       }
     },
@@ -2099,6 +3891,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Much faster with a small download, but it ignores the glossary, so English terms and names are more often wrong."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "速度快很多，下载也小；但不参考词汇表，英文专有名词、人名比较容易错。"
           }
         }
       }
@@ -2111,6 +3909,12 @@
             "state": "translated",
             "value": "The connection timed out"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接逾时"
+          }
         }
       }
     },
@@ -2122,16 +3926,28 @@
             "state": "translated",
             "value": "timed out"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "逾时"
+          }
         }
       }
     },
-    "遇到問題，可以從設定的「進階」選「回報問題…」，會附上版本和環境（不含會議內容）。": {
+    "遇到問題，可以從設定的「檢查與更新」選「回報問題…」，會附上版本和環境（不含會議內容）。": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "If something goes wrong, choose Report a problem… in Settings → Advanced; it includes the version and environment (no meeting content)."
+            "value": "If something goes wrong, choose Report a problem… in Settings → Status & Updates; it includes the version and environment (no meeting content)."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "遇到问题，可以从设置的“检查与更新”选“反馈问题…”，会附上版本和环境（不含会议内容）。"
           }
         }
       }
@@ -2144,6 +3960,12 @@
             "state": "translated",
             "value": "Not checked yet: it will be checked during the next final transcription."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还没检查：下一次正式转录时检查。"
+          }
         }
       }
     },
@@ -2154,6 +3976,63 @@
           "stringUnit": {
             "state": "translated",
             "value": "No summarizer is set up yet: recordings, transcription and transcripts all stay on this PC. Meeting notes are created once you choose a summarizer."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还没设置整理工具：录音、转录、逐字稿全部留在这台电脑。选好整理工具之后，才会整理成会议记录。"
+          }
+        }
+      }
+    },
+    "重新命名、跟另一個名字合併（同一個人被記成兩個名字時）、移除這個人": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rename, merge with another name (when the same person was saved under two names), or remove this person"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新命名、跟另一个名字合并（同一个人被记成两个名字时）、移除这个人"
+          }
+        }
+      }
+    },
+    "重新命名「%@」，整場的逐字稿和會議紀錄都會跟著改": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rename “%@” throughout the transcript and notes"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新命名“%@”，整场的逐字稿和会议记录都会跟着改"
+          }
+        }
+      }
+    },
+    "重新命名標記": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rename Bookmark"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新命名标记"
           }
         }
       }
@@ -2166,6 +4045,12 @@
             "state": "translated",
             "value": "The new interface language takes effect after you reopen Shiyin"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新打开拾音后换成新的界面语言"
+          }
         }
       }
     },
@@ -2176,6 +4061,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Records in-person meetings or your own voice. In Windows Settings → Privacy & security → Microphone, desktop apps must be allowed to use the microphone."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录现场会议或你自己的声音。Windows 的“隐私与安全性 → 麦克风”要允许桌面 app 使用麦克风。"
           }
         }
       }
@@ -2188,6 +4079,12 @@
             "state": "translated",
             "value": "For online meetings choose “Microphone + computer audio”: your voice and the other side are recorded on the left and right channels."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录线上会议时选“麦克风＋电脑声音”：你的声音和对方的声音会分别录在左右声道。"
+          }
         }
       }
     },
@@ -2198,6 +4095,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Records the other side of online meetings (Zoom, Meet, Teams). Windows needs no extra permission — just choose “Microphone + computer audio” when recording."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录线上会议（Zoom、Meet、Teams）对方的声音。Windows 不用另外允许，录音时选“麦克风＋电脑声音”就好。"
           }
         }
       }
@@ -2210,6 +4113,29 @@
             "state": "translated",
             "value": "Recordings, transcripts and meeting notes are stored only on this PC (%LOCALAPPDATA%\\Shiyin) and don't roam with your account."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录音、逐字稿和会议记录都只存在这台电脑上（%LOCALAPPDATA%\\Shiyin），不会跟着账号漫游。"
+          }
+        }
+      }
+    },
+    "錄音中在螢幕上方正中間顯示錄音的時間和提醒，全螢幕開會、分享畫面時也看得到，分享畫面拍不到它。偵測到線上會議時的「要開始錄音嗎？」也在這裡。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "While recording, the elapsed time and alerts appear at the top center of the screen. You can see it in full-screen meetings and while sharing your screen, and screen sharing doesn't capture it. “Start recording?” for online meetings shows up here too."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录音中在屏幕上方正中间显示录音的时间和提醒，全屏开会、分享画面时也看得到，分享画面拍不到它。检测到线上会议时的“要开始录音吗？”也在这里。"
+          }
         }
       }
     },
@@ -2220,6 +4146,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "While recording, press Ctrl+Alt+Shift+B to mark a highlight (works in any app)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录音中按 Ctrl+Alt+Shift+B 标记重点（在其他 app 里也能用）"
           }
         }
       }
@@ -2232,6 +4164,12 @@
             "state": "translated",
             "value": "While recording, the live transcript is on the left and appears a few seconds after each sentence; each new line in My notes on the right gets the recording time. Click Mark highlight (Ctrl+B) for important moments, or press Ctrl+Alt+Shift+B in any app. Click Pause (Ctrl+Shift+P) to stop for a while; paused time isn't recorded."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录音中画面左边是实时逐字稿，讲完几秒内就会出现；右边“我的笔记”每换一行会自动记下当时的录音时间。重要的地方按“标记重点”（Ctrl+B），在其他 app 里也可以按 Ctrl+Alt+Shift+B。需要中断时按“暂停”（Ctrl+Shift+P），暂停的时间不会录进去。"
+          }
         }
       }
     },
@@ -2242,6 +4180,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "While recording, the live transcript appears on the left within seconds of each sentence; My Notes on the right stamps the recording time whenever you start a new line (after recording you can still edit them under My Notes at the top of the Transcript tab). Press Bookmark (Ctrl+B) at important moments, or Ctrl+Alt+Shift+B from any other app. Press Pause (Ctrl+Shift+P) when you need a break; paused time is not recorded."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录音中画面左边是实时逐字稿，讲完几秒内就会出现；右边“我的笔记”每换一行会自动记下当时的录音时间（录完在逐字稿标签页顶部的“我的笔记”还能改）。重要的地方按“标记重点”（Ctrl+B），在其他 app 里也可以按 Ctrl+Alt+Shift+B。需要中断时按“暂停”（Ctrl+Shift+P），暂停的时间不会录进去。"
+          }
+        }
+      }
+    },
+    "錄音中螢幕上方正中間會有一個小小的錄音島，顯示錄音的時間；收音有問題（麥克風沒收到聲音、用的是藍牙耳機的麥克風、好像沒人在說話）時會往下展開那一句提醒和按鈕。滑鼠移上去可以看音量和最新一句逐字稿，直接按「暫停」「標記重點」「打開拾音」「停止並轉錄」，不用切回拾音。全螢幕開會、分享畫面時也看得到，分享畫面拍不到它；偵測到線上會議時的「要開始錄音嗎？」也在這裡。不想要的話，到「設定 → 錄音 → 提醒與快捷鍵」關掉「在螢幕上方顯示錄音島」。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "While you record, a small recording island at the top center of the screen shows the elapsed time. When something is wrong with the audio (the microphone hears nothing, you're using a Bluetooth headset's microphone, or nobody seems to be talking), it expands to show the alert and its buttons. Hover over it to see the levels and the latest line of the transcript, and use Pause, Bookmark, Open Shiyin, or Stop & Transcribe without switching back to Shiyin. You can see it in full-screen meetings and while sharing your screen, and screen sharing doesn't capture it. “Start recording?” for online meetings shows up here too. If you don't want it, turn off “Show the recording island at the top of the screen” in Settings → Recording → Alerts & Shortcuts."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录音中屏幕上方正中间会有一个小小的录音岛，显示录音的时间；收音有问题（麦克风没收到声音、用的是蓝牙耳机的麦克风、好像没人在说话）时会往下展开那一句提醒和按钮。鼠标移上去可以看音量和最新一句逐字稿，直接按“暂停”“标记重点”“打开拾音”“停止并转录”，不用切回拾音。全屏开会、分享画面时也看得到，分享画面拍不到它；检测到线上会议时的“要开始录音吗？”也在这里。不想要的话，到“设置 → 录音 → 提醒与快捷键”关掉“在屏幕上方显示录音岛”。"
           }
         }
       }
@@ -2254,6 +4215,12 @@
             "state": "translated",
             "value": "Recording and transcription happen only on this PC and are never uploaded."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录音和转录都只在这台电脑上进行，不会上传。"
+          }
         }
       }
     },
@@ -2264,6 +4231,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "You can also switch microphones from the arrow next to Record or by clicking the microphone name while recording. If a Bluetooth headset is connected, Windows may switch to its microphone, which won't pick up the room if you're not near it."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录音按钮旁的箭头、录音画面的麦克风名称也可以换麦克风。蓝牙耳机连着时，Windows 可能自动改用耳机的麦克风，人不在旁边就录不到现场的声音。"
           }
         }
       }
@@ -2276,6 +4249,12 @@
             "state": "translated",
             "value": "Recordings are sent to %@ (your company's server) for transcription and deleted afterwards; speakers are identified on the server too, and voiceprints stay on this computer. Uses the glossary. If the server can't be reached, Shiyin waits, or you can transcribe on this computer instead."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录音会送到 %@（公司的服务器）转录，转完就删；说话者识别也在服务器上做，声纹只存在这台电脑。会参考词汇表。连不上时会等，也可以改在这台电脑转录。"
+          }
         }
       }
     },
@@ -2286,6 +4265,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "When an online meeting starts in Zoom, Teams, Google Meet and so on, Shiyin reminds you to record, and reminds you to stop when it seems to have ended."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开 Zoom、Teams、Google Meet 等线上会议时，拾音会提醒你开始录音；会议好像结束时提醒停止。"
           }
         }
       }
@@ -2298,6 +4283,12 @@
             "state": "translated",
             "value": "After recording starts, listens for about 10 seconds to tell which language is spoken (%@). If it differs from the meeting language and the result is confident, it switches automatically; you can switch back on the recording screen. Needs the 60 MB language detection model."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开始录音后听约 10 秒，判断是哪一种语言（%@）；跟会议语言不同而且有把握时会自动切换，录音画面可以改回来。需要 60 MB 的语言检测模型。"
+          }
         }
       }
     },
@@ -2308,6 +4299,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Start recording (Ctrl+R), recognizing %@; click the arrow on the right to change the source, microphone, and language"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开始录音（Ctrl+R），用%@识别；点右边的箭头可以改录音来源、麦克风和语言"
           }
         }
       }
@@ -2320,6 +4317,12 @@
             "state": "translated",
             "value": "Start recording (Ctrl+R), recognizing %@; click the arrow on the right to change the source and language"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开始录音（Ctrl+R），用%@识别；点右边的箭头可以改录音来源和语言"
+          }
         }
       }
     },
@@ -2330,6 +4333,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "About Shiyin"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关于拾音"
+          }
+        }
+      }
+    },
+    "雙擊可以修改": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Double-click to edit"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "双击可以修改"
           }
         }
       }
@@ -2342,6 +4368,12 @@
             "state": "translated",
             "value": "Computer audio"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "电脑声音"
+          }
         }
       }
     },
@@ -2353,6 +4385,12 @@
             "state": "translated",
             "value": "Display"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示"
+          }
         }
       }
     },
@@ -2363,6 +4401,46 @@
           "stringUnit": {
             "state": "translated",
             "value": "Microphone: %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "麦克风：%@"
+          }
+        }
+      }
+    },
+    "點一句從那裡播放；按住 Ctrl、Shift 選好幾句，按右鍵刪掉、設成開頭或結尾、從這句分成兩場": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Click a line to play from there. Ctrl- or Shift-click to select several, then right-click to delete them, set the start or end, or split from there"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "点一句从那里播放；按住 Ctrl、Shift 选好几句，按右键删掉、设成开头或结尾、从这句分成两场"
+          }
+        }
+      }
+    },
+    "（刪掉）": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " (deleted)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "（删掉）"
           }
         }
       }

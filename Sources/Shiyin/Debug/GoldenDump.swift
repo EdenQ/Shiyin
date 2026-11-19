@@ -1,7 +1,9 @@
 #if DEBUG
+import AppKit
 import FluidAudio
 import Foundation
 import GRDB
+import SwiftUI
 
 /// 產生 Windows 版用來比對的標準答案（design-windows §4）：讀 shared/golden/fixtures.json，用 Mac 的程式算出提示詞、範本、
 /// 匯出、轉錄流程的規則、資料庫的結果，寫進輸出資料夾。只在 DEBUG 建置，不改任何正式的行為（R26.5）。
@@ -28,6 +30,7 @@ enum GoldenDump {
             exports(fixtures, &dump)
             mindMaps(fixtures, &dump)
             utilities(fixtures, &dump)
+            organize(&dump)
             pipeline(fixtures, &dump)
             server(fixtures, &dump)
             try database(fixtures, &dump)
@@ -216,6 +219,10 @@ enum GoldenDump {
             if let r = f["correctionRange"] as? [Int], r.count == 2, r[1] <= fx.segments.count {
                 w.text(dir + "correction-prompt-range.txt", TranscriptCorrection.prompt(correction, range: r[0]..<r[1]))
             }
+            // 精簡逐字稿（R96、design §70）：跟 JobRunner.clean 一樣組 Context
+            let cleanup = TranscriptCleanup.Context(language: l, segments: fx.segments.map { ($0.text, speakerName($0.speaker)) })
+            w.text(dir + "clean-system.txt", TranscriptCleanup.system(l))
+            w.text(dir + "clean-prompt.txt", TranscriptCleanup.prompt(cleanup, range: 0..<fx.segments.count))
 
             // 猜說話者：跟 JobRunner.nameSpeakers 一樣
             let unnamed = names.keys.sorted().filter { AppDatabase.isDefaultSpeakerName(names[$0]!) }
@@ -269,9 +276,10 @@ enum GoldenDump {
         w.text("schemas/keywords.json", AskPrompt.keywordsSchema)
         w.text("schemas/naming.json", SpeakerNaming.jsonSchema)
         w.text("schemas/correction.json", TranscriptCorrection.jsonSchema)
+        w.text("schemas/clean.json", TranscriptCleanup.jsonSchema)
         let formats: [(String, LLMClient.OutputFormat)] = [
             ("notes", .meetingNotes), ("askMeeting", AskPrompt.meetingFormat), ("askAll", AskPrompt.allFormat),
-            ("keywords", AskPrompt.keywordsFormat), ("naming", SpeakerNaming.format), ("correction", TranscriptCorrection.format),
+            ("keywords", AskPrompt.keywordsFormat), ("naming", SpeakerNaming.format), ("correction", TranscriptCorrection.format), ("clean", TranscriptCleanup.format),
         ]
         w.json("schemas/formats.json", Dictionary(uniqueKeysWithValues: formats.map {
             ($0.0, ["toolName": $0.1.toolName, "toolDescription": $0.1.toolDescription, "schema": $0.1.schema])
@@ -304,6 +312,27 @@ enum GoldenDump {
         let ratios = ["短", "this is a normal sentence without much repetition at all",  // l10n-skip
                       String(repeating: "重複", count: 40), String(repeating: "ha ", count: 30), "一二三四五六七八九十一二三四五六七八九十"]  // l10n-skip
         w.json("whisper/compression.json", ratios.map { ["text": $0, "ratio": WhisperEngine.compressionRatio($0)] })
+        // 沒人講話時的輸出（design §6.2）：只是標記或標點、詞彙表被照抄
+        let marks = ["[BLANK_AUDIO]", "[silence]", "(marker tapping)", "<|5.55|>", "-", "。", "（笑）", "【音樂】", "[音樂] 大家好",  // l10n-skip
+                     "(1) 第一點", "好", "Hello (world)", "[a][b]", "<|0.00|>大家好", "()", "[ ]"]  // l10n-skip
+        w.json("whisper/nonspeech.json", marks.map { ["text": $0, "nonSpeech": WhisperEngine.isNonSpeech($0)] })
+        // 一次貼上好幾個詞彙（R94.1）
+        let pasted = ["Redis", "Redis、Kubernetes、拾音", "Redis, kubernetes\nKubernetes；SendGrid;  \n\n  拾音 ", "  ", "A，B，a",  // l10n-skip
+                      "Claude Code\r\nCodex", "第一行\n第二行、第三行"]  // l10n-skip
+        w.json("util/glossary-split.json", pasted.map { ["input": $0, "terms": GlossaryInput.split($0)] as Object })
+        let abc = ["甲", "乙", "丙"], redis = glossaries.count > 1 ? glossaries[1] : [], claude = ["Claude", "Claude Code"]  // l10n-skip
+        let echoes: [(String, [String], MeetingLanguage)] = [
+            ("甲、乙、丙。", abc, .zh), ("詞彙：甲、乙、丙。", abc, .zh), ("甲。", abc, .zh), ("乙、丙", abc, .zh), ("丙、甲", abc, .zh),  // l10n-skip
+            ("甲乙丙我們開始開會", abc, .zh), ("甲、乙、丙。", abc, .en), ("詞彙：", abc, .zh), ("", abc, .zh),  // l10n-skip
+            ("Claude Code", claude, .en), ("Glossary: Claude, Claude Code.", claude, .en), ("claude claude code", claude, .en),
+            ("Redis、Kubernetes、拾音", redis, .zh), ("我們用 Redis 和 Kubernetes", redis, .zh), ("拾音", redis, .zh),  // l10n-skip
+            ("以下是繁體中文的工作會議錄音", [], .zh), ("用語：甲、乙", abc, .ja), ("용어: 甲, 乙", abc, MeetingLanguage(rawValue: "ko")!), ("詞彙：甲、乙", abc, MeetingLanguage(rawValue: "yue")!),  // l10n-skip
+        ]
+        w.json("whisper/echoes.json", echoes.map { text, glossary, language in
+            let prompt = WhisperEngine.prompt(glossary: glossary, language: language)
+            return ["text": text, "glossary": glossary, "language": language.rawValue, "prompt": prompt,
+                    "echo": WhisperEngine.echoesGlossary(text, prompt: prompt, glossary: glossary)] as Object
+        })
     }
 
     /// 沒有 sortedKeys 的 JSONEncoder 每次啟動鍵的順序都不同（範本的定義、說話者的復原資料）：重新排序後再寫，Windows 比對解析後的內容
@@ -358,6 +387,13 @@ enum GoldenDump {
             w.text(dir + "transcript-f.srt", TranscriptExporter.text(bundle, format: "srt", times: true, speakers: false))
             w.text(dir + "transcript-t.vtt", TranscriptExporter.text(bundle, format: "vtt", times: true, speakers: true))
             w.text(dir + "transcript-f.vtt", TranscriptExporter.text(bundle, format: "vtt", times: true, speakers: false))
+            // 中文會議用簡體（design §47.2）：整份轉，HTML 的字型各平台不同，只比文字格式
+            if fx.key == "zh" {
+                w.text(dir + "simplified/notes.md", ChineseScript.toSimplified(NotesExporter.markdown(bundle)))
+                w.text(dir + "simplified/notes.txt", ChineseScript.toSimplified(NotesExporter.plain(bundle)))
+                w.text(dir + "simplified/transcript-tt.txt", ChineseScript.toSimplified(TranscriptExporter.text(bundle, format: "txt", times: true, speakers: true)))
+                w.text(dir + "simplified/transcript-t.srt", ChineseScript.toSimplified(TranscriptExporter.text(bundle, format: "srt", times: true, speakers: true)))
+            }
             // 沒有會議紀錄、空的會議紀錄
             var empty = bundle
             empty.notes = MeetingNotes(title: "x")
@@ -488,6 +524,33 @@ enum GoldenDump {
     // MARK: 小工具
 
     private static func utilities(_ f: Fixtures, _ w: inout Writer) {
+        // 編輯會議的片段（design §81.1）：時間對應、句子留不留、試聽的反查、分成兩場、我的筆記
+        w.json("util/edit-plan.json", (f["editPlanCases"] as? [Object] ?? []).map { c -> Object in
+            let plan = EditPlan(pieces: (c["pieces"] as? [[Any]] ?? []).map {
+                EditPlan.Piece(meetingId: Int64(double($0[0])), start: double($0[1]), end: double($0[2]))
+            })
+            let points = (c["points"] as? [[Any]] ?? []).map { (Int64(double($0[0])), double($0[1])) }
+            let sentences = (c["sentences"] as? [[Any]] ?? []).map { (Int64(double($0[0])), double($0[1]), double($0[2])) }
+            let split = c["cut"].flatMap { plan.split(at: double($0)) }
+            let pieces = { (p: EditPlan) in p.pieces.map { [$0.meetingId, $0.start, $0.end] as [Any] } }
+            var out: Object = [
+                "key": c["key"] as? String ?? "", "duration": plan.duration,
+                "map": points.map { plan.map($0.0, $0.1).map { $0 as Any } ?? NSNull() },
+                "snap": points.map { plan.snap($0.0, $0.1) },
+                "sentences": sentences.map { s -> Any in plan.mapSentence(s.0, start: s.1, end: s.2).map { [$0.start, $0.end] } ?? NSNull() },
+                "sources": (c["sources"] as? [Any] ?? []).map { t -> Any in plan.source(at: double(t)).map { [$0.meetingId, $0.time] as [Any] } ?? NSNull() },
+                "split": split.map { ["head": pieces($0.head), "tail": pieces($0.tail)] as Object } ?? NSNull(),
+            ]
+            if let notes = c["userNotes"] as? Object {
+                out["userNotes"] = plan.remapUserNotes(notes["text"] as? String ?? "", meetingId: Int64(double(notes["meetingId"])))
+            }
+            if let deleted = c["keeping"] as? Object {
+                let kept = EditPlan.keeping(Int64(double(deleted["meetingId"])), start: double(deleted["start"]), end: double(deleted["end"]),
+                                            deleted: (deleted["deleted"] as? [[Any]] ?? []).map { double($0[0])...double($0[1]) })
+                out["keeping"] = kept.map { [$0.meetingId, $0.start, $0.end] as [Any] }
+            }
+            return out
+        })
         // 語言檔推出來的東西（design §41.8）：每種語言的名稱、預設說話者、轉錄的參數、給人看的字、提示詞的字
         let glossarySample = ["Lumio", "Redis", "Kubernetes"]
         w.json("util/languages.json", MeetingLanguage.allCases.map { l -> Object in
@@ -568,6 +631,13 @@ enum GoldenDump {
         w.json("util/default-speaker-names.json", (f["defaultSpeakerNames"] as? [String] ?? []).map {
             ["name": $0, "isDefault": AppDatabase.isDefaultSpeakerName($0)] as Object
         })
+        // 頭像的字和釉色（design §58）：人物照名字算的顏色、說話者照編號的顏色，寫淺色、深色的 sRGB
+        w.json("util/avatars.json", [
+            "people": (f["avatarNames"] as? [String] ?? []).map {
+                ["name": $0, "initials": PersonAvatar.initials($0), "color": hexes(Color.person($0))] as Object
+            },
+            "speakers": (f["avatarSpeakers"] as? [Int] ?? []).map { ["idx": $0, "color": hexes(Color.speaker($0))] as Object },
+        ] as Object)
         w.json("util/transcript-import.json", (f["transcriptImports"] as? [Object] ?? []).map { item -> Object in
             let parsed = TranscriptImporter.parse(item["text"] as? String ?? "", ext: item["ext"] as? String ?? "")
             return ["ext": item["ext"] ?? "", "segments": parsed.segments.map { ["start": $0.start, "end": $0.end, "text": $0.text] }]
@@ -627,6 +697,15 @@ enum GoldenDump {
             CorrectionSuggestion(segment: $0["segment"] as? Int ?? 0, original: $0["original"] as? String ?? "",
                                  suggestion: $0["suggestion"] as? String ?? "", reason: $0["reason"] as? String ?? "")
         }
+        // 精簡逐字稿的驗證（R96）：編號不在這一批、重複、跟原文一樣、比原文長太多的丟掉；空字串留著（整句都是贅字）
+        let cleanContext = TranscriptCleanup.Context(language: .zh, segments: zh.segments.map { ($0.text, nil) })
+        let cleanRaw = [TranscriptCleanup.Line(segment: 0, text: "  " + String(zh.segments[0].text.dropLast()) + " "),
+                        TranscriptCleanup.Line(segment: 0, text: "重複的第二個"), TranscriptCleanup.Line(segment: 1, text: zh.segments[1].text),  // l10n-skip
+                        TranscriptCleanup.Line(segment: 2, text: ""), TranscriptCleanup.Line(segment: 3, text: zh.segments[3].text + String(repeating: "補", count: 40)),  // l10n-skip
+                        TranscriptCleanup.Line(segment: 9, text: "範圍外")]  // l10n-skip
+        w.json("util/validate-clean.json", TranscriptCleanup.validate(cleanRaw, context: cleanContext, range: 0..<4).map {
+            ["segment": $0.segment, "text": $0.text] as Object
+        })
         let valid = TranscriptCorrection.validate(raw, context: correctionContext, range: 0..<4)
         w.json("util/validate-corrections.json", valid.map { s -> Object in
             let text = zh.segments[s.segment].text
@@ -634,6 +713,46 @@ enum GoldenDump {
             return ["segment": s.segment, "original": s.original, "suggestion": s.suggestion, "reason": s.reason,
                     "applied": applied ?? NSNull(), "reverted": applied.flatMap { TranscriptCorrection.revert(s, in: $0) } ?? NSNull()]
         })
+    }
+
+    // MARK: 分類（design §72）：輸入和結果寫在同一個檔案，Windows 讀輸入算一次比對結果
+
+    private static func organize(_ w: inout Writer) {
+        let titleSets: [[String]] = [["產品週會 10/19", "產品週會 10/26"], ["11月3日 設計討論", "11月10日 設計討論"], ["Q3 Sync 1", "Q3 Sync 2"],  // l10n-skip
+                                     ["A", "B"], ["週會", "週會"], ["Weekly Sync", "Sync with Bob", "Bob 1:1"], ["ab 1", "ab 2"],  // l10n-skip
+                                     ["Remote Control Project Kickoff Meeting", "Remote Control Design: Recap", "Conceptual Design Meeting: Recap"],
+                                     ["Sprint Review 3", "Sprint Review 4", "Sprint review"], ["產品週會A", "產品週會B"]]  // l10n-skip
+        w.json("util/common-word.json", titleSets.map { ["titles": $0, "word": MeetingSimilarity.commonWord($0) ?? NSNull()] as Object })
+        // 資料夾的條件、建議
+        let rule = FolderRule(folder: "產品", keywords: ["週會", "sync"], people: [1, 2], templateId: "one-on-one")  // l10n-skip
+        let ruleCases: [(String, [Int64], String)] = [
+            ("產品週會", [], "general"), ("Weekly SYNC", [], "general"), ("x", [1], "general"), ("x", [1, 2, 5], "general"),  // l10n-skip
+            ("x", [], "one-on-one"), ("x", [], "general")]
+        w.json("util/folder-rule-match.json", ruleCases.map { title, people, template -> Object in
+            ["title": title, "attended": people, "templateId": template,
+             "matches": rule.matches(title: title, attended: Set(people), templateId: template)] as Object
+        })
+        func folderInput(_ id: Int64, _ folder: String, _ title: String, _ people: [Int64]) -> FolderSuggester.Input {
+            FolderSuggester.Input(id: id, folder: folder, title: title, people: Set(people))
+        }
+        let others = [folderInput(1, "客戶", "客戶 A 需求訪談", [2, 3]), folderInput(2, "客戶", "客戶 A 追蹤", [1, 2, 3]),  // l10n-skip
+                      folderInput(3, "設計", "設計評審 10/1", [4]), folderInput(4, "設計", "設計評審 10/8", [5]), folderInput(5, "設計", "Kickoff", [4]),  // l10n-skip
+                      folderInput(6, "單場", "單場會議", [2, 3])]  // l10n-skip
+        let suggestCases = [folderInput(10, "", "需求確認", [2, 3]), folderInput(11, "", "設計評審 11/5", [1]),  // l10n-skip
+                            folderInput(12, "", "會議 11/5", [9]), folderInput(13, "", "客戶 A 結案", [2, 3])]  // l10n-skip
+        w.json("util/folder-suggest.json", [
+            "others": others.map { ["id": $0.id, "folder": $0.folder, "title": $0.title, "people": $0.people.sorted()] as Object },
+            "cases": suggestCases.map { c -> Object in
+                let s = FolderSuggester.best(for: c, among: others)
+                var reason: Object = [:]
+                switch s?.reason {
+                case .people(let ids)?: reason = ["people": ids]
+                case .title(let word)?: reason = ["title": word]
+                case nil: break
+                }
+                return ["id": c.id, "title": c.title, "people": c.people.sorted(), "folder": s?.folder ?? NSNull(), "count": s?.count ?? 0, "reason": reason]
+            }] as Object)
+
     }
 
     // MARK: 轉錄流程的規則
@@ -720,6 +839,10 @@ enum GoldenDump {
 
         // 簡體轉台灣繁體（design §32.5）：Windows 讀同一份字表、同一套最長匹配，要逐字相同
         w.json("util/s2tw.json", (f["s2twCases"] as? [String] ?? []).map { ["in": $0, "out": ChineseScript.toTaiwan($0)] as Object })
+        // 繁轉簡（design §47.1）
+        w.json("util/tw2s.json", (f["tw2sCases"] as? [String] ?? []).map { ["in": $0, "out": ChineseScript.toSimplified($0)] as Object })
+        // 簡體介面的用語（design §48.1）：l10n.py 也拿這份核對
+        w.json("util/ui-hans.json", (f["uiHansCases"] as? [String] ?? []).map { ["in": $0, "out": ChineseScript.toSimplifiedUI($0)] as Object })
 
         // 更新說明的摘要（R10.6、design §12）：詢問更新的視窗只列前幾項，取段落、取條目的規則兩邊相同
         w.json("util/release-notes.json", (f["releaseNotesCases"] as? [Object] ?? []).map { c -> Object in
@@ -908,6 +1031,11 @@ enum GoldenDump {
                 let segmentIds = try (op["seqs"] as? [Int] ?? []).map { try segmentId(mid, seq: $0) }
                 let target = try db.reassignSegments(mid, ids: segmentIds, to: op["to"] as? Int, label: op["label"] as? String ?? "")
                 w.json(file!, ["speaker": target])
+            case "splitSegment":   // 拆成兩句（design §46.1）
+                let mid = id(op)
+                let newId = try db.splitSegment(mid, id: try segmentId(mid, seq: op["seq"] as? Int ?? 0), at: op["at"] as? Int ?? 0,
+                                                to: op["to"] as? Int, label: op["label"] as? String ?? "")
+                w.json(file!, ["segmentId": newId.map { $0 as Any } ?? NSNull()])
             case "replace":
                 let r = try db.replace(id(op), find: op["find"] as? String ?? "", with: op["with"] as? String ?? "")
                 w.json(file!, ["segmentsChanged": r.segmentsChanged, "notesChanged": r.notesChanged])
@@ -978,15 +1106,64 @@ enum GoldenDump {
                 if let file { w.json(file, ["deleted": deleted.map { $0.name as Any } ?? NSNull()]) }
             case "deleteMeeting":
                 try db.deleteMeeting(id(op))
+            case "applyEdit":   // 編輯會議（design §81.1）：pieces 是 [會議的 key, 開始, 結束]，cut 是新時間軸上的切點
+                let pieces = (op["pieces"] as? [[Any]] ?? []).map {
+                    EditPlan.Piece(meetingId: ids[$0[0] as? String ?? ""] ?? 0, start: double($0[1]), end: double($0[2]))
+                }
+                let outcome = try db.applyEdit(id(op), plan: EditPlan(pieces: pieces), cut: op["cut"].flatMap { $0 is NSNull ? nil : double($0) },
+                                               splitTitle: op["splitTitle"] as? String ?? "", audioExtension: nil)
+                w.json(file!, ["created": outcome?.created?.id.map { $0 as Any } ?? NSNull(), "firstEdit": outcome?.firstEdit ?? false,
+                               "documentCopies": outcome?.documentCopies.map { [$0.from, $0.to] } ?? []] as Object)
+            case "restoreEdit":   // 還原成編輯前的樣子（§81.3）
+                let r = try db.restoreEdit(id(op))
+                w.json(file!, r.map { ["trashed": $0.trashed, "untrashed": $0.untrashed, "removedDocuments": $0.removedDocuments,
+                                       "editsAudio": $0.editsAudio, "restoredAudio": $0.restoredAudio] as Object } ?? NSNull())
+            case "enrollVoiceprint":   // 我的聲音（design §56.1）：人物頁的「我」（§60.1）
+                _ = try db.enrollVoiceprint(name: op["name"] as? String ?? "", embedding: (op["embedding"] as? [Double] ?? []).map { Float($0) })
+            case "peopleOverview":   // 人物頁（design §60.1）：側欄的人物列表
+                w.json(file!, try db.peopleOverview().map {
+                    ["id": $0.id, "name": $0.name, "meetings": $0.meetingCount, "last": $0.lastMeetingDate ?? NSNull(), "me": $0.isMe] as Object
+                })
+            case "personMeetings":   // 每個人出現過的會議、說了多久
+                var result: Object = [:]
+                for person in try db.peopleOverview() {
+                    result[person.name] = try db.personMeetings(person.id).map {
+                        ["meetingId": $0.id, "date": $0.meeting.meetingDate, "title": $0.meeting.displayTitle, "seconds": $0.seconds] as Object
+                    }
+                }
+                w.json(file!, result)
+            case "personActionItems":   // 負責人是這個名字的待辦（R85.3）
+                var result: Object = [:]
+                for name in op["names"] as? [String] ?? [] {
+                    result[name] = try db.personActionItems(name).map {
+                        ["meetingId": $0.meeting.id ?? 0, "date": $0.meeting.meetingDate, "title": $0.meeting.displayTitle, "index": $0.index,
+                         "owner": $0.item.owner, "task": $0.item.task, "due": $0.item.due, "time": $0.item.time] as Object
+                    }
+                }
+                w.json(file!, result)
             default:
                 throw LLMError.badOutput("unknown op \(op["op"] ?? "")")
             }
         }
     }
 
+    /// 顏色在淺色、深色模式下的 sRGB（"3F5BA9"）：頭像的釉色（design §58.1）
+    private static func hexes(_ color: Color) -> [String] {
+        let ns = NSColor(color)
+        return [NSAppearance.Name.aqua, .darkAqua].map { name in
+            var hex = ""
+            NSAppearance(named: name)?.performAsCurrentDrawingAppearance {
+                guard let c = ns.usingColorSpace(.sRGB) else { return }
+                hex = String(format: "%02X%02X%02X", Int((c.redComponent * 255).rounded()), Int((c.greenComponent * 255).rounded()),
+                             Int((c.blueComponent * 255).rounded()))
+            }
+            return hex
+        }
+    }
+
     /// 一張表的所有列：時間欄位（每次跑都不同）有值時寫成 "<time>"，BLOB 寫成 base64
     private static func dumpTable(_ db: AppDatabase, _ table: String) throws -> [Object] {
-        let timeColumns: Set<String> = ["created_at", "updated_at", "started_at", "finished_at", "deleted_at"]
+        let timeColumns: Set<String> = ["created_at", "updated_at", "started_at", "finished_at", "deleted_at", "edited_at"]
         let sql = table == "search" ? "SELECT rowid, meeting_id, kind, ref, text FROM search ORDER BY rowid"
             : "SELECT * FROM \(table) ORDER BY rowid"
         return try db.pool.read { d in
@@ -998,7 +1175,9 @@ enum GoldenDump {
                     case .int64(let n): object[column] = timeColumns.contains(column) ? "<time>" : n
                     case .double(let x): object[column] = x
                     case .string(let s):
-                        object[column] = timeColumns.contains(column) ? "<time>" : ["snapshot", "definition"].contains(column) ? canonical(s) : s
+                        // 編輯會議的快照是程式自己的格式（裡面還有時間），只比套用、還原之後的資料表
+                        object[column] = timeColumns.contains(column) ? "<time>" : table == "meeting_edits" && column == "snapshot" ? "<snapshot>"
+                            : ["snapshot", "definition"].contains(column) ? canonical(s) : s
                     case .blob(let data): object[column] = data.base64EncodedString()
                     }
                 }

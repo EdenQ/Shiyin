@@ -270,24 +270,6 @@ final class AppDatabase: @unchecked Sendable {
                 );
                 """)
         }
-        // Fork 舊版 v8 是 speaker_tags，上游 v8 是 min_speakers；兩種資料庫都要補齊（design §F2.1）。
-        migrator.registerMigration("ma_speaker_tags_v1") { db in
-            if try !db.columns(in: "meetings").contains(where: { $0.name == "min_speakers" }) {
-                try db.execute(sql: "ALTER TABLE meetings ADD COLUMN min_speakers INTEGER")
-            }
-            try db.execute(sql: """
-                CREATE TABLE IF NOT EXISTS speaker_tags (
-                  id         INTEGER PRIMARY KEY AUTOINCREMENT,
-                  meeting_id INTEGER NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
-                  start      REAL NOT NULL,
-                  end        REAL NOT NULL,
-                  name       TEXT NOT NULL,
-                  kind       TEXT NOT NULL,
-                  created_at TEXT NOT NULL
-                );
-                CREATE INDEX IF NOT EXISTS speaker_tags_meeting ON speaker_tags(meeting_id);
-                """)
-        }
         // 會議的參考文件（design §39.1、R61）
         migrator.registerMigration("v10") { db in
             try db.execute(sql: """
@@ -304,7 +286,112 @@ final class AppDatabase: @unchecked Sendable {
                 CREATE INDEX documents_meeting ON documents(meeting_id, id);
                 """)
         }
+        // 精簡逐字稿（R96、design §70）：一句一列；句子刪掉（重新轉錄、刪除一句）時跟著刪，
+        // 句子的文字改了（編輯、校正、用詞修正、拆句）時刪掉那一句的精簡版，畫面上回到原文
+        migrator.registerMigration("v11") { db in
+            try db.execute(sql: """
+                CREATE TABLE clean_lines (
+                  segment_id INTEGER PRIMARY KEY REFERENCES segments(id) ON DELETE CASCADE,
+                  text       TEXT NOT NULL
+                );
+                CREATE TRIGGER clean_lines_text AFTER UPDATE OF text ON segments
+                BEGIN
+                  DELETE FROM clean_lines WHERE segment_id = NEW.id;
+                END;
+                """)
+        }
+        // 資料夾自動歸類、定期會議（design §72、§73；定期會議 v14 拿掉）
+        migrator.registerMigration("v12") { db in
+            try db.execute(sql: """
+                CREATE TABLE series (
+                  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                  name           TEXT NOT NULL,
+                  weekday        INTEGER NOT NULL,
+                  minute         INTEGER,
+                  interval_weeks INTEGER NOT NULL DEFAULT 1,
+                  people         TEXT NOT NULL DEFAULT '[]',
+                  created_at     TEXT NOT NULL
+                );
+                CREATE TABLE series_rejected (
+                  key        TEXT PRIMARY KEY,
+                  created_at TEXT NOT NULL
+                );
+                CREATE TABLE folder_rules (
+                  folder      TEXT PRIMARY KEY,
+                  keywords    TEXT NOT NULL DEFAULT '[]',
+                  people      TEXT NOT NULL DEFAULT '[]',
+                  template_id TEXT,
+                  series_id   INTEGER REFERENCES series(id) ON DELETE SET NULL,
+                  created_at  TEXT NOT NULL
+                );
+                ALTER TABLE meetings ADD COLUMN folder_decided INTEGER NOT NULL DEFAULT 0;
+                ALTER TABLE meetings ADD COLUMN series_id INTEGER REFERENCES series(id) ON DELETE SET NULL;
+                CREATE INDEX meetings_series ON meetings(series_id);
+                """)
+        }
+        // 資料夾自己存在，可以是空的（R104、design §78）：現有會議的資料夾、有自動加入條件的資料夾都放進去
+        migrator.registerMigration("v13") { db in
+            try db.execute(sql: """
+                CREATE TABLE folders (
+                  name       TEXT PRIMARY KEY,
+                  created_at TEXT NOT NULL
+                );
+                INSERT OR IGNORE INTO folders (name, created_at) SELECT DISTINCT folder, ? FROM meetings WHERE folder <> '';
+                INSERT OR IGNORE INTO folders (name, created_at) SELECT folder, created_at FROM folder_rules;
+                """, arguments: [Clock.now()])
+        }
+        // 拿掉定期會議（R99、design §73、D177）：每個定期會議換成同名的資料夾，裡面不在資料夾的會議移進去；
+        // 資料夾條件的定期會議拿掉（條件都空了就刪掉）。表、欄位留著不用（拿掉有外鍵的欄位要重建整張 meetings）
+        migrator.registerMigration("v14") { db in
+            var names: [Int64: String] = [:]
+            for row in try Row.fetchAll(db, sql: "SELECT id, name FROM series ORDER BY id") {
+                let id: Int64 = row["id"]
+                let name = (row["name"] as String? ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !name.isEmpty else { continue }
+                names[id] = name
+                try db.execute(sql: "INSERT OR IGNORE INTO folders (name, created_at) VALUES (?, ?)", arguments: [name, Clock.now()])
+                try db.execute(sql: "UPDATE meetings SET folder = ?, folder_decided = 1 WHERE series_id = ? AND folder = ''",
+                               arguments: [name, id])
+            }
+            try db.execute(sql: """
+                UPDATE folder_rules SET series_id = NULL;
+                DELETE FROM folder_rules WHERE keywords = '[]' AND people = '[]' AND template_id IS NULL;
+                UPDATE meetings SET series_id = NULL WHERE series_id IS NOT NULL;
+                DELETE FROM series;
+                DELETE FROM series_rejected;
+                """)
+            if !names.isEmpty { Self.replaceSeriesKeys(names) }
+        }
+        // 編輯會議的快照（R107.8、design §81.3）：第一次編輯前的樣子，最後一次編輯後留 30 天
+        migrator.registerMigration("v15") { db in
+            try db.execute(sql: """
+                CREATE TABLE meeting_edits (
+                  meeting_id  INTEGER PRIMARY KEY REFERENCES meetings(id) ON DELETE CASCADE,
+                  snapshot    TEXT NOT NULL,
+                  audio_file  TEXT NOT NULL,
+                  split_into  TEXT NOT NULL DEFAULT '[]',
+                  merged_from TEXT NOT NULL DEFAULT '[]',
+                  created_at  TEXT NOT NULL,
+                  edited_at   TEXT NOT NULL
+                );
+                """)
+        }
+        ForkMigrations.register(&migrator)   // MA-FORK(F2)：fork 的 migration 一律在上游的全部之後（fork design §F-DB.1）
         return migrator
+    }
+
+    /// 側欄展開、排序的鍵（UserDefaults）：series:<id> 換成 folder:<名稱>（migration v14）；換完跟原本的資料夾重複時留前面的
+    nonisolated static func replaceSeriesKeys(_ names: [Int64: String]) {
+        let defaults = UserDefaults.standard
+        for key in [AppSettings.sidebarExpandedKey, AppSettings.sidebarOrderKey] {
+            guard let list = defaults.stringArray(forKey: key), list.contains(where: { $0.hasPrefix("series:") }) else { continue }
+            var seen = Set<String>()
+            let replaced = list.compactMap { item -> String? in
+                guard item.hasPrefix("series:") else { return item }
+                return Int64(item.dropFirst("series:".count)).flatMap { names[$0] }.map { "folder:" + $0 }
+            }.filter { seen.insert($0).inserted }
+            defaults.set(replaced, forKey: key)
+        }
     }
 
     // MARK: 會議
@@ -392,15 +479,45 @@ final class AppDatabase: @unchecked Sendable {
         guard !ids.isEmpty else { return }
         try pool.write { db in
             for id in ids {
-                try db.execute(sql: "UPDATE meetings SET folder = ?, updated_at = ? WHERE id = ?", arguments: [folder, Clock.now(), id])
+                // 自己移進、移出資料夾後不再自動放、不再建議（design §72）
+                try db.execute(sql: "UPDATE meetings SET folder = ?, folder_decided = 1, updated_at = ? WHERE id = ?", arguments: [folder, Clock.now(), id])
+            }
+            if !folder.isEmpty {
+                try db.execute(sql: "INSERT OR IGNORE INTO folders (name, created_at) VALUES (?, ?)", arguments: [folder, Clock.now()])
             }
         }
     }
 
+    /// 建一個空的資料夾（R104）
+    func createFolder(_ name: String) throws {
+        try pool.write { db in
+            try db.execute(sql: "INSERT OR IGNORE INTO folders (name, created_at) VALUES (?, ?)", arguments: [name, Clock.now()])
+        }
+    }
+
+    /// 資料夾表裡的名字（會議都移走了也還在）
+    func folderNames() throws -> [String] {
+        try pool.read { db in try String.fetchAll(db, sql: "SELECT name FROM folders") }
+    }
+
     /// 改名或刪除（newName 為空字串）一個資料夾，垃圾桶裡的會議也一起改
+    /// 改名時條件跟著改名；newName 是空的（刪除資料夾）時條件一起刪（design §72）
     func renameFolder(_ old: String, to newName: String) throws {
         try pool.write { db in
             try db.execute(sql: "UPDATE meetings SET folder = ?, updated_at = ? WHERE folder = ?", arguments: [newName, Clock.now(), old])
+            let targetHasRule = try Bool.fetchOne(db, sql: "SELECT 1 FROM folder_rules WHERE folder = ?", arguments: [newName]) ?? false
+            if newName.isEmpty || targetHasRule {
+                try db.execute(sql: "DELETE FROM folder_rules WHERE folder = ?", arguments: [old])
+            } else {
+                try db.execute(sql: "UPDATE folder_rules SET folder = ? WHERE folder = ?", arguments: [newName, old])
+            }
+            // 資料夾表（R104）：刪除、改成已經有的名字時拿掉舊的，不然改名
+            let targetExists = try Bool.fetchOne(db, sql: "SELECT 1 FROM folders WHERE name = ?", arguments: [newName]) ?? false
+            if newName.isEmpty || targetExists {
+                try db.execute(sql: "DELETE FROM folders WHERE name = ?", arguments: [old])
+            } else {
+                try db.execute(sql: "UPDATE folders SET name = ? WHERE name = ?", arguments: [newName, old])
+            }
         }
     }
 
@@ -422,6 +539,81 @@ final class AppDatabase: @unchecked Sendable {
             return files
         }
         files.forEach(removeDocumentFile)
+    }
+
+    /// 從 cut 秒分成兩場（R90、design §64）：開始時間 ≥ cut 的段落、標記重點搬到新的一場，時間減 cut；說話者兩邊各留有段落的，
+    /// 只在新的一場說話的人，聲紋改指新的一場。audioExtension 是切好的錄音的副檔名（兩場相同，原本那場的檔名跟著換，D172）。
+    /// 回傳新的一場（錄音檔名已經給好，檔案由呼叫的人搬）
+    func splitMeeting(_ id: Int64, at cut: Double, title: String, audioExtension: String?) throws -> Meeting? {
+        try pool.write { db in try Self.splitMeeting(db, id, at: cut, title: title, audioExtension: audioExtension) }
+    }
+
+    /// 同上，在呼叫的人的交易裡（編輯會議套用時一起分，design §81.1）
+    static func splitMeeting(_ db: Database, _ id: Int64, at cut: Double, title: String, audioExtension: String?) throws -> Meeting? {
+        guard var original = try Meeting.fetchOne(db, key: id) else { return nil }
+        var meeting = original
+        meeting.id = nil
+        meeting.title = title
+        meeting.audioFile = ""
+        meeting.notes = nil
+        meeting.notesBy = nil
+        meeting.notesDraft = 0
+        meeting.userNotes = ""
+        meeting.speakerHintDismissed = false
+        meeting.durationSeconds = original.durationSeconds.map { max(0, $0 - Int(cut.rounded())) }
+        let started = ISO8601DateFormatter().date(from: original.createdAt) ?? Date()
+        meeting.createdAt = ISO8601DateFormatter().string(from: started.addingTimeInterval(cut))
+        meeting.updatedAt = Clock.now()
+        try meeting.insert(db)
+        let newId = meeting.id!
+        if let audioExtension {
+            meeting.audioFile = "\(newId).\(audioExtension)"
+            try meeting.update(db)
+        }
+        try index(db, meetingId: newId, kind: .title, ref: 0, text: meeting.displayTitle)
+
+        let moved = try Segment.filter(Column("meeting_id") == id && Column("start") >= cut).order(Column("seq")).fetchAll(db).compactMap(\.id)
+        for (seq, segmentId) in moved.enumerated() {
+            try db.execute(sql: "UPDATE segments SET meeting_id = ?, seq = ?, start = MAX(0, start - ?), end = MAX(0, end - ?) WHERE id = ?",
+                           arguments: [newId, seq, cut, cut, segmentId])
+        }
+        for chunk in stride(from: 0, to: moved.count, by: 500).map({ Array(moved[$0..<min($0 + 500, moved.count)]) }) {
+            let marks = chunk.map { _ in "?" }.joined(separator: ",")
+            try db.execute(sql: "UPDATE corrections SET meeting_id = ? WHERE segment_id IN (\(marks))", arguments: StatementArguments([newId] + chunk))
+            try db.execute(sql: "UPDATE search SET meeting_id = ? WHERE rowid IN (\(marks))", arguments: StatementArguments([newId] + chunk))
+        }
+        try db.execute(sql: "UPDATE bookmarks SET meeting_id = ?, time = MAX(0, time - ?) WHERE meeting_id = ? AND time >= ?",
+                       arguments: [newId, cut, id, cut])
+
+        func speaks(_ meetingId: Int64, _ idx: Int) throws -> Bool {
+            try Bool.fetchOne(db, sql: "SELECT EXISTS (SELECT 1 FROM segments WHERE meeting_id = ? AND speaker = ?)", arguments: [meetingId, idx]) ?? false
+        }
+        for var speaker in try SpeakerName.filter(Column("meeting_id") == id).fetchAll(db) {
+            if try !speaks(id, speaker.idx), try speaks(newId, speaker.idx) {
+                try db.execute(sql: "UPDATE voiceprints SET meeting_id = ? WHERE meeting_id = ? AND speaker_idx = ?", arguments: [newId, id, speaker.idx])
+            }
+            speaker.meetingId = newId
+            try speaker.insert(db)
+        }
+        try removeEmptySpeakers(db, meetingId: id)
+        try removeEmptySpeakers(db, meetingId: newId)
+
+        original.durationSeconds = Int(cut.rounded())
+        if let audioExtension { original.audioFile = "\(id).\(audioExtension)" }
+        original.updatedAt = Clock.now()
+        try original.update(db)
+        // 段落換了，說話者的復原對不上（design §24.2）
+        try db.execute(sql: "DELETE FROM speaker_undo WHERE meeting_id = ?", arguments: [id])
+        try ForkSpeakerTags.split(db, from: id, to: newId, at: cut)   // MA-FORK(F2)：切點之後的標記跟到新的那場（F2.13）
+        return meeting
+    }
+
+    /// 這場會議有沒有排隊中或執行中的工作（任何種類，含壓縮、校正這些輔助工作）
+    func hasActiveJobs(_ meetingId: Int64) throws -> Bool {
+        try pool.read { db in
+            try Job.filter(Column("meeting_id") == meetingId
+                           && [JobStatus.queued.rawValue, JobStatus.running.rawValue].contains(Column("status"))).fetchCount(db) > 0
+        }
     }
 
     /// 移到垃圾桶或還原（R9.3）
@@ -473,8 +665,10 @@ final class AppDatabase: @unchecked Sendable {
 
     /// 語言檔裡每種語言的預設說話者名稱（design §41.1）：「說話者 %lld」→「說話者 \d+」，接成一個樣式
     private static let defaultSpeakerPattern: Regex<AnyRegexOutput> = {
-        let forms = LanguageProfiles.all.map { profile -> String in
-            let parts = profile.speaker.components(separatedBy: "%lld")
+        // 每種語言的寫法，加上中文用簡體時的寫法（「说话者 %lld」，design §47.2）
+        let speakers = LanguageProfiles.all.flatMap { [$0.speaker, ChineseScript.toSimplified($0.speaker)] }
+        let forms = Array(Set(speakers)).sorted().map { speaker -> String in
+            let parts = speaker.components(separatedBy: "%lld")
             return parts.map { NSRegularExpression.escapedPattern(for: $0) }.joined(separator: "\\d+")
         }
         return try! Regex("^(?:" + forms.joined(separator: "|") + ")$")
@@ -534,6 +728,35 @@ final class AppDatabase: @unchecked Sendable {
             var segment = Segment(meetingId: meetingId, seq: seq, start: start, end: end, text: text, lowConfidence: false,
                                   speaker: nil, kind: "live")
             try segment.insert(db)
+        }
+    }
+
+    /// 某種工作最後一次的紀錄（輔助工作也算；精簡逐字稿失敗時要說明，R96）
+    func lastJob(_ meetingId: Int64, kind: JobKind) throws -> Job? {
+        try pool.read { db in
+            try Job.filter(Column("meeting_id") == meetingId && Column("kind") == kind.rawValue).order(Column("id").desc).fetchOne(db)
+        }
+    }
+
+    /// 精簡逐字稿（R96）：段落 id → 精簡後的文字（空字串是整句都是贅字）；沒產生過是空的
+    func cleanLines(_ meetingId: Int64) throws -> [Int64: String] {
+        try pool.read { db in
+            let rows = try Row.fetchAll(db, sql: """
+                SELECT c.segment_id, c.text FROM clean_lines c JOIN segments s ON s.id = c.segment_id WHERE s.meeting_id = ?
+                """, arguments: [meetingId])
+            return Dictionary(uniqueKeysWithValues: rows.map { (Int64.fromDatabaseValue($0[0]) ?? 0, String.fromDatabaseValue($0[1]) ?? "") })
+        }
+    }
+
+    /// 存精簡逐字稿：這場會議原本的精簡版整份換掉；段落已經不在（整理期間被刪、重新轉錄）的跳過
+    func saveCleanLines(_ meetingId: Int64, _ lines: [Int64: String]) throws {
+        try pool.write { db in
+            try db.execute(sql: "DELETE FROM clean_lines WHERE segment_id IN (SELECT id FROM segments WHERE meeting_id = ?)", arguments: [meetingId])
+            for (id, text) in lines {
+                try db.execute(sql: """
+                    INSERT INTO clean_lines (segment_id, text) SELECT id, ? FROM segments WHERE id = ? AND meeting_id = ?
+                    """, arguments: [text, id, meetingId])
+            }
         }
     }
 
@@ -698,7 +921,7 @@ final class AppDatabase: @unchecked Sendable {
     }
 
     /// 原始檔放在 documents/<id>/ 底下，整個資料夾刪掉。標準答案的暫存資料庫不碰檔案（documentsRoot 是 nil）
-    private func removeDocumentFile(_ file: String) {
+    func removeDocumentFile(_ file: String) {
         guard let documentsRoot, let folder = file.split(separator: "/").first, Int64(folder) != nil else { return }
         try? FileManager.default.removeItem(at: documentsRoot.appendingPathComponent(String(folder), isDirectory: true))
     }
@@ -712,6 +935,10 @@ final class AppDatabase: @unchecked Sendable {
             var bookmark = Bookmark(meetingId: meetingId, time: time, label: label)
             try bookmark.insert(db)
         }
+    }
+
+    func renameBookmark(_ id: Int64, label: String) throws {
+        try pool.write { db in try db.execute(sql: "UPDATE bookmarks SET label = ? WHERE id = ?", arguments: [label, id]) }
     }
 
     func deleteBookmark(_ id: Int64) throws {
@@ -950,24 +1177,24 @@ final class AppDatabase: @unchecked Sendable {
         return metaRowidBase + meetingId * 4 + code
     }
 
-    private static func indexSegment(_ db: Database, meetingId: Int64, id: Int64, text: String) throws {
+    static func indexSegment(_ db: Database, meetingId: Int64, id: Int64, text: String) throws {
         try db.execute(sql: "INSERT INTO search (rowid, meeting_id, kind, ref, text) VALUES (?, ?, 'segment', ?, ?)",
                        arguments: [id, meetingId, id, text])
     }
 
     /// 刪掉這場會議所有段落的索引（段落還在資料庫裡的時候呼叫）
-    private static func unindexSegments(_ db: Database, meetingId: Int64) throws {
+    static func unindexSegments(_ db: Database, meetingId: Int64) throws {
         try db.execute(sql: "DELETE FROM search WHERE rowid IN (SELECT id FROM segments WHERE meeting_id = ?)", arguments: [meetingId])
     }
 
     /// 刪掉這場會議的標題、會議紀錄、筆記的索引
-    private static func unindexMeeting(_ db: Database, meetingId: Int64) throws {
+    static func unindexMeeting(_ db: Database, meetingId: Int64) throws {
         let ids = [SearchHit.Kind.title, .notes, .userNotes].map { searchRowid(meetingId: meetingId, kind: $0) }
         try db.execute(sql: "DELETE FROM search WHERE rowid IN (?, ?, ?)", arguments: StatementArguments(ids))
     }
 
     /// 標題、會議紀錄、筆記（ref 是 0）
-    private static func index(_ db: Database, meetingId: Int64, kind: SearchHit.Kind, ref: Int64, text: String) throws {
+    static func index(_ db: Database, meetingId: Int64, kind: SearchHit.Kind, ref: Int64, text: String) throws {
         let rowid = searchRowid(meetingId: meetingId, kind: kind)
         try db.execute(sql: "DELETE FROM search WHERE rowid = ?", arguments: [rowid])
         guard !text.isEmpty else { return }
@@ -1177,6 +1404,39 @@ final class AppDatabase: @unchecked Sendable {
 
     func deleteTerm(_ id: Int64) throws {
         _ = try pool.write { db in try GlossaryTerm.deleteOne(db, key: id) }
+    }
+
+    /// 一次加好幾個（R94.1）：回傳實際加進去的個數（已經有的跳過，不分大小寫）
+    @discardableResult
+    func addTerms(_ terms: [String]) throws -> Int {
+        try pool.write { db in
+            var added = 0
+            for term in terms {
+                let trimmed = term.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { continue }
+                try db.execute(sql: "INSERT OR IGNORE INTO glossary (term, created_at) VALUES (?, ?)", arguments: [trimmed, Clock.now()])
+                added += db.changesCount
+            }
+            return added
+        }
+    }
+
+    /// 改一個詞（R100）：改成已經有的詞時合併（刪掉這一個）
+    func renameTerm(_ id: Int64, to term: String) throws {
+        let trimmed = term.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        try pool.write { db in
+            if try Int64.fetchOne(db, sql: "SELECT id FROM glossary WHERE term = ? AND id != ?", arguments: [trimmed, id]) != nil {
+                try db.execute(sql: "DELETE FROM glossary WHERE id = ?", arguments: [id])
+            } else {
+                try db.execute(sql: "UPDATE glossary SET term = ? WHERE id = ?", arguments: [trimmed, id])
+            }
+        }
+    }
+
+    /// 批次刪除（R94.3）
+    func deleteTerms(_ ids: [Int64]) throws {
+        _ = try pool.write { db in try GlossaryTerm.deleteAll(db, keys: ids) }
     }
 
     /// 詞彙表建議（design §17.5、R14.5）：從參加者、改過名字的說話者、接受過的校正、中文會議標題裡的英文詞找。

@@ -8,7 +8,7 @@
 
 ### F0.1 新功能
 
-1. 先寫 `docs/fork/requirements.md`（新功能從 F9 編號），再寫這份的 §F#（重要的取捨寫成 DF#），再加 `docs/fork/tasks.md` 的任務，最後寫程式。
+1. 先寫 `docs/fork/requirements.md`（新功能從 F10 編號），再寫這份的 §F#（重要的取捨寫成 DF#），再加 `docs/fork/tasks.md` 的任務，最後寫程式。
 2. 程式放 `Sources/Shiyin/Fork/<功能>/`。上游的檔只加「接點」：一行呼叫 fork 的程式，行尾標 `// MA-FORK(F#)`（shell 腳本用 `# MA-FORK(F#)`），並登記在 `docs/fork/manifest.json`。
 3. 不改上游函式的簽章。真的要改時寫成 DF 決策，列進 manifest 的 `highRisk`。
 4. 資料照 §F-DB。設定鍵（UserDefaults）一律 `ma` 開頭（例如 `maMuteHotKey`）；已經發布的 `muteHotKey` 不改名（使用者的設定會不見）。DEBUG 指令一律 `ma` 開頭（例如 `matagspeaker`），已經有的保留原名當別名。
@@ -17,8 +17,10 @@
 
 ### F0.2 接點的現況
 
-- 已經標記：F7 的接點（`MA-FORK(F7)`：`ShiyinApp.swift` 的 `BrandAboutCommand()`、`ReleaseNotes.swift` 兩行、`build-app.sh`、`make-dmg.sh`），見 manifest。
-- 還沒標記：F2、F3、F4、DF5 的程式還散在上游的檔裡（下表），PLAN-fork-5.0 階段 2（合併 5.0 之後）搬到 `Sources/Shiyin/Fork/`、上游檔只留標了 `MA-FORK` 的接點，manifest 跟著補。
+- 已經標記（`MA-FORK(F#)`，清單在 manifest 的 `markers`）：
+  - F7：`ShiyinApp.swift` 的 `BrandAboutCommand()`、`ReleaseNotes.swift` 兩行、`Reminders.swift` 兩行（5.0.1）、`build-app.sh`、`make-dmg.sh`。
+  - 5.0.1 合併時新加的（程式放 `Sources/Shiyin/Fork/`，上游檔只留 1 行）：F2 的 `ForkMigrations.register`（AppDatabase）、`ForkSpeakerTags`（MeetingEdits 4 行、`splitMeeting`、`SpeakerEdits`、封包的 Package 2 行、Exporters、AppModel 匯出）、`MeetingDetailView.speakerChip` 和 `TranscriptTab` 名字彈窗的「標記帶入」；F3 的 Recorder 收音檢查、選單列圖示（AppModel）、設定「錄音」頁的 `ForkMuteSettingsRow`、錄音島（IslandView 3 行、RecordingIsland 1 行）；F4 的換會議清狀態（AppModel）、`NotesSection` 的參數、條目列、待辦表；DF5 的 `LockedValue`；`ForkDebug`（DebugControl 的 `default:`，標 `MA-FORK(F0)`）。
+- 還沒標記：F2、F3、F4 其餘的程式還散在上游的檔裡（下表），PLAN-fork-5.0 階段 2 搬到 `Sources/Shiyin/Fork/`、上游檔只留標了 `MA-FORK` 的接點，manifest 跟著補。
 
 | 功能 | fork 自己的檔 | 改到的上游檔（4.7.6） |
 |---|---|---|
@@ -34,7 +36,7 @@
 - `CFBundleName`（含繁中在地化）設為 `MA`，提供應用程式選單的短名稱；`CFBundleDisplayName` 英文為 `Meeting Assistant`，繁中為「會議助手」。
 - App 檔名使用 `Meeting Assistant.app`，對應未在地化的 `CFBundleDisplayName`，讓 Finder 能套用繁中顯示名稱；建置、安裝、DMG 和 CI 同步調整並引用含空白的路徑。
 - SwiftUI 取代 `.appInfo` 群組的預設按鈕，呼叫 `orderFrontStandardAboutPanel(options:)`，只指定 `.applicationName` 為 `MA — Meeting Assistant`，版本、圖示和 `Credits.html` 沿用系統行為。
-- App 圖示（F1.6）：原始檔是 `Resources/AppIcon-1024.png`（1024×1024、sRGB、外框透明；Apple 圖示範本：圓角方塊 824×824、圓角 185 置中，奶茶色 #F4EADB→#E3CFB4→#D6BC97 漸層加極淡內緣暗角，貓的照片用 Vision 去背後放在框內）。`scripts/make-icon-from-png.sh` 用 `sips` 從原始檔直接縮出 16、32、128、256、512 的 @1x／@2x 共 10 張（512@2x 就是原圖），`iconutil -c icns` 產生 `Resources/AppIcon.icns`，重跑結果相同；`build-app.sh`、`make-dmg.sh`、CI 照舊複製 `AppIcon.icns`（Info.plist `CFBundleIconFile` = AppIcon），Finder、Dock、「關於 MA」都用它。官網與 README 的 `docs/images/icon.png` 是原始檔縮成 256，`site/public/favicon.png`（64）、`apple-touch-icon.png`（180）照 `site/make-images.sh` 的 `sips -z` 從 icon.png 縮。上游的 `scripts/make-icon.swift` 畫舊的波形圖示：fork 保留檔案以減少合併衝突，但不再使用（檔頭註明），跑了會蓋掉 fork 的圖示；合併上游時 `AppIcon.icns`、`docs/images/icon.png`、`site/public` 的圖示衝突一律保留 fork 的版本，再跑 `make-icon-from-png.sh` 確認。
+- App 圖示（F1.6）：原始檔是 `Resources/AppIcon-1024.png`（1024×1024、sRGB、外框透明；Apple 圖示範本：圓角方塊 824×824、圓角 185 置中，奶茶色 #F4EADB→#E3CFB4→#D6BC97 漸層加極淡內緣暗角，貓的照片用 Vision 去背後放在框內）。`scripts/make-icon-from-png.sh` 用 `sips` 從原始檔直接縮出 16、32、128、256、512 的 @1x／@2x 共 10 張（512@2x 就是原圖），`iconutil -c icns` 產生 `Resources/AppIcon.icns`，重跑結果相同；`build-app.sh`、`make-dmg.sh`、CI 照舊複製 `AppIcon.icns`（Info.plist `CFBundleIconFile` = AppIcon），Finder、Dock、「關於 MA」都用它。官網與 README 的 `docs/images/icon.png` 是原始檔縮成 256，`site/public/favicon.png`（64）、`apple-touch-icon.png`（180）照 `site/make-images.sh` 的 `sips -z` 從 icon.png 縮。上游的 `scripts/make-icon.swift` 畫舊的波形圖示：fork 保留檔案以減少合併衝突，但不再使用（檔頭註明），跑了會蓋掉 fork 的圖示；合併上游時 `AppIcon.icns`、`docs/images/icon.png` 的圖示衝突一律保留 fork 的版本，再跑 `make-icon-from-png.sh` 確認。`site/` 從 5.0.1 起照上游原樣（fork 沒部署官網，F7.6），裡面的 favicon、apple-touch-icon 也是上游的。
 - 介面文字使用「會議助手」／`Meeting Assistant`，提到左上角的應用程式選單時使用 `MA`。內部 Swift target、執行檔、Bundle Identifier、資料和設定位置維持原值（F1.4）。4.7.6 以後名稱都在建置時換（§F7）：原始碼、翻譯表、Info.plist 照上游寫，上面這些值由 `scripts/fork/brand.py` 寫進建好的 app。
 - 驗證：Swift 建置、字串抽取與中英翻譯檢查、plist 檢查、打包腳本語法檢查；檢查中英文 bundle 讀取的短名稱和顯示名稱。
 
@@ -245,7 +247,7 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 ### F7.1 設定（`fork/brand.json`）
 
 - `names`：每個介面語言的名稱對照。zh-Hant「拾音→會議助手」、zh-Hans「拾音→会议助手」、en「Shiyin→Meeting Assistant」（en 的值偶爾夾中文，也換「拾音」）。之後才有的語言（日、韓介面）用 en 那一份。
-- `bundleName` = MA、`displayName`（各語言）、`aboutName` = MA — Meeting Assistant。
+- `bundleName` = MA、`displayName`（各語言）、`aboutName` = MA — Meeting Assistant、`shortName` = MA（錄音島上用的簡稱，F7.7）。
 - `phrases`：整句的特例（`from`、`to`、`required`），先換、不再被名稱對照影響：「「拾音」選單」→「「MA」選單」（應用程式選單叫 MA，F1.1）、`/Applications/Shiyin.app` → 加引號的 `Meeting Assistant.app`、第三方授權的開場白、Credits 的贊助說明（「會議助手改自 juinwei7 的開源專案拾音 Shiyin…請原作者喝杯咖啡」）。`required` 依資源指定哪些整句一定要命中（相對 `Contents/Resources` 的檔案，`guide:` 開頭是安裝說明）：換完的資源裡看不到 `to` 就失敗。上游改了句子（連一個標點）時，整句對不到，一般的名稱替換會把句子換成「Enjoying Meeting Assistant?」、署名消失，殘留檢查看不出來，所以要靠 `required`（2026-11-18 審查 P2-2）。檢查的是輸出有沒有 `to`，對換過的產物重跑結果不變。
 - `keep`：不換的片段（正規表示式，F7.2）。`Shiyin(?=[A-Z])` 是 `ShiyinIssuesURL` 這類鍵名、識別。
 
@@ -267,8 +269,9 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 
 - 「關於 MA」：`AppCommands` 裡放 `BrandAboutCommand()`，取代系統的 `.appInfo`，`orderFrontStandardAboutPanel(options: [.applicationName: Brand.aboutName])`（F1.3）。
 - 更新說明選段落（`ReleaseNotes.items`）：`Brand.names("拾音")`、`Brand.names("Shiyin")` 認得 fork（會議助手、Meeting Assistant）和上游開頭的段落。
-- 上游 5.0 的提醒事項（合併 5.0 時接，F7.5）：`Reminders.listTitle` 包成 `Brand.name(MeetingLanguage.ui(zh: "拾音", en: "Shiyin"))`；`EventKitReminders.list()` 找已存在的列表時把 `["拾音", "Shiyin"].contains($0.title)` 換成 `Brand.isListTitle($0.title)`（會議助手、Meeting Assistant、拾音、Shiyin 都認得，舊列表沿用）。
+- 上游 5.0 的提醒事項（5.0.1 接上，F7.5）：`Reminders.listTitle` 包成 `Brand.name(MeetingLanguage.ui(zh: "拾音", en: "Shiyin"))`；`EventKitReminders.list()` 找已存在的列表時把 `["拾音", "Shiyin"].contains($0.title)` 換成 `Brand.isListTitle($0.title)`（會議助手、Meeting Assistant、拾音、Shiyin 都認得，舊列表沿用）。
 - MCP 給 AI 工具的英文訊息、`serverInfo`：不換（F7.3），列白名單。
+- 錄音島的「打開拾音」按鈕（F7.7，5.0.1）：`IslandView` 的按鈕標題包成 `Brand.short(String(localized: "打開拾音"))`。同一個鍵「打開拾音」選單列也在用（要照舊寫「打開會議助手」），翻譯表的整句特例（`phrases`）是以資源為單位、分不出是哪個畫面在用，所以不用 `phrases`，改在執行時換：`Brand.short` 把查表後的字串裡的完整品牌名（`names` 的值：會議助手、会议助手、Meeting Assistant）換成 `MABrand.shortName`（brand.json 的 `shortName`，`brand.py apply` 寫進 Info.plist），跟中文相鄰時前後補一個空白（「打開 MA」「打开 MA」，英文「Open MA」）。沒有 `MABrand`（上游原樣）時原樣回傳。上游檔只多 1 行接點。
 
 ### F7.4 檢查（`brand.py check <app>`、`check-sources`）
 
@@ -300,7 +303,7 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 4. 降回舊版要能開：fork 的 migration 不可以讓上游或舊版 fork 的程式出錯（例如加了 NOT NULL 又沒有預設值的欄位）。
 5. 上游會搬動、改時間、複製、還原會議資料的功能，fork 的表要跟著處理（F2.13）。清單在 §F-DB.2；上游監看（PLAN §8.2）會自動找新出現的這種 SQL。
 
-### F-DB.2 上游 5.0 要跟著處理標記的地方（合併 5.0 時做）
+### F-DB.2 上游 5.0 要跟著處理標記的地方（5.0.1）
 
 上游 5.0 不認得 `speaker_tags`（已確認上游程式沒處理）。
 
@@ -313,13 +316,24 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 | 垃圾桶、永久刪除 | CASCADE | 沒有 | 沒有 |
 | `.shiyin` 封包匯出、匯入 | 上游的表 | 帶標記（F2.8），見 §F-DB.3 | 匯出、匯入各 1 行 |
 
-驗證（全自動，寫進回歸清單）：DEBUG 版 `record-sim` 加 `tagspeaker add` 放標記，跑 5.0 的 `editmeeting`、`splitmeeting`、`restoreedit`，用 `speakertags <id> <out.json>` 比對時間。
+做法（`Fork/SpeakerTags/ForkSpeakerTags.swift`）：
+- 第一次編輯前把這場的標記存進 `ma_meeting_edit_tags`（migration `ma_meeting_edit_tags_v1`；外鍵指到上游的 `meeting_edits`、`ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED`：上游在交易最後才存快照，過期刪快照時 fork 的跟著刪）。
+- 這場的標記照 `EditPlan.mapSentence` 搬到新的時間軸（跟句子同一套：中間點在留下的片段裡就留，被剪掉的刪掉）；合併時另一場的標記複製過來（那場移到垃圾桶，它自己的標記留著，還原時用得到）。
+- 分成兩場（R90 從某一句分、編輯畫面的 split 都走 `splitMeeting`）：`start >= cut` 的移到新會議、減掉切點；跨過切點的切成兩段。
+- 還原：照快照放回這場的標記（合併進來的、搬過的都換回原本的）；分出去的那場移到垃圾桶，它的標記留著。
+
+驗證（5.0.1，DEBUG 版暫存 SHIYIN_HOME，示範會議加 5 個標記：甲 10–20、乙 600–620、戊 1790–1810、丙 2000–2010、丁 3000–3020，`speaker_tags` 直接查）：
+- `editmeeting 1 keep=0-500,1000-3912`：乙（中間點在剪掉的地方）刪掉，戊、丙、丁各減 500；快照存了 5 個。`restoreedit 1`：5 個回到原本的時間，快照跟著刪。
+- `editmeeting 1 split=1800`：戊切成這場的 1790–1800 和新會議的 0–10；丙、丁移到新會議的 200–210、1200–1220。`restoreedit 1`：這場回到原本的 5 個，新會議移到垃圾桶。
+- `editmeeting 2 merge=1:0-100`：會議 1 的甲接在會議 2（125 秒）後面變成 135–145，會議 1 移到垃圾桶、它的標記不變；`restoreedit 2`：會議 2 只剩它自己的標記，會議 1 拿出垃圾桶。
 
 ### F-DB.3 封包帶標記（F2.8，2026-11-18 使用者決定）
 
-- 匯出：`meeting.json` 加一個 fork 的鍵 `maSpeakerTags`：`[{start, end, name, kind}]`（時間是錄音檔的秒數，同 `speaker_tags`）；沒有標記時不寫這個鍵。封包的格式版本（`manifest.json`）不變：上游的拾音解 JSON 時不認得的鍵會略過，照常匯入。
-- 匯入：有 `maSpeakerTags` 就寫進 `speaker_tags`（新的 `meeting_id`）；沒有（舊封包、上游拾音匯出的）照常匯入、沒有標記。標記不重新套用到說話者（封包裡的說話者名字已經是套用後的結果）；之後重新轉錄、重新辨識說話者時照 F2.7、F2.10 再對一次。
-- 驗證：匯出帶標記的會議 → 匯入成新會議，`speakertags` 比對相同；匯入沒有 `maSpeakerTags` 的舊封包（4.7.6 匯出的）成功、標記是空的；上游 5.0 的 app 匯入帶標記的封包成功（略過）。
+- 匯出：封包裡多一個 fork 自己的檔 `ma-speaker-tags.json`：`[{start, end, name, kind}]`（時間是錄音檔的秒數，同 `speaker_tags`）；沒有標記時不寫這個檔，封包跟上游的一樣。封包的格式版本（`manifest.json`）、`meeting.json` 都不變：上游的拾音匯入時只讀它認得的檔，會略過這個檔、照常匯入。
+  - 原本（0c）寫的是在 `meeting.json` 加 `maSpeakerTags` 鍵；實作改成另外的檔：不用改上游的 `MeetingJSON` 結構，接點少一個，上游以後改 `meeting.json` 也不會跟 fork 衝突。
+  - 接點：`ExportBundle` 多一個 `speakerTags`（Exporters 1 行）；`AppModel.export` 的 `.package` 前由 `ForkSpeakerTags.attach` 帶入（1 行）；`MeetingPackage.export` 壓縮前 `writePackage`、`importPackage` 加完標記重點後 `readPackage`（各 1 行）。
+- 匯入：有這個檔就把標記加進新會議（`kind` 只收 `line`、`now`；時間不合理、名字空白的略過，讀不出來整個略過，不讓匯入失敗：封包可能來自別人）。沒有（舊封包、上游拾音匯出的）照常匯入、沒有標記。標記不重新套用到說話者（封包裡的說話者名字已經是套用後的結果）；之後重新轉錄、重新辨識說話者時照 F2.7、F2.10 再對一次。
+- 驗證（5.0.1，DEBUG 版暫存 SHIYIN_HOME）：帶 5 個標記的會議 `export package` → `import`，新會議的標記跟原本逐條相同；沒有標記的會議匯出的封包裡沒有 `ma-speaker-tags.json`、匯入成功、0 個標記。上游 5.0 的匯入程式只讀 `manifest.json`、`meeting.json`、`transcript.json`、`documents.json` 和錄音，不會讀到 fork 的檔（看程式碼確認，沒有另外建上游的 app 測）。
 
 ## F-UP. fork 對上游設計的補充（引用上游節號）
 
@@ -336,7 +350,14 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 | §44 本地 MCP | 給 AI 工具的英文訊息、`serverInfo` 照上游寫 Shiyin，不換品牌（F7.3）；設定頁和錯誤訊息這些查翻譯表的文字建置時換成會議助手 |
 | §49、§50（R73、R74） | 4.7.6 帶入上游 4.8.1 的寫法（F6）。§49.2、R73.6、R74.6 的 Windows 部分 fork 不做 |
 | §50.2 重新連接在背景 | fork 補的同步規則（DF5）：音源上會被兩個執行緒碰到的值都用 `LockedValue`（`NSLock`，每次讀寫只短暫拿鎖）存。`MicrophoneInput.deviceUID`：換麥克風時主執行緒寫、`deviceQueue` 上的 `start()` 讀；`current`（正在收音的裝置）：`start()` 在背景寫、主執行緒更新畫面時讀。`MicrophoneSource`、`FileSource` 一樣。不用 `deviceQueue.sync` 包住換麥克風：那會等整個重新連接做完，畫面又卡住（R74.4）。`start()` 一開始讀一次 UID 當這次的快照，中途換了就由 `restartAgain` 再做一次。驗證：`LockedValue` 原樣放進不碰硬體的 ThreadSanitizer 小程式，背景一直 `start()`、主執行緒一直換 UID、讀 current，沒有資料競態；改回普通屬性時 TSan 報告競態。上游的同一段沒有加鎖（上游仍有這個競態），上游哪天自己加鎖時刪掉 fork 的 |
-| 上游 5.0 的錄音島（R81） | 顯示「麥克風靜音中」（F3.7），合併 5.0 時做 |
+| 上游 5.0 的錄音島（R81、§57） | 靜音中（F3.7）：收起時紅點換成劃掉的麥克風（有提醒時琥珀色）；滑過去在音量下面寫「麥克風靜音中」加「打開麥克風」；靜音中好像有人說話的提醒（F3.4）跟錄音畫面的提示列一樣出現在島上，順序同提示列（沒人說話 → 靜音中好像有人說話 → 藍牙 → 收音）。`Fork/Mute/ForkIslandMute.swift` |
+| 上游 5.0 的收音檢查（R75、§51.1） | 靜音中不做麥克風的提醒（F3.5），但上游新的「錄不到電腦聲音」（系統音訊權限被拒）照樣提示：`checkLevels` 在 `checkSystemPermission` 和 `guard hasMic` 之後 1 行接點 |
+| 上游 5.0 的選單列圖示（`hint.symbol`） | 上游的收音提醒圖示優先，再來是 F3 的「忘了打開」提醒（`mic.badge.xmark`）、靜音中（`mic.slash.circle.fill`） |
+| 上游 5.0 的設定十一頁（R108） | F3 的「錄音中按 ⌃⌥⌘M 靜音」開關放在「錄音」頁的「提醒與快捷鍵」最後（`Fork/Mute/ForkMuteSettingsRow`） |
+| 上游 5.0 的會議頁上方（R84）、彈窗（R106） | `speakerChip` 的來源是 `tag` 時跟聲紋自動帶入一樣用 `AutoSpeakerName`（後面標「標記」）；說話者名字彈窗的「從錄音時的標記帶入」說明和「不是他」照舊（F2.9） |
+| 上游 5.0 的就地編輯（R100）、加到提醒事項（R76） | `NotesSection` 合成一個：fork 的條數、色條、複製鈕加上上游的 `accessory`（「待辦」的「加到提醒事項」放在複製鈕後面）；條目在編輯中用上游的 `NoteItemEditor`，其他時候用 fork 的 `NoteRow`，接上 `noteItemActions`（右鍵、⋯），可以就地編輯的條目不設成可選取；待辦表保留 fork 的欄位順序（負責人、期限、事項、時間點），負責人加上游的頭像，事項接上就地編輯和提醒事項的勾 |
+| 上游 R70 拆句、`addSpeaker()` | F2.12「只改這句」用上游的 `addSpeaker()` 新增說話者，再由 `ForkSpeakerTags.nameNewSpeaker` 設成標記的名字 |
+| 上游 5.0 的 DEBUG `state` | 錄音中錄音島出現時，視窗清單裡島的面板 `maxSize` 是無限大，`state` 寫 JSON 時丟例外、DEBUG 版結束（上游原樣也一樣；正式版不受影響）。fork 不改上游的檔：測錄音中的狀態時用 `-recordingIsland NO` 啟動。島的畫面用 fork 的 DEBUG 指令 `mawindowshot <輸出.png> island` 拍 |
 | 上游 5.0 的提醒事項（R101） | 列表名稱「會議助手」、舊名「拾音」列表沿用（F7.5、§F7.3 的接點） |
 
 ## DF. fork 的決策紀錄

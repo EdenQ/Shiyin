@@ -59,6 +59,10 @@ public class PromptTests
         var range = Golden.Fixtures.GetProperty("correctionRange").EnumerateArray().Select(x => x.GetInt32()).ToArray();
         if (range[1] <= fx.Segments.Count)
             Golden.Text(dir + "correction-prompt-range.txt", TranscriptCorrection.Prompt(correction, range[0], range[1]));
+        // 精簡逐字稿（R96、M§70）：跟 JobRunner.Clean 一樣組 Context
+        var cleanup = new TranscriptCleanup.Context(l, fx.Segments.Select(s => (s.Text, SpeakerName(s.Speaker))).ToList());
+        Golden.Text(dir + "clean-system.txt", TranscriptCleanup.System(l));
+        Golden.Text(dir + "clean-prompt.txt", TranscriptCleanup.Prompt(cleanup, 0, fx.Segments.Count));
 
         var unnamed = names.Keys.Order().Where(i => SpeakerNames.IsDefault(names[i])).ToList();
         var naming = new SpeakerNaming.Context(l, fx.Meeting.MeetingDate, fx.Meeting.Title, fx.Meeting.ParticipantList, fx.KnownPeople,
@@ -107,11 +111,13 @@ public class PromptTests
         Golden.Text("schemas/keywords.json", AskPrompt.KeywordsSchema);
         Golden.Text("schemas/naming.json", SpeakerNaming.JsonSchema);
         Golden.Text("schemas/correction.json", TranscriptCorrection.JsonSchema);
+        Golden.Text("schemas/clean.json", TranscriptCleanup.JsonSchema);
         var expected = Golden.ExpectedJson("schemas/formats.json");
         var formats = new Dictionary<string, OutputFormat>
         {
             ["notes"] = OutputFormat.MeetingNotes, ["askMeeting"] = AskPrompt.MeetingFormat, ["askAll"] = AskPrompt.AllFormat,
             ["keywords"] = AskPrompt.KeywordsFormat, ["naming"] = SpeakerNaming.Format, ["correction"] = TranscriptCorrection.Format,
+            ["clean"] = TranscriptCleanup.Format,
         };
         foreach (var (name, f) in formats)
         {
@@ -183,6 +189,16 @@ public class PromptTests
             // zlib 的實作不同，壓縮後的大小差幾個位元組：容許 ±0.05（design-windows §4.2）
             var ratio = WhisperRules.CompressionRatio(item.Str("text")!);
             Assert.InRange(ratio, Golden.Number(item.Get("ratio")) - 0.05, Golden.Number(item.Get("ratio")) + 0.05);
+        }
+        // 沒人講話時的輸出（M§6.2）：只是標記或標點、詞彙表被照抄
+        foreach (var item in Golden.ExpectedJson("whisper/nonspeech.json").EnumerateArray())
+            Assert.True(item.GetProperty("nonSpeech").GetBoolean() == WhisperRules.IsNonSpeech(item.Str("text")!), item.Str("text"));
+        foreach (var item in Golden.ExpectedJson("whisper/echoes.json").EnumerateArray())
+        {
+            var glossary = item.GetProperty("glossary").EnumerateArray().Select(x => x.GetString()!).ToList();
+            var prompt = WhisperRules.Prompt(glossary, MeetingLanguages.Parse(item.Str("language"))!.Value);
+            Assert.Equal(item.Str("prompt"), prompt);
+            Assert.True(item.GetProperty("echo").GetBoolean() == WhisperRules.EchoesGlossary(item.Str("text")!, prompt, glossary), item.Str("text"));
         }
     }
 

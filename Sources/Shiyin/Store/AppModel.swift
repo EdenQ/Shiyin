@@ -93,6 +93,18 @@ struct MeetingDetail: Equatable {
     var tagMatches: [Int64: SpeakerTagging.Match] = [:]
     /// 每位說話者最像的幾位認識的人（R33）：「是別人」的選單、待確認的「不是」
     var speakerCandidates: [Int: [String]] = [:]
+    /// 精簡逐字稿（R96、design §70）：段落 id → 精簡後的文字；空的是還沒產生。最後一次產生失敗的原因
+    var cleanLines: [Int64: String] = [:]
+    var cleanFailure: String?
+    /// 「我」是哪一位說話者（design §58.2）
+    var selfIdx: Int?
+
+    /// 名字（不分大小寫）是這場哪一位說話者：待辦的負責人放頭像用（design §58.2）
+    func speakerIdx(named name: String) -> Int? {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        return speakers.first { $0.value.caseInsensitiveCompare(trimmed) == .orderedSame }?.key
+    }
     /// 待確認的題數：會議紀錄的待確認＋說話者的建議（R33.3）
     var reviewCount: Int { (notes?.reviewItems.count ?? 0) + speakerSuggestions.count }
     /// 可以復原的說話者調整（合併、改句子）的說明，沒有就是 nil；顯示在改名小視窗和逐字稿右鍵選單（R44.4）
@@ -233,18 +245,65 @@ final class AppModel {
     @ObservationIgnored private var summarizerObservers: [NSObjectProtocol] = []
     var meetings: [MeetingRow] = []
     var trash: [MeetingRow] = []
-    var showTrash = false
+    var showTrash = false { didSet { if oldValue != showTrash { selectedMeetings = [] } } }
     var selection: Int64? {
         didSet {
+            // 程式換到多選以外的會議（還原、錄音停止後跳到那場）時，多選換成那一場
+            if selectedMeetings.count > 1, selection.map({ !selectedMeetings.contains($0) }) ?? true { selectedMeetings = [] }
             if oldValue != selection {
                 reviewExpanded = false
                 userNotesExpanded = false
-                currentTopicBranch = nil
+                currentTopicBranch = nil   // MA-FORK(F4)：換會議時清掉議題的狀態
                 topicScrollRequest = nil
                 notesCollapsedTopics = nil
-                reloadDetail()
+                reloadDetailAfterMouseUp()
             }
         }
+    }
+    @ObservationIgnored private var pendingDetailReload: Timer?
+    #if DEBUG
+    /// 驗證用：當成左鍵按著（`mousehold on|off`）
+    @ObservationIgnored var debugMouseHeld = false
+    #endif
+
+    /// 側欄的列按下去就選取，接著可能是拖曳：按著滑鼠時先不換右邊的會議頁，放開才載入（design §77）。
+    /// 長會議載入、重畫要 0.3 秒左右，主執行緒卡住時拖曳會頓一下、拖不太動（2026-11-17 使用者回報）。
+    /// 計時器排在一般模式：拖曳中（事件追蹤模式）不會跑，放開後才換
+    private func reloadDetailAfterMouseUp() {
+        pendingDetailReload?.invalidate()
+        pendingDetailReload = nil
+        guard leftMouseHeld else { reloadDetail(); return }
+        pendingDetailReload = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] timer in
+            MainActor.assumeIsolated {
+                guard let self, !self.leftMouseHeld else { return }
+                timer.invalidate()
+                self.pendingDetailReload = nil
+                self.reloadDetail()
+            }
+        }
+    }
+
+    private var leftMouseHeld: Bool {
+        #if DEBUG
+        if debugMouseHeld { return true }
+        #endif
+        return NSEvent.pressedMouseButtons & 1 != 0
+    }
+    /// 會議列表的多選（R88、design §62）：兩場以上時右邊顯示「已選取 N 場會議」；`selection` 照舊是目前這場
+    var selectedMeetings: Set<Int64> = []
+    /// 列表綁的選取：選了兩場以上是多選，不然是 `selection`
+    var listSelection: Set<Int64> {
+        get { selectedMeetings.count > 1 ? selectedMeetings : Set([selection].compactMap { $0 }) }
+        set {
+            selectedMeetings = newValue
+            if newValue.count <= 1 { selection = newValue.first }
+        }
+    }
+    /// ⇧ 點選的起點：上一次（沒按 ⇧）點的那場（design §77）
+    @ObservationIgnored var selectionAnchor: Int64?
+    /// 選了兩場以上時的那幾場（列表的順序），不然是空的
+    var multiSelected: [Int64] {
+        selectedMeetings.count > 1 ? filteredMeetings.map(\.id).filter { selectedMeetings.contains($0) } : []
     }
     var detail: MeetingDetail?
     /// 待確認的回答（design §31.2）：待確認分頁和紀錄旁的就地回答共用；換會議就換一份（`syncReviewDraft`）
@@ -273,11 +332,41 @@ final class AppModel {
     /// 已經有會議紀錄、之後才加入或移除文件的會議（R61.8）：紀錄分頁頂部提示重新整理。只記在記憶體
     var documentsChanged: Set<Int64> = []
     var filter = ""
+    /// 列表的排序、分組（R97、design §71）：記住；篩選只記這次，換篩選時取消多選
+    var meetingSort = MeetingSort(rawValue: UserDefaults.standard.string(forKey: AppSettings.meetingSortKey) ?? "") ?? .dateDesc {
+        didSet { UserDefaults.standard.set(meetingSort.rawValue, forKey: AppSettings.meetingSortKey) }
+    }
+    var meetingGrouping = MeetingGrouping(rawValue: UserDefaults.standard.string(forKey: AppSettings.meetingGroupingKey) ?? "") ?? .none {
+        didSet { UserDefaults.standard.set(meetingGrouping.rawValue, forKey: AppSettings.meetingGroupingKey) }
+    }
+    var meetingFilter = MeetingFilter() { didSet { if oldValue != meetingFilter { selectedMeetings = [] } } }
+    /// 側欄的收合（R101、design §75）：收起來的段落、在原地展開的資料夾；記住
+    var sidebarCollapsed = Set(UserDefaults.standard.stringArray(forKey: AppSettings.sidebarCollapsedKey) ?? []) {
+        didSet { if oldValue != sidebarCollapsed { UserDefaults.standard.set(sidebarCollapsed.sorted(), forKey: AppSettings.sidebarCollapsedKey) } }
+    }
+    var sidebarExpanded = Set(UserDefaults.standard.stringArray(forKey: AppSettings.sidebarExpandedKey) ?? []) {
+        didSet { if oldValue != sidebarExpanded { UserDefaults.standard.set(sidebarExpanded.sorted(), forKey: AppSettings.sidebarExpandedKey) } }
+    }
+    /// 資料夾拖曳排好的順序（R103.2、design §77），鍵同 sidebarExpanded
+    var sidebarOrder = UserDefaults.standard.stringArray(forKey: AppSettings.sidebarOrderKey) ?? [] {
+        didSet { if oldValue != sidebarOrder { UserDefaults.standard.set(sidebarOrder, forKey: AppSettings.sidebarOrderKey) } }
+    }
+    /// 從 Finder 拖到資料夾上的檔案要匯入到哪個資料夾（R103.3）：逐字稿、封包當下就用，錄音等匯入的對話框按下去才用
+    var importFolderOverride: String?
+    var pendingImportFolder: String?
+    /// 每場會議連到哪些人物（「有誰參加」篩選），跟人物總覽一起讀
+    var meetingPeople: [Int64: Set<Int64>] = [:]
     /// 側欄目前只看的資料夾；nil 是所有會議（R9.2）
-    var folderFilter: String?
-    /// 正在輸入名稱的資料夾動作：新增（要移入的會議）或改名（舊名稱）
-    var folderPrompt: FolderPrompt?
-    enum FolderPrompt: Equatable { case create(Int64), rename(String) }
+    var folderFilter: String? {
+        didSet { if oldValue != folderFilter { selectedMeetings = [] } }
+    }
+    /// 資料夾的自動加入條件（R98、design §72）；正在編輯哪個資料夾的條件
+    var folderRules: [FolderRule] = []
+    /// 資料夾表裡的名字（R104：空的資料夾也在）
+    var folderNames: [String] = []
+    var editingFolderRule: String?
+    /// 重新命名的彈窗（R102、design §76）：會議、資料夾、新資料夾、人物、標記都用這一個
+    var renameTarget: RenameTarget?
     var glossary: [GlossaryTerm] = []
     var glossarySuggestions: [GlossarySuggestion] = []
     /// 公司詞彙表（R53）：設定頁顯示、建議的新詞要排除
@@ -288,6 +377,16 @@ final class AppModel {
     var searchResults: [SearchHit] = []
     /// 搜尋結果點進來時要高亮的逐字稿段落
     var highlightSegment: Int64?
+    /// 逐字稿要進入拆成兩句的模式（design §46.2）：右鍵選單、DEBUG 的 splitmode 設，逐字稿分頁接手後清掉
+    var splitRequest: Int64?
+    /// 「從這裡分成兩場…」要確認的段落（R90、design §64）
+    var splitMeetingRequest: Int64?
+    /// 編輯會議的畫面（R107、design §81.5）打開的那場
+    var editingMeeting: Int64?
+    /// 正在套用編輯、分成兩場、還原的那場（錄音接檔要幾秒）
+    var applyingEdit: Int64?
+    /// 「還原成編輯前的樣子…」要確認的那場（R107.8）
+    var confirmRestoreEdit: Int64?
 
     var pendingImport: [URL] = []
     var showImportSheet = false
@@ -299,13 +398,18 @@ final class AppModel {
     /// 匯出對話框要匯出的會議：打開時記下，對話框開著時選取的會議換了也不變（design §20.9、R18.9）
     var exportMeetingId: Int64?
     var confirmDelete = false
-    /// 垃圾桶裡「永久刪除」要確認的會議
-    var confirmPurge: Int64?
+    /// 垃圾桶裡「永久刪除」要確認的會議（多選時是好幾場，R88）
+    var confirmPurge: [Int64]?
+    /// 「清空垃圾桶…」的確認（R88.3）
+    var confirmEmptyTrash = false
     /// 確認對話框要刪的會議：按下 ⌘⌫ 時就決定，不然確認前選取的會議變了（例如錄音停止後跳到那場）會刪到別場
-    var deleteTarget: Int64?
+    var deleteTargets: [Int64] = []
     var queuedCount = 0
     var errorMessage: String?
     var noticeMessage: String?
+    /// 目前這場會議的待辦哪些在提醒事項裡：item 鍵 → 完成了沒（design §52.2）
+    var reminderStatus: [String: Bool] = [:]
+    var addingReminders = false
     /// 第二版留下的 Python 環境、mlx 模型（R10.5）
     var legacyBytes: Int64 = 0
 
@@ -316,6 +420,9 @@ final class AppModel {
         do {
             try Paths.ensureDirectories()
             db = try AppDatabase(path: Paths.database.path, documentsRoot: Paths.documentsDir)
+            // migration v14 可能把側欄的鍵換過（定期會議換成資料夾，design §73）：重讀
+            sidebarExpanded = Set(UserDefaults.standard.stringArray(forKey: AppSettings.sidebarExpandedKey) ?? [])
+            sidebarOrder = UserDefaults.standard.stringArray(forKey: AppSettings.sidebarOrderKey) ?? []
         } catch {
             // 遷移在交易裡進行，失敗時原本的資料不會被改到（N3）；說明清楚後結束，不要直接閃退
             let alert = NSAlert()
@@ -332,6 +439,7 @@ final class AppModel {
         environment = EnvironmentStatus(items: [])
         runner.onChange = { [weak self] in self?.reload() }
         runner.onFinished = { [weak self] job, error in self?.jobFinished(job, error: error) }
+        runner.onOrganized = { [weak self] id, folder in self?.organized(id, folder: folder) }
         recorder.onLiveFinished = { [weak self] id, duration in self?.enqueueDraftNotes(meetingId: id, duration: duration) }
         runner.onRediarized = { [weak self] id, result in
             guard let self, self.selection == id else { return }
@@ -405,6 +513,7 @@ final class AppModel {
         })
         cleanUpPreviousRun()
         purgeExpiredTrash()
+        purgeExpiredEdits()
         recoverRecordings()
         runner.start()
         // 語言偵測模型很小（60 MB），開著自動偵測就先下載好
@@ -422,7 +531,7 @@ final class AppModel {
         recorder.onMicHint = { [weak self] hint in self?.micHintAppeared(hint) }
         // 忘了停止錄音（design §35、R48）：提醒一出現就送通知（人多半不在電腦前）
         recorder.onIdlePrompt = { [weak self] in
-            guard let self, let id = self.recorder.meetingId else { return }
+            guard let self, let id = self.recorder.meetingId, !RecordingIsland.isEnabled else { return }
             self.notifier.idlePrompt(meetingId: id)
         }
         GlobalHotKey.shared.setEnabled(AppSettings.globalHotKey)
@@ -447,6 +556,9 @@ final class AppModel {
             // 公司已經有的詞不再建議（R53.3）
             glossarySuggestions = try db.glossarySuggestions().filter { !CompanyGlossary.contains($0.term) }
             templates = try db.templates()
+            meetingPeople = try db.meetingPeople()
+            folderRules = try db.folderRules()
+            folderNames = try db.folderNames()
             queuedCount = try db.activeJobs().filter { $0.status == .queued }.count
         } catch {
             errorMessage = error.localizedDescription
@@ -455,7 +567,9 @@ final class AppModel {
             self.selection = nil
         }
         // 資料夾裡最後一場會議移走後，資料夾就不存在了，回到所有會議
-        if let folderFilter, !meetings.contains(where: { $0.meeting.folder == folderFilter }) { self.folderFilter = nil }
+        // 有自動加入條件的資料夾沒有會議也留著（design §72）
+        if let folderFilter, !meetings.contains(where: { $0.meeting.folder == folderFilter }),
+           !folderRules.contains(where: { $0.folder == folderFilter }) { self.folderFilter = nil }
         reloadDetail()
     }
 
@@ -484,21 +598,50 @@ final class AppModel {
 
     /// 現有的資料夾和各自的場數（不含垃圾桶），依名稱排序
     var folders: [(name: String, count: Int)] {
-        let counts = Dictionary(grouping: meetings.filter { !$0.meeting.folder.isEmpty }, by: \.meeting.folder).mapValues(\.count)
+        var counts = Dictionary(grouping: meetings.filter { !$0.meeting.folder.isEmpty }, by: \.meeting.folder).mapValues(\.count)
+        // 有自動加入條件的資料夾、資料夾表裡的（R104：自己建的空資料夾）沒有會議也列出來（design §72、§78）
+        for rule in folderRules where counts[rule.folder] == nil { counts[rule.folder] = 0 }
+        for name in folderNames where counts[name] == nil { counts[name] = 0 }
         return counts.map { (name: $0.key, count: $0.value) }.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
 
     /// 新會議要放進的資料夾：正在看某個資料夾時就放那裡
-    var currentFolder: String { showTrash ? "" : folderFilter ?? "" }
+    var currentFolder: String { importFolderOverride ?? (showTrash ? "" : folderFilter ?? "") }
 
-    func moveToFolder(_ id: Int64, folder: String) {
+    func moveToFolder(_ id: Int64, folder: String) { moveToFolder([id], folder: folder) }
+
+    /// 建一個空的資料夾（R104，「資料夾」標題的「+」、⇧⌘N）
+    func createFolder(_ name: String) {
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, !folders.contains(where: { $0.name == name }) else { return }
+        perform { try db.createFolder(name) }
+        noticeMessage = String(localized: "已建立資料夾「\(name)」")
+    }
+
+    /// 移到資料夾（R9.2）；多選時一起移（R88），已經在那裡的跳過
+    func moveToFolder(_ ids: [Int64], folder: String) {
         let name = folder.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let current = try? db.meeting(id)?.folder, current == name {
-            noticeMessage = name.isEmpty ? String(localized: "這場會議沒有在任何資料夾裡") : String(localized: "這場會議已經在「\(name)」")
+        let targets = ids.filter { (try? db.meeting($0))?.folder != name }
+        if targets.isEmpty {
+            if ids.count == 1 {
+                noticeMessage = name.isEmpty ? String(localized: "這場會議沒有在任何資料夾裡") : String(localized: "這場會議已經在「\(name)」")
+            } else {
+                noticeMessage = name.isEmpty ? String(localized: "這些會議都沒有在資料夾裡") : String(localized: "這些會議都已經在「\(name)」")
+            }
             return
         }
-        perform { try db.setFolder([id], folder: name) }
-        noticeMessage = name.isEmpty ? String(localized: "已移出資料夾") : String(localized: "已移到「\(name)」")
+        perform { try db.setFolder(targets, folder: name) }
+        if targets.count == 1 {
+            noticeMessage = name.isEmpty ? String(localized: "已移出資料夾") : String(localized: "已移到「\(name)」")
+        } else {
+            noticeMessage = name.isEmpty ? String(localized: "已把 \(targets.count) 場會議移出資料夾") : String(localized: "已把 \(targets.count) 場會議移到「\(name)」")
+        }
+    }
+
+    /// 這幾場會議都在同一個資料夾時是那個資料夾（空字串是不在資料夾裡），不一樣時是 nil
+    func commonFolder(_ ids: [Int64]) -> String? {
+        let folders = Set((showTrash ? trash : meetings).filter { ids.contains($0.id) }.map(\.meeting.folder))
+        return folders.count == 1 ? folders.first : nil
     }
 
     func renameFolder(_ old: String, to newName: String) {
@@ -506,6 +649,14 @@ final class AppModel {
         guard !name.isEmpty, name != old else { return }
         // 先切換篩選，reload 時才不會因為舊名稱不存在而跳回所有會議
         if folderFilter == old { folderFilter = name }
+        if sidebarExpanded.contains(Self.folderKey(old)) {
+            sidebarExpanded.remove(Self.folderKey(old))
+            sidebarExpanded.insert(Self.folderKey(name))
+        }
+        if let i = sidebarOrder.firstIndex(of: Self.folderKey(old)) {
+            // 改成已經有的資料夾（合併）時留原本那個的位置
+            if sidebarOrder.contains(Self.folderKey(name)) { sidebarOrder.remove(at: i) } else { sidebarOrder[i] = Self.folderKey(name) }
+        }
         perform { try db.renameFolder(old, to: name) }
     }
 
@@ -513,6 +664,8 @@ final class AppModel {
     func deleteFolder(_ name: String) {
         perform { try db.renameFolder(name, to: "") }
         if folderFilter == name { folderFilter = nil }
+        setRow(Self.folderKey(name), expanded: false)
+        sidebarOrder.removeAll { $0 == Self.folderKey(name) }
     }
 
     func reloadDetail(forceAudio: Bool = false) {
@@ -538,6 +691,10 @@ final class AppModel {
         loaded.speakerTags = (try? db.speakerTags(id)) ?? []
         loaded.loadDocuments((try? db.documents(id)) ?? [])
         loaded.speakerCandidates = (try? db.voiceprintCandidates(id)) ?? [:]
+        loaded.cleanLines = (try? db.cleanLines(id)) ?? [:]
+        loaded.cleanFailure = ((try? db.lastJob(id, kind: .clean)) ?? nil).flatMap { $0.status == .failed ? ($0.error ?? "") : nil }
+        // 「我」（R80）：連到有 enroll 聲紋的那個人的說話者，頭像加一圈青瓷綠（design §58.2）
+        if let me = (try? db.enrollment()) ?? nil { loaded.selfIdx = speakerRows.first { $0.personId == me.personId }?.idx }
         loaded.speakerUndoLabel = try? db.speakerUndoLabel(id)
         if let until = try? db.transcribedUntil(id), let duration = meeting.durationSeconds, Double(duration) - until >= 60 {
             loaded.untranscribedMinutes = Int(((Double(duration) - until) / 60).rounded())
@@ -546,17 +703,21 @@ final class AppModel {
         loaded.linkReviewItems()
         detail = loaded
         syncReviewDraft()
+        if previous?.id != meeting.id { refreshReminderStatus() }
         if forceAudio || previous?.id != meeting.id || previous?.audioFile != meeting.audioFile {
             if meeting.hasAudio { player.load(meeting.audioURL, mixChannels: meeting.channels == "both") } else { player.unload() }
         }
     }
 
+    /// 列表上的會議：資料夾、篩選（垃圾桶不篩選）、排序（R97、design §71）
     var filteredMeetings: [MeetingRow] {
         var source = showTrash ? trash : meetings
+        if listShowsOthersOnly { source = source.filter { $0.meeting.folder.isEmpty } }
         if !showTrash, let folderFilter { source = source.filter { $0.meeting.folder == folderFilter } }
+        if !showTrash, meetingFilter.isActive { source = source.filter { matches($0, meetingFilter) } }
         let keyword = filter.trimmingCharacters(in: .whitespaces)
-        guard !keyword.isEmpty else { return source }
-        return source.filter { $0.meeting.displayTitle.localizedCaseInsensitiveContains(keyword) }
+        if !keyword.isEmpty { source = source.filter { $0.meeting.displayTitle.localizedCaseInsensitiveContains(keyword) } }
+        return sorted(source)
     }
 
     func status(_ row: MeetingRow) -> MeetingStatus {
@@ -608,10 +769,12 @@ final class AppModel {
 
     var menuBarSymbol: String {
         if bookmarkFlash { return "star.circle.fill" }
-        // 收音提醒還在時換成警示的樣子（R42.2），按「知道了」或提示消失就換回來
+        // 收音提醒還在時換成警示的樣子（R42.2），按「知道了」或提示消失就換回來。
+        // 圖示同提示列（mic.badge.exclamationmark 不是系統有的 SF Symbol，4.1～4.8.1 選單列在這時是空白的）
         if recorder.isRecording {
-            if recorder.levelHint != nil || recorder.micHint != nil || recorder.idlePrompt || recorder.muteHint { return "mic.badge.exclamationmark" }
-            return recorder.micMuted ? "mic.slash.circle.fill" : "record.circle.fill"
+            if let hint = recorder.levelHint { return hint.symbol }
+            return recorder.micHint != nil || recorder.idlePrompt || recorder.muteHint ? "mic.badge.xmark"
+                : recorder.micMuted ? "mic.slash.circle.fill" : "record.circle.fill"   // MA-FORK(F3)：靜音中、忘了打開的提醒（design §F3.3）
         }
         if runner.isBusy || queuedCount > 0 { return "waveform.circle.fill" }
         return "waveform"
@@ -620,13 +783,14 @@ final class AppModel {
     /// 收音提醒第一次出現（R42.1、design §31.5）：拾音不是最前面的 app、或主視窗沒開時送通知，點了打開錄音中的會議。
     /// 每場每種最多一次由 Recorder 管；拾音在前面時只有錄音畫面和選單列的提示
     private func levelHintAppeared(_ hint: Recorder.LevelHint) {
-        guard let id = recorder.meetingId, !mainWindowInFront else { return }
+        // 錄音島打開時提醒在島上，不另外送通知（design §57.2、R81.4）
+        guard let id = recorder.meetingId, !mainWindowInFront, !RecordingIsland.isEnabled else { return }
         notifier.levelHint(recorder.text(for: hint), kind: hint.rawValue, meetingId: id)
     }
 
     /// 用藍牙耳機的麥克風錄現場會議（design §38.4、R58.3）：通知的規則同收音提醒
     private func micHintAppeared(_ hint: Recorder.MicHint) {
-        guard let id = recorder.meetingId, !mainWindowInFront else { return }
+        guard let id = recorder.meetingId, !mainWindowInFront, !RecordingIsland.isEnabled else { return }
         notifier.levelHint(hint.text, kind: "bluetooth", meetingId: id)
     }
 
@@ -686,8 +850,11 @@ final class AppModel {
         let urls = pendingImport
         pendingImport = []
         showImportSheet = false
+        var options = options
+        if let folder = pendingImportFolder, options.folder.isEmpty { options.folder = folder }
+        pendingImportFolder = nil
         importFiles(urls, options: urls.count == 1 ? options : ImportOptions(participants: options.participants, templateId: options.templateId,
-                                                                              language: options.language))
+                                                                              folder: options.folder, language: options.language))
     }
 
     /// 從 Dock 或 Finder 匯入：不跳對話框，直接用預設值
@@ -742,6 +909,7 @@ final class AppModel {
     func startRecording() {
         guard !recorder.isRecording else { return }
         MeetingPromptPanel.shared.close()
+        RecordingIsland.shared.closePrompt()
         #if DEBUG
         // 啟動參數 -debugRecordFile <音檔>：開始錄音改用模擬錄音，驗證時不要真的用使用者的麥克風錄（design §21.7）
         if let file = UserDefaults.standard.string(forKey: "debugRecordFile") {
@@ -770,12 +938,12 @@ final class AppModel {
 
     #if DEBUG
     /// 只在 DEBUG：用音訊檔模擬錄音（shiyinctl record-sim）
-    func startSimulatedRecording(file: URL, speed: Double, both: Bool) {
+    func startSimulatedRecording(file: URL, speed: Double, both: Bool, systemSilent: Bool = false) {
         guard !recorder.isRecording, let meeting = try? db.insertMeeting(Meeting(
             meetingDate: DateText.string(Date()), sourceFilename: String(localized: "模擬錄音"), source: "recording",
             channels: both ? "both" : "mic", folder: currentFolder, language: AppSettings.defaultMeetingLanguage.rawValue),
             audioExtension: nil) else { return }
-        recorder.startSimulated(meetingId: meeting.id!, file: file, speed: speed, both: both, language: meeting.meetingLanguage)
+        recorder.startSimulated(meetingId: meeting.id!, file: file, speed: speed, both: both, systemSilent: systemSilent, language: meeting.meetingLanguage)
         reload()
         selection = meeting.id
     }
@@ -909,6 +1077,7 @@ final class AppModel {
         reload()
         showTrash = trash.contains { $0.id == id }
         selection = id
+        expandToShow(id)
         openMainWindow?()
     }
 
@@ -959,41 +1128,67 @@ final class AppModel {
         perform { try db.setTemplate(id, templateId: templateId) }
     }
 
-    /// 「會議 → 移到垃圾桶…」：先記住是哪一場，再問要不要刪
+    /// 「會議 → 移到垃圾桶…」：先記住是哪幾場（多選時是全部，R88），再問要不要刪
     func requestDelete() {
-        guard let id = selection else { return }
-        deleteTarget = id
+        let ids = multiSelected.isEmpty ? [selection].compactMap { $0 } : multiSelected
+        guard !ids.isEmpty else { return }
+        deleteTargets = ids
         confirmDelete = true
     }
 
-    /// 移到垃圾桶（R9.3）
-    func moveToTrash(_ id: Int64) {
-        if recorder.isRecording && recorder.meetingId == id {
-            errorMessage = String(localized: "這場會議還在錄音，請先停止錄音再移到垃圾桶")
-            return
+    func moveToTrash(_ id: Int64) { moveToTrash([id]) }
+
+    /// 移到垃圾桶（R9.3）；多選時一起移（R88.2），正在錄音的那場跳過
+    func moveToTrash(_ ids: [Int64]) {
+        let recording = recorder.isRecording ? recorder.meetingId : nil
+        if let recording, ids.contains(recording) {
+            errorMessage = ids.count == 1 ? String(localized: "這場會議還在錄音，請先停止錄音再移到垃圾桶")
+                                          : String(localized: "還在錄音的那場會議沒有移到垃圾桶，請先停止錄音")
         }
         // 已經在垃圾桶裡就不再處理，不然 30 天的期限會重新計算
-        if (try? db.meeting(id))?.deletedAt != nil { return }
-        runner.cancel(meetingId: id)
-        perform { try db.setTrashed(id, true) }
-        noticeMessage = String(localized: "已移到垃圾桶，30 天內都可以還原")
+        let targets = ids.filter { $0 != recording && (try? db.meeting($0))?.deletedAt == nil }
+        guard !targets.isEmpty else { return }
+        targets.forEach { runner.cancel(meetingId: $0) }
+        perform { for id in targets { try db.setTrashed(id, true) } }
+        selectedMeetings = []
+        noticeMessage = targets.count == 1 ? String(localized: "已移到垃圾桶，30 天內都可以還原")
+                                           : String(localized: "已把 \(targets.count) 場會議移到垃圾桶，30 天內都可以還原")
     }
 
-    func restore(_ id: Int64) {
-        perform { try db.setTrashed(id, false) }
+    func restore(_ id: Int64) { restore([id]) }
+
+    /// 還原（多選時一起，R88）：回到會議列表，選取還原的那幾場
+    func restore(_ ids: [Int64]) {
+        guard let first = ids.first else { return }
+        perform { for id in ids { try db.setTrashed(id, false) } }
         showTrash = false
-        selection = id
+        selection = first
+        if ids.count > 1 { selectedMeetings = Set(ids) }
     }
 
-    /// 永久刪除（垃圾桶裡的「立即刪除」）
-    func deletePermanently(_ id: Int64) {
-        guard let meeting = try? db.meeting(id), !(recorder.isRecording && recorder.meetingId == id) else { return }
-        runner.cancel(meetingId: id)
-        if selection == id { player.unload() }
-        perform {
-            try db.deleteMeeting(id)
-            if meeting.hasAudio { try? FileManager.default.removeItem(at: meeting.audioURL) }
+    func deletePermanently(_ id: Int64) { deletePermanently([id]) }
+
+    /// 永久刪除（垃圾桶裡的「永久刪除」，多選時一起，R88）
+    func deletePermanently(_ ids: [Int64]) {
+        let meetings = ids.compactMap { try? db.meeting($0) }.filter { !(recorder.isRecording && recorder.meetingId == $0.id) }
+        guard !meetings.isEmpty else { return }
+        for meeting in meetings {
+            runner.cancel(meetingId: meeting.id!)
+            if selection == meeting.id { player.unload() }
         }
+        perform {
+            for meeting in meetings {
+                try db.deleteMeeting(meeting.id!)
+                if meeting.hasAudio { try? FileManager.default.removeItem(at: meeting.audioURL) }
+            }
+            purgeExpiredEdits()
+        }
+        selectedMeetings = []
+    }
+
+    /// 清空垃圾桶（R88.3）
+    func emptyTrash() {
+        deletePermanently(trash.map(\.id))
     }
 
     private func purgeExpiredTrash() {
@@ -1073,12 +1268,37 @@ final class AppModel {
     // MARK: 說話者的修正（design §24、R23）
 
     /// 轉錄或重新辨識說話者時不能改：完成時會整份寫回段落的說話者
-    private func speakerEditProblem(_ id: Int64) -> String? {
+    private func speakerEditProblem(_ id: Int64, transcript: Bool = false) -> String? {
         if detail?.meeting.deletedAt != nil { return String(localized: "垃圾桶裡的會議要先還原才能操作") }
         if detailStatus?.isActive == true || (try? db.hasActiveJob(id, kind: .rediarize)) == true {
-            return String(localized: "正在處理這場會議，完成後才能改說話者")
+            return transcript ? String(localized: "正在處理這場會議，完成後才能修改逐字稿") : String(localized: "正在處理這場會議，完成後才能改說話者")
         }
         return nil
+    }
+
+    /// 從某一句分成兩場（R90、design §64）：走編輯會議的套用（整場保留、在這句切開），所以一樣能還原（D180）
+    func splitMeeting(at segmentId: Int64) {
+        guard let id = selection, let detail, let segment = detail.segments.first(where: { $0.id == segmentId }) else { return }
+        let cut = (segment.start * 100).rounded() / 100
+        guard cut > 0 else { return }
+        let end = max(Double(detail.meeting.durationSeconds ?? 0), player.duration,
+                      detail.segments.map(\.end).max() ?? 0, ((try? db.segments(id, kind: "live")) ?? []).map(\.end).max() ?? 0)
+        applyMeetingEdit(id, plan: EditPlan(pieces: [.init(meetingId: id, start: 0, end: end)]), cut: cut)
+    }
+
+    /// 「刪除這句」（R89、design §63）：不用確認，跟說話者的調整共用「復原」
+    func deleteSegment(_ segmentId: Int64) {
+        guard let id = selection, let segment = detail?.segments.first(where: { $0.id == segmentId }) else { return }
+        if let problem = speakerEditProblem(id, transcript: true) {
+            noticeMessage = problem
+            return
+        }
+        let preview = segment.text.count > 12 ? String(segment.text.prefix(12)) + "…" : segment.text
+        perform(.detail([.speakers, .segments, .corrections])) {
+            if try db.deleteSegment(id, id: segmentId, label: String(localized: "刪除一句「\(preview)」")) {
+                noticeMessage = String(localized: "已刪除這句。要復原的話，在逐字稿按右鍵選「復原」。")
+            }
+        }
     }
 
     /// 「合併到…」（R23.1）：from 說的話全部算 into 的；會議紀錄裡的名字跟著換
@@ -1136,6 +1356,21 @@ final class AppModel {
         }
     }
 
+    /// 「拆成兩句…」（R70、design §46）：at 是 UTF-16 的位置，to 是後半句的說話者（nil 是新的說話者）
+    func splitSegment(_ segmentId: Int64, at: Int, to idx: Int?) {
+        guard let id = selection else { return }
+        if let problem = speakerEditProblem(id) {
+            noticeMessage = problem
+            return
+        }
+        let target = idx.flatMap { detail?.speakerName($0) } ?? String(localized: "新的說話者")
+        perform(.detail([.speakers, .segments, .corrections])) {
+            if try db.splitSegment(id, id: segmentId, at: at, to: idx, label: String(localized: "把一句拆成兩句（後半句是「\(target)」說的）")) != nil {
+                noticeMessage = String(localized: "已拆成兩句。要復原的話，在逐字稿按右鍵選「復原」。")
+            }
+        }
+    }
+
     /// 「復原說話者的調整」（改名小視窗、逐字稿右鍵選單）：只復原最近一次合併或改句子
     func undoSpeakerEdit() {
         guard let id = selection else { return }
@@ -1147,7 +1382,7 @@ final class AppModel {
             noticeMessage = String(localized: "沒有可以復原的說話者調整（改名、重新辨識說話者之後就不能復原之前的調整）")
             return
         }
-        perform(.detail([.speakers, .segments, .meeting])) {
+        perform(.detail([.speakers, .segments, .meeting, .corrections])) {
             if try db.undoSpeakerEdit(id) { noticeMessage = String(localized: "已復原：\(label)") }
         }
     }
@@ -1174,6 +1409,43 @@ final class AppModel {
         if let problem = AppSettings.summarizerProblem { errorMessage = problem.message; return }
         documentsChanged.remove(id)
         perform { try db.enqueue(id, kind: .summarize) }
+        runner.wake()
+    }
+
+    /// 逐字稿「精簡」的「產生精簡版」（R96、design §70）：在輔助線跑，不發通知
+    func generateCleanTranscript() {
+        guard let id = selection, readyForAction(id) else { return }
+        guard AppSettings.provider != .none else {
+            errorMessage = AppSettings.needsProviderSetup
+                ? String(localized: "還沒設定整理工具，請先到設定選擇 Claude、Codex 或 API")
+                : String(localized: "整理工具設定為「不整理」，請先到設定改成 Claude、Codex 或 API")
+            return
+        }
+        if let problem = AppSettings.summarizerProblem { errorMessage = problem.message; return }
+        if (try? db.hasActiveJob(id, kind: .clean)) == true { return }
+        perform { try db.enqueue(id, kind: .clean) }
+        runner.wake()
+    }
+
+    /// 正在產生這場會議的精簡版：進度（0～1，還沒開始是 nil）
+    func cleaningProgress(_ meetingId: Int64) -> Double?? {
+        if let running = runner.running[.assist], running.job.kind == .clean, running.job.meetingId == meetingId { return .some(running.progress) }
+        if (try? db.hasActiveJob(meetingId, kind: .clean)) == true { return .some(nil) }
+        return nil
+    }
+
+    /// 「人物」的「產生每個人的重點」（R92、design §66）：只補上這一段，摘要、決議、待辦這些段落不動
+    func generatePeopleNotes() {
+        guard let id = selection, readyForAction(id) else { return }
+        guard AppSettings.provider != .none else {
+            errorMessage = AppSettings.needsProviderSetup
+                ? String(localized: "還沒設定整理工具，請先到設定選擇 Claude、Codex 或 API")
+                : String(localized: "整理工具設定為「不整理」，請先到設定改成 Claude、Codex 或 API")
+            return
+        }
+        if let problem = AppSettings.summarizerProblem { errorMessage = problem.message; return }
+        let payload = String(decoding: (try? JSONEncoder().encode(SummarizePayload(people: true))) ?? Data(), as: UTF8.self)
+        perform { try db.enqueue(id, kind: .summarize, payload: payload) }
         runner.wake()
     }
 
@@ -1483,6 +1755,13 @@ final class AppModel {
 
     /// 有通知權限就發通知（帶按鈕），沒有就用不搶焦點的浮動視窗
     func showMeetingPrompt(_ prompt: MeetingDetector.Prompt) {
+        // 會議好像結束了：倒數完自動停止錄音（R95、design §69）
+        if case .stop = prompt, AppSettings.autoStopOnMeetingEnd { startMeetingEndCountdown() }
+        // 錄音島打開時由島顯示，取代右上角的浮動視窗和通知（design §57.2、R81.3）
+        if RecordingIsland.isEnabled {
+            showMeetingPanel(prompt, island: true)
+            return
+        }
         Task {
             if await notifier.isAuthorized() {
                 notifier.meetingPrompt(prompt)
@@ -1492,21 +1771,70 @@ final class AppModel {
         }
     }
 
-    private func showMeetingPanel(_ prompt: MeetingDetector.Prompt) {
+    private func showMeetingPanel(_ prompt: MeetingDetector.Prompt, island: Bool = false) {
+        let show: (MeetingDetector.Prompt, [(id: String, title: String, action: () -> Void)], String) -> Void = island
+            ? { RecordingIsland.shared.showPrompt($0, actions: $1, message: $2) }
+            : { MeetingPromptPanel.shared.show($0, actions: $1, message: $2) }
         switch prompt {
         case .start(let app):
-            MeetingPromptPanel.shared.show(prompt, actions: [
+            show(prompt, [
                 ("later", String(localized: "這次不用"), {}),
                 // 名稱長的 app（Microsoft Teams）放進按鈕會被截掉；訊息裡已經有 app 的名字
                 ("mute", String(localized: "不要再提醒這個 app"), { MeetingDetector.mute(app.bundleID) }),
                 ("start", String(localized: "開始錄音"), { [weak self] in self?.startRecording() }),
-            ], message: String(localized: "\(app.name) 正在開會，要開始錄音嗎？"))
+            ], String(localized: "\(app.name) 正在開會，要開始錄音嗎？"))
         case .stop:
-            MeetingPromptPanel.shared.show(prompt, actions: [
-                ("continue", String(localized: "繼續錄"), {}),
-                ("stop", String(localized: "停止並轉錄"), { [weak self] in self?.recorder.stop() }),
-            ], message: String(localized: "會議好像結束了，要停止錄音嗎？"))
+            let actions: [(id: String, title: String, action: () -> Void)] = [
+                ("continue", String(localized: "繼續錄"), { [weak self] in self?.cancelMeetingEndCountdown() }),
+                ("stop", String(localized: "停止並轉錄"), { [weak self] in self?.cancelMeetingEndCountdown(); self?.recorder.stop() }),
+            ]
+            if let deadline = meetingEndDeadline {
+                let countdown: (Int) -> String = { String(localized: "會議好像結束了，\($0) 秒後自動停止錄音") }
+                if island {
+                    RecordingIsland.shared.showPrompt(prompt, actions: actions, message: countdown(AppSettings.meetingEndCountdown),
+                                                      deadline: deadline, countdown: countdown)
+                } else {
+                    MeetingPromptPanel.shared.show(prompt, actions: actions, message: countdown(AppSettings.meetingEndCountdown))
+                }
+            } else {
+                show(prompt, actions, String(localized: "會議好像結束了，要停止錄音嗎？"))
+            }
         }
+    }
+
+    /// 會議結束的倒數（R95）：時間到時還在錄同一場、會議 app 沒有又開始用麥克風，就停止並轉錄
+    @ObservationIgnored private var meetingEndTask: Task<Void, Never>?
+    private(set) var meetingEndDeadline: Date?
+
+    private func startMeetingEndCountdown() {
+        meetingEndTask?.cancel()
+        let seconds = AppSettings.meetingEndCountdown
+        let meetingId = recorder.meetingId
+        meetingEndDeadline = Date().addingTimeInterval(TimeInterval(seconds))
+        meetingEndTask = Task { [weak self] in
+            // 每秒看一次：錄音已經停了（按了停止、別的原因）就收起倒數
+            for _ in 0..<seconds {
+                try? await Task.sleep(for: .seconds(1))
+                guard !Task.isCancelled, let self else { return }
+                if !self.recorder.isRecording || self.recorder.meetingId != meetingId { break }
+            }
+            guard !Task.isCancelled, let self else { return }
+            self.meetingEndDeadline = nil
+            RecordingIsland.shared.closePrompt()
+            MeetingPromptPanel.shared.close()
+            guard self.recorder.isRecording, self.recorder.meetingId == meetingId, !self.meetingDetector.meetingAppActive,
+                  let id = meetingId else { return }
+            let title = (try? self.db.meeting(id))?.displayTitle ?? ""
+            log.info("meeting ended, auto-stopping the recording after \(seconds)s")
+            self.recorder.stop()
+            self.notifier.meetingEndStopped(meetingId: id, title: title)
+        }
+    }
+
+    private func cancelMeetingEndCountdown() {
+        meetingEndTask?.cancel()
+        meetingEndTask = nil
+        meetingEndDeadline = nil
     }
 
     /// 通知上的按鈕
@@ -1514,7 +1842,8 @@ final class AppModel {
         switch action {
         case "start": startRecording()
         case "mute": MeetingDetector.mute(bundle)
-        case "stop": recorder.stop()
+        case "stop": cancelMeetingEndCountdown(); recorder.stop()
+        case "continue": cancelMeetingEndCountdown()
         default: break
         }
     }
@@ -1532,9 +1861,19 @@ final class AppModel {
     // MARK: 認識的人（設定頁，design §21.4）
 
     var people: [PersonSummary] = []
+    /// 側欄是會議還是人物、選了哪個人、人物列表（design §60.2）。不記在設定：每次打開拾音都從會議開始
+    var sidebarMode: SidebarMode = .meetings
+    var selectedPerson: Int64?
+    var peopleOverview: [PersonOverview] = []
+    /// 移除一個人的確認（R85.7、design §60.2）
+    var confirmRemovePerson: Int64?
+    /// 每一種東西都能直接改、刪（R100、design §74）：刪除資料夾的確認、正在就地改的那一條紀錄
+    var confirmDeleteFolder: String?
+    var editingNoteItem: NoteItemRef?
 
     func reloadPeople() {
         people = (try? db.peopleSummaries()) ?? []
+        reloadPeopleOverview()
     }
 
     func renamePerson(_ id: Int64, to name: String) {
@@ -1590,6 +1929,22 @@ final class AppModel {
     func addTerm(_ term: String) { perform { try db.addTerm(term) } }
     func dismissGlossarySuggestion(_ term: String) { perform { try db.dismissGlossarySuggestion(term) } }
     func deleteTerm(_ id: Int64) { perform { try db.deleteTerm(id) } }
+
+    /// 新增詞彙（R94.1）：一次貼上好幾個時用換行、逗號、頓號、分號分開，已經有的跳過
+    func addTerms(_ text: String) {
+        let terms = GlossaryInput.split(text)
+        guard !terms.isEmpty else { return }
+        var added = 0
+        perform { added = try db.addTerms(terms) }
+        if terms.count == 1 && added == 0 {
+            noticeMessage = String(localized: "「\(terms[0])」已經在詞彙表裡了")
+        } else if terms.count > 1 {
+            noticeMessage = added == terms.count ? String(localized: "已加入 \(added) 個詞彙")
+                : String(localized: "已加入 \(added) 個詞彙，\(terms.count - added) 個已經有了")
+        }
+    }
+
+    func deleteTerms(_ ids: [Int64]) { perform { try db.deleteTerms(ids) } }
 
     func saveTemplate(_ template: TemplateRecord) { perform { try db.saveTemplate(template) } }
     func deleteTemplate(_ id: String) { perform { try db.deleteTemplate(id) } }
@@ -1698,9 +2053,9 @@ final class AppModel {
         switch item {
         case .notes:
             switch format {
-            case "pdf": try await HTML.pdf(NotesExporter.html(b), to: url)
-            case "docx": try await HTML.docx(NotesExporter.html(b)).write(to: url)
-            default: try NotesExporter.markdown(b).write(to: url, atomically: true, encoding: .utf8)
+            case "pdf": try await HTML.pdf(ExportScript.html(NotesExporter.html(b), b), to: url)
+            case "docx": try await HTML.docx(ExportScript.html(NotesExporter.html(b), b)).write(to: url)
+            default: try ExportScript.text(NotesExporter.markdown(b), b).write(to: url, atomically: true, encoding: .utf8)
             }
         case .mindMap:
             // 心智圖（design §42.4）：段落名稱跟著會議語言，同其他匯出
@@ -1714,16 +2069,18 @@ final class AppModel {
                 try data.write(to: url)
             }
         case .transcript:
-            if format == "docx" { try await HTML.docx(TranscriptExporter.html(b, times: times, speakers: speakers)).write(to: url) }
+            if format == "docx" { try await HTML.docx(ExportScript.html(TranscriptExporter.html(b, times: times, speakers: speakers), b)).write(to: url) }
             else {
                 // 文字格式、封包在背景寫，長會議不卡住畫面（design §21.13）；Word、PDF 用非同步的 HTML 轉換
                 try await Task.detached(priority: .userInitiated) {
-                    try TranscriptExporter.text(b, format: format, times: times, speakers: speakers).write(to: url, atomically: true, encoding: .utf8)
+                    try ExportScript.text(TranscriptExporter.text(b, format: format, times: times, speakers: speakers), b)
+                        .write(to: url, atomically: true, encoding: .utf8)
                 }.value
             }
         case .audio:
             try await AudioExporter.export(b, format: format, to: url)
         case .package:
+            let b = ForkSpeakerTags.attach(b, db: db, meetingId: meetingId)   // MA-FORK(F2)
             try await Task.detached(priority: .userInitiated) { try MeetingPackage.export(b, to: url) }.value
         }
     }
@@ -1760,12 +2117,12 @@ final class AppModel {
         switch style {
         case .plain:
             NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(NotesExporter.plain(b), forType: .string)
+            NSPasteboard.general.setString(ExportScript.text(NotesExporter.plain(b), b), forType: .string)
         case .markdown:
             NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(NotesExporter.markdown(b), forType: .string)
+            NSPasteboard.general.setString(ExportScript.text(NotesExporter.markdown(b), b), forType: .string)
         case .rich:
-            HTML.copy(plain: NotesExporter.plain(b), html: NotesExporter.html(b))
+            HTML.copy(plain: ExportScript.text(NotesExporter.plain(b), b), html: ExportScript.html(NotesExporter.html(b), b))
         }
         noticeMessage = String(localized: "已複製會議紀錄")
     }
@@ -1870,6 +2227,8 @@ final class AppModel {
         if !segmentIds.isEmpty, let fresh = try? db.segments(ids: segmentIds) {
             let index = Dictionary(updated.segments.enumerated().compactMap { i, s in s.id.map { ($0, i) } }, uniquingKeysWith: { a, _ in a })
             for segment in fresh { if let id = segment.id, let i = index[id] { updated.segments[i] = segment } }
+            // 改了文字的句子，精簡版被觸發器刪掉了（R96）：拿掉畫面上的那幾句，回到原文
+            if !updated.cleanLines.isEmpty { segmentIds.forEach { updated.cleanLines[$0] = nil } }
         }
         #if DEBUG
         DebugMetrics.bump("reloadDetailParts")
@@ -1880,7 +2239,10 @@ final class AppModel {
             updated.speakerUndoLabel = try? db.speakerUndoLabel(id)
         }
         if parts.contains(.bookmarks) { updated.bookmarks = (try? db.bookmarks(id)) ?? [] }
-        if parts.contains(.segments) { updated.segments = (try? db.segments(id)) ?? [] }
+        if parts.contains(.segments) {
+            updated.segments = (try? db.segments(id)) ?? []
+            updated.cleanLines = (try? db.cleanLines(id)) ?? [:]
+        }
         if parts.contains(.corrections) { updated.corrections = (try? db.corrections(id)) ?? [] }
         if parts.contains(.speakerTags) { updated.speakerTags = (try? db.speakerTags(id)) ?? [] }
         if parts.contains(.documents) { updated.loadDocuments((try? db.documents(id)) ?? []) }

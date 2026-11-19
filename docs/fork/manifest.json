@@ -3,11 +3,42 @@
   "version": 1,
   "upstream": {
     "remote": "https://github.com/juinwei7/Shiyin.git",
-    "base": {"tag": "v4.7.1", "legacySha": "9e0f9ef", "sha": "78ceab8"},
+    "base": {
+      "tag": "v5.0.0",
+      "sha": "7e5b274",
+      "note": "5.0.1 起接回上游歷史：dab295f 合 4.8.1（merge-tree --merge-base=78ceab8，上層 3980efd）、f1fe30b 一般 merge v5.0.0"
+    },
     "cherryPicked": [
-      {"from": "v4.8.1", "items": ["R57", "R73", "R74", "design §45", "design §49", "design §50", "D151", "D158", "D159", "D160"], "label": "F6"},
-      {"from": "54bc6f5", "items": ["design §38.1 CADefaultDeviceAggregate"], "label": "F6"}
-    ]
+      {
+        "from": "v4.8.1",
+        "items": [
+          "R57",
+          "R73",
+          "R74",
+          "design §45",
+          "design §49",
+          "design §50",
+          "D151",
+          "D158",
+          "D159",
+          "D160"
+        ],
+        "label": "F6",
+        "note": "5.0.1 合併 4.8.1 時吸收，之後照上游"
+      },
+      {
+        "from": "54bc6f5",
+        "items": [
+          "design §38.1 CADefaultDeviceAggregate"
+        ],
+        "label": "F6"
+      }
+    ],
+    "forkBase476": {
+      "tag": "v4.7.1",
+      "legacySha": "9e0f9ef",
+      "sha": "78ceab8"
+    }
   },
   "markerPattern": "MA-FORK\\((F[0-9]+|DF[0-9]+)\\)",
   "rules": {
@@ -16,9 +47,24 @@
     "settingsKeyPrefix": "ma",
     "debugCommandPrefix": "ma",
     "legacyNames": {
-      "tables": ["speaker_tags"],
-      "settingsKeys": ["muteHotKey"],
-      "debugCommands": ["tagspeaker", "tagui", "addparticipant", "applytags", "speakertags", "micmute", "copysection", "topicsegments", "topicscroll", "topiccollapse"]
+      "tables": [
+        "speaker_tags"
+      ],
+      "settingsKeys": [
+        "muteHotKey"
+      ],
+      "debugCommands": [
+        "tagspeaker",
+        "tagui",
+        "addparticipant",
+        "applytags",
+        "speakertags",
+        "micmute",
+        "copysection",
+        "topicsegments",
+        "topicscroll",
+        "topiccollapse"
+      ]
     }
   },
   "features": {
@@ -26,107 +72,530 @@
       "title": "名稱、回報問題的網址、圖示",
       "requirements": "docs/fork/requirements.md F1",
       "design": "docs/fork/design.md §F1",
-      "forkFiles": ["Resources/AppIcon-1024.png", "scripts/make-icon-from-png.sh"],
-      "upstreamFiles": ["Resources/AppIcon.icns", "Resources/Info.plist", ".github/workflows/release.yml", "README.md", "docs/images/icon.png", "site/public/favicon.png", "site/public/apple-touch-icon.png"],
-      "infoPlistKeys": {"ShiyinIssuesURL": "https://github.com/EdenQ/Shiyin/issues"},
-      "keywords": ["MA", "Meeting Assistant", "會議助手", "EdenQ", "AppIcon-1024"],
+      "forkFiles": [
+        "Resources/AppIcon-1024.png",
+        "scripts/make-icon-from-png.sh"
+      ],
+      "upstreamFiles": [
+        "Resources/AppIcon.icns",
+        "Resources/Info.plist",
+        ".github/workflows/release.yml",
+        "README.md",
+        "docs/images/icon.png"
+      ],
+      "infoPlistKeys": {
+        "ShiyinIssuesURL": "https://github.com/EdenQ/Shiyin/issues"
+      },
+      "keywords": [
+        "MA",
+        "Meeting Assistant",
+        "會議助手",
+        "EdenQ",
+        "AppIcon-1024"
+      ],
       "markers": []
     },
     "F2": {
       "title": "錄音中標記說話者",
       "design": "docs/fork/design.md §F2、§F-DB",
-      "forkFiles": ["Sources/Shiyin/Model/SpeakerTagging.swift", "scripts/dev/check-fork-migrations.py"],
-      "upstreamFiles": ["Sources/Shiyin/Store/AppModel.swift", "Sources/Shiyin/Store/AppDatabase.swift", "Sources/Shiyin/Views/RecordingView.swift", "Sources/Shiyin/Views/TranscriptTab.swift", "Sources/Shiyin/Views/MeetingDetailView.swift", "Sources/Shiyin/Services/JobRunner.swift", "Sources/Shiyin/Model/Records.swift", "Sources/Shiyin/Store/SpeakerEdits.swift", "Sources/Shiyin/Store/Voiceprints.swift", "Sources/Shiyin/Debug/DebugControl.swift"],
-      "symbols": ["SpeakerTag", "SpeakerTagging", "tagSpeakerNow", "reassignTaggedSegments", "applySpeakerTags", "debugApplyTags", "speakerTagsReport", "name_source = 'tag'"],
-      "keywords": ["speaker_tags", "tagspeaker", "標記", "Tagged"],
+      "forkFiles": [
+        "Sources/Shiyin/Fork/SpeakerTags/ForkSpeakerTags.swift",
+        "Sources/Shiyin/Fork/Store/ForkMigrations.swift",
+        "Sources/Shiyin/Model/SpeakerTagging.swift",
+        "scripts/dev/check-fork-migrations.py"
+      ],
+      "upstreamFiles": [
+        "Sources/Shiyin/Store/AppModel.swift",
+        "Sources/Shiyin/Store/AppDatabase.swift",
+        "Sources/Shiyin/Views/RecordingView.swift",
+        "Sources/Shiyin/Views/TranscriptTab.swift",
+        "Sources/Shiyin/Views/MeetingDetailView.swift",
+        "Sources/Shiyin/Services/JobRunner.swift",
+        "Sources/Shiyin/Model/Records.swift",
+        "Sources/Shiyin/Store/SpeakerEdits.swift",
+        "Sources/Shiyin/Store/Voiceprints.swift",
+        "Sources/Shiyin/Debug/DebugControl.swift"
+      ],
+      "symbols": [
+        "SpeakerTag",
+        "SpeakerTagging",
+        "tagSpeakerNow",
+        "reassignTaggedSegments",
+        "applySpeakerTags",
+        "debugApplyTags",
+        "speakerTagsReport",
+        "name_source = 'tag'"
+      ],
+      "keywords": [
+        "speaker_tags",
+        "tagspeaker",
+        "標記",
+        "Tagged"
+      ],
       "settingsKeys": [],
-      "debugCommands": ["tagspeaker", "tagui", "addparticipant", "applytags", "speakertags"],
-      "migrations": ["ma_speaker_tags_v1"],
-      "tables": ["speaker_tags"],
-      "upstreamDataMovers": ["R107 MeetingEdits", "R90 AppDatabase.splitMeeting", "MeetingEditor.merge", ".shiyin Package export/import"],
-      "markers": []
+      "debugCommands": [
+        "tagspeaker",
+        "tagui",
+        "addparticipant",
+        "applytags",
+        "speakertags"
+      ],
+      "migrations": [
+        "ma_speaker_tags_v1",
+        "ma_meeting_edit_tags_v1"
+      ],
+      "tables": [
+        "speaker_tags",
+        "ma_meeting_edit_tags"
+      ],
+      "upstreamDataMovers": [
+        "R107 MeetingEdits.applyEdit/restoreEdit（已接）",
+        "R90 AppDatabase.splitMeeting（已接）",
+        "合併（applyEdit 的 others，已接）",
+        ".shiyin Package export/import（已接）"
+      ],
+      "markers": [
+        {
+          "file": "Sources/Shiyin/Fork/SpeakerTags/ForkSpeakerTags.swift",
+          "marker": "MA-FORK(F2)",
+          "hook": ""
+        },
+        {
+          "file": "Sources/Shiyin/IO/Exporters.swift",
+          "marker": "MA-FORK(F2)",
+          "hook": "var speakerTags: [SpeakerTag] = []"
+        },
+        {
+          "file": "Sources/Shiyin/IO/Package.swift",
+          "marker": "MA-FORK(F2)",
+          "hook": "try ForkSpeakerTags.writePackage(b.speakerTags, to: dir)"
+        },
+        {
+          "file": "Sources/Shiyin/IO/Package.swift",
+          "marker": "MA-FORK(F2)",
+          "hook": "try ForkSpeakerTags.readPackage(dir, meetingId: id, db: db)"
+        },
+        {
+          "file": "Sources/Shiyin/Store/AppDatabase.swift",
+          "marker": "MA-FORK(F2)",
+          "hook": "ForkMigrations.register(&migrator)"
+        },
+        {
+          "file": "Sources/Shiyin/Store/AppDatabase.swift",
+          "marker": "MA-FORK(F2)",
+          "hook": "try ForkSpeakerTags.split(db, from: id, to: newId, at: cut)"
+        },
+        {
+          "file": "Sources/Shiyin/Store/AppModel.swift",
+          "marker": "MA-FORK(F2)",
+          "hook": "let b = ForkSpeakerTags.attach(b, db: db, meetingId: meetingId)"
+        },
+        {
+          "file": "Sources/Shiyin/Store/MeetingEdits.swift",
+          "marker": "MA-FORK(F2)",
+          "hook": "if firstEdit { try ForkSpeakerTags.snapshot(db, meetingId: id) }"
+        },
+        {
+          "file": "Sources/Shiyin/Store/MeetingEdits.swift",
+          "marker": "MA-FORK(F2)",
+          "hook": "try ForkSpeakerTags.remap(db, meetingId: id, plan: plan)"
+        },
+        {
+          "file": "Sources/Shiyin/Store/MeetingEdits.swift",
+          "marker": "MA-FORK(F2)",
+          "hook": "try ForkSpeakerTags.copyForMerge(db, into: id, from: other, plan: plan)"
+        },
+        {
+          "file": "Sources/Shiyin/Store/MeetingEdits.swift",
+          "marker": "MA-FORK(F2)",
+          "hook": "try ForkSpeakerTags.restore(db, meetingId: id)"
+        },
+        {
+          "file": "Sources/Shiyin/Store/SpeakerEdits.swift",
+          "marker": "MA-FORK(F2)",
+          "hook": "if idx == nil, let name { try ForkSpeakerTags.nameNewSpeaker(db, meetingId: meetingId, idx: target, name: name"
+        },
+        {
+          "file": "Sources/Shiyin/Views/MeetingDetailView.swift",
+          "marker": "MA-FORK(F2)",
+          "hook": "if let source = detail.speakerSources[idx], source == \"voiceprint\" || source == \"tag\" {"
+        },
+        {
+          "file": "Sources/Shiyin/Views/TranscriptTab.swift",
+          "marker": "MA-FORK(F2)",
+          "hook": "if automatic || tagged {"
+        },
+        {
+          "file": "Sources/Shiyin/Views/TranscriptTab.swift",
+          "marker": "MA-FORK(F2)",
+          "hook": "if automatic || tagged, let onReject {"
+        }
+      ],
+      "packageFiles": [
+        "ma-speaker-tags.json"
+      ]
     },
     "F3": {
       "title": "錄音中靜音麥克風",
       "design": "docs/fork/design.md §F3",
-      "forkFiles": [],
-      "upstreamFiles": ["Sources/Shiyin/Capture/Recorder.swift", "Sources/Shiyin/Capture/RecordingWriter.swift", "Sources/Shiyin/Store/AppModel.swift", "Sources/Shiyin/Views/RecordingView.swift", "Sources/Shiyin/Views/MenuBar.swift", "Sources/Shiyin/Views/SettingsView.swift", "Sources/Shiyin/Services/GlobalHotKey.swift", "Sources/Shiyin/App/ShiyinApp.swift", "Sources/Shiyin/Services/JobRunner.swift", "Sources/Shiyin/Debug/DebugControl.swift"],
-      "symbols": ["micMuted", "toggleMicMute", "canMuteMic", "checkMuted", "muteHint", "setMuted", "fireMute", "muteHotKeyKey"],
-      "keywords": ["靜音", "麥克風已靜音", "micmute", "⇧⌘M", "⌃⌥⌘M"],
-      "settingsKeys": ["muteHotKey"],
-      "debugCommands": ["micmute", "hotkey mute"],
+      "forkFiles": [
+        "Sources/Shiyin/Fork/Mute/ForkMuteSettingsRow.swift",
+        "Sources/Shiyin/Fork/Mute/ForkIslandMute.swift"
+      ],
+      "upstreamFiles": [
+        "Sources/Shiyin/App/RecordingIsland.swift",
+        "Sources/Shiyin/App/ShiyinApp.swift",
+        "Sources/Shiyin/Capture/Recorder.swift",
+        "Sources/Shiyin/Capture/RecordingWriter.swift",
+        "Sources/Shiyin/Debug/DebugControl.swift",
+        "Sources/Shiyin/Services/GlobalHotKey.swift",
+        "Sources/Shiyin/Services/JobRunner.swift",
+        "Sources/Shiyin/Store/AppModel.swift",
+        "Sources/Shiyin/Views/IslandView.swift",
+        "Sources/Shiyin/Views/MenuBar.swift",
+        "Sources/Shiyin/Views/RecordingView.swift",
+        "Sources/Shiyin/Views/SettingsView.swift"
+      ],
+      "symbols": [
+        "micMuted",
+        "toggleMicMute",
+        "canMuteMic",
+        "checkMuted",
+        "muteHint",
+        "setMuted",
+        "fireMute",
+        "muteHotKeyKey"
+      ],
+      "keywords": [
+        "靜音",
+        "麥克風已靜音",
+        "micmute",
+        "⇧⌘M",
+        "⌃⌥⌘M"
+      ],
+      "settingsKeys": [
+        "muteHotKey"
+      ],
+      "debugCommands": [
+        "micmute",
+        "hotkey mute"
+      ],
       "migrations": [],
       "tables": [],
-      "markers": []
+      "markers": [
+        {
+          "file": "Sources/Shiyin/App/RecordingIsland.swift",
+          "marker": "MA-FORK(F3)",
+          "hook": "if let key = ForkIslandMute.hintKey(recorder) { return key }"
+        },
+        {
+          "file": "Sources/Shiyin/Capture/Recorder.swift",
+          "marker": "MA-FORK(F3)",
+          "hook": "if micMuted { updateLevelHint(systemDenied ? .systemDenied : nil); checkMuted(writer); return }"
+        },
+        {
+          "file": "Sources/Shiyin/Store/AppModel.swift",
+          "marker": "MA-FORK(F3)",
+          "hook": ": recorder.micMuted ? \"mic.slash.circle.fill\" : \"record.circle.fill\""
+        },
+        {
+          "file": "Sources/Shiyin/Views/IslandView.swift",
+          "marker": "MA-FORK(F3)",
+          "hook": "} else if recorder.micMuted { ForkIslandMutedDot(alert: state.hintKey != nil)"
+        },
+        {
+          "file": "Sources/Shiyin/Views/IslandView.swift",
+          "marker": "MA-FORK(F3)",
+          "hook": "ForkIslandMuteRow(recorder: recorder)"
+        },
+        {
+          "file": "Sources/Shiyin/Views/IslandView.swift",
+          "marker": "MA-FORK(F3)",
+          "hook": "if let hint = ForkIslandMute.hint(recorder) { return hint }"
+        },
+        {
+          "file": "Sources/Shiyin/Views/SettingsView.swift",
+          "marker": "MA-FORK(F3)",
+          "hook": "ForkMuteSettingsRow()"
+        }
+      ]
     },
     "F4": {
       "title": "紀錄條列頁的閱讀與複製",
       "design": "docs/fork/design.md §F4",
-      "forkFiles": ["scripts/dev/f4-check.py"],
-      "upstreamFiles": ["Sources/Shiyin/Views/NotesTabs.swift", "Sources/Shiyin/Store/AppModel.swift", "Sources/Shiyin/Views/PlayerBar.swift", "Sources/Shiyin/Notes/MindMap.swift", "Sources/Shiyin/Model/MeetingNotes.swift", "Sources/Shiyin/IO/Exporters.swift", "Sources/Shiyin/Views/Theme.swift", "Sources/Shiyin/Debug/DebugControl.swift"],
-      "symbols": ["topicSegments", "TopicRange", "copyNotesSection", "plainSection", "NotesSectionScope", "currentBranch", "actionBlue"],
-      "keywords": ["複製這一段", "複製這個議題", "全部展開", "全部收合"],
+      "forkFiles": [
+        "scripts/dev/f4-check.py"
+      ],
+      "upstreamFiles": [
+        "Sources/Shiyin/Views/NotesTabs.swift",
+        "Sources/Shiyin/Store/AppModel.swift",
+        "Sources/Shiyin/Views/PlayerBar.swift",
+        "Sources/Shiyin/Notes/MindMap.swift",
+        "Sources/Shiyin/Model/MeetingNotes.swift",
+        "Sources/Shiyin/IO/Exporters.swift",
+        "Sources/Shiyin/Views/Theme.swift",
+        "Sources/Shiyin/Debug/DebugControl.swift"
+      ],
+      "symbols": [
+        "topicSegments",
+        "TopicRange",
+        "copyNotesSection",
+        "plainSection",
+        "NotesSectionScope",
+        "currentBranch",
+        "actionBlue"
+      ],
+      "keywords": [
+        "複製這一段",
+        "複製這個議題",
+        "全部展開",
+        "全部收合"
+      ],
       "settingsKeys": [],
-      "debugCommands": ["copysection", "topicsegments", "topicscroll", "topiccollapse"],
+      "debugCommands": [
+        "copysection",
+        "topicsegments",
+        "topicscroll",
+        "topiccollapse"
+      ],
       "migrations": [],
       "tables": [],
-      "markers": []
+      "markers": [
+        {
+          "file": "Sources/Shiyin/Store/AppModel.swift",
+          "marker": "MA-FORK(F4)",
+          "hook": "currentTopicBranch = nil"
+        },
+        {
+          "file": "Sources/Shiyin/Views/NotesTabs.swift",
+          "marker": "MA-FORK(F4)",
+          "hook": "var count: Int? = nil"
+        },
+        {
+          "file": "Sources/Shiyin/Views/NotesTabs.swift",
+          "marker": "MA-FORK(F4)",
+          "hook": "NoteRow(item: item, symbol: symbol, symbolColor: symbolColor, ref: ref, detail: detail)"
+        },
+        {
+          "file": "Sources/Shiyin/Views/NotesTabs.swift",
+          "marker": "MA-FORK(F4)",
+          "hook": "Text(item.owner.isEmpty ? String(localized: \"未指定\") : item.owner).meetingText()"
+        }
+      ]
     },
     "F7": {
       "title": "品牌集中在建置時替換",
       "design": "docs/fork/design.md §F7",
-      "forkFiles": ["fork/brand.json", "fork/brand-allow.txt", "scripts/fork/brand.py", "scripts/fork/brand-test.py", "scripts/fork/brand-hooks-test/main.swift", "Sources/Shiyin/Fork/Brand.swift"],
-      "upstreamFiles": ["Sources/Shiyin/App/ShiyinApp.swift", "Sources/Shiyin/Services/ReleaseNotes.swift", "scripts/build-app.sh", "scripts/make-dmg.sh"],
-      "symbols": ["Brand", "BrandAboutCommand", "Brand.name", "Brand.names", "Brand.isListTitle", "MABrand"],
-      "keywords": ["拾音", "Shiyin", "會議助手", "Meeting Assistant"],
+      "forkFiles": [
+        "fork/brand.json",
+        "fork/brand-allow.txt",
+        "scripts/fork/brand.py",
+        "scripts/fork/brand-test.py",
+        "scripts/fork/brand-hooks-test/main.swift",
+        "Sources/Shiyin/Fork/Brand.swift"
+      ],
+      "upstreamFiles": [
+        "Sources/Shiyin/App/ShiyinApp.swift",
+        "Sources/Shiyin/Services/ReleaseNotes.swift",
+        "scripts/build-app.sh",
+        "scripts/make-dmg.sh"
+      ],
+      "symbols": [
+        "Brand",
+        "BrandAboutCommand",
+        "Brand.name",
+        "Brand.names",
+        "Brand.isListTitle",
+        "MABrand",
+        "Brand.short"
+      ],
+      "keywords": [
+        "拾音",
+        "Shiyin",
+        "會議助手",
+        "Meeting Assistant"
+      ],
       "settingsKeys": [],
       "debugCommands": [],
       "migrations": [],
       "tables": [],
       "markers": [
-        {"file": "Sources/Shiyin/App/ShiyinApp.swift", "marker": "MA-FORK(F7)", "hook": "BrandAboutCommand()"},
-        {"file": "Sources/Shiyin/Services/ReleaseNotes.swift", "marker": "MA-FORK(F7)", "hook": "Brand.names(\"Shiyin\")"},
-        {"file": "Sources/Shiyin/Services/ReleaseNotes.swift", "marker": "MA-FORK(F7)", "hook": "Brand.names(\"拾音\")"},
-        {"file": "scripts/build-app.sh", "marker": "MA-FORK(F7)", "hook": "APP=…/Meeting Assistant.app"},
-        {"file": "scripts/build-app.sh", "marker": "MA-FORK(F7)", "hook": "brand.py apply"},
-        {"file": "scripts/build-app.sh", "marker": "MA-FORK(F7)", "hook": "--install 的 Meeting Assistant.app（3 行）"},
-        {"file": "scripts/make-dmg.sh", "marker": "MA-FORK(F7)", "hook": "ditto Meeting Assistant.app"},
-        {"file": "scripts/make-dmg.sh", "marker": "MA-FORK(F7)", "hook": "brand.py guides、html-to-pdf（3 行）"},
-        {"file": "scripts/make-dmg.sh", "marker": "MA-FORK(F7)", "hook": "Third-Party Licenses.txt 用換過的那份"},
-        {"file": "scripts/make-dmg.sh", "marker": "MA-FORK(F7)", "hook": "hdiutil -volname"}
+        {
+          "file": "Sources/Shiyin/App/ShiyinApp.swift",
+          "marker": "MA-FORK(F7)",
+          "hook": "BrandAboutCommand()"
+        },
+        {
+          "file": "Sources/Shiyin/Services/ReleaseNotes.swift",
+          "marker": "MA-FORK(F7)",
+          "hook": "? paragraphs.first { p in Brand.names(\"Shiyin\").contains { p[0].lowercased().hasPrefix($0.lowercased()) } } ??"
+        },
+        {
+          "file": "Sources/Shiyin/Services/ReleaseNotes.swift",
+          "marker": "MA-FORK(F7)",
+          "hook": ": paragraphs.first { p in Brand.names(\"拾音\").contains { p[0].hasPrefix($0) } } ?? paragraphs[0]"
+        },
+        {
+          "file": "Sources/Shiyin/Services/Reminders.swift",
+          "marker": "MA-FORK(F7)",
+          "hook": "static var listTitle: String { Brand.name(MeetingLanguage.ui(zh: \"拾音\", en: \"Shiyin\")) }"
+        },
+        {
+          "file": "Sources/Shiyin/Services/Reminders.swift",
+          "marker": "MA-FORK(F7)",
+          "hook": "if let calendar = store.calendars(for: .reminder).first(where: { Brand.isListTitle($0.title) }) {"
+        },
+        {
+          "file": "Sources/Shiyin/Views/IslandView.swift",
+          "marker": "MA-FORK(F7)",
+          "hook": "IslandButton(title: Brand.short(String(localized: \"打開拾音\")), symbol: \"macwindow\") {"
+        },
+        {
+          "file": "scripts/build-app.sh",
+          "marker": "MA-FORK(F7)",
+          "hook": "APP=\"$SCRATCH/app/Meeting Assistant.app\""
+        },
+        {
+          "file": "scripts/build-app.sh",
+          "marker": "MA-FORK(F7)",
+          "hook": "/usr/bin/python3 scripts/fork/brand.py apply \"$APP\""
+        },
+        {
+          "file": "scripts/build-app.sh",
+          "marker": "MA-FORK(F7)",
+          "hook": "rm -rf \"$HOME/Applications/Meeting Assistant.app\""
+        },
+        {
+          "file": "scripts/build-app.sh",
+          "marker": "MA-FORK(F7)",
+          "hook": "cp -R \"$APP\" \"$HOME/Applications/Meeting Assistant.app\""
+        },
+        {
+          "file": "scripts/build-app.sh",
+          "marker": "MA-FORK(F7)",
+          "hook": "echo \"已安裝：$HOME/Applications/Meeting Assistant.app\""
+        },
+        {
+          "file": "scripts/make-dmg.sh",
+          "marker": "MA-FORK(F7)",
+          "hook": "ditto \"$SCRATCH/app/Meeting Assistant.app\" \"$STAGE/Meeting Assistant.app\""
+        },
+        {
+          "file": "scripts/make-dmg.sh",
+          "marker": "MA-FORK(F7)",
+          "hook": "/usr/bin/python3 scripts/fork/brand.py guides \"$SCRATCH/brand-guides\" scripts/install-guide.html scripts/insta"
+        },
+        {
+          "file": "scripts/make-dmg.sh",
+          "marker": "MA-FORK(F7)",
+          "hook": "swift scripts/html-to-pdf.swift \"$SCRATCH/brand-guides/install-guide.html\" \"$STAGE/安裝說明.pdf\""
+        },
+        {
+          "file": "scripts/make-dmg.sh",
+          "marker": "MA-FORK(F7)",
+          "hook": "swift scripts/html-to-pdf.swift \"$SCRATCH/brand-guides/install-guide.en.html\" \"$STAGE/Install Guide.pdf\""
+        },
+        {
+          "file": "scripts/make-dmg.sh",
+          "marker": "MA-FORK(F7)",
+          "hook": "cp \"$SCRATCH/app/Meeting Assistant.app/Contents/Resources/ThirdPartyLicenses.txt\" \"$STAGE/Third-Party Licenses"
+        },
+        {
+          "file": "scripts/make-dmg.sh",
+          "marker": "MA-FORK(F7)",
+          "hook": "hdiutil create -volname \"Meeting Assistant ${VERSION}\" -srcfolder \"$STAGE\" -fs HFS+ -format UDZO -ov \"$DMG\" >/"
+        }
       ],
-      "plannedHooks": [
-        {"file": "Sources/Shiyin/Services/Reminders.swift", "hook": "Brand.name(MeetingLanguage.ui(zh: \"拾音\", en: \"Shiyin\"))", "when": "合併 5.0"},
-        {"file": "Sources/Shiyin/Services/Reminders.swift", "hook": "Brand.isListTitle($0.title)", "when": "合併 5.0"}
-      ]
+      "plannedHooks": []
     },
     "DF5": {
       "title": "麥克風音源的 LockedValue（上游 R74 的同步修正）",
       "design": "docs/fork/design.md §F-UP（上游 §50.2）、DF5",
-      "forkFiles": [],
-      "upstreamFiles": ["Sources/Shiyin/Capture/AudioSources.swift"],
-      "symbols": ["LockedValue", "MicrophoneSource.deviceUID", "MicrophoneSource.current", "FileSource"],
-      "keywords": ["LockedValue", "deviceQueue"],
-      "markers": [],
-      "note": "上游哪天自己加鎖時刪掉 fork 的"
+      "forkFiles": [
+        "scripts/fork/tsan-lockedvalue/main.swift",
+        "scripts/fork/tsan-lockedvalue/run.sh"
+      ],
+      "upstreamFiles": [
+        "Sources/Shiyin/Capture/AudioSources.swift"
+      ],
+      "symbols": [
+        "LockedValue",
+        "MicrophoneSource.deviceUID",
+        "MicrophoneSource.current",
+        "FileSource"
+      ],
+      "keywords": [
+        "LockedValue",
+        "deviceQueue"
+      ],
+      "markers": [
+        {
+          "file": "Sources/Shiyin/Capture/AudioSources.swift",
+          "marker": "MA-FORK(DF5)",
+          "hook": "final class LockedValue<Value>: @unchecked Sendable {"
+        }
+      ],
+      "note": "上游哪天自己加鎖時刪掉 fork 的",
+      "checks": [
+        "scripts/fork/tsan-lockedvalue/run.sh"
+      ]
+    },
+    "F0": {
+      "title": "fork 的 DEBUG 指令入口（fork design §F0.1）",
+      "forkFiles": [
+        "Sources/Shiyin/Fork/Debug/ForkDebug.swift"
+      ],
+      "debugCommands": [
+        "mawindowshot"
+      ],
+      "markers": [
+        {
+          "file": "Sources/Shiyin/Debug/DebugControl.swift",
+          "marker": "MA-FORK(F0)",
+          "hook": "default: if !ForkDebug.handle(args, model: model) { log.error(\"unknown debug command \\(name)\") }"
+        }
+      ]
     }
   },
   "highRisk": [
-    {"what": "AppDatabase 的 migration 順序", "why": "ma_speaker_tags_v1 目前夾在上游 v9、v10 之間；合併 5.0 時搬到上游全部之後（fork design §F-DB.1）"},
-    {"what": "NotesTabs 的 NotesSection 介面（F4 加了 count、accent、copy 參數）", "why": "改了上游元件的介面，上游 5.0 的就地編輯（R100）會改同一個檔"},
-    {"what": "RecordingWriter.setMuted（F3）", "why": "跟寫檔的鎖綁在一起，留在上游檔"}
+    {
+      "what": "fork 的 migration 順序",
+      "why": "5.0.1 起 ForkMigrations.register 在上游最後一個 migration 之後；上游新增 migration 時要確認還在最後（check-fork-migrations.py 會檢查）"
+    },
+    {
+      "what": "NotesTabs 的 NotesSection 介面（F4 加了 count、accent、copy 參數）",
+      "why": "改了上游元件的介面，上游 5.0 的就地編輯（R100）會改同一個檔"
+    },
+    {
+      "what": "RecordingWriter.setMuted（F3）",
+      "why": "跟寫檔的鎖綁在一起，留在上游檔"
+    },
+    {
+      "what": "IslandView、Recorder.checkLevels 的接點",
+      "why": "上游錄音島、收音檢查還在改，F3 的接點在它們的流程中間"
+    }
   ],
   "brand": {
     "config": "fork/brand.json",
     "allowlist": "fork/brand-allow.txt",
     "tool": "scripts/fork/brand.py",
-    "checks": ["python3 scripts/fork/brand.py check-sources", "python3 scripts/fork/brand-test.py", "python3 scripts/fork/brand.py crosscheck <stringsdata 資料夾>"]
+    "checks": [
+      "python3 scripts/fork/brand.py check-sources",
+      "python3 scripts/fork/brand-test.py",
+      "python3 scripts/fork/brand.py crosscheck <stringsdata 資料夾>"
+    ]
   },
   "docs": {
     "requirements": "docs/fork/requirements.md",
     "design": "docs/fork/design.md",
     "tasks": "docs/fork/tasks.md",
     "upstreamSync": "docs/fork/upstream-sync.md",
-    "upstreamDocsUnchanged": ["docs/requirements.md", "docs/design.md", "docs/tasks.md", "docs/design-windows.md", "docs/website.md"]
+    "upstreamDocsUnchanged": [
+      "docs/requirements.md",
+      "docs/design.md",
+      "docs/tasks.md",
+      "docs/design-windows.md",
+      "docs/website.md"
+    ]
   }
 }

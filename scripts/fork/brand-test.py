@@ -67,6 +67,7 @@ struct Probe: View {
              : "拾音認出的名字")
             .help(tagged ? "Shiyin 1" : "Shiyin 2")
         Button("結束拾音") { }
+        Text(Brand.short(String(localized: "打開拾音")))
         Window("拾音", id: "main")
     }
     func message() -> String {
@@ -283,12 +284,13 @@ class Phrases(unittest.TestCase):
         self.tmp = Path(tempfile.mkdtemp())
         self.app = self.tmp / "T.app"
         res = self.app / "Contents/Resources"
-        for lang in ("en", "zh-Hant"):
+        for lang in ("en", "zh-Hant", "zh-Hans"):
             (res / f"{lang}.lproj").mkdir(parents=True)
         shutil.copy(ROOT / "Resources/Info.plist", self.app / "Contents/Info.plist")
         licenses = (ROOT / "Resources/ThirdPartyLicenses.txt").read_text(encoding="utf-8")
         (res / "ThirdPartyLicenses.txt").write_text(licenses, encoding="utf-8")
         sponsor = {"zh-Hant": f'覺得拾音好用的話，可以<a href="{KOFI}">請我喝杯咖啡</a>。',
+                   "zh-Hans": f'觉得拾音好用的话，可以<a href="{KOFI}">请我喝杯咖啡</a>。',
                    "en": f'Enjoying Shiyin? <a href="{KOFI}">Buy me a coffee</a>.'}
         for lang, line in sponsor.items():
             (res / f"{lang}.lproj/Credits.html").write_text(
@@ -297,8 +299,10 @@ class Phrases(unittest.TestCase):
         catalog = json.loads((ROOT / "Resources/Localizable.xcstrings").read_text(encoding="utf-8"))["strings"]
         key = next(k for k in catalog if "「拾音」選單" in k)
         en = catalog[key]["localizations"]["en"]["stringUnit"]["value"]
-        (res / "zh-Hant.lproj/Localizable.strings").write_bytes(plistlib.dumps({key: key, "結束拾音": "結束拾音"}))
-        (res / "en.lproj/Localizable.strings").write_bytes(plistlib.dumps({key: en, "結束拾音": "Quit Shiyin"}))
+        hans = catalog[key]["localizations"]["zh-Hans"]["stringUnit"]["value"]
+        (res / "zh-Hant.lproj/Localizable.strings").write_bytes(plistlib.dumps({key: key, "結束拾音": "結束拾音", "打開拾音": "打開拾音"}))
+        (res / "en.lproj/Localizable.strings").write_bytes(plistlib.dumps({key: en, "結束拾音": "Quit Shiyin", "打開拾音": "Open Shiyin"}))
+        (res / "zh-Hans.lproj/Localizable.strings").write_bytes(plistlib.dumps({key: hans, "結束拾音": "退出拾音", "打開拾音": "打开拾音"}))
         self.res = res
 
     def tearDown(self):
@@ -336,6 +340,24 @@ class Phrases(unittest.TestCase):
         code, out = run("apply", self.app)
         self.assertEqual(code, 1, out)
         self.assertIn("zh-Hant.lproj/Credits.html：缺少必要的整句", out)
+
+    def test_island_short_name_only_at_runtime(self):
+        """F7.7：錄音島的「打開 MA」在執行時由 Brand.short 換；翻譯表裡同一條鍵（選單列也在用）照舊是完整名稱，
+        簡稱寫進 Info.plist 的 MABrand"""
+        code, out = run("apply", self.app)
+        self.assertEqual(code, 0, out)
+        values = {lang: plistlib.loads((self.res / f"{lang}.lproj/Localizable.strings").read_bytes())["打開拾音"]
+                  for lang in ("zh-Hant", "zh-Hans", "en")}
+        self.assertEqual(values, {"zh-Hant": "打開會議助手", "zh-Hans": "打开会议助手", "en": "Open Meeting Assistant"})
+        info = plistlib.loads((self.app / "Contents/Info.plist").read_bytes())
+        self.assertEqual(info["MABrand"]["shortName"], "MA")
+
+    def test_zh_hans_credits_drift_fails(self):
+        """上游 4.8 起有簡體的 Credits：贊助句漂移也要失敗"""
+        self.edit("zh-Hans.lproj/Credits.html", "请我喝杯咖啡</a>。", "请我喝杯咖啡</a>！")
+        code, out = run("apply", self.app)
+        self.assertEqual(code, 1, out)
+        self.assertIn("zh-Hans.lproj/Credits.html：缺少必要的整句", out)
 
     def test_license_header_drift_fails(self):
         self.edit("ThirdPartyLicenses.txt", "Shiyin uses the following open-source software", "Shiyin uses these open-source packages")

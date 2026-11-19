@@ -95,6 +95,7 @@ enum MeetingPackage {
             }
             try encoder.encode(entries).write(to: dir.appendingPathComponent("documents.json"))
         }
+        try ForkSpeakerTags.writePackage(b.speakerTags, to: dir)   // MA-FORK(F2)：ma-speaker-tags.json（F2.8）
         try? FileManager.default.removeItem(at: url)
         try ditto(["-c", "-k", "--norsrc", "--noextattr", "--noqtn", dir.path, url.path])
     }
@@ -163,6 +164,7 @@ enum MeetingPackage {
             }, duration: info.durationSeconds ?? 0, speakerCount: 0)
             for speaker in info.speakers { try db.renameSpeaker(id, idx: speaker.idx, name: speaker.name) }
             for bookmark in info.bookmarks { try db.addBookmark(id, time: bookmark.time, label: bookmark.label) }
+            try ForkSpeakerTags.readPackage(dir, meetingId: id, db: db)   // MA-FORK(F2)：舊封包、上游的封包沒有就略過
             if let notes = info.notes { try db.saveNotes(id, notes: notes, by: info.notesBy, reason: String(localized: "匯入")) }
             try db.updateUserNotes(id, info.userNotes)
             for entry in documents {

@@ -266,6 +266,169 @@ public sealed class RecorderTests : IDisposable
         recorder.Stop();
     }
 
+    /// <summary>
+    /// 一直說裝置變了、重新開始後很久才有資料的音源（藍牙耳機切換成通話模式，M§50.4）：開始後 0.2 秒送「裝置變了」（Flaps 次），
+    /// 重新開始後 SilentAfterRestart 秒才有資料
+    /// </summary>
+    sealed class FlappingSource : IAudioSource
+    {
+        public Action<float[]>? OnSamples { get; set; }
+        public Action? OnInterruption { get; set; }
+        public int Flaps;
+        public double SilentAfterRestart;
+        public readonly List<DateTime> Starts = [];
+        CancellationTokenSource? cancel;
+
+        public void Start()
+        {
+            var cts = cancel = new CancellationTokenSource();
+            bool flap;
+            double silent;
+            lock (Starts)
+            {
+                Starts.Add(DateTime.UtcNow);
+                flap = Flaps-- > 0;
+                silent = Starts.Count > 1 ? SilentAfterRestart : 0;
+            }
+            new Thread(() =>
+            {
+                if (silent > 0 && cts.Token.WaitHandle.WaitOne(TimeSpan.FromSeconds(silent))) return;
+                while (!cts.IsCancellationRequested)
+                {
+                    OnSamples?.Invoke(new float[1600]);
+                    if (cts.Token.WaitHandle.WaitOne(100)) return;
+                }
+            }) { IsBackground = true }.Start();
+            if (flap) _ = Task.Delay(200).ContinueWith(_ => OnInterruption?.Invoke());
+        }
+
+        public void Stop() => cancel?.Cancel();
+        public double[] Gaps() { lock (Starts) return [.. Starts.Zip(Starts.Skip(1), (a, b) => (b - a).TotalSeconds)]; }
+        public int Count { get { lock (Starts) return Starts.Count; } }
+    }
+
+    /// <summary>每 0.1 秒送一段：Loud 時是正弦波，不然全是 0（模擬錄不到的電腦聲音）</summary>
+    sealed class ToneSource : IAudioSource
+    {
+        public Action<float[]>? OnSamples { get; set; }
+        public Action? OnInterruption { get; set; }
+        public volatile bool Loud;
+        CancellationTokenSource? cancel;
+
+        public void Start()
+        {
+            var cts = cancel = new CancellationTokenSource();
+            new Thread(() =>
+            {
+                var t = 0;
+                while (!cts.IsCancellationRequested)
+                {
+                    var chunk = new float[1600];
+                    if (Loud) for (var i = 0; i < chunk.Length; i++) chunk[i] = 0.2f * MathF.Sin(t++ * 0.07f);
+                    OnSamples?.Invoke(chunk);
+                    if (cts.Token.WaitHandle.WaitOne(100)) return;
+                }
+            }) { IsBackground = true }.Start();
+        }
+
+        public void Stop() => cancel?.Cancel();
+    }
+
+    Recorder MakeBoth(AppSettings settings, IAudioSource mic, IAudioSource system, Func<IReadOnlyList<Recorder.PlayingApp>> playing) =>
+        new(settings, paths, NoPower.Instance, new Recorder.Hooks(
+            (_, _) => [(0, mic), (1, system)], _ => new FakeLive(), null, _ => 50_000_000_000, PlayingApps: playing))
+        { SystemMissingSeconds = 1 };
+
+    /// <summary>R75.3：電腦聲音全是 0、有 app 在別的輸出裝置出聲：提示寫出 app、它的裝置、預設裝置；會議 app 排在瀏覽器前面</summary>
+    [Fact]
+    public async Task SystemAudioOnOtherDeviceHints()
+    {
+        var settings = Quiet();
+        var mic = new ToneSource { Loud = true };
+        var system = new ToneSource();
+        Recorder.PlayingApp[] apps =
+        [
+            new("Chrome", "browser", "Speakers", true, "Speakers"),
+            new("Microsoft Teams", "meeting", "Jabra Speak 710", false, "Speakers"),
+        ];
+        var recorder = MakeBoth(settings, mic, system, () => apps);
+        recorder.Start(11, MeetingLanguage.Zh, "both");
+        await Until(() => recorder.Hint == Recorder.LevelHint.SystemElsewhere);
+        Assert.Equal("Microsoft Teams", recorder.SystemCulprit?.Name);
+        var text = recorder.HintText(Recorder.LevelHint.SystemElsewhere);
+        Assert.Contains("Microsoft Teams", text);
+        Assert.Contains("「Jabra Speak 710」", text);
+        Assert.Contains("「Speakers」", text);
+        // 電腦聲音恢復就收起來（R75.1）
+        system.Loud = true;
+        await Until(() => recorder.Hint is null);
+        recorder.Stop();
+    }
+
+    /// <summary>R75.3：app 就在預設裝置上還是錄不到 → SystemMissing；沒有 app 在出聲 → 不提示</summary>
+    [Fact]
+    public async Task SystemAudioMissingOrNobodyPlaying()
+    {
+        var settings = Quiet();
+        Recorder.PlayingApp[] apps = [new("Zoom", "meeting", "Speakers", true, "Speakers")];
+        var playing = true;
+        var recorder = MakeBoth(settings, new ToneSource { Loud = true }, new ToneSource(), () => playing ? apps : []);
+        recorder.Start(12, MeetingLanguage.Zh, "both");
+        await Until(() => recorder.Hint == Recorder.LevelHint.SystemMissing);
+        Assert.Contains("Zoom", recorder.HintText(Recorder.LevelHint.SystemMissing));
+        playing = false;
+        await Until(() => recorder.Hint is null);
+        recorder.Stop();
+
+        var quiet = MakeBoth(settings, new ToneSource { Loud = true }, new ToneSource(), () => []);
+        quiet.Start(13, MeetingLanguage.Zh, "both");
+        await Task.Delay(3500);
+        Assert.Null(quiet.Hint);
+        quiet.Stop();
+    }
+
+    [Fact]
+    public void RestartDelayBacksOff()
+    {
+        Assert.Equal([0.3, 0.3, 0.3, 2, 4, 8, 16, 30, 30], Enumerable.Range(0, 9).Select(Recorder.RestartDelay));
+    }
+
+    /// <summary>一直重新連接時間隔拉長、提示「一直在重新連接」（R74.2、R74.3、M§50.1）</summary>
+    [Fact]
+    public async Task FlappingSourceBacksOffAndWarns()
+    {
+        var source = new FlappingSource { Flaps = 5 };
+        var recorder = Make(Quiet(), source: source);
+        recorder.Start(9, MeetingLanguage.Zh, "mic");
+        // 開始 + 5 次重新開始：0.3、0.3、0.3 秒之後是 2、4 秒（加上每次開始後 0.2 秒才送通知）
+        await Until(() => source.Count >= 6, 15);
+        var gaps = source.Gaps();
+        Assert.All(gaps[..3], g => Assert.InRange(g, 0.4, 1.5));
+        Assert.InRange(gaps[3], 2.1, 3.5);
+        Assert.InRange(gaps[4], 4.1, 5.5);
+        Assert.Contains("一直在重新連接", recorder.DeviceWarning);
+        // 通知用完了：不再重新開始
+        await Task.Delay(1500);
+        Assert.Equal(6, source.Count);
+        recorder.Stop();
+    }
+
+    /// <summary>重新開始後要等幾秒才有資料（藍牙）：看門狗在重新連接完 5 秒內不再重開，等資料來（R74.1）</summary>
+    [Fact]
+    public async Task WatchdogWaitsAfterRestart()
+    {
+        var source = new FlappingSource { Flaps = 1, SilentAfterRestart = 4.5 };
+        var recorder = Make(Quiet(), source: source);
+        recorder.Start(10, MeetingLanguage.Zh, "mic");
+        await Until(() => source.Count >= 2, 5);
+        // 3 秒沒有資料時照舊提示，但不重新開始；資料來了提示收起
+        await Until(() => recorder.DeviceWarning is not null, 6);
+        Assert.Contains("正在重新連接", recorder.DeviceWarning);
+        await Until(() => recorder.DeviceWarning is null, 6);
+        Assert.Equal(2, source.Count);
+        recorder.Stop();
+    }
+
     [Fact]
     public async Task WarnsAboutDiskAndPermission()
     {

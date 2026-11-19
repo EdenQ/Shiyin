@@ -23,3 +23,10 @@ Sources/Shiyin/Services/ReleaseNotes.swift | Shiyin
 Sources/Shiyin/Services/ReleaseNotes.swift | 拾音
 Sources/Shiyin/Fork/Brand.swift | 拾音
 Sources/Shiyin/Fork/Brand.swift | Shiyin
+Sources/Shiyin/Services/Reminders.swift | 拾音
+Sources/Shiyin/Services/Reminders.swift | Shiyin
+
+# 上游 5.0 的 DEBUG 標準答案（R94.1 一次貼上好幾個詞彙）：「拾音」是測試用的詞彙，跟 Windows 比對同一份，不換
+Sources/Shiyin/Debug/GoldenDump.swift | Redis、Kubernetes、拾音
+Sources/Shiyin/Debug/GoldenDump.swift | Redis, kubernetes\nKubernetes；SendGrid;…
+Sources/Shiyin/Debug/GoldenDump.swift | 拾音

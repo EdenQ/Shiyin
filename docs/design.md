@@ -160,6 +160,10 @@ CREATE VIRTUAL TABLE search USING fts5(meeting_id UNINDEXED, kind UNINDEXED, ref
   - `abort_callback` 用來取消
   - 其他使用預設值
 - 段落的平均 token 機率太低，或壓縮比太高時，標成低信心（沿用 v2 的門檻概念）。
+- 沒人講話時的輸出不留（2026-11-16，GitHub #9）：
+  - 整句只是標記或標點：`[BLANK_AUDIO]`、`[silence]`、`(marker tapping)`、`<|5.55|>`、「-」（頭尾是成對的括號、中間沒有別的括號，或去掉標點、符號、空白後是空的）。
+  - 詞彙表被照抄成一句（「甲、乙、丙。」）：去掉標點、符號、空白、轉小寫後整句在提示詞裡，拿掉開頭的「詞彙」「Glossary」這類標籤後能拆成兩個以上的詞彙。只講一個詞彙的句子照樣留著。Qwen3-ASR 的提示（§32.4）也套用：簡體輸出和轉成繁體後的文字有一個符合就丟掉。
+  - 全部丟掉時就是「錄音裡沒有辨識到任何語音」。Whisper 的這兩條跟著 `transcribe-eval` 的 `keepAll` 一起關掉。標準答案：`whisper/nonspeech.json`、`whisper/echoes.json`。
 - 在程式內的背景 Task 執行，不另外開子程序（D4）。
 
 ### 6.2.1 macOS 內建辨識（R4.1、D11）
@@ -1052,6 +1056,7 @@ FluidAudio 的離線辨識把錄音切成 10 秒的片段（每 2 秒一個）�
 | `engines.breeze`／`builtin`／`whisperJa`／`qwen` | 轉錄完成，依 `transcribedWith`（breeze／system／japanese／qwen）加語音秒數。`builtin` 是系統內建或快速辨識：Mac 是 macOS 內建辨識，Windows 是快速辨識（SenseVoice），報表依平台顯示名稱 | 同上 |
 | `meetingLanguages.zh`／`en`／`ja` | 轉錄完成，依會議語言加一場 | 同上 |
 | `diarizationRuns` | 轉錄時有做說話者辨識、重新辨識說話者完成 | `JobRunner.transcribe`、`rediarize` |
+| `diarizationNemotron` | 其中照設定用了 Nemotron-3 的（R87.4，2026-11-15 加；Windows 不送） | `Diarizer.diarize` |
 | `summarizer.claudeCode`／`codex`／`api`／`local` | 整理（含草稿、回答待確認後的修正）成功；Anthropic、OpenAI、Gemini、遠端的 OpenAI 相容 API 算 `api`，網址是 localhost、127.0.0.1 的 OpenAI 相容 API 算 `local` | `JobRunner.execute` |
 | `questionsAsked` | 提問（單場或所有會議）得到回答 | `Asking` |
 | `errors.recording`／`transcribe`／`diarize`／`summarize` | 錄音結束時有錯誤；轉錄、重新辨識、整理（含修正）的工作失敗 | `AppModel`、`JobRunner.execute` |
@@ -1199,7 +1204,7 @@ Windows 版做一樣的功能（R40.7，跟 4.0.0 一起發）：同樣的格式
 
 - `Recorder.levelHint` 從 nil 變成某個值時（§26.1 的規則不變），`AppModel` 觀察到就：
   - `NSApp.isActive == false` 或主視窗沒開時，`Notifier.levelHint(hint, meetingId:)` 送通知：標題「收音提醒」，內文同 `RecordingPanel.levelHintText`，類別 `LEVEL_HINT`，點了 `reveal(meetingId)`。`Recorder` 記 `notifiedLevelHints: Set<LevelHint>`，每場每種一次，錄音開始時清掉。
-  - 不管前景與否，`AppModel.menuBarSymbol` 在 `levelHint != nil` 時用 `mic.badge.exclamationmark`，提示消失就換回錄音中的圖示。`MenuBarContent` 在錄音控制下面顯示同一句提示（琥珀色）和「知道了」（`dismissLevelHint`）。
+  - 不管前景與否，`AppModel.menuBarSymbol` 在 `levelHint != nil` 時用提示列同一個圖示（`LevelHint.symbol`），藍牙麥克風、太久沒人說話時用 `mic.badge.xmark`，提示消失就換回錄音中的圖示（4.1～4.8.1 寫的是 `mic.badge.exclamationmark`，系統沒有這個 SF Symbol，選單列變空白；2026-11-15 改）。`MenuBarContent` 在錄音控制下面顯示同一句提示（琥珀色）和「知道了」（`dismissLevelHint`）。
 - 通知權限沒給時只有選單列的變化（跟其他通知一樣，R11.2）。
 - Windows：design-windows §11.5。
 
@@ -1400,7 +1405,7 @@ Windows 版做一樣的功能（R40.7，跟 4.0.0 一起發）：同樣的格式
 
 - Windows（design-windows §10.1）照同一份規則：`Settings.SummarizerProblem`、引導、設定視窗、`JobRunner` 的暫停、`LLMError` 的四種、統計的 `errorDetail`。
 - DEBUG：`shiyinctl summarizer <state.json>` 寫出 `summarizerProblem`、`pause`、登入快取；`-debugNoCLI YES` 和 `llmprovider`、`llmkey`（只在記憶體）組合出各種沒準備好的狀態；`-debugCLILogin no` 讓登入快取當成沒登入。
-- 驗證：沒選過、沒裝 CLI、選了 API 沒存 key、OpenAI 相容沒填模型、CLI 沒登入（`-debugCLILogin no`）、假伺服器回 401 各匯入一場，都不出現「整理失敗」或只失敗一次後暫停；引導和設定頁在真的畫面上用 AX 按過（CLAUDE.md：對話框的按鈕要真的按）；統計用 `shiyinctl usage` 看 `errorDetail`，後台用 `wrangler dev --local` 收一份。
+- 驗證：沒選過、沒裝 CLI、選了 API 沒存 key、OpenAI 相容沒填模型、CLI 沒登入（`-debugCLILogin no`）、假伺服器回 401 各匯入一場，都不出現「整理失敗」或只失敗一次後暫停；引導和設定頁在真的畫面上用 AX 按過（對話框的按鈕要真的按）；統計用 `shiyinctl usage` 看 `errorDetail`，後台用 `wrangler dev --local` 收一份。
 
 ## 35. 忘了停止錄音（R48，D115、D116）
 
@@ -1673,7 +1678,7 @@ Windows 的做法在 design-windows §11.7。
 
 ### 38.6 匯出按鈕（R60，D132）
 
-- `ExportMenu`：`Menu { 複製會議紀錄的三種格式 } label: { Label("匯出", systemImage: "square.and.arrow.up") } primaryAction: { model.openExportSheet() }`，`.labelStyle(.titleAndIcon)`（工具列預設只顯示圖示），滑鼠提示「匯出會議紀錄、逐字稿或錄音（⌘E）；箭頭可以直接複製會議紀錄」。三個選項：「複製會議紀錄：保留格式（貼到 Word、Notion、郵件）」「複製會議紀錄：Markdown」「複製會議紀錄：純文字（貼到 Slack、訊息）」，呼叫同現在的 `copyNotes`。
+- `ExportMenu`：`ControlGroup { Button("匯出") { model.openExportSheet() }；Menu { 複製會議紀錄的三種格式 } label: { Label("複製", systemImage: "chevron.down") } }`，`.controlGroupStyle(.navigation)`、選單 `.menuIndicator(.hidden)`，按鈕 `.labelStyle(.titleAndIcon)`（工具列預設只顯示圖示）。2026-11-16 從分割選單（`Menu` 加 `primaryAction`）改成兩個控制項：分割選單箭頭那一半在輔助使用裡沒有名字（A11Y1），現在兩半各自是「匯出」「複製」；`.navigation` 讓兩段跟以前一樣緊、中間有分隔線（預設的樣式比較寬，側欄上方的錄音那一組會把「提問」擠進「»」）。錄音那一組同樣做法（「錄音」「錄音選項」）。滑鼠提示「匯出會議紀錄、逐字稿或錄音（⌘E）；箭頭可以直接複製會議紀錄」。三個選項：「複製會議紀錄：保留格式（貼到 Word、Notion、郵件）」「複製會議紀錄：Markdown」「複製會議紀錄：純文字（貼到 Slack、訊息）」，呼叫同現在的 `copyNotes`。
 - `MeetingDetailView` 的工具列：`ExportMenu` 放在 `MoreMenu` 前面，條件同 `MoreMenu`（不是錄音中的那場、不在垃圾桶）。`MoreMenu` 拿掉匯出、複製會議紀錄。工具列的選單建立一次就不更新的限制同 `MoreMenu`：動作按下時才看目前選取的會議。
 - 使用說明「匯出、分享」：「按右上角的「匯出」（⌘E）…；「匯出」旁邊的箭頭可以直接複製會議紀錄，貼到 Notion、Slack 或郵件。」
 
@@ -2193,6 +2198,88 @@ id 42 · shiyin://open?meeting=42 · transcript: get_transcript(meeting_id: 42)
 - DEBUG：state 的 `recorder.levelCheck` 加 `nearSilent`、`floor`（稍早的背景）、`suppressedApp`；`record-sim` 的麥克風不是真的裝置，啟動參數 `-debugMicBuiltIn YES` 當成內建麥克風；哪個 app 在用麥克風用 `meetingapp <bundleID> on` 模擬。
 - 離線：`afconvert` 加 numpy（§26.1 的做法）。實際的語音處理：`scripts/dev/vpio-hold.swift` 對內建麥克風開語音處理時用真的麥克風錄音（要使用者在電腦前）。
 
+## 46. 把一句拆成兩句（R70，D152；GitHub #6）
+
+### 46.1 資料庫（`AppDatabase.splitSegment`，Mac、Windows 同一套，標準答案 `db/35～38`）
+
+- `splitSegment(meetingId, id, at, to, label) -> 後半句的 id?`：`at` 是拆開的位置，用 UTF-16 的位置（Mac 的 `NSString`、Windows 的 `string` 都是這個單位，兩邊一樣）；`to` 是後半句的說話者，nil 是新的說話者（同 `reassignSegments`）。
+- 拆開：前半句是 `text[..<at]`、後半句是 `text[at...]`，各自去掉頭尾的空白（空白、tab、換行、全形空白 U+3000）；任一邊是空的就不拆、回傳 nil。只拆 `kind = final`。
+- 時間：兩邊各算「不是空白的 UTF-16 字數」a、b，拆開的時間 = start + (end − start) × a ÷ (a + b)，四捨五入到 0.01 秒（Windows 用 `MidpointRounding.AwayFromZero`）。
+- 寫入（同一個交易）：先存復原（`saveSpeakerUndo`，快照多一個 `split`）；後面的段落 `seq + 1`；原本的段落改成前半句（文字、`end`）；新增後半句（`seq` 是原本的 + 1，`start` 是拆開的時間，`end`、`low_confidence`、`channel` 同原本，說話者是 `to`，`speaker_manual = 1`）；搜尋索引改前半句、加後半句；校正建議（`corrections`）：待確認的看 `original`、已接受的看 `suggestion`，只在後半句找得到的移到後半句。沒有段落的說話者拿掉（同 `reassignSegments`）。
+- 復原快照的 `split`：`{"id", "newId", "gap"}`，`gap` 是兩句中間被去掉的空白（英文是一個空格，中文通常是空的）。復原時先處理 `split`：後半句的校正建議移回前半句；前半句的文字 = 前半句現在的文字 + gap + 後半句現在的文字（R70.5：拆開後改過的字也留著），`end` = 後半句的 `end`；刪掉後半句和它的索引；後面的段落 `seq − 1`。再照原本的快照還原說話者。
+
+### 46.2 畫面（Mac）
+
+- 逐字稿的右鍵選單在「這句是誰說的」上面加「拆成兩句…」（只有正式逐字稿、有說話者的會議）。
+- 按了那一句變成拆開的模式（像「編輯這一段」）：文字放在可以放游標的 `TextEditor`（`selection` 綁定，打字不會改內容），下面一行「後半句是」選單（其他說話者、同一位（名字後面加「（同一位）」）、新的說話者）、「取消」「拆開」。上面一行小字說明「把游標放在要拆開的地方」，並顯示前半句、後半句各多少字的預覽：「前半句：…最後幾個字｜後半句：開頭幾個字…」。
+- 「拆開」在 R70.2 不成立時不能按。按了用 `AppModel.splitSegment`，提示「已拆成兩句。要復原的話，在逐字稿按右鍵選「復原」。」。
+- DEBUG：`splitsegment <會議 id> <段落 id> <位置> <說話者|new>`（Windows 的指令沒有會議 id，對目前選取的會議）。`splitmode <會議 id> <段落 id>` 進入拆開的模式（等於右鍵選單），`splitcaret <位置>` 把文字框的游標放到那裡（背景的視窗點不到文字框）。
+
+### 46.3 Windows
+
+右鍵選單同一個位置；按了打開 `ContentDialog`（同時只能一個，先收起其他的）：唯讀的 `TextBox`（游標的位置是 `SelectionStart`）、說話者的 `ComboBox`、「拆開」「取消」。DEBUG 指令 `splitsegment <段落 id> <位置> <說話者|new>`。
+
+## 47. 中文逐字稿、會議紀錄用簡體（R71，D153、D154；GitHub #3）
+
+### 47.1 繁轉簡（`ChineseScript.toSimplified`，Mac、Windows 同一套，標準答案 `util/tw2s.json`）
+
+- 跟 OpenCC 的 tw2s 一樣兩步：先把台灣用字換回一般的繁體（`TWVariantsRevPhrases.tsv` 詞組最長匹配，沒有就用 `TWVariants.tsv` 反過來查單字），再轉簡體（`TSPhrases.tsv` 詞組最長匹配，沒有就查 `TSCharacters.tsv`）。字表取自 OpenCC（Apache-2.0）`data/dictionary/`，只留第一個候選（同 §32.5）。
+- 只換字，不換用語（D153）。英文、數字、標點不動。字表讀不到時原樣回傳、寫 log。
+
+### 47.2 什麼時候轉
+
+設定 `chineseScript`（`traditional`／`simplified`，預設 `traditional`；Windows 在 `settings.json`），`AppSettings.simplifiedChinese(for: language)` 只有會議語言是中文、設定是簡體時為真。整個流程照舊用繁體做，存進資料庫之前才轉（D154）：
+
+| 地方 | 轉什麼 |
+|---|---|
+| 正式轉錄存檔（`saveTranscript` 前，伺服器轉錄也是） | 每一句的文字 |
+| 即時逐字稿（`Recorder` 收到的每一句、錄音中的預覽） | 文字 |
+| 整理存檔（草稿、正式、校稿） | 會議紀錄每一個文字欄位（`MeetingNotes.mappingText`） |
+| 校正建議存檔 | `original`、`suggestion`、`reason` |
+| AI 猜的說話者存檔 | 原因（名字照轉） |
+| 匯出（會議紀錄的 Markdown、純文字、HTML／PDF／Word、拷貝；逐字稿的 txt、Markdown、srt、vtt、HTML／Word） | 整份輸出；HTML 的 `lang="zh-Hant"` 改成 `zh-Hans`，字型換成簡體的（Mac：PingFang SC、Songti SC；Windows：Microsoft YaHei、SimSun） |
+
+- 用的是做這件事那時候的設定（轉錄、整理、匯出各自看）。以前的會議不動（R71.5）。
+- 不轉：提問（回答用問題的語言，R71.7）、介面文字、本地 MCP（回傳資料庫裡的內容，簡體的會議本來就是簡體）、心智圖的圖片匯出。
+
+### 47.3 設定頁
+
+「錄音與轉錄」的會議語言下面加一列「中文的字」：選單「繁體（台灣）」「簡體」，說明「只影響中文會議的逐字稿、會議紀錄和匯出，介面文字不變。已經做好的會議不會變，重新轉錄或重新整理後才會換。」Windows 同一個位置。
+
+## 48. 簡體中文的介面（R72，D155～D157；GitHub #3）
+
+### 48.1 翻譯怎麼來（D155）
+
+- 不手寫：簡體從繁體的介面文字自動產生，三步：
+  1. **用語表** `Resources/l10n/zh-Hans-terms.tsv`（台灣的介面用語 → 大陸的介面用語，已經是簡體，例如 `設定→设置`、`檔案→文件`、`文件→文档`、`匯出→导出`、`預設→默认`、`伺服器→服务器`、`軟體→软件`、`視窗→窗口`、`登入→登录`、`紀錄→记录`），在繁體的原文上做最長匹配（同一個位置用最長的詞，換過的字不再換第二次，所以「文件→文档」「檔案→文件」不會連鎖）。
+  2. 剩下的字用 `ChineseScript.toSimplified`（§47.1，只換字）。
+  3. **手動指定** `Resources/l10n/zh-Hans-overrides.json`（`{"繁體原文": "简体"}`）：自動轉得不自然的條目，優先於前兩步。
+- `scripts/dev/l10n.py`：`hans`（重新產生 Localizable.xcstrings、Windows.xcstrings 所有條目的 `zh-Hans`），`check`、`windows-check` 先跑 `hans`，所以新增、改過的介面文字自動有簡體（R72.6）。另外檢查：產生出來的簡體裡沒有繁體字（再做一次繁轉簡結果不變）、插值（`%@`、`%lld`、`%1$@`）跟原文一樣。複數條目（英文的 `variations.plural`）的簡體只有一種寫法。
+- Python 的轉換跟 Swift、C# 的同一套（同樣的字表、同樣的最長匹配）；`check` 用標準答案 `util/ui-hans.json`（Mac 的 `ChineseScript.toSimplifiedUI` 算的）核對 Python 算的一樣。
+
+### 48.2 Mac
+
+- `Info.plist` 的 `CFBundleLocalizations` 加 `zh-Hans`；`Resources/zh-Hans.lproj/InfoPlist.strings`（app 名稱、權限說明、檔案類型名稱，由 `l10n.py hans` 從繁體那份產生）；`build-app.sh` 的 Credits.html 多一份 `zh-Hans`。xcstringstool 會編出 `zh-Hans.lproj/Localizable.strings`。
+- 介面語言：`MeetingLanguage.interface` 照舊只分中文、英文（決定用哪一份手寫的文字）；另外 `MeetingLanguage.simplifiedInterface`（`Bundle.main.preferredLocalizations.first` 是 `zh-Hans`）。系統的偏好語言是 `zh-Hans`、`zh-CN`、`zh-SG` 時 macOS 會選 `zh-Hans`；`zh-HK`、`zh-TW` 照舊是 `zh-Hant`。
+- 不查翻譯表的中文（寫死在程式裡的兩種語言）在簡體介面執行時轉：`ChineseScript.toSimplifiedUI`（用語表＋繁轉簡，同 48.1 的前兩步；用語表放進 app 的 Resources）。地方：`MeetingLanguage.ui(zh:en:)`、`uiName`（語言檔的中文名稱）、內建範本的名稱和說明（`displayName`、`displayDescription`）、app 裡顯示的更新說明（`ReleaseNotes.text` 的中文那段）、問題回報裡的介面語言名稱（「简体中文」）。`uiNames` 的 `ListFormatter` 用 `zh-Hans`。
+- 字形：所有視窗套的 `.chineseGlyphs()` 在簡體介面用 `zh-Hans`（簡體的標點位置）；會議標題、段落標題的宋體用 `Songti SC`。會議內容（中文會議）的字形、標題字型跟著「中文的字」（R72.5）：簡體用 `zh-Hans`、`Songti SC`，繁體照舊（`MeetingLanguage.contentTypesetting`、`contentTitleFont`，取代直接讀語言檔的 `fonts.typesetting`、`fonts.titleMac`）。
+- 「中文的字」的預設（R72.5）：`chineseScript` 沒有值時，簡體介面是 `simplified`、其他是 `traditional`（`AppSettings.chineseScript`）；設定頁的選單顯示的也是這個值。
+- 跟著「中文的字」的還有：中文會議新增的預設說話者名稱（`defaultSpeaker`，簡體時「说话者 N」；`isDefaultSpeakerName` 兩種寫法都認得）、心智圖的段落名稱（畫面上用介面語言、簡體介面轉；匯出用會議語言、同匯出轉）。存起來的失敗原因（`MeetingLanguage.uiStored`，失敗當時的介面語言寫的）、畫面上的會議長度（`TimeFormat.duration` 不帶語言時）、播放條的「議題」、設定裡範本的段落名稱和內建範本的內容（只顯示，內建範本不能改）在簡體介面轉。
+- DEBUG：state 的 `languages` 加 `interfaceScript`（`zh-Hant`／`zh-Hans`／`en`）；簡體介面用 `-AppleLanguages "(zh-Hans)"` 啟動。
+
+### 48.3 Windows（design-windows §11.15）
+
+- 介面語言的設定值多一個 `zh-Hans`；沒設定時 `CurrentUICulture` 是 `zh-CN`、`zh-SG` 或 `zh-Hans*` 的用簡體，`zh-TW`、`zh-HK`、`zh-MO`、`zh-Hant*` 用繁體，其他英文。
+- `L`：多一個簡體模式，查兩份 xcstrings 的 `zh-Hans`；表裡沒有的鍵（動態組出來的文字）執行時用 `ChineseScript.ToSimplifiedUI` 轉，不會漏出繁體。`MeetingLanguages.Ui(zh, en)` 同 Mac。
+- 字型：每個視窗的根元素 `Language` 設成 `zh-CN`（WinUI 依語言挑中文字型：微軟雅黑），會議內容同 Mac 跟著「中文的字」（`zh-CN`／`zh-TW`）。
+- 統計的介面語言送 `zh-Hans`。
+
+### 48.4 驗證
+
+- `l10n.py check`、`windows-check` 通過（沒有缺簡體、沒有繁體字、插值相同）；標準答案 `util/ui-hans.json`（Mac 產生、Windows 和 l10n.py 比對）。
+- Mac DEBUG 版 `-AppleLanguages "(zh-Hans)"`：主視窗（紀錄、逐字稿、提問）、錄音畫面、選單列、設定四頁（`preview settings`）、首次使用引導、使用說明、匯出對話框截圖，找不到繁體字、版面沒有跑掉；「中文的字」沒選過時是簡體。繁體、英文介面截圖跟改之前一樣。
+- Windows 虛擬機 `--set interfaceLanguage=zh-Hans`：同樣的畫面。
+
 ## 49. 雙聲道的錄音兩耳都聽得到（R73，D158；GitHub #7）
 
 ### 49.1 混音（`Services/ChannelMix.swift`）
@@ -2238,6 +2325,561 @@ id 42 · shiyin://open?meeting=42 · transcript: get_transcript(meeting_id: 42)
 - DEBUG：`shiyinctl recordflap <次數> [秒數]`：模擬錄音的麥克風（`FileSource`）接下來 N 次開始收音後 0.5 秒送出「裝置變了」，每次開始收音花 <秒數>（模擬藍牙），state 的 `recorder.restarts`（每個聲道 60 秒內重新連接的秒數）。驗證：重新連接的間隔照 50.1 拉長、提示換成「一直在重新連接」、停止後再開始恢復；開始收音花 3 秒時 `metrics` 的 `maxMainGapMs` 不到 0.5 秒（畫面不卡）、錄音沒停。
 - 真的裝置：內建麥克風錄音、錄音中換到別的麥克風再換回來（格式不同），錄音照常；AirPods 要回報的人或使用者實測。
 - Windows：`RecorderTests` 用會一直送通知、開始收音很慢的假音源，驗證同樣的節奏和提示。
+
+## 51. 錄不到電腦聲音時說清楚（R75，D161）
+
+### 51.1 Mac：看「錄製系統音訊」的權限
+
+- `SystemAudioPermission.status() -> Status?`（`Capture/AudioSources.swift`）：`dlopen` 私有的 TCC.framework，呼叫 `TCCAccessPreflight("kTCCServiceAudioCapture", nil)`，回傳 Int32：0 允許、1 拒絕、2 還沒問過（2026-11-15 在這台 Mac 用終端機實測：麥克風、螢幕錄製 0，系統錄音 2）。符號找不到（系統改了做法）回傳 nil，不提示（R75.2）。只在錄音中、電腦聲音那一聲道已經完全是 0 的時候每秒查一次，平常不查。
+- `Recorder.LevelHint` 加 `.systemDenied`。`checkLevels` 改成：暫停時不判斷；有麥克風才算麥克風那幾種；有電腦聲音（`hasSystem`）時，電腦聲音那一聲道（`both` 是 1、`system` 是 0）`writer.silence ≥ 5` 而且權限是拒絕 → `.systemDenied`。優先順序：沒有收到聲音 → 被佔住 → **錄不到電腦聲音** → 聲音太小 → 背景太吵。
+- 允許之後自己接上（R75.2）：看過「拒絕」之後（`systemDeniedSeen`，按了「知道了」也照樣看），每秒再查；變成允許時對電腦聲音那一聲道 `restartSource(channel, counted: false)`（同換麥克風，不算重新連接的次數），重建 tap 和聚合裝置。提示在權限變成允許時就不再成立，收起來。
+- 文字（錄音畫面的提示列、選單列、通知同一句，R42）：「拾音沒有「錄製系統音訊」的權限，錄不到電腦的聲音（線上會議裡其他人說話的聲音）：請到「系統設定 → 隱私權與安全性 → 錄製螢幕與系統錄音」允許拾音。」圖示 `speaker.slash`。提示列、選單列多一個「打開系統設定」（`Recorder.openPrivacySettings("Privacy_AudioCapture")`）。
+- 原本的那一行小字（`systemSilent`，§20）在這個提示出現時不顯示，避免同一件事講兩次；其他時候照舊（R75.5）。
+- DEBUG：啟動參數 `-debugSystemAudioPermission denied|granted|notDetermined` 蓋掉查到的權限，`shiyinctl systempermission <denied|granted|notDetermined|real>` 錄音中改；`record-sim` 的第三個參數 `2` 是「雙聲道、電腦聲音那一聲道全是 0」（模擬被拒絕）；state 的 `recorder.levelCheck` 加 `systemPermission`、`systemSilentSeconds`，`recorder.permissionRestarts`（因為允許而重新接上的次數）。
+
+### 51.2 Windows：app 的聲音在別的輸出裝置（design-windows §11.18）
+
+- Platform 的 `AudioOutputs.Playing()`：列出所有啟用中的輸出裝置上、狀態是 Active、目前音量（`AudioMeterInformation.MasterPeakValue`）> 0 的音訊工作階段，回傳 app（程序 id、名稱）、裝置（id、名稱）、是不是預設裝置（`Role.Console`，跟錄音用的同一個）。拾音自己、系統音效（`IsSystemSoundsSession`）不算。
+- `Recorder`（Services）注入 `Func<IReadOnlyList<PlayingApp>>`：有電腦聲音、電腦聲音那一聲道 `silence ≥ 10` 時每 2 秒查一次；有正在播出聲音的 app 就提示：不在預設裝置上 → `LevelHint.SystemElsewhere`，在預設裝置上 → `LevelHint.SystemMissing`。挑哪一個 app（R75.4）：會議 app（§12.4 的清單）→ 瀏覽器 → 其他；同一類取第一個。名稱、裝置在提示出現時記下來，之後不變。電腦聲音恢復（不再是 0）、或沒有 app 在播出聲音時收起來。
+- 優先順序同 Mac（`SystemElsewhere`、`SystemMissing` 排在麥克風沒有收到聲音之後、聲音太小之前）。
+- 驗證：`RecorderTests` 用電腦聲音那一聲道全是 0 的假音源、假的 `Playing()`。
+
+## 52. 待辦加進「提醒事項」（R76，D162）
+
+### 52.1 寫進提醒事項（`Services/Reminders.swift`，只有 Mac）
+
+- `ReminderStore` 協定：`access`（`.granted`／`.denied`／`.notDetermined`）、`requestAccess() async -> Bool`、`list() throws -> String`（列表的 id）、`existing(meetingId:) throws -> [String: Bool]`（item 鍵 → 完成了沒）、`add(_ items: [ReminderItem], to list: String) throws`。正式的是 `EventKitReminders`（`EKEventStore`、`requestFullAccessToReminders`），DEBUG 加 `-debugFakeReminders YES` 時用記憶體裡的假的（不碰使用者真的提醒事項、不跳權限詢問）。
+- 列表：記在設定 `remindersListId` 的那一個；找不到時找標題是「拾音」或「Shiyin」的提醒事項列表；都沒有就建立，標題跟著介面語言（中文「拾音」、其他「Shiyin」；簡體介面「拾音」），來源用 `defaultCalendarForNewReminders()?.source`。
+- 每一項（`ReminderItem`）：標題是事項；備註依會議語言（`meetingLanguage.text`）寫「負責人：<負責人>」（沒有就不寫）、「會議：<標題>（<日期>）」、「時間點：<mm:ss>」（沒有就不寫）；期限是 `yyyy-MM-dd`（整理的規則，§8）時設成 `dueDateComponents`（年、月、日，不設時、分，不加鬧鐘），其他非空的期限寫進備註「期限：<期限>」。`url` 是 `shiyin://open?meeting=<id>&t=<秒>&item=<鍵>`（同 R69.5 的連結，打開那場會議、跳到那個時間點；`item` 拾音打開時不理會）。
+- 去重的鍵：`item` = 事項文字（去掉頭尾空白）的 SHA-256 前 12 個十六進位字。已經在列表裡、`url` 的 `meeting` 和 `item` 都一樣的不再加（R76.3）。不另外存在資料庫（D162）。
+- 按鈕（R76.1）：權限是 `.notDetermined` 先 `requestAccess`；拒絕時跳出說明（R76.5）和「打開系統設定」（`Privacy_Reminders`）。加完提示「已加到提醒事項的「拾音」列表：N 項」，都加過時「這場的待辦都已經在提醒事項了」。失敗照原因說明。
+- Info.plist 加 `NSRemindersFullAccessUsageDescription`：「拾音會把你選的會議待辦加到「提醒事項」。」（英文、簡體在 InfoPlist.strings）。
+
+### 52.2 畫面
+
+- 紀錄分頁的「待辦」段落標題右邊（`NotesSection` 加 `accessory`）：`Button("加到提醒事項", systemImage: "checklist")`，`.borderless`、小字。編輯模式、垃圾桶裡的會議、沒有待辦時不顯示；正在加的時候停用。
+- 每一條待辦：已經在提醒事項裡的，事項文字後面（時間點、待確認標記之後）加 `Image(systemName: "checklist")`（完成了是 `checkmark.circle.fill`、青瓷綠），`.help`「已加到提醒事項」／「已在提醒事項裡完成」。
+- 狀態（R76.4）：`AppModel.reminderStatus: [String: Bool]`（目前這場會議，item 鍵 → 完成了沒），換會議、加完、app 回到前景（`NSApplication.didBecomeActiveNotification`）時在背景讀一次；權限不是 `.granted` 就不讀（不會因此跳出詢問）。匯出、心智圖不畫。
+- DEBUG：`shiyinctl reminders <會議 id>`（等於按按鈕）、`reminderdone <會議 id> <第幾項>`（假的提醒事項裡把那一項設成完成）；state 的 `reminders`（假的列表裡的每一項：標題、備註、到期日、url、完成）和 `reminderStatus`。
+
+## 53. 分享畫面時藏起拾音的視窗（R77，D163）
+
+- 設定 `hideFromScreenSharing`（預設 false；Windows 在 settings.json）。「進階 → 顯示」加開關「分享畫面時藏起拾音的視窗」和 R77.2 的說明。
+- Mac：`WindowSharing.apply()`（`App/`）把 `NSApp.windows` 每一個的 `sharingType` 設成 `.none`（開）或 `.readOnly`（關，系統的預設）。什麼時候套用：設定改了（`UserDefaults.didChangeNotification` 時比對值）、app 啟動、任何視窗變成 key／main（`NSWindow.didBecomeKeyNotification`、`didBecomeMainNotification`）、視窗顯示出來（`NSWindow.didChangeOcclusionStateNotification`：選單列的小視窗、偵測會議的浮動提醒不會變成 key，但出現時會收到這個）。只在值不同時才設。
+- 已知的限制（R77.4，實測後寫進說明）：`sharingType = .none` 擋得住 `CGWindowListCreateImage`（`screencapture`）；ScreenCaptureKit（新版的 Zoom、Teams、Meet、系統的截圖和錄影）是否遵守要實測。
+- Windows：`SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE)`（0x11，Windows 10 2004 起；關掉時 `WDA_NONE`），每個視窗（主視窗、設定、使用說明、引導、對話框所在的視窗、系統匣的小視窗）建立時和設定改了時套用（design-windows §11.19）。
+- DEBUG：啟動參數 `-hideFromScreenSharing YES`；state 的 `windows` 列出每個視窗的 `sharingType`。
+
+## 54. 說話者辨識換成 Nemotron-3 的評估（R78）
+
+2026-11-15。比的是 FluidAudio 0.17.7（拾音現在用的版本）裡的兩種：拾音現在的離線流程（pyannote community-1 分段＋WeSpeaker 聲紋＋VBx 分群，拾音的設定 §6.3.2，用 DEBUG 版的 `voiceprint-eval` 跑）和 Nemotron-3-Diarization（NVIDIA，Core ML，`offline` 設定、門檻 0.5，用 FluidAudio 的 CLI `nemotron3-diarize` 跑）。兩邊的輸出用同一個計分程式（`scripts/dev/diarize-der.py`：10 毫秒一格、邊界前後 0.25 秒不計、重疊照算、匈牙利法對應說話者），參考答案是 AMI 的 segments 標註。
+
+**AMI 測試集**（ES2004、IS1009、TS3003、EN2002 共 16 場 Mix-Headset，加 IS1009a、TS3003a 的遠距麥克風 Array1-01；AMI 的測試集不在 Nemotron 的訓練資料裡）：
+
+| | 拾音現在 | Nemotron-3 |
+|---|---|---|
+| DER（近距 16 場） | 18.1%（漏判 15.7、誤判 0.7、搞混 1.6） | 25.7%（漏判 24.9、誤判 0.2、搞混 0.5） |
+| DER（遠距 2 場） | 22.0%（搞混 4.1） | 29.2%（搞混 0.5） |
+| 人數分對 | 近距 14/16、遠距 1/2（TS3003a 4 人只分出 2 人） | 近距 15/16（ES2004b 多分 1 人）、遠距 2/2 |
+| 沒重疊的句子標對（前後 0.2 秒內沒有別人說話，1181 句） | 77.2% | 90.2% |
+| 其中 2 秒內的短句（622 句） | 59.0% | 82.2% |
+| 速度（M4，32 分鐘的會議） | 18 秒（DEBUG 建置，release 會更快） | 約 2 秒（1100 倍速） |
+
+- 18 段錄音每一段都是 Nemotron 的句子標得比較對。拾音實際上對 0.5～4 秒的短句還有一次再確認（§6.3.2、R34），上表沒有算進去，所以拾音的短句實際上比 59% 好一點。
+- Nemotron 的漏判多 9 個百分點：AMI 的標註一段話裡含句中的停頓，Nemotron 把停頓判成沒人說話。拾音是把逐字稿的每一句標給重疊最多的說話者，沒有重疊的找最近的一段（`Diarizer.assign`），停頓被判成沒人說話影響不大；看的應該是「句子標對」那一列。
+- 包含插話、附和（別人說話時的 yeah、mm-hmm，AMI 每場有一半以上的句子是這種）一起算時，拾音 41.9%、Nemotron 62.3%：兩邊都常把插話判給正在說話的那個人，Nemotron 本來就能判斷同時有兩個人說話，抓得比較多。
+
+**使用者自己的中文會議**（9 場，17～109 分鐘，在這台 Mac 本機跑，錄音、內容沒有離開）：Nemotron 每場都分出比較多人（說話合計 8 秒以上的：3／6／6／5／3／7／7／8／3 人，拾音是 3／3／5／4／2／4／6／6／2 人）。使用者大部分的會議沒有幫每位說話者取名，只有一場（16.6 分鐘、使用者取了 2 個名字）看得出來：Nemotron 多分出一位說了 21 秒的人，對不對要聽過才知道。109 分鐘那場 Nemotron 剛好分到 8 人，是這個模型的上限（`Nemotron-3 Diarization (8-speaker)`），超過 8 人的會議會被併在一起。
+
+**其他**：
+- 授權：OpenMDW 1.1（Linux Foundation 為模型寫的寬鬆授權，可以商用，要附授權條款）。模型的 Core ML 版由 FluidInference 轉換，app 第一次用時下載（跟現在的說話者辨識模型一樣）。
+- 只有 Mac：Windows 的說話者辨識是另一套（R28.6），要用的話得另外找 ONNX 版本。
+- 聲紋照舊用現在的 WeSpeaker（R78.2）：Nemotron 只分人，聲紋要用 Nemotron 分出來的時段另外算（FluidAudio 有 `embedSpans`）。
+
+**結論**：英文會議上 Nemotron 明顯比較好（句子標對 77% → 90%、短句 59% → 82%、遠距不會少分人），而且快很多；中文會議分出的人數比較多，看不出是分得比較細還是拆錯了。建議的下一步（使用者決定，R78.3）：先做成設定裡的選項（預設照舊），由使用者在幾場自己的會議上比較兩種的逐字稿說話者；或先標註 2～3 場中文會議各 10 分鐘的說話者，再用同一個計分程式比。超過 8 人的會議照舊用現在的流程。
+
+## 55. 本機的整理模型評估（R79）
+
+2026-11-15，Apple M5 Pro、48 GB。llama.cpp b11929 的 `llama-server`（OpenAI 相容 API）跑 Qwen3.5 9B、4B（unsloth 的 Q4_K_M GGUF，Apache-2.0），上下文 64k、全部放 GPU。拾音的 DEBUG 版用「OpenAI 相容 API」整理，中間用一個只記錄、照樣轉送的代理（`scripts/dev/llm-proxy.py`）記下請求（提示詞、JSON schema 都是拾音現在的，llama-server 把 schema 轉成文法，格式一定對），之後直接重送同一份請求、換參數比較（`scripts/dev/llm-replay.py`）。會議是使用者的 4 場中文會議（17、32、39、75 分鐘，一般會議範本），比的是原本用 Claude（claude CLI、Anthropic API）整理的版本（有校稿過的用校稿前那一版）。全部在本機，寫進這裡的只有統計。
+
+| | 每場（4 場平均）摘要／議題／要點／決議／待辦 | 4 場的時間點 | 時間點附近逐字稿的字重疊（低於 0.2 的比例） | 一場要多久 | 記憶體 |
+|---|---|---|---|---|---|
+| Claude（原本的） | 7.2／7.8／33.8／1.0／1.8 | 246 | 0.35（21%） | — | — |
+| 9B，拾音現在的請求（沒設 temperature，預設 0.8），每場 2 次 | 2.8／3.1／12.1／0／1.4 | 210 | 0.23（42%） | 28～53 秒 | 約 7.5 GB |
+| 9B，temperature 0.3，每場 2 次 | 2.4／3.9／13.6／0／0.5 | 218 | 0.25（40%） | 31～54 秒 | 同上 |
+| 9B，打開思考（上限 2048 token），每場 1 次 | 1.5／4.0／12.5／0.5／0.8 | 109 | 0.28（32%） | 92～144 秒 | 同上 |
+| 4B，每場 2 次 | 1.2／4.0／13.2／0.5／0.9 | 218 | 0.19（62%） | 19～53 秒 | 約 4.7 GB |
+
+- 格式都對（文法限制），時間點都在會議長度以內；9B 有 6 個時間點的格式不對（`mm:ss` 以外的寫法）。
+- **寫得少很多**：要點只有 Claude 的 35～40%，摘要常常只有 1～2 條；**決議幾乎都漏掉**（Claude 4 場共 4 條決議，9B 不思考 0 條）；負責人比較少填；會把討論中的想法寫成待辦。同一場跑兩次差很多（例如第一次只輸出標題和 5 題待確認，摘要、議題都是空的）。
+- 時間點比較不準：跟附近逐字稿的字重疊明顯比 Claude 低，4B 有六成的條目跟時間點附近講的內容對不上。
+- 調 temperature、打開思考都沒有明顯變好，思考還慢兩三倍。
+- 下載：9B 5.7 GB、4B 2.7 GB；9B 要 16 GB 以上的 Mac，拾音的最低需求是 8 GB（N4）。
+
+**結論**：現在不建議內建。用拾音現在的提示詞，本機 9B 整理出來的紀錄只有 Claude 的三分之一到一半，決議常常整個漏掉，這不是調參數能補的。沒有 Claude Code、Codex、API 的人，現在已經可以用「OpenAI 相容 API」接 Ollama、LM Studio（R17.2，內容不離開電腦）。要內建的話得另外設計（R79.3）：給小模型的提示詞分步驟（先列議題、再逐段寫要點、最後挑決議和待辦）、只在 16 GB 以上的 Mac 打開、下次有更好的開源模型再用同一套方法重測（上面兩個工具；記錄裡有逐字稿，評估完就刪掉，這次的也刪了）。
+
+## 56. 錄一段自己的聲音（R80，D164）
+
+### 56.1 資料
+
+- 錄的聲紋存成 `voiceprints` 的一列：`audio_source = 'enroll'`、`meeting_id`、`speaker_idx` 是 NULL。整個資料庫最多一份 `enroll`，**它的 `person_id` 就是「我」**，不另外記在設定裡、不改資料庫結構（D164）：改名、合併到同名的人（§21.4 的 `renamePerson` 會把聲紋搬過去）時「我」跟著走；刪掉那個人時聲紋跟著刪（外鍵），就當成沒錄過。
+- 比對（`matchVoiceprints`、`voiceprintCandidates`）本來就讀全部的聲紋，不用改。每人最多 30 份的上限（§21.4）只算會議裡學到的，不刪 `enroll`。
+- `AppDatabase.enrollVoiceprint(name:embedding:) -> Int64`：同一個交易裡刪掉現有的 `enroll`、照名字找人（不分大小寫，同 `learnVoiceprint`）沒有就建立、存新的一份，再 `deleteOrphanPeople`（之前的「我」換了名字、又沒有其他聲紋和會議用到時刪掉）。`deleteEnrollment()`：刪掉那份 `enroll`，再 `deleteOrphanPeople`。`enrollment()`：「我」的 id、名字、錄的時間。
+- 設定頁的認識的人（`peopleSummaries`）多一欄「是不是我」和錄的時間。
+
+### 56.2 錄音和算聲紋（`Capture/VoiceEnrollment.swift`）
+
+- 用 `MicrophoneSource`（跟錄音同一個，設定裡選的麥克風，R58）收 16 kHz 單聲道，最多 40 秒，到了自動停。每 100 毫秒算一次音量（RMS，dBFS），高於 −50 dBFS 的格算「有聲音」；畫面顯示音量和有聲音的秒數。
+- 按「完成」：有聲音的部分不到 10 秒時不收，提示「再多唸一點（有聲音的部分要 10 秒以上）」；完全是 0 超過 3 秒時提示「麥克風沒有收到聲音：可能被靜音、被其他 app 佔用，或選錯了麥克風。」
+- 算聲紋：`Diarizer.diarize(samples:)`（模型不在時先 `prepare()` 下載，顯示「正在準備說話者辨識的模型…」），取說話秒數最多的那一位的聲紋，說話秒數要 ≥ 8 秒（同比對的下限 `voiceprintMinimumSeconds`）。錄音只在記憶體裡，算完就丟（R80.5）。
+- 錄音中（`recorder.isRecording`）、聲紋關掉時按鈕停用，說明「錄音中不能錄」「先打開上面的「記住說話者的聲音」」。
+- 算聲紋用另外一個 `OfflineDiarizerManager`（`Diarizer.diarize(samples:config: Diarizer.config())`），不用轉錄工作共用的那一個：轉錄線可能正在辨識說話者。
+
+### 56.3 畫面（設定「說話者與詞彙」）
+
+- 「記住說話者的聲音」說明的下面、「認識的人」上面加一列「我的聲音」：還沒錄過時寫「錄一段你自己的聲音，第一場會議就認得你。」和按鈕「錄一段我的聲音…」；錄過時寫「<名字>・已錄（<日期>）」和「重錄…」「刪除」。
+- 按了打開 sheet：名字欄位（預設：已經錄過的那個人，或 `NSFullUserName()`）、要唸的文字（介面語言：中文一段約 120 字、英文約 60 字，介紹拾音怎麼用聲紋）、音量條、秒數、「開始」→「完成」、「取消」。完成後「正在算聲音特徵…」，存好提示「已記住你的聲音」並關掉。
+- 認識的人列表裡「我」的名字後面加「（我）」。
+- DEBUG：`shiyinctl enrollvoice <音檔> <名字>`（用音檔代替麥克風，走同一個算聲紋、存檔的流程）、`enrolldelete`；state 的 `selfPerson`（id、名字、有沒有 enroll 的聲紋）。
+
+### 56.4 驗證
+
+- 做法：AMI ES2004a（Mix-Headset）裡，4 個人各剪一段別人插話不到 15% 的片段當「唸的那段」（15～43 秒）；`enrollvoice` 走一次存檔的流程，`voiceprint-eval` 算這 4 段的聲紋，跟 ES2004b～d（同一組 4 個人）和 EN2002、IS1009、TS3003（別組的陌生人）每位說話者的聲紋比（§54 跑出來的那一份）。
+- 結果（2026-11-15）：同一個人 0.79～0.92（12 對），同一場的其他人最高 0.38，別組的陌生人（180 對）最高 0.39、平均 0.07。照比對的規則（§21.4：0.65 問、0.88 而且比第二像的高 0.15 直接帶入），ES2004b～d 的 12 次裡 6 次直接帶入、6 次在待確認問，帶錯 0、陌生人對到 0。
+- 端到端：`enrollvoice` 存成 A（MEO015）後匯入 ES2004b，轉錄完 A 那位說話者直接帶入「MEO015」（name_source = voiceprint）。重錄成 B 之後只剩一份 enroll、A 留著（會議裡用到）；刪除後 enroll 是 0、只靠 enroll 存在的 B 跟著拿掉。
+- 限制：「唸的那段」是從會議裡剪的（同一支麥克風、說話的語氣），真的照稿唸、換了地方和麥克風時相似度可能低一點，那時多半落在「待確認問」，不會帶錯；要使用者用真的麥克風錄一次確認。
+
+## 57. 錄音島（R81、R82，D165、D166）
+
+### 57.1 視窗（`App/RecordingIsland.swift`）
+
+- 一個 `NSPanel`（`IslandPanel`：`.borderless`、`.nonactivatingPanel`，`canBecomeKey`、`canBecomeMain` 都是 false，按按鈕不會讓拾音跑到前面）。`level = .statusBar`（蓋在選單列和全螢幕的 app 上面），`collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]`，`backgroundColor = .clear`、`isOpaque = false`、`hasShadow = false`（形狀和陰影由 SwiftUI 畫），`sharingType = .none`（R81.7，不看 R77 的設定，`WindowSharing.apply` 跳過它）。
+- 視窗的大小跟著內容（`NSHostingView.fittingSize`）：收起時就是那一小塊，不擋下面視窗的點擊（R81.6）；展開、收回時重新算大小、置中、上緣貼著螢幕的上緣。
+- 哪個螢幕：`NSScreen.main`（目前在用的 app 的視窗所在的螢幕）。換 app（`NSWorkspace.didActivateApplicationNotification`）、換桌面（`activeSpaceDidChangeNotification`）、螢幕設定變了（`NSApplication.didChangeScreenParametersNotification`）時重新放。
+- 瀏海：`screen.safeAreaInsets.top > 0` 時有瀏海；瀏海的左右邊界是 `auxiliaryTopLeftArea.maxX`、`auxiliaryTopRightArea.minX`，高度是 `safeAreaInsets.top`。收起時島的寬度是瀏海寬度加兩邊各 64 pt，高度同瀏海，下緣兩個角是圓角（像從瀏海垂下來）；左右兩翼放紅點、時間，中間不放東西。沒有瀏海：選單列（`frame.maxY - visibleFrame.maxY`）下方 6 pt、置中、高 26 pt 的膠囊。展開時往下長，寬 420 pt。
+- 顏色固定黑底白字（跟瀏海接在一起，深色、淺色模式都一樣）；按鈕用白色的膠囊（主要的那顆是青瓷綠）。
+
+### 57.2 什麼時候出現、顯示什麼（`IslandModel`，@Observable）
+
+- 出現：錄音中（`recorder.isRecording`），或有偵測會議的提醒（`meetingPrompt != nil`）。其他時候 `orderOut`。設定 `recordingIsland`（預設 true）關掉時都不出現（R81.8）。
+- 收起（錄音中）：左翼紅點（暫停時是暫停圖示；有提醒時是琥珀色的點），右翼經過的時間（`TimeFormat.string(elapsedSeconds)`）。
+- 提醒（R81.2）：`recorder.levelHint`（`recorder.text(for:)`、「知道了」＝`dismissLevelHint`；錄不到電腦聲音多一個「打開系統設定」）、`recorder.micHint`（「改用 <內建麥克風>」「知道了」）、`recorder.idlePrompt`（「繼續錄」「停止錄音」）、`recorder.deviceWarning`（沒有按鈕）。同時有好幾個時一次只展開一個，順序同錄音畫面的提示列（沒人說話 → 藍牙 → 收音 → 重新連接）。新的提醒出現（`hintKey` 變了）就展開 10 秒（`expandedUntil`），之後收回成琥珀色的點；滑過去再展開。
+- 偵測會議（R81.3）：`AppModel.showMeetingPrompt` 在島打開時改成 `island.show(prompt, actions:message:)`（按鈕、文字同 `showMeetingPanel`），展開 30 秒後收起（沒在錄音時島就消失）。`MeetingPromptPanel`、偵測會議的通知只在島關掉時用。
+- 滑過去（R81.5，`onHover`）：展開成：第一列紅點、時間、麥克風和電腦聲音的音量條（`LevelMeter`）；有提醒時第二列是提醒和提醒的按鈕（「知道了」「繼續錄」「改用…」：展開的提醒一滑過去就換成這個畫面，不放的話那些按鈕永遠按不到；Windows 驗證時發現，2026-11-15 改）；最新一句即時逐字稿（`liveLines.last` 或 `volatileText`，一行，截斷）；按鈕「暫停／繼續」「標記重點」「停止並轉錄」「打開拾音」（`AppModel.reveal(meetingId)` 並把 app 拉到前面）。滑出 0.3 秒後收回（避免滑過邊界就閃）。
+- 通知（R81.4）：島打開時 `levelHintAppeared`、`micHintAppeared`、`onIdlePrompt` 不送通知；選單列的警示圖示照舊（選單列看得到時也是線索）。
+
+### 57.3 驗證
+
+- 島一律拍不到，驗證時 DEBUG 加 `-debugIslandCapture YES`（`sharingType = .readOnly`）才能 `screencapture -l`；`-debugIslandBehind YES` 把島放在桌面層（被所有視窗蓋住，不會出現在使用者的畫面上，照樣拍得到）。
+- DEBUG：state 的 `island`（`visible`、`mode`：hidden／collapsed／hint／prompt／hover、`frame`、`notch`、`text`）；`island hover on|off`（等於滑鼠移上去、移開）；`meetingapp <bundleID> start` 觸發偵測會議時島顯示提醒，`meetingaction <id>` 按島上的按鈕（同原本的浮動視窗）。
+- 搭配 `record-sim`、`-debugSystemAudioPermission denied`（R75 的提示）、`-idleRemindSeconds`（R48）看提醒展開、10 秒後收回；有瀏海的螢幕和外接螢幕（沒有瀏海）各看一次。
+
+### 57.4 iPhone（R82，`ios` 分支的 design-ios §11.1）
+
+- `RecordingActivity.ContentState` 多 `hint: String?`（收音提醒的那一句，同錄音畫面的提示列）和 `hintSymbol: String?`（提示列的圖示），`LiveActivityController.sync()` 在 `levelHint` 變了時更新。鎖定畫面、展開的動態島多一列琥珀色的提示；精簡的動態島左邊從紅點換成琥珀色的提示圖示。
+
+## 58. 人有臉：頭像和釉色（R83，D167）
+
+### 58.1 釉色
+
+- 說話者的 8 種顏色（`Color.speaker`）就是釉色，色相、深淺色模式的值都不變（R83.3），只是給名字、統一用在頭像：天青 `3F5BA9`／`8FA8EE`、茄皮紫 `8E3B6B`／`E08BBE`、茶葉末 `4F7A28`／`9BCB6E`、鈞紫 `7A4FB5`／`BFA0EE`、霽紅 `A23B3B`／`EE8E8E`、松石 `2F7486`／`7CC4D6`、醬釉 `9A5B13`／`E2A65E`、青瓷 `2D6A5D`／`6DB2A1`（淺色／深色）。
+- 會議裡：照說話者的編號（同現在）。人物頁、側欄：照名字算（`Color.person(name)`：名字去掉頭尾空白、轉小寫的 UTF-8 做 FNV-1a，取 8 的餘數），同一個名字每次都一樣。
+
+### 58.2 頭像（`Views/Avatar.swift`）
+
+- `PersonAvatar(name:, color:, size:, isMe:)`：圓形，底色是釉色 18% 不透明，字是釉色（粗體，字級是直徑的 0.46）；`isMe` 時外圈 1.5 pt 青瓷綠。尺寸：逐字稿 18 pt、會議頁上方 20 pt、待辦 18 pt、側欄 26 pt、人物頁 56 pt；跟著文字大小（R59）放大。
+- 字（`PersonAvatar.initials(_:)`）：預設名稱（`AppDatabase.isDefaultSpeakerName`）寫裡面的數字；第一個字是中日韓文字（Han、Hiragana、Katakana、Hangul）時取第一個字；其他照空白切開，取前兩段的第一個字母（大寫）；都沒有時取第一個字。
+- 用在（R83.2）：會議頁上方的與會者（§59）、逐字稿的說話者欄（`TranscriptTab` 名字前面）、待辦的負責人（`ActionItemsTable`：負責人跟這場的某位說話者同名時用他的編號的顏色，不然不放頭像）、人物（§60）。「我」：說話者連到的人是有 enroll 聲紋的那個人（`MeetingDetail.selfIdx`，載入時算一次）。
+
+## 59. 會議頁上方（R84）
+
+```
+遙控器介面與外觀設計討論   編輯
+10/15 星期四  3 分鐘  (陳)陳志明 (林)林佳怡 (王)說話者 3        [一般會議・中文 ▾] [📎 加入文件 ▾]
+```
+
+- 第二列左邊：資料夾、日期、長度、「最後 N 分鐘沒有人說話」（同現在），與會者是頭像加名字（同現在的名字可以點、自動帶入的有選單），最多顯示 4 位，其他收成「+N」選單（列出其他人，點了同名字的選單）。沒有說話者時照舊寫與會者的名單。
+- 右邊：`MeetingSettingsMenu`：標題「<範本>・<語言>」（`slider.horizontal.3` 圖示），沒有框（`.menuStyle(.borderlessButton)`，文件選單也是，2026-11-15 改：有底色的按鈕比標題還搶眼），內容三段：「範本」（同現在）、「會議語言」（同現在）、「大約幾個人」（只在錄這場時，同現在）；`.help` 說明換了要從「更多 → 重新處理」重新整理。文件選單照舊。
+- 放不下時（`ViewThatFits`）照舊把選單換到下一行。
+
+## 60. 人物頁（R85）
+
+### 60.1 資料（`Store/People.swift`，AppDatabase）
+
+- `peopleOverview() -> [PersonOverview]`：每個人的 id、名字、一起開過幾場（`speakers.person_id` 連到、會議不在垃圾桶的會議數）、最近一場的日期、是不是我（有 enroll 聲紋）；排序：我、最近一場的日期由新到舊、名字。
+- `personMeetings(id) -> [(meeting, seconds)]`：他出現過的會議（不在垃圾桶），說了多久＝那場這位說話者的 `segments`（`kind = final`）的 `end - start` 加總；照日期由新到舊。
+- `personActionItems(name) -> [PersonActionItem]`：所有不在垃圾桶的會議紀錄的待辦，負責人（去掉頭尾空白）跟名字一樣或包含名字（不分大小寫，R85.3）；每一條帶會議 id、標題、日期、事項、期限、時間點；照會議日期由新到舊、會議裡的順序。跟本地 MCP 的 `list_action_items` 用同一個比對（包含）。
+
+### 60.2 畫面
+
+- `AppModel.sidebarMode`（`meetings`／`people`，不記在設定：每次打開都從會議開始，DEBUG 測試也不會改到使用者的設定）、`selectedPerson: Int64?`。
+- 側欄是 source list（2026-11-15 改，使用者覺得分段控制醜；照 Apple 的 Mac 介面準則：側欄是導覽清單，切換內容的分段控制放工具列、不放側欄，標準控制項不套品牌色）：搜尋框下面一直有一組「所有會議（數量）」「人物（數量）」，跟資料夾同一種列（`FolderRow`：圖示 `tray.full`／`person.2`、名字、數量，選到的那一列青瓷綠）；有資料夾時下面是「資料夾」那一組；再下面一段照選的項目列會議或人物，段落標題是那一項的名字。點「所有會議」或資料夾：`sidebarMode = .meetings`、設 `folderFilter`；點「人物」：`sidebarMode = .people`。在垃圾桶、搜尋中時不顯示這幾組（搜尋的結果是會議）。
+- 人物模式：`List(selection: $model.selectedPerson)`，上面同樣是那幾組，下面「人物」一段，每一列（`PersonRow`）頭像（26 pt）、名字（我的話後面「（我）」）、第二行「N 場會議・最近 <日期>」。沒有人時那一段寫說明（同 R85.4）。
+- 右邊：`sidebarMode == .people` 時顯示 `PersonPage`（沒選人時是說明）。視窗標題是人名。`ReadingColumn` 裡：頭像（52 pt；我的話外圈細的青瓷綠，名字旁邊灰字「我」）、名字、「一起開過 N 場會議，最近 <日期>」；動作放在工具列右上角的「更多」（同會議頁的「更多」，輔助使用的名字是「更多」）：「改名…」（popover 接在「更多」下面，同設定頁）、「合併到」（子選單：其他認識的人，選了 `renamePerson(id, to: 那個人的名字)`，同名合併）、分隔線、「刪除聲音特徵…」（確認對話框，同設定頁）；「負責的待辦」：同樣的格線（事項、期限、會議的標題和時間點按鈕），事項那一欄撐滿，表格跟段落同寬，右上角「加到提醒事項」（只加還沒加的；同 §52，但跨會議：每一項的 url 照它自己的會議）；「會議」：每列日期、標題、「說了 N 分鐘」，點了 `reveal(meetingId)`（切回「會議」、選那場）。點待辦的時間點：切回會議、選那場、從那裡播放。
+- 移除一個人（R85.7）：「更多」和側欄人物列的右鍵選單用同一份（`PersonMenuItems`）：「改名…」（選那個人、`personRenameRequest` 打開名字旁鉛筆的輸入框）、「合併到 ▸」、分隔線、「移除這個人…」（`confirmRemovePerson`）。人物列表 `.onDeleteCommand` 也設 `confirmRemovePerson`。確認對話框放在主視窗：「移除「X」？」，說明「會從「人物」拿掉，也會刪掉他的聲音特徵。會議裡已經帶入的名字會留著，之後的會議不會再自動認出他。」，按鈕「移除」（`deletePerson`，跟原本的「刪除聲音特徵」同一個動作）；移除的是正在看的人時回到沒選人。設定頁「認識的人」照舊叫「刪除聲音特徵」。
+- DEBUG：`sidebar people|meetings`、`person <id>`、`personremove <id>`（等於選了「移除這個人…」，打開確認）、`personrenameui <id>`（等於選了「改名…」）；state 的 `sidebarMode`、`selectedPerson`、`personPage`（待辦、會議的數目）、`confirmRemovePerson`。
+
+- 名字旁的鉛筆（R85.6）：`pencil`、borderless、青瓷綠，說明和輔助使用的名字是「改名」；點了打開同一個改名輸入框（popover 接在鉛筆下面，`editingName`），取消、儲存同「更多 → 改名…」。
+
+## 61. 整理失敗的線索、說話者辨識選 Nemotron-3（R86、R87，D168、D169）
+
+### 61.1 「其他」的種類（R86）
+
+- `LLMError.failed(String, cause: FailureCause = .unknown)`。`FailureCause`（rawValue 是統計的鍵）：`http400`、`http404`、`http413`、`http500`、`http502`、`http503`、`http504`、`http529`、`httpOther`、`incomplete`、`cliExit1`、`cliExit2`、`cliExit127`、`cliSignal`、`cliExitOther`、`cliNoOutput`、`cliError`、`unknown`。
+- 哪裡給：`APIRequest.error`、`serverError` 照 HTTP 狀態碼；Gemini 的 `incomplete`、OpenAI 相容的 `finish_reason = length` → `incomplete`；Claude Code 沒有 JSON：結束代碼 0 → `cliNoOutput`，1、2、127 → 同名，大於 128 或被訊號結束 → `cliSignal`，其他 → `cliExitOther`；`is_error` → `cliError`；Codex 同樣照結束代碼，成功但沒有輸出檔 → `cliNoOutput`。
+- 統計（§34.5）：`summarizeFailureKind` 是 `other` 時另外記 `summarizeOther[cause] += 1`；`errorDetail` 多一個 `"summarizeOther": {鍵: 次數}`（只送大於 0 的；鍵只會是上面那幾個）。後台 `usage_daily` 加一欄 `summarize_err_other_detail TEXT`（JSON），worker 只收上面那幾個鍵、整數（`migrate-summarize-other.sql`，使用者自己跑 migration 和 deploy）。
+- `logSummary`（`jobs.error_kind`、回報問題）：`LLMError.failed` 改成 `LLMError.failed.<cause>`（`unknown` 時照舊 `LLMError.failed`）；`isSetupProblem` 等判斷只看前綴，不受影響。
+- Windows（design-windows §10.1）照同一份規則、同樣的鍵。
+
+### 61.2 說話者辨識選 Nemotron-3（R87，只有 Mac）
+
+- 設定 `diarizationModel`：`standard`（預設）／`nemotron`。「錄音與轉錄 → 轉錄」的「轉錄時辨識說話者」下面加選單。
+- 模型：FluidInference 的 `nemotron-3-diarization-coreml` 的 `offline` 預設（`Nemotron3Config.offline`），用 `Nemotron3Models.loadFromHuggingFace(cacheDirectory: models/fluidaudio)` 下載到 `models/fluidaudio/nemotron-3-diarization`（約 190 MB；FluidAudio 下載完整才寫權重版本的標記，`Diarizer.isNemotronInstalled` 看這個）。`ModelStore.nemotronState`、`prepareNemotron()`、`deleteNemotron()`（FluidAudio 只給比例，不能暫停；進度條用 190 MB 換算）；設定選了 Nemotron-3 時開始下載，模型清單選了或下載過才列。
+- `Diarizer.diarize` 選了 Nemotron-3 時（`minSpeakers` 沒有、或 ≤ 8；模型還沒下載好、Nemotron 出錯時用標準的，只寫 log）：
+  1. 照舊跑標準的離線流程（聲紋、品質檢查、短句再確認都要用到）。
+  2. 跑 Nemotron-3（`processComplete`，在背景執行緒，用完就放掉模型），用 FluidAudio 的 `Nemotron3Diarizer.segments`：每 10 毫秒每個人的機率 > 0.5 算在說話、短於 0.2 秒的不要，變成 turns（同 FluidAudio CLI，§54 的評估就是這樣轉的）。進度：標準流程佔 90%。
+  3. 聲紋：每位 Nemotron 的說話者，找標準流程裡跟他重疊最多的那一位；那一位的時間有一半以上跟他重疊時，借用那一位的聲紋。兩位 Nemotron 的說話者對到同一位時，只給重疊比較多的那位（另一位沒有聲紋，不比對）。說話秒數照 Nemotron 的 turns 算。
+     標準流程把幾個人併成一位時，多出來的人沒有聲紋（AMI ES2004a 的前 5 分鐘：標準 1 人、Nemotron 3 人，只有說最多的那位借到）。不用短句再確認（R34）的 wespeaker_v2 另外算：跟存起來的聲紋（離線流程的 community-1）不是同一個模型，比不準。
+  4. Nemotron 分滿 8 人、而且標準流程分出更多人時，用標準的結果（R87.3）。
+  5. 其他（`assign`、品質檢查、短句再確認）照舊用 turns。
+- 統計（§30.4）：`usage.diarizationNemotron`（照設定用了 Nemotron-3 的次數，轉錄、重新辨識各算一次；評估時指定模型的不算）。後台 `diarization_nemotron`，沒送的當 0（舊版 app、Windows），跟 §61.1 同一個 migration。
+- DEBUG：啟動參數 `-diarizationModel nemotron`；`shiyinctl model start|delete nemotron`、state 的 `models.nemotron`；`voiceprint-eval` 的設定加 `"model": "nemotron"`，輸出同格式（多一個 `model`；沒有聲紋的說話者也列），可以用 `scripts/dev/diarize-der.py` 比。
+
+## 62. 會議多選、清空垃圾桶（R88）
+
+- `AppModel.selectedMeetings: Set<Int64>`（多選）和原本的 `selection`（目前這場：會議頁、播放、工具列都看它）並存。列表綁 `listSelection`：讀的時候選了兩場以上是 `selectedMeetings`，不然是 `selection`；寫的時候存進 `selectedMeetings`，只剩一場（或沒有）時同時設 `selection`。程式設 `selection`（還原、錄音停止後跳到那場）時，不在多選裡就把多選換成那一場。換資料夾、進出垃圾桶、搜尋時多選清掉。
+- 選了兩場以上：右邊顯示 `MultiSelectionView`（「已選取 N 場會議」，按鈕：移到資料夾的選單、移到垃圾桶…；垃圾桶裡是還原、永久刪除…）。
+- 右鍵選單改用 `contextMenu(forSelectionType:)`：在選取的列上按是全部，不在選取裡只有那一列（SwiftUI 的行為）。⌘⌫（`requestDelete`）對全部。確認對話框寫場數（「把 3 場會議移到垃圾桶？」）。
+- `moveToTrash`、`restore`、`deletePermanently` 改成收多場；正在錄音的那場跳過，通知寫出原因（R88.2）。
+- 清空垃圾桶：側欄底下那一列的右邊（一般時是「匯入」）在垃圾桶裡換成「清空垃圾桶…」（垃圾桶是空的時停用），確認「永久刪除垃圾桶裡的 N 場會議？」，`emptyTrash()` 對垃圾桶的全部做 `deletePermanently`。
+- Windows：design-windows §11.23。
+
+## 63. 刪除逐字稿的一句（R89，D171）
+
+- 跟說話者的修正共用一格復原（§24.2 的 `speaker_undo`）：快照多記 `deleted`（那一句的整筆資料、它的校正建議）。
+- `AppDatabase.deleteSegment(meetingId, id:, label:)`：存快照 → 刪搜尋索引、刪段落（校正建議跟著 `ON DELETE CASCADE`）→ 後面的 `seq` 減 1 → `removeEmptySpeakers`。
+- 復原：用原本的 id 放回段落，後面的 `seq` 加 1，加回索引和校正建議；說話者照快照放回（同 §24.2）。
+- 右鍵選單：「刪除這句」放在說話者那一組後面，沒辨識說話者的會議也有；「復原：…」移出「有說話者才顯示」的那一組。復原的說明是「刪除一句「前 12 個字…」」。
+- 正在處理、在垃圾桶裡的會議不能刪（同 `speakerEditProblem`，訊息改成「完成後才能修改逐字稿」）。
+- Windows：design-windows §11.23。
+
+## 64. 從某一句分成兩場會議（R90，D170）
+
+- 入口：逐字稿的正式段落（不是第一句）右鍵「從這裡分成兩場…」→ 確認對話框（`AppModel.splitMeetingRequest`；`splitRequest` 是拆句用的）。切開的時間 `cut` 是那一句的開始時間（四捨五入到 0.01 秒）。
+- 先擋：正在錄音、這場有排隊或進行中的工作、在垃圾桶裡（R90.4）。
+- 錄音（`AudioTrim.split(url, at:)`，背景執行），前段、後段各寫一個暫存檔，聲道數不變：WAV 用 `AVAudioFile` 照原本的格式（`fileFormat.settings`）逐個取樣切；其他格式（壓縮好的 m4a、匯入的 mp3、mp4、mov、aiff…）用 `AVAssetExportSession`（`AppleM4A`，`timeRange`）各自壓成 m4a，原本那場的錄音檔也換成 `<id>.m4a`（D172，同 Windows：`AVAudioFile` 寫不了 mp3、影片）。錄音檔不見的會議跳過這一步。
+- 資料庫（`AppDatabase.splitMeeting`，一個交易）：
+  1. 新增一場：複製原本那場的欄位（日期、會議語言、範本、資料夾、收音來源、`channels`、`transcribed_with`、`min_speakers`、與會者），標題是原本的 `displayTitle` 加「（2）」（`title_locked` 照原本的），`created_at` 是原本的加 `cut` 秒，`duration_seconds` 是原本的減 `cut`；`notes` 空的；錄音檔名 `<新 id>.<副檔名>`。
+  2. 開始時間 ≥ `cut` 的段落（正式、即時都算）搬到新的一場，時間減 `cut`，`seq` 重新從 0 編；校正建議、搜尋索引的 `meeting_id` 跟著改。
+  3. 標記重點（`bookmarks`）時間 ≥ `cut` 的搬過去、時間減 `cut`。
+  4. 說話者：整份複製到新的一場；只在新的那場有段落的說話者，聲紋（`voiceprints` 的 `meeting_id`）改指新的那場；兩邊各自 `removeEmptySpeakers`。
+  5. 原本那場：`duration_seconds` 改成 `cut`，刪掉說話者的復原（快照對不上了）。
+- 交易成功後：新的那場的錄音搬進 `audio/`，原本那場的錄音換成前段（先 `player.unload`，同 `onAudioReplaced`）。
+- 整理工具設定好時兩場都排 `summarize`（原本那場現有的紀錄由 `saveNotes` 存成舊版本）；沒設定時通知「兩場都要重新整理會議紀錄，設定好整理工具後按「重新整理」」。
+- 選取留在原本那場，通知「已分成兩場：「新的標題」」。
+- 還原（R107.8、D180）：分割前存編輯的快照（§81.3，`split_into` 記新的那場），30 天內可以從「更多」還原；確認對話框的「分開後沒辦法合併回來」改成「30 天內可以從「更多」還原」。
+- DEBUG：`shiyinctl splitmeeting <會議 id> <段落 id>`（不經過確認對話框）、`deletesegment <會議 id> <段落 id>`。
+- Windows：design-windows §11.23。
+
+## 65. 心智圖放大縮小（R91）
+
+- `MindMapView` 的倍數：`(zoom ?? fit) × textScale`。`fit` 同現在（比畫面寬時縮到放得下，最小 0.6，最大 1）；`zoom` 是使用者選的倍數（nil 是預設），放在 `NotesTab` 的 `@State`（換會議時 `NotesTab` 跟著換，自然回到預設；切回條列時清掉）。
+- 心智圖上方右邊一排小按鈕（`MindMapZoomControl`，borderless）：「－」（`minus.magnifyingglass`）、目前的百分比（按了回到預設，說明「回到符合寬度」）、「＋」（`plus.magnifyingglass`）。一次 ±0.25，夾在 0.25～3。輔助使用的名字：「縮小」「放大」「符合寬度」。
+- 觸控板：`MagnifyGesture`，開始時記下目前的倍數，乘上 `magnification`，同樣夾在 0.25～3。
+- 匯出、複製、snapshot 不用 `zoom`（同現在）。
+- Windows：design-windows §11.24。
+
+## 66. 依人物整理的重點（R92）
+
+- 資料：`MeetingNotes.people: [Person]`，`Person { name: String, points: [Item] }`。JSON schema 加 `people`（required，同其他段落；沒產生時是空陣列）；解碼舊的紀錄沒有 `people` 時是空陣列；`people` 是空的時不寫進 JSON（以前的紀錄存起來、放進提示詞跟以前一字不差）。
+- 段落：`TemplateDefinition.builtinSectionIDs` 加 `people`，放在 `summary` 後面（提示詞的「要產生的段落」、設定畫面的勾選照這個順序）。名稱：每個人的重點／Key points by person／参加者ごとの要点。內建範本只有「一般會議」（中英日三份）加上。
+- 提示詞（中英日三份的規則）：第 3 條「每一條紀錄」加上 people 的 points；最後一條：「範本要產生 people 時，依說話者整理每個人在會議中的主要意見、提議、報告和答應要做的事，每人 1～4 條；name 用逐字稿裡的說話者名稱，同一個人只列一次；只有一位說話者或逐字稿沒有標說話者時給空陣列。」一般語言（韓文）的 Output language 那句、校稿說明（reviseInstructions）列舉的段落加上 people。
+- 畫面：條列、心智圖、匯出不變（使用者「原本摘要不用動」）。`EditBar` 的切換多「人物」（`notesView = "people"`）：`PeopleNotes` 每個人一張：
+  - 頭像（`PersonAvatar`，名字對到說話者（不分大小寫、去頭尾空白）用 `Color.speaker(idx)`，對不到照名字算，同人物頁）、名字、「說了 N 分鐘（P%）」（正式逐字稿每位說話者 `end - start` 的總和，佔全部說話者的比例；對不到說話者不顯示）。
+  - 重點：`ItemList`（時間點、待確認的標記 `NoteItemRef.person(人, 條)`）。
+  - 負責的待辦：負責人跟名字一樣或包含名字（不分大小寫，同人物頁 R85.3），`ItemList`（「事項（期限 日期）」、時間點，待確認的標記連到 `.actionItems(原本的位置)`）。
+  - 沒有 people 時：兩位以上說話者寫「這場的會議紀錄還沒有每個人的重點。」和「產生每個人的重點」；不到兩位寫「只有一位說話者…」。
+- 只補上（`AppModel.generatePeopleNotes`）：排 `summarize`，payload `{"draft": false, "people": true}`（`people` 是 false 時不寫，草稿的 payload 不變）。`JobRunner.summarize` 用範本的說明和額外指示、`sections: ["people"]`、沒有自訂段落整理，結果只取 `people` 換進現在的紀錄（整理期間紀錄被改過也不會蓋掉），`saveNotes(..., reason: 「補上每個人的重點」, source: .edit)`，不發通知。
+- 編輯器：打開時紀錄有 people 才顯示「每個人的重點」（放在自訂段落後面），同議題：名字欄、重點、刪除、「新增一個人」。
+- 改說話者的名字、合併（`replacingSpeakerName`、`replacing`、`mappingText`）、簡體、搜尋的純文字都加上 people；待確認的連結 `sortKey` 是 6（排在 custom 後面，舊的標準答案不變）。
+- 標準答案：`fixtures.json` 的 zh 會議加 people（測解碼、改名、資料庫、提示詞）；匯出、心智圖跟以前一樣。
+- DEBUG：`notesview people`；`peoplenotes <會議 id>`（等於按「產生每個人的重點」）。
+- Windows：design-windows §11.25。
+
+## 67. 企業伺服器連不上時自動改在這台電腦轉錄（R93）
+
+- `ServerTranscriber.transcribe` 記「連續連不上」的開始時間：`EnterpriseServer.Failure.unreachable`、`.server(kind: "server_error")` 時記下第一次的時間；任何一次跟伺服器說上話（建工作、查狀態、上傳成功）就清掉。`busy`（伺服器忙、排隊）、登入失效不算。
+- 連續 10 分鐘（`ServerTranscriber.autoLocalAfter`，DEBUG 可以用啟動參數 `-serverAutoLocalSeconds` 改短）就丟 `SwitchToLocal(automatic: true)`，`JobRunner` 照「改在這台電腦轉錄」的路（R50.5）用本機的引擎轉；`automatic` 時 `Notifier.serverFallback(meeting)` 發通知「企業伺服器連不上，已改在這台電腦轉錄」，內文是會議標題。
+- Windows：design-windows §11.26。
+
+## 68. 詞彙表：一次加好幾個、搜尋、批次刪除（R94）
+
+- `GlossaryInput.split`：用換行、逗號（半形、全形）、頓號、分號（半形、全形）分開，去頭尾空白、拿掉空的和重複的（不分大小寫，留第一個）。標準答案 `util/glossary-split.json`。
+- `AppDatabase.addTerms`（`INSERT OR IGNORE`，回傳實際加了幾個）、`deleteTerms`；`AppModel.addTerms`：一個詞而且已經有時說「「X」已經在詞彙表裡了」，好幾個時說「已加入 N 個詞彙（，M 個已經有了）」。
+- 設定頁：新增的欄位是多行的 `TextField`（`axis: .vertical`，1～4 行，Return 送出），標籤「新增詞彙」、提示字「產品名、人名；可以一次貼上好幾個」；超過 10 個詞時「搜尋詞彙」（不分大小寫）；每個詞前面是勾選框，上面一列「全選」（搜尋時「全選搜到的 N 個」；都勾了變「取消勾選」）和「刪除勾選的 N 個…」（確認對話框）；勾了之後被單獨刪掉的詞不算在 N 裡。
+- DEBUG：`addterm <文字>` 走 `addTerms`（`\n` 當換行）。
+- Windows：design-windows §11.27。
+
+## 69. 會議結束時倒數自動停止錄音（R95）
+
+- 設定 `autoStopOnMeetingEnd`（預設開），在「錄音與轉錄 → 提醒與快捷鍵」，偵測會議關掉時停用；說明改成「…不會自動開始錄音。會議 app 停止用麥克風時倒數 60 秒，沒按「繼續錄」就停止並轉錄；關掉「自動停止」時只問要不要停止。」
+- `AppModel.showMeetingPrompt(.stop)`：設定開著時 `startMeetingEndCountdown()`：記 `meetingEndDeadline`，每秒看一次（錄音停了就收起），到時還在錄同一場、會議 app 沒有又開始用麥克風（`MeetingDetector.meetingAppActive`）就 `recorder.stop()`，發通知「會議結束，已自動停止錄音」（內文是會議標題）。按「繼續錄」「停止並轉錄」（島、浮動視窗、通知的按鈕）都取消倒數。
+- 錄音島：`showPrompt` 多 `deadline`、`countdown`，訊息用 `TimelineView` 每秒換成「會議好像結束了，N 秒後自動停止錄音」；倒數的提醒到期限才收起（不是 30 秒）。浮動視窗（島關掉、沒有通知權限）寫同一句、不倒數；通知的內文寫「60 秒後自動停止錄音並轉錄」。
+- DEBUG：`-meetingEndCountdownSeconds` 改倒數秒數；`meetingprompts` 多 `countdown`（剩幾秒，沒在倒數是 -1）。
+- Windows：design-windows §11.28。
+
+## 70. 去掉贅字的逐字稿（R96）
+
+- 資料（migration v11）：`clean_lines(segment_id PRIMARY KEY REFERENCES segments ON DELETE CASCADE, text)`，一句一列，產生時每一句都存（整理工具改過的存改過的、沒改的存原文、整句都是贅字存空字串），有沒有產生過看這場會議有沒有這份。句子刪掉（重新轉錄、刪除一句）跟著刪；觸發器 `clean_lines_text`（`AFTER UPDATE OF text ON segments`）在句子的文字改了（編輯、接受或還原校正、用詞修正、拆句）時刪掉那一句的精簡版，畫面上回到原文。Windows 用同一個 migration。
+- 工作：`JobKind.clean`，輔助線、用整理工具、不發通知（同校正）。`TranscriptCleanup`（提示詞中英日三份、粵語接 `transcriptNote.correction`）：每次 120 句，`[編號] 說話者：文字`，模型只回改過的句子 `{lines: [{segment, text}]}`；驗證丟掉編號不在這一批的、重複的（留第一個）、跟原文一樣的、比原文長太多的（原文字數＋max(10, 20%)，模型在補字），空字串留著。中文會議用簡體時存簡體。
+- 畫面：逐字稿上方「原文｜精簡」（`transcriptView`，存在 UserDefaults）。精簡：句子顯示 `cleanLines[id] ?? text`，不標校正建議；空字串的句子不顯示。還沒產生時顯示說明、「產生精簡版」（說明「會用整理工具的額度；長的會議要幾分鐘」）；產生中顯示進度；上次失敗寫原因、按鈕變「再試一次」。播放、搜尋、說話者篩選、用詞修正、匯出照舊用原文。
+- 只重讀幾句（編輯一句之後）時，那幾句的精簡版從畫面上拿掉（觸發器已經刪了）。
+- 標準答案：`prompts/<語言>/clean-system.txt`、`clean-prompt.txt`、`schemas/clean.json`、`schemas/formats.json` 的 clean、`util/validate-clean.json`、`db/schema.sql`。
+- DEBUG：`cleantranscript <會議 id>`（等於按「產生精簡版」）、`transcriptview original|clean`。
+- Windows：design-windows §11.29。
+
+## 71. 會議列表的排序、分組、篩選（R97）
+
+- 狀態（`Store/MeetingListOptions.swift`）：`MeetingSort`（dateDesc、dateAsc、title、duration）、`MeetingGrouping`（none、month、folder；以前存的 series 當成不分組）存在 UserDefaults 的 `meetingSort`、`meetingGrouping`；`MeetingFilter`（needsReview、myActionItems、personId、templateId）只放記憶體，打開拾音時是空的。換篩選時取消多選。
+- 資料：排序在記憶體做（資料庫照舊 `meeting_date DESC, id DESC`；舊到新是反過來，標題用 `localizedStandardCompare`，長度沒有的排最後）。「有誰參加」要每場會議連到哪些人物：`AppDatabase.meetingPeople()`（`speakers.person_id` 不是 null 的），跟人物總覽一起讀（`reloadPeopleOverview`，列表 `reload` 也讀）。「有我的待辦」：負責人包含「我」的名字（不分大小寫，同人物頁 §60），「我」是錄過自己聲音的人物；沒有「我」時選單不出現這一項。「有待確認」是列表的待確認題數 > 0。
+- 分組：依月份照 `meeting_date` 的年月，順序跟著排序（舊到新時舊的月份在前）；依資料夾照名稱，最後是「不在資料夾」。看某個資料夾時不能依資料夾分組（選單不出現，存的值是資料夾時當成不分組）。垃圾桶只照排序，不分組、不篩選。
+- 會議那一段的標題（`MeetingListHeader`，取代原本的段落標題「所有會議」；放在 List 裡，因為上面還有所有會議、人物、資料夾那幾列）：左邊「所有會議」（或資料夾名稱），分組時接「・依月份」；右邊「顯示方式」按鈕（`line.3.horizontal.decrease.circle`，篩選中變成實心、青瓷綠）。選單三段：排序方式（打勾）、分組方式（打勾）、篩選（打勾、可以多選；有誰參加、範本是子選單），篩選中最後多「清除篩選」。篩選中這一段第一列「篩選：有待確認、王小明 有參加」，右邊 ✕ 清掉。分組時標題那一段只放篩選那一列，下面每組一段，標題是月份或資料夾名稱。
+- 篩選後沒有會議：篩選那一列下面「沒有符合篩選的會議」和「清除篩選」。
+- 選單列：「顯示方式」選單（`CommandGroup(after: .toolbar)`）加「排序方式 ▸」「分組方式 ▸」「篩選 ▸」三個子選單，內容同上。
+- 多選（§62）、右鍵選單照舊用 `filteredMeetings` 的順序（排序後的順序）。
+- DEBUG：`listsort <dateDesc|dateAsc|title|duration>`、`listgroup <none|month|folder>`、`listfilter <review|mine|person <id>|template <id>|clear>`；state 加 `list.sort`、`list.group`、`list.filter`、`list.ids`（目前列表的順序）、`list.groups`（每組的標題和場數）。
+- Windows：design-windows §11.30。
+
+## 72. 資料夾自動歸類（R98）
+
+- 資料（migration v12，跟 §73 一起）：`folder_rules(folder TEXT PRIMARY KEY, keywords TEXT NOT NULL DEFAULT '[]', people TEXT NOT NULL DEFAULT '[]', template_id TEXT, series_id INTEGER REFERENCES series(id) ON DELETE SET NULL, created_at)`（series_id 是定期會議用的，D177 之後不用），keywords、people 是 JSON 陣列（人物 id）；`meetings.folder_decided INTEGER NOT NULL DEFAULT 0`：這場的資料夾已經決定了（自動放過、使用者自己移過、建議按了「不用」），之後不再自動放、不再建議。資料夾改名時條件跟著改名，刪除資料夾時條件一起刪。
+- 有條件的資料夾一直列在側欄（沒有會議時場數 0），圖示換成 `folder.badge.gearshape`，滑過去看條件（「標題包含 週會、sync；陳家豪、王小明都參加」）。
+- 條件（`FolderRule.matches`）：標題包含任一個詞（不分大小寫）；或選的人都有參加（`meetingPeople`，至少選一個人）；或用這個範本。三種有任一個符合就算。
+- 編輯（資料夾右鍵「自動加入的條件…」，`FolderRuleSheet`）：說明「符合任一個條件的新會議，會自動放進這個資料夾。已經在別的資料夾的會議不會移動。」；標題包含（一行，用、，, 或換行分隔，同詞彙表的 `GlossaryInput.split`）；有這些人都參加（人物的勾選清單，最多高 160，超過捲動）；用這個範本（不限／範本）；屬於定期會議（有定期會議才出現）。下面「現在不在資料夾裡的會議也套用（N 場）」，N 跟著條件即時算（不在垃圾桶、`folder = ''`）；N 是 0 時停用。按鈕：取消、移除條件（已經有條件時）、儲存（條件都空時當成移除）。
+- 自動放（`AppModel.autoFile(_:)`）：轉錄完（說話者對到人物之後）、整理完各檢查一次；只看 `folder = ''`、`folder_decided = 0`、不在垃圾桶的會議；好幾個資料夾符合時放名稱排第一的。放了之後 `folder_decided = 1`，提示「「標題」已放進「資料夾」」。使用者把會議移進、移出資料夾時 `folder_decided = 1`。
+- 建議（R98.3，`FolderSuggestion.best`）：會議不在資料夾、`folder_decided = 0`、已經有會議紀錄、不在錄音中時，跟每個資料夾（至少 2 場）比：與會者（同 §73 的「同一群人」：共同的人物至少 2 位、Jaccard ≥ 0.5）相同的場數，或標題有共同的詞（兩邊標題最長的共同子字串，去掉數字、日期、標點後至少 2 個字，拉丁字母至少 3 個字母；「會議」「meeting」這類通用詞不算）的場數；至少 2 場才建議，取場數最多的資料夾。紀錄分頁頂端（待確認條的上面）一條：「這場很像「產品」裡的會議：陳家豪、王小明都參加（3 場）」或「…：標題都有「產品週會」（4 場）」，按鈕「放進去」「不用」（`folder_decided = 1`）。用不到整理工具。
+- DEBUG：`folderrule <資料夾> <JSON> [apply]`（等於按儲存）、`folderrule <資料夾> -`（移除）、`autofile <會議 id>`、`foldersuggest <會議 id> <輸出.json>`、`foldersuggestion accept|dismiss <會議 id>`；state 的 `folderRules`。
+- Windows：design-windows §11.31。
+
+## 73. 定期會議（R99，2026-11-17 拿掉，D177）
+
+- 拿掉整個概念，換成一般的資料夾（使用者：「不需要定期會議這概念了」「做成一般資料夾概念即可」）。原本的做法在 git 歷史（`git show 1bb10ba:docs/design.md` 的 §73）。
+- migration v14：每個 `series` 換成同名的資料夾：`folders` 加這個名字（已經有就合在一起）、`series_id` 是它的會議裡 `folder` 是空的設成這個名字（已經在別的資料夾的不動）、`folder_rules.series_id` 是它的設成 null（條件都空了就刪掉那一筆）；再清空 `series`、`series_rejected`，`meetings.series_id` 全部 null。表和欄位留著不用：SQLite 拿掉有外鍵的欄位要重建整張 `meetings`，不值得。UserDefaults 的 `sidebarExpanded`、`sidebarOrder` 裡 `series:<id>` 換成 `folder:<名稱>`（啟動時做一次，`AppModel` 讀資料庫後）。
+- 會議紀錄的 `followUps`（上次的待辦）不再讀、不再寫：以前存的照樣留在 JSON 裡，解碼時略過，重新整理或編輯存回去時就沒了。schema（送給整理工具的）、提示詞跟 4.8.1 一樣（沒有上一場那一段）。
+- 跟資料夾共用的比對（`MeetingSimilarity`：同一群人、核心人物、標題的共同詞）留著，資料夾的建議（§72 的 R98.3）照舊用。
+- Windows：design-windows §11.32。
+
+## 74. 每一種東西都能直接改、刪（R100）
+
+- 共用的選單內容，「⋯」、右鍵、「更多」用同一份：`MeetingMenuItems(ids:)`（側欄的會議）、`FolderMenuItems(folder:)`、`PersonMenuItems(person:)`（§60.2）、`MeetingLinkMenuItems`（人物頁裡的會議）。
+- 側欄的資料夾列（`FolderRow`）不用 `Button`：右鍵選單掛在整列上，按鈕可能吃掉右鍵；也不用點擊手勢（§77 的 `sidebarClick`）。
+- 「⋯」（`RowMenuButton`）：列的右邊一顆 `ellipsis`（R101.4 起沒有圈，原本 `ellipsis.circle`）的無邊框選單按鈕，滑鼠在列上（`onHover`）或那一列選到時才顯示（沒顯示時用 opacity 0 佔位，列的寬度不跳），輔助使用的名字是「更多動作」。`FolderRow` 加一個可以不給的 `menu`，有選單時數量和「⋯」在同一個位置（滑過時「⋯」取代數量）。
+- 鍵盤（側欄的 List，`onKeyPress(.return)`、`onDeleteCommand`），照「現在選到、亮起來的是什麼」：選到一場會議（不是多選）→ Return 重新命名、Delete 移到垃圾桶（確認，同 ⌘⌫）；多選 → Delete 一起移到垃圾桶；人物模式選到人 → Return 重新命名、Delete 移除；沒選會議而正在看資料夾 → Return 重新命名、Delete 刪除資料夾（確認，會議留著）。垃圾桶裡 Delete 是永久刪除（確認）。
+- 會議的重新命名：`renameMeetingRequest`：選那場、打開會議頁「編輯」的輸入框（標題、日期、與會者，`EditInfoForm`）。
+- 刪除資料夾的確認放主視窗（`confirmDeleteFolder`）：「刪除資料夾「X」？」說明「裡面的 N 場會議會留著，移到「不在資料夾」。自動加入的條件也會刪掉。」。
+- 人物頁標題下面一排（borderless、`.callout`）：「合併到 ▸」（選單）「移除這個人…」（紅字）。重新命名是名字旁的鉛筆（不重複放）；右上角的「更多」照舊。
+- 會議頁上方的說話者：名字可以點（同逐字稿點說話者，打開重新命名的輸入框，§21.6）；右鍵：重新命名…、合併到 ▸（其他說話者，同逐字稿的合併 R36）。自動帶入的名字照舊是選單（AutoSpeakerName）。
+- 紀錄的條目（`ItemList`、`ActionItemsTable` 的事項、議題的要點）：能直接改的條目不開文字選取（開了的話右鍵是系統的文字選單、雙擊只選到一個詞；2026-11-16 自己驗收時發現），整行（含行尾空白，`contentShape`）都可以右鍵、雙擊；要拷貝用右鍵的「拷貝」。雙擊那一條變成輸入框（Return 儲存、Esc 取消；待辦只改事項，負責人和期限照舊用「編輯」）；右鍵：拷貝、從這裡播放（有時間點時）、編輯這一條、刪除這一條。存檔同手動編輯（`saveEditedNotes`，留一個版本），刪除後提示「已刪除一條紀錄，按「編輯」旁的「復原上一版」可以還原」（指向看得到的按鈕）。錄音中、正在整理時不能改（同「編輯」按鈕）。
+- 重點標記（逐字稿上方的「重點標記 N」選單）：每個標記一個子選單「跳到這裡」「重新命名…」「刪除」；`AppDatabase.renameBookmark`。
+- 詞彙（設定）：雙擊詞變成輸入框改字（`AppDatabase.renameTerm`，改成已經有的詞時合併）；右鍵：重新命名…、刪除。範本列表右鍵：複製、設為預設、刪除（自訂的才有）。設定「認識的人」的「改名」改叫「重新命名」，垃圾桶的說明改成「移除「X」」。
+- 用詞：「改名…」全部改成「重新命名…」（人物、說話者的選單），鉛筆的說明也是「重新命名」。
+- DEBUG：`capturemenu <輸出.json>`（接下來打開的選單把項目寫出來再關掉，配合 AX 的 AXShowMenu 檢查右鍵選單的內容）、`mouseat <cgleft|cgright|cgdouble|move|left|right|double> <x> <y> <視窗> [選單輸出]`、`keyat <return|delete|escape|f2> <視窗>`、`eventlog <輸出|off>`（收到的滑鼠、按鍵事件）、`renamemeetingui <id>`、`folderdeleteui <名稱>`、`seriesdeleteui <id>`（打開確認）、`sidebarkey return|delete`（等於在側欄按鍵）、`noteitem editui|edit|delete <section> <i> [<j>] [文字]`、`bookmarkrename[ui] <id> [名稱]`、`termrename <id> <詞>`；state 的 `confirmDeleteFolder`、`confirmDeleteSeries`、`renameMeetingRequest`、`personRenameRequest`、`editingNoteItem`、`renamingFolder`、`renamingSeries`。
+- Windows：design-windows §11.33。
+
+## 75. 側欄的段落、資料夾可以收合（R101，D175）
+
+- 狀態（`AppModel`）：`sidebarCollapsed: Set<String>` 收起來的段落：`folders`（資料夾）、`meetings`（會議列表）、`people`（人物模式的人物）、`group:<MeetingGroup.id>`（分組的每一組，例如 `group:month-2026-11`）；`sidebarExpanded: Set<String>` 在原地展開的列：`folder:<名稱>`（以前的 `series:<id>` 在 migration v14 換成同名資料夾的鍵）。存在 UserDefaults 的 `sidebarCollapsed`、`sidebarExpanded`（字串陣列），值真的變了才寫。資料夾改名時鍵跟著改，刪除資料夾時拿掉。
+- 段落標題（`SidebarSectionHeader`）：標題（`.body`、不加粗、次要顏色，跟列一樣大，不用 macOS 側欄預設的小粗體）後面接一個小箭頭（展開 `chevron.down`、收起 `chevron.right`，`.caption`、三級顏色），滑過標題或收起來時才看得到（opacity，位置留著），標題和箭頭是同一顆無邊框按鈕，點了切換（有動畫；系統設定「減少動態效果」時不動畫）。輔助使用：標題（`isHeader`），值是「已展開」「已收起」，預設動作切換。收起時段落裡只剩標題（`Section { if 展開 { … } } header: { … }`）。會議列表的標題（`MeetingListHeader`）左邊的名稱換成這個標題，右邊的「顯示方式」不動；收起時篩選列、空的提示、分組的每一組都不顯示。List 的段落標題在輔助使用裡會把裡面的東西併成一個元件（「所有會議, 顯示方式」的選單按鈕），會議列表的標題要是按鈕的話，按下去是收合、選單打不開，所以這一個（`besideMenu`）用點擊手勢，收合是有名字的動作「收起這一段」「展開這一段」。
+- 下面的列表（R101.6，`listShowsOthersOnly`）：不在垃圾桶、沒有看某個資料夾、沒有篩選、不是依資料夾分組，而且至少有一場會議在資料夾裡時，`filteredMeetings` 只留 `folder` 是空的會議，標題「其他會議」；空的時候一行次要顏色的「不在資料夾裡的會議會列在這裡」。其他情況照舊（標題「所有會議」或資料夾名稱）。上面的「所有會議」那一列照舊是回到這個畫面（資料夾在上、其他會議在下，合起來是所有會議）。
+- 程式帶你去某場會議（`reveal(_:)`：錄音開始、會議連結、通知、搜尋結果）時（`expandToShow`）：在下面的列表就拿掉 `meetings` 和那場所在的 `group:` 鍵；在資料夾、定期會議裡（下面的列表沒有）就拿掉 `folders`、展開那個定期會議或資料夾（最新的會議一定在展開的最近 5 場裡）。
+- 「資料夾」一段（R101.3）：資料夾（照拖曳排的順序，§77）。
+- 資料夾的列（`FolderRow` 的 `folder: FolderState`）：點整列＝`toggleRow`（在原地展開、收起，不換下面的列表）。圖示（`FolderGlyph`）：收起是系統的 `folder`，展開是自己畫的打開的資料夾（`OpenFolderShape`，系統圖示沒有；畫在看不見的 `folder` 圖示的框裡，線寬是框高的 0.085，跟系統的粗細一樣）；右上角的標記：有自動加入條件 `gearshape.fill`，標記底下用 even-odd 挖一個圓（`BadgeHole`），線不穿過標記。遮罩一定要填明確的顏色（`Color.black`）：側欄的預設前景色是半透明的，拿來當遮罩整個圖示會不見（2026-11-16 在側欄上才看到）。輔助使用：列是按鈕，值「已展開」「已收起」。選到（`folderFilter`，從「顯示全部」來）時照舊青瓷綠、粗體。
+- 展開的內容（`SidebarPeek`）：ForEach 的 id 用字串（`peek:<id>`）並且 `selectionDisabled`：ForEach 會把 id 當成列的 tag，用會議 id 的話 List 會把這幾列當成選取，跟下面的列表一起亮成一整條、字被蓋掉（2026-11-16 自己驗收時發現）。那個資料夾或定期會議裡最近 5 場（不含垃圾桶，`MeetingSort.dateDesc` 的順序），每場一列：標題一行（太長截斷），縮排到跟資料夾名稱對齊（看不見的資料夾圖示佔位）；滑過去看「日期・標題」。點了打開那場（`openFromSidebar`：人物模式換回會議、選那場；下面的列表不換），選到時灰底（不用 List 的選取：同一場會議也在下面的列表，兩邊都用 List 的選取會像多選）。右鍵、「⋯」用 `MeetingMenuItems(ids: [id])`（R100）。選到時側欄的 Return、Delete 照「選到一場會議」（§74）。超過 5 場時最後一列「顯示全部 N 場」（次要顏色）：資料夾 `showFolder`（下面的列表只看這個資料夾），定期會議 `openSeries`。沒有會議時一列「沒有會議」（次要顏色）。
+- 選單：資料夾的選單沒有「只看這個資料夾」（使用者說不用），只看一個資料夾從展開後的「顯示全部」。
+- 滑過的底、選到的底（`sidebarHover(selected:)`，R101.4）：側欄每一列（資料夾、展開的會議、「顯示全部」、會議列表、人物）滑鼠移上去時背景一塊圓角 8 的 `primary` 6%，選到時 11%，往外擴 6×3 點，跟系統選取的那一塊一樣大。
+- 段落標題右邊的小按鈕都用 `SidebarHeaderIcon`：「資料夾」的「+」、會議列表的「顯示方式」（`slider.horizontal.3` 細線的滑桿，原本有圈的漏斗；`Menu` 用 `.menuStyle(.button)`＋`.buttonStyle(.plain)` 才畫得出自訂的樣子；篩選中青瓷綠）。2026-11-16 使用者：「你可不可以學一下他的＋，目前的有夠醜」。
+- 單色（R101.4）：app 的強調色是青瓷綠（`AccentColor`），macOS 的側欄 List 用它畫 Label 的圖示和選取，SwiftUI 的 `.tint` 蓋不過去。所以：圖示、名字用 `SidebarLabelStyle`（自己排：圖示 15 點、寬 22、間距 9，不走系統側欄的排法，圖示跟字同色）；下面的會議、人物（List 有選取的列）用 `sidebarSelectableRow(selected:)`：`NoNativeSelection` 找到背後的 `NSTableView` 設 `selectionHighlightStyle = .none`（選取、多選、鍵盤照舊，只是系統不畫），列自己畫灰底，並且 `backgroundProminence = .standard`（不然選到的列字被換成白的，淺色模式灰底上看不見）。資料夾、定期會議列（`FolderRow`）選到時灰底、字照常（不用青瓷綠粗體），右邊不放場數（輔助使用的值唸「已展開、4 場」），滑過或選到時「⋯」；「所有會議」不畫選到的樣子。拖東西進來時照舊青瓷綠（§77）。
+- 選單的樣子（R101.4）：「⋯」（`RowMenuButton`）改成 `ellipsis`（沒有圈）。選單內容（`MeetingMenuItems`、`FolderMenuItems`、`MeetingLinkMenuItems`、`NoteItemMenuItems`、`PersonMenuItems`，和「⋯」）加 `menuIcons()`：`labelStyle(.titleAndIcon)`（macOS 的選單預設只顯示文字）＋ `tint(.primary)`（選單的圖示用主色畫，不設的話是青瓷綠）。每一項用 `Button(_:systemImage:)`：重新命名 `pencil`、移到資料夾 `folder`、移出 `minus.circle`、新資料夾 `folder.badge.plus`、只看這個資料夾 `line.3.horizontal.decrease`、自動加入的條件 `gearshape`、打開 `arrow.up.forward.app`、還原 `arrow.uturn.backward`、拷貝 `doc.on.doc`、從這裡播放 `play`、合併到 `person.2`。會刪掉、移除東西的項目用 `DestructiveMenuButton`：字 `foregroundStyle(.red)`、圖示 `tint(.red)`（macOS 的選單不會照 `role: .destructive` 變色）；其他沒有圖示的選單（逐字稿的右鍵、重點標記、詞彙、提問的「⋯」）裡的刪除也用它，只是紅字。不在選單上顯示快速鍵：「⋯」是一直存在的 `Menu`，裡面的 `keyboardShortcut` 會變成每一列都註冊一次的快速鍵。
+- 不用系統的 `Section(isExpanded:)`：macOS 的箭頭在標題最右邊，會跟會議列表標題的「顯示方式」擠在一起；Windows 沒有一樣的元件。自己畫的箭頭放在標題後面，兩邊一樣（D175）。
+- DEBUG：`sidebarsection <鍵> on|off`（on 是展開）、`sidebarexpand <folder:名稱> on|off`；state 的 `sidebarCollapsed`、`sidebarExpanded`。
+- Windows：design-windows §11.34。
+
+## 76. 重新命名的彈窗（R102）
+
+- 狀態：`AppModel.renameTarget: RenameTarget?`（`meeting(id)`、`folder(名稱)`、`newFolder([會議 id])`、`person(id)`、`bookmark(id)`）。原本各自的 `renameMeetingRequest`（打開會議頁的「編輯」）、`folderPrompt`、`renamingSeries`、`personRenameRequest`（人物頁的鉛筆 popover）、`renamingBookmark`（alert）都改成設這一個；主視窗一個 `.sheet(item:)` 顯示 `RenameSheet`。
+- `RenameSheet`（寬 440、內距 24）：右上角 ✕（等於取消）；標題（`.title2` 粗體）「重新命名會議」「重新命名資料夾」「新資料夾」「重新命名定期會議」「重新命名這個人」「重新命名標記」；說明一行灰字（R102.2；標記是「12:34 的標記」；新資料夾「例如專案名稱或客戶名稱。這場會議會移進新資料夾。」，好幾場時「這 N 場會議會移進新資料夾。」）；輸入框（`.plain` 加圓角 10 的細框：沒焦點 `primary` 25%、有焦點 75% 1.5 點，`focusEffectDisabled` 不畫青瓷綠的焦點框；字 15 點；出現時拿到焦點、全選）；右下兩顆 `SheetPillButtonStyle`（圓角 10、高 34）：「取消」（`.cancelAction`，`primary` 6% 的底加細框）「儲存」或「建立並移入」（`.defaultAction`，`primary` 當底、視窗底色的字：深色模式白底黑字；名字空白、沒改時停用、35% 透明）。輸入時說明即時換成合併的提醒（資料夾：跟別的資料夾同名；人物：跟別的人同名，大小寫不分）。儲存走原本的動作（`renameMeeting`、`renameFolder`、`moveToFolder`、`renameSeries`、`renamePerson`（同名時合併、選那個人）、`renameBookmark`）。
+- 會議頁標題旁的「編輯」照舊打開 `EditInfoForm`（標題、日期、與會者）。側欄的 Return、右鍵「重新命名…」改成彈窗（§74 的「會議的重新命名」改掉）。
+- DEBUG：`renameui <meeting|folder|person|bookmark|newfolder> <id、名稱或會議 id,…>`（打開彈窗），state 的 `renameTarget`；`menupick <項目>`（接下來打開的選單選這一項，子選單用「移到資料夾 ▸ 新資料夾…」，等於使用者在右鍵選單點了它）。
+- Windows：design-windows §11.35（`ContentDialog`）。
+
+## 77. 拖曳（R103）
+
+- 拖的東西：會議（`MeetingDragItem`，型別 `com.weiwei.shiyin.meeting-ids`，`Info.plist` 宣告，只在這個 app 裡）帶會議 id；拖的那場在多選裡時帶整個多選（列表的順序）。資料夾列（`SidebarItemDrag`，型別 `com.weiwei.shiyin.sidebar-item`）帶鍵（`folder:名稱`）。從 Finder 來的是檔案網址。
+- 放的地方（`SidebarDropDelegate`）：
+  - 資料夾列：會議 → `moveToFolder`；檔案（錄音、影片、逐字稿）→ 匯入到這個資料夾（`requestImport(urls, folder:)`，跟拖到右邊一樣，只是資料夾先設好）；側欄項目 → 排序。
+  - 「其他會議」的標題（`MeetingListHeader`，只在 `listShowsOthersOnly` 時）：會議 → 移出資料夾。
+  - 「垃圾桶」按鈕：會議 → `moveToTrash`（不確認，同 ⌘⌫；可以從垃圾桶還原，提示訊息照舊）。
+- 回饋：會議、檔案拖到資料夾上時，整列一塊青瓷綠 18% 的圓角底（同 `sidebarHover` 的大小），資料夾圖示換成打開的；排序時，看放開的位置在那一列的上半或下半，在上緣或下緣畫一條 2 點的青瓷綠線。拖到「其他會議」標題、垃圾桶時標題、按鈕換成青瓷綠。
+- 排序：`sidebarOrder: [String]`（UserDefaults `sidebarOrder`，鍵同 `sidebarExpanded`）；「資料夾」那一段的順序：有在 `sidebarOrder` 的照它，沒有的（新的）排在後面（照名稱）。放開時把拖的那個移到目標的前面或後面，整段的順序寫回 `sidebarOrder`。資料夾改名、刪除時跟著改。VoiceOver：資料夾列有「往上移」「往下移」的動作。
+- 拖的來源：下面列表的會議原本用 List 的 `onDrag`，沒選到的列直接拖時（使用者用三指拖移）拖得起來但放不進資料夾，要先點一下才行（2026-11-17 使用者：「一定要先點到才能拖嗎？」，事件紀錄看到拖曳開始了、沒有 drop），改成跟資料夾、展開的會議同一個把手（只蓋內容，不蓋「⋯」；垃圾桶裡的不能拖）。把手接住左鍵，List 收不到點擊，所以點一下選取自己做（`clickMeetingRow`：一般只選這場、⌘ 加入或拿掉、⇧ 從上一次點的那場選到這場，照列表看到的順序），放開後把側欄的表格設成第一回應者（↑↓、Return、Delete 照舊）；把手 `acceptsFirstMouse`：視窗不在前面時第一下也選得到。這樣下面的會議列也不經過表格自己的點擊追蹤（上一條的卡住）。資料夾、展開的會議不在 List 的選取裡（沒有 tag），List 不會讓它們開始拖曳，列上的 `DragGesture` 也收不到（滑鼠拖動被 List 吃掉；2026-11-16 自己驗收時發現），所以蓋一層 AppKit 的 `SidebarDragHandle`：`hitTest` 只接左鍵（右鍵選單、滑過的底照舊交給下面的 SwiftUI），拖動超過 4 點就 `beginDraggingSession`（貼上同樣的型別，放的地方用同一套 `onDrop`），拖的圖是名稱的圓角標籤；沒拖就是點一下（展開、打開）。資料夾列的把手只蓋名稱那一段，不蓋數量和「⋯」；展開的會議的把手蓋在「⋯」以外。
+- 側欄 List 裡不用 SwiftUI 的點擊（`onTapGesture`、`.plain` 的 `Button`）：List 裡有這些時，SwiftUI 放在表格上的單擊、雙擊辨識器（`delaysPrimaryMouseButtonEvents`）會把點下面會議列的「按下」延後，等「放開」時才補送給表格，表格開始自己的追蹤迴圈等放開，但放開那一下已經被辨識器處理掉，app 卡在追蹤迴圈裡，到下一次按滑鼠才回來（2026-11-17 使用者：「點進去就會當機約 1～5 秒」；用 `sample` 抓到主執行緒停在 `_NSGestureRecognizerSortAndSendDelayedEvents` → `NSTableView mouseDown` → `trackEventsMatchingMask`）。資料夾列（沒有拖曳鍵的「所有會議」「人物」）、段落標題、「+」、「發現 N 組」、「顯示全部 N 場」一律用 `sidebarClick`（同拖曳把手的 AppKit view，`mouseUp` 時算點一下），輔助使用加按鈕的特性和動作。
+- 拖的時候不換會議頁：List 在按下去時就選取那一列，原本選取一變就載入右邊的會議頁，長會議載入、重畫要 0.3 秒左右（DEBUG 版，用使用者資料的複本量），主執行緒卡住時拖曳開始得慢、跟不上游標（2026-11-17 使用者：「拖不太動」）。`selection` 變了而左鍵還按著時，先不載入，等放開才載入（每 0.05 秒看一次的計時器，排在一般模式：拖曳中的事件追蹤模式不會跑）；按著時又換了選取只載入最後一場。按著時選取只要約 40 毫秒（側欄的選取底）。鍵盤、程式換的選取照舊馬上載入。
+- DEBUG：`importinto <資料夾> <檔案>`（等於從 Finder 把檔案拖到資料夾），state 的 `sidebarOrder`、`showImportSheet`、`detailMeeting`（右邊是哪一場）、`sidebarTables`；`mousehold on|off`（當成左鍵按著）；`mouseat clickq|clickqcmd|clickqshift <x> <y> <視窗編號> app`（按下、放開排進事件佇列，同真的點一下：經過手勢辨識、`NSApp.currentEvent` 是這一下；cmd、shift 帶修飾鍵）。
+- Windows：design-windows §11.36。
+
+## 78. 新增空的資料夾（R104，D176）
+
+- 資料（migration v13）：`folders(name TEXT PRIMARY KEY, created_at TEXT NOT NULL)`，建立時把現有會議的資料夾、有自動加入條件的資料夾都放進去。`setFolder`（移進資料夾、新資料夾）同時 `INSERT OR IGNORE` 那個名字；`renameFolder` 改名時跟著改（改成已經有的名字時刪掉舊的那一列），刪除（改成空字串）時刪掉；`createFolder(name)` 只建資料夾。
+- 側欄的資料夾（`AppModel.folders`）是這張表、會議的 `folder`、`folder_rules` 三者的聯集（舊的路徑寫進會議的資料夾也看得到），沒有會議的是 0 場。
+- 「資料夾」那一段一直顯示；標題（`SidebarSectionHeader`，`besideMenu`：跟「+」併成一個輔助使用元件時，按下去是「+」，收合是有名字的動作）右邊一顆「+」（`SidebarHeaderIcon`：`plus` 15 點 light 細線、次要顏色、26×24 的點擊範圍、滑過變亮加淡底，往左留 6 點跟列的「⋯」對齊；說明「新資料夾」），打開 `RenameSheet(.newFolder([]))`：標題「新資料夾」、說明「例如專案名稱或客戶名稱。」、按鈕「建立」；名字跟已經有的資料夾一樣時說明「已經有「X」。」、「建立」停用。沒有資料夾、定期會議、建議時，段落裡一行次要顏色「按 + 新增資料夾」。
+- 選單列「檔案」的「匯入…」下面「新資料夾…」（⇧⌘N），一樣打開這個彈窗（主視窗關著時先打開）。
+- DEBUG：`foldernew <名稱>`；state 的 `folders`（名稱、場數）。
+- Windows：design-windows §11.37。
+
+## 79. 自己畫的選單（R105）
+
+- `MenuEntry`（動作、子選單、分隔線；標題、圖示、快捷鍵提示、紅色、停用）。每一種東西一份內容：`AppModel.meetingMenu(ids)`（重新命名… ↩、移到資料夾 ›、移出「X」、移到垃圾桶 ⌘⌫；多選時「把 N 場會議移到垃圾桶…」；垃圾桶裡是還原、永久刪除…）、`folderMenu`、`personMenu`（重新命名… ↩、合併到 ›、移除這個人…）、`meetingLinkMenu`、`noteItemMenu`。快捷鍵只是提示，不註冊（「⋯」一直存在，註冊的話每一列都會搶同一個快捷鍵）。原本的 SwiftUI 選單內容（MeetingMenuItems 這些）拿掉；工具列「更多」用的 `FolderMenu`、`PersonMenuItems` 照舊是系統選單。
+- `FloatingMenuController`：`NSPanel`（無邊框、`nonactivatingPanel`：不搶焦點，主視窗照樣是作用中的，同系統選單），層級 `popUpMenu`（主視窗在桌面層時跟著放低，DEBUG 驗收用），內容是 `FloatingMenuView` 的 `NSHostingView`；子選單畫在右邊、面板跟著變寬，左上角不動。外面留 12 點畫陰影，看得到的選單左上角對齊游標（右鍵）或「⋯」的左下（往下 4 點）。超出螢幕時往上、往左挪。
+- 樣子：面板圓角 14、深色 `white 0.17`／淺色白色、`primary` 10% 的細框、陰影；每一項高 30、左右內距 9、圖示 14 點 light 寬 18、字 14 點、快捷鍵 13 點、「›」11 點，快捷鍵和「›」一律 `secondaryLabelColor`（紅色那一項的快捷鍵也是灰的）；滑過或鍵盤選到一塊圓角 8 的 `primary` 9%；分隔線 `primary` 10%、上下 4 點。
+- 滑過：面板不是作用中的視窗，SwiftUI 的 `onHover` 會慢半拍，所以選單開著時讓作用中的視窗送滑鼠移動事件（關掉時改回原本的），app 的事件監看收到就用事件的位置換算成面板裡的位置，照每一列回報的框（`onGeometryChange`）找在哪一列。子選單開著時滑到別的列，等 0.45 秒才換；這段時間游標進了子選單就不換（快速斜著移到子選單會經過下面那一列，2026-11-17 自己驗收時發現）。
+- 右鍵：列上蓋一個不接任何事件的透明 view（`RightClickCatcher`）只記位置，app 的事件監看收到右鍵（或 Control-點一下）時找游標下面最小的那一個（展開的會議在資料夾列裡面時取會議），打開選單、吃掉這一下。不用 `hitTest` 看 `NSApp.currentEvent`：送給視窗的事件不一定是 currentEvent。
+- 關：選了一項、Esc、點選單外面（app 裡的點擊吃掉，同系統選單）、點別的 app（全域監看）、app 不在前面（`hidesOnDeactivate`）。
+- 「⋯」：`FloatingMenuButton`（`ellipsis`，滑過或選到時顯示），按了在按鈕下面打開；`floatingRowMenu(selected:)` 一次加「⋯」和右鍵。「⋯」滑過或選到時才建（不是一直放著、透明度 0）：每一顆帶一個定位用的 NSView，長會議的紀錄一次幾百顆，換會議時多花約 0.06 秒（2026-11-17 用使用者資料的複本量：選長會議主執行緒最長卡 365 → 309 毫秒，4.8.1 是 257）。VoiceOver 的「顯示選單」（`accessibilityAction(.showMenu)`）在游標位置打開同一份選單。
+- DEBUG：`floatpick <項目>`（子選單「移到資料夾 ▸ 客戶」）、`floatclose`、`floatothers off`（驗收時使用者在用別的 app，點別的 app 不關選單）；`keyat` 加 down、up、right、left 和第四個參數 `app`（走 `NSApp.sendEvent`，經過事件監看）；`mouseat` 最後一個參數 `app` 同樣；state 的 `floatingMenu`（項目）、`floatingMenuState`、`floatingMenuWindow`（面板的視窗編號，`mouseat move … <編號> app` 用）。
+- Windows：design-windows §11.38。
+
+## 80. 彈窗、輸入框的共用樣子（R106）
+
+- 元件在 `Views/SheetStyle.swift`：`SheetHeader`（標題 title2 粗體、說明 body 灰字、右邊小字、右上角 ✕）、`SheetTextField`（單行、15 點、可以 `focusOnAppear`：等外面的 `onAppear` 填好字再給焦點，字才會全選）、`sheetFieldBox(focused:compact:)`（圓角 10、`primary` 4% 底、25% 細框，有焦點時 75%、1.5 點；compact 圓角 8、內距小一號）、`.textFieldStyle(.sheet)`／`.sheetCompact`（把 TextField 包進那個框，自己追蹤焦點，多行的也能用）、`SheetMenuField`（選單式的欄位，外框同輸入框、右邊上下箭頭）、`SheetDateField`（沒有框的 `NSDatePicker` 放進同一個框，右邊日曆按鈕打開月曆；系統的日期欄位自己有框，放進來會框中框）、`SheetFieldLabel`、`SheetPillButtonStyle(.primary|.secondary|.destructive, compact:)`（圓角 10、高 34；compact 圓角 8、高 26）、`sheetChrome(width:)`（內距 24、寬度）。
+- 確認：`ConfirmRequest`（標題、說明、確認按鈕的字、是不是刪除類、動作）＋`ConfirmSheet`。`AppModel.activeConfirmation`（`Store/Confirmations.swift`）從原本的狀態（`confirmDeleteFolder`、`confirmDeleteSeries`、`confirmRemovePerson`、`confirmPurge`、`confirmEmptyTrash`、`splitMeetingRequest`、`confirmDelete`）組出來，主視窗只掛一個 `.sheet(item:)`；關掉時 `clearConfirmations()` 全部清掉。同時只會有一個（各自的入口都是使用者一次按一個）。垃圾桶橫幅的「永久刪除」改用 `confirmPurge`，不另外留一份確認。
+- 編輯會議資訊（`EditInfoForm`）從 popover 改成 sheet：標題、會議日期（`DatePicker` 的 `.field` 放進 `sheetFieldBox`）、與會者。
+- 就地編輯用 compact：逐字稿改句子（`.sheet` 的框、內文字級照文字大小）、拆句（文字放進有焦點的框）、紀錄的條目、說話者改名的小視窗（標題 title3 粗體、「不是他」「合併到…」是次要按鈕）、待確認的回答和「收合」「送出」、提問的輸入列、編輯會議紀錄的欄位和「取消」「完成」。
+- 沒有「取消」的彈窗 `SheetHeader(escCloses: true)`：Esc 等於 ✕（目前沒有用到）。
+- 匯出的「分享…」改成次要按鈕，分享選單掛在按鈕的 `MenuAnchor` 下面（原本是撐滿整列的系統按鈕）。
+- 頁面的提示條、空白頁的按鈕照舊（R106.5）。
+- DEBUG：`windowshot <視窗 id 或編號> <輸出.png>`（app 自己把視窗畫成圖，螢幕上鎖時也能截彈窗；主視窗的字、側欄畫不出來）、`exportui`、`preview editinfo|replace|rediarize|noteseditor`（桌面層的視窗）。
+- Windows：design-windows §11.39。
+
+## 81. 編輯會議：裁切、刪掉一段、分成兩場、合併兩場（R107，D178～D183）
+
+### 81.1 做法：保留的片段（D178）
+
+所有的改動都化成同一件事：**新的時間軸＝依序接起來的片段** `pieces: [(meetingId, start, end)]`。
+
+- 裁掉開頭、結尾、刪掉中間幾段：只有這場會議的片段，`[(A, 開頭, 第一段刪除的開始), (A, 第一段刪除的結束, …), …, (A, …, 結尾)]`。
+- 合併：兩場的片段照會議開始的時間（`created_at`）排，先開的在前；兩場各自的裁切、刪除照樣算在各自的片段裡。
+- 分成兩場：切點 `cut` 是新時間軸上的一個時間；前半留在這場，後半變成新的一場（同 §64，切點只能落在保留的部分）。分成兩場和合併同一次不能一起用（畫面上選了一個，另一個按不了）。
+
+時間對應 `EditPlan.map(meetingId, t) -> t'?`（純邏輯，Mac、Windows 同一套，標準答案 `util/edit-plan.json`）：`t` 在某個片段裡時，`t'` 是前面所有片段的長度加上 `t - 片段開始`；不在任何片段裡回傳 nil。`EditPlan.snap(meetingId, t)`：不在片段裡時對到「下一個片段的開始」（後面沒有片段時對到最後一個片段的結束）。
+
+各種資料怎麼跟著移（一個交易，`AppDatabase.applyEdit`）：
+
+| 資料 | 規則 |
+|---|---|
+| 逐字稿的句子（正式、即時都算） | 中點在保留的片段裡就留，開始、結束夾在那個片段裡再對應；否則刪掉（D181）。`seq` 照新的時間重新編。精簡版（`clean_lines`）、校正建議（`corrections`）跟著句子（刪掉的句子 `ON DELETE CASCADE`） |
+| 標記重點（`bookmarks`） | 在片段裡就對應，不在就刪 |
+| 我的筆記（`user_notes` 每行的 `[mm:ss]`） | 一律留下（D181）；時間用 `snap`（被刪掉那段的筆記時間移到切口） |
+| 會議紀錄（`notes` 裡每個 `time`、議題的 `start`、待確認的 `time`） | 用 `snap` 改時間，讓議題時間軸和時間點在重新整理之前也大致對得上；原本那份先存成舊版本（`notes_versions`，原因「編輯會議前」） |
+| 說話者（`speakers`） | 沒有句子的刪掉（`removeEmptySpeakers`）；`speech_seconds` 重算。合併見 §81.4 |
+| 長度、開始時間 | `duration_seconds` 是片段長度的總和；裁掉開頭時 `created_at` 加上開頭裁掉的秒數（會議真正開始的時間，合併排先後也用它） |
+| 搜尋索引 | 這場會議的列全部重建 |
+| 說話者的復原（`speaker_undo`） | 刪掉（快照對不上，同 §64） |
+| 提問紀錄（`questions`） | 不動（是當時的問答；裡面的時間點可能對不上，跟重新轉錄一樣） |
+
+### 81.2 錄音（`AudioEdit.compose(pieces) -> URL`，背景執行）
+
+- 只有這場會議、錄音是 WAV（還沒壓縮）：`AVAudioFile` 照原本的格式（`fileFormat.settings`）逐段讀、接著寫，聲道、取樣率不變（同 `AudioTrim.splitWAV`）。
+- 其他（m4a、匯入的 mp3、影片，或合併）：每段用 `AVAssetReader` 解碼成 32-bit float PCM，統一成「取樣率取高的、聲道取多的」（單聲道放到兩個聲道），寫成 m4a（同壓縮工作的設定），檔名換成 `<id>.m4a`（同 D172）。
+- 只有逐字稿、沒有錄音的會議：跳過這一步，只改資料。
+- 錄音檔對不上逐字稿（錄音比 `duration_seconds` 短很多）時照樣切，片段超出錄音長度的部分當成沒有。
+- 寫好之後：原本的錄音**搬**到 `audio/edits/<id>.<副檔名>`（不是複製，多佔的空間就是原本那個檔），新的放回 `audio/<id>.<副檔名>`；先 `player.unload`（同 §64）。
+
+### 81.3 還原（R107.8，D179、D180）
+
+- 資料（migration v15）：`meeting_edits(meeting_id INTEGER PRIMARY KEY REFERENCES meetings(id) ON DELETE CASCADE, snapshot TEXT NOT NULL, audio_file TEXT NOT NULL, split_into TEXT NOT NULL DEFAULT '[]', merged_from TEXT NOT NULL DEFAULT '[]', created_at TEXT NOT NULL, edited_at TEXT NOT NULL)`。
+- `snapshot`（JSON）：編輯前這場會議的欄位（`duration_seconds`、`audio_file`、`user_notes`、`notes`、`notes_by`、`notes_draft`、`created_at`）和所有句子（含精簡版、校正建議）、標記重點、說話者、參考文件的 id。`audio_file` 是 `audio/edits/` 裡的檔名（沒有錄音的會議是空字串）。
+- **只留第一次編輯前的樣子**：已經有快照的會議再編輯，快照不變，只更新 `edited_at`、把新的 `split_into`／`merged_from` 加進去；錄音也只搬第一次的（之後的舊檔直接刪）。從逐字稿右鍵「從這裡分成兩場…」（§64）也走同一套，所以分成兩場也能還原（D180 取代 D170）。
+- 會議頁「更多」：有快照時多一項「還原成編輯前的樣子…」（後面小字「還有 N 天」）。確認：「會議會回到編輯前的樣子（原本 58 分鐘）。編輯之後對逐字稿、說話者、筆記的修改會不見。」；有分出去的會議時加一句「分出去的「X」會移到垃圾桶」，有合併進來的加「合併進來的「Y」會從垃圾桶還原」（已經永久刪除的就不寫）。
+- 還原（一個交易）：照快照放回欄位、句子、標記、說話者，刪掉編輯後加進來的參考文件；錄音從 `audio/edits/` 搬回來、刪掉現在的；`split_into` 的會議移到垃圾桶（還在的話），`merged_from` 的會議從垃圾桶還原（還在的話）；刪掉 `meeting_edits` 那一列。現在的會議紀錄存成舊版本（原因「還原編輯前」），放回快照裡的那份。
+- 30 天：`edited_at` 超過 30 天就刪掉 `audio/edits/` 的檔和那一列（跟清垃圾桶同一個時機）。永久刪除會議時一起刪。
+- 擋：同 §81.5。
+
+### 81.4 合併兩場
+
+- 留下的是**打開編輯畫面的那場**（id、標題、資料夾、提醒事項的連結都不變），另一場在套用後移到垃圾桶（D182）。
+- 另一場的句子、標記重點、參考文件**複製**過來（時間照 §81.1 對應），垃圾桶裡那場保持完整，所以還原只要把它從垃圾桶拿出來。參考文件的檔案也複製一份。
+- 說話者對起來，依序：同一個人物（`person_id`）→ 同樣的名字（不是預設的「說話者 N」）→ 聲紋（`embedding` 的餘弦相似度，門檻同聲紋比對 §21.4 的 0.65）；都對不上的接在後面，編號從這場最大的編號加 1，預設名字照新編號重取。另一場的 `voiceprints` 不動（還指著另一場）。
+- 我的筆記：兩份照先後接起來，中間空一行，各自的時間點照對應改。
+- 會議語言、範本、與會者、收音來源照留下的那場；與會者加上另一場的（去掉重複）。
+- 兩場的會議語言不一樣時，選另一場的清單裡照樣列出，選了之後說明「兩場的會議語言不同，合併後照「這場」的語言整理」。
+
+### 81.5 編輯畫面（Mac，`MeetingEditSheet`，D183）
+
+```
+┌ 編輯會議 ──────────────────────────────────────── ✕ ┐
+│ Lumio 秋季新品上市時程會議・原本 58:10                          │
+│ ┌─ 議題帶（同 §43 的顏色）────────────────────────────┐ │
+│ │▐ 波形（說話者的釉色）  ░░刪掉的段落（斜線、變暗）░░    ▌│ │
+│ │把手                       ▲播放頭                  把手│ │
+│ └───────────────────────────────────────────────────┘ │
+│  ▶  12:34 ／ 41:20（刪掉 16:50）                 縮放 －──○──＋ │
+│ (設成開頭) (設成結尾) (刪掉選取的範圍) (在這裡分成兩場) (合併另一場…)  │
+│ ─────────────── 逐字稿（跟著播放位置捲動） ─────────────── │
+│ 12:30  說話者 1　……（刪掉的句子變灰、加刪除線）                  │
+│                                              (取消) (套用…) │
+└──────────────────────────────────────────────────────┘
+```
+
+- 入口（R107.1）：會議的右鍵選單、「⋯」（「重新命名…」下面「編輯會議…」，編輯過的會議再多「還原成編輯前的樣子…」，右邊小字「還有 N 天」）、會議頁的「更多」（「重新處理」下面「編輯會議…」「還原成編輯前的樣子…」：工具列的選單建立一次就不更新，所以「還原」一直在，沒編輯過時按了說明「編輯會議後 30 天內可以從這裡還原」）。正在錄音、有排隊或進行中的工作、在垃圾桶裡時按了說原因（同 §64 的訊息，動詞換成「編輯」）。
+- sheet，寬 880、高約 640（跟著視窗，最小 720×520），`SheetHeader`、`SheetPillButtonStyle`（§80）。
+- 波形：打開時背景讀錄音，每 50 毫秒一個峰值（2 小時約 14 萬個點），讀好之前顯示「正在讀取錄音…」和句子的色塊（同 `TimelineBar`）；沒有錄音的會議一直用句子的色塊。波形依說話者著色（那個時間的句子是誰說的）。上面一條議題帶（`MindMap.topicRanges`，同 §43）。
+- 縮放：觸控板捏合、播放列右邊的放大鏡和滑桿（1～40 倍，對數）；不用 ⌘＋／⌘－（那是整個 app 的文字大小）。放大時可以左右捲動，試聽時播放頭跟著走。
+- 把手：兩端各一個，拖到會議真正開始、結束的地方；外面的部分變暗。「設成開頭」「設成結尾」把把手移到播放頭。
+- 選範圍：在波形上拖曳（不是從把手開始）選一段，系統藍（把手、時間點是青瓷綠，同色分不出來）；「刪掉選取的範圍」（或 Delete）標成刪掉。刪掉的段落斜線、變暗，中間一顆「刪掉 03:35・恢復」（窄的時候只有「恢復」或圖示）。可以有好幾段，重疊的合起來。點一下時間軸：移播放頭，逐字稿捲到那一句。
+- 逐字稿：下半部列出句子（正式逐字稿），播放到哪句就反白、捲過去；點一句從那裡播放。滑過或選到的句子右邊一顆按鈕（留著的「刪掉」、刪掉的「恢復」、裁掉的「從這句開始」「到這句結束」）。選句子（⌘、⇧ 點選）按右鍵：「從這裡播放」「刪掉這幾句」（每一句的開始到結束各標成刪掉）、「恢復這幾句」「從這句開始（設成開頭）」「到這句結束（設成結尾）」「從這句分成兩場」。在刪掉、裁掉的範圍裡的句子變灰、刪除線。合併時另一場的說話者：同名的用這場的顏色，其他的編號接在這場後面（套用時另外看人物、聲紋）。
+- 分成兩場：在播放頭的位置（或句子的右鍵）放一個切點（剪刀的直線）；切點只能在保留的部分、不能是開頭；再按一次拿掉。
+- 合併另一場：彈窗（標題、搜尋欄位、「前後三天」「更早或更晚」兩段，不列垃圾桶裡的、正在錄音或處理中的；選到語言不同的會議時說明照這場的語言整理）。選了之後時間軸接上另一場，這場原本的裁切變成刪掉的段落、把手放到整條的兩端；中間一條分隔線，標籤列多一行寫每一場的名字；另一場的部分也能裁切、刪除。「取消合併」回到只有這場（兩端的刪掉段落變回把手）。
+- 試聽：播放時跳過刪掉的段落和把手外面的部分；播放頭在刪掉的段落裡按播放，從下一個保留的地方開始。
+- 下方摘要：「剩 41:20（刪掉 16:50、126 句）」；有切點時「分成 20:10 和 21:10 兩場」；合併時「合併後 1:12:30」。
+- 鍵盤（R107.9）：空白鍵播放／暫停；← → 移播放頭 1 秒（⇧ 10 秒）；焦點在把手、選取的範圍時 ← → 移 0.1 秒（⇧ 1 秒）；Delete 刪掉選取的範圍；Return 套用、Esc 取消。
+- 輔助使用：時間軸是可以調整的元素（唸「播放位置 12:34，共 41:20」）；把手各是一個可以調整的元素（「開頭 00:00」「結尾 58:10」）；刪掉的段落各是一個按鈕（「刪掉的段落 12:00 到 18:50，按一下恢復」）。
+- 套用：沒有改動時「套用…」按不了。確認（`ConfirmSheet`，說明是「・」開頭的好幾行時畫成條列、換行對齊）：「套用這些改動？」說明寫會怎樣（剩幾分鐘、刪掉幾句、幾個標記重點；分成兩場、合併的結果；會議紀錄會重新整理，舊的留在版本紀錄；30 天內可以在「更多」還原）。有未存的改動時按取消、✕ 或 Esc：「放棄這些改動？」。
+- 套用時：會議頁上方顯示「正在套用編輯…」（同分成兩場的 `splittingMeeting`），這段時間這場會議不能開始其他工作。完成後整理工具設定好時排 `summarize`（分成兩場時兩場都排，同 §64）；沒設定時通知「會議紀錄要重新整理，設定好整理工具後按「重新整理」」。通知「已編輯「標題」」／「已分成兩場：「新的標題」」／「已合併「另一場的標題」」。
+
+### 81.6 驗證、DEBUG、Windows
+
+- 標準答案：`util/edit-plan.json`（片段 → 句子、標記、筆記、紀錄的時間，含跨切口的句子、刪光、合併的先後、切點在刪掉的段落裡）；`db/` 加編輯、合併、還原的結果（同 35～38 的分割）。
+- DEBUG：`editmeeting <會議 id> keep=<開始>-<結束>[,…] [split=<秒>] [merge=<會議 id>[:<開始>-<結束>,…]]`（不經過畫面和確認）、`restoreedit`、`confirmrestoreedit <會議 id>`、`editage <會議 id> <天數>`（把 `edited_at` 改早，接著清一次）、`openedit <會議 id>`（打開編輯畫面）、`editorstate start= end= del= sel= cut= playhead= zoom= merge= lines= play`（直接改打開的編輯畫面：背景的視窗第一下點擊只會叫出視窗，不會交給按鈕和手勢）、`mouseat dragq <x> <y> <視窗> <x2> <y2>`（拖曳手勢）、`keyat space`；啟動參數 `-debugMutePreview YES`（試聽不出聲）。`state` 加 `meetingEdit`（快照、剩幾天）、`editor`（打開的編輯畫面：把手、刪掉的段落、片段、試聽的時間）、`applyingEdit`、`editingMeeting`。
+- 逐字稿右鍵「從這裡分成兩場…」（§64）改走 `applyMeetingEdit`：片段是整場（會議長度、錄音長度、最後一句的結尾取大的）、切點是那一句的開始；整場保留時不動會議紀錄、不多存一版（`EditPlan.keepsWhole`）。
+- Windows：design-windows §11.40：同一套 `EditPlan`、migration v15、還原；錄音用 Media Foundation 解碼、寫 m4a（同 Windows 的分割），WAV 照原本的格式；編輯畫面是主視窗上的覆蓋層（裡面還要開 ContentDialog）。
+
+## 82. 設定：工具列的齒輪、側欄的版面（R108，D184）
+
+- 齒輪（R108.1）：主視窗工具列最右邊、「更多」的右邊，按了 `openWindow.settings()`（圖示 `gearshape`，說明「設定（⌘,）」，輔助使用名稱「設定」）。
+- 視窗（D185）：一般的 `Window` 場景（id `settings`），不是 SwiftUI 的 `Settings` 場景；選單列的「設定⋯」、⌘, 用 `CommandGroup(replacing: .appSettings)` 自己接，`openWindow.settings(_:)` 打開。
+- 版面（R108.2）：`NavigationSplitView`，側欄 `List(selection:)`，寬 220（210～260，英文的「Models & Storage」放得下），拿掉側欄的收合鈕；右邊是那一頁的 `Form`（`.grouped`），`navigationTitle` 是那一頁的名稱。視窗 820×620（`.defaultSize`），最小 720×500，可以拉大（`.windowResizability(.contentMinSize)`）。
+- 側欄：每一項是 20×20、圓角 5 的彩色方塊加白色 SF Symbol（同系統設定），分四組（組和組之間空一點，不加標題）。選到的列灰底、字照常（`sidebarSelectableRow`，同主視窗的側欄 R101.4，不用系統青瓷綠的一整塊）：
+
+| 組 | 項目 | 圖示、顏色 | 內容（原本在哪） |
+|---|---|---|---|
+| 1 | 整理工具 | `sparkles`、紫 | 整理工具的選單、狀態、API key、模型、測試、自動整理、檢查聽錯的字、隱私說明（原「整理工具」去掉範本） |
+| 1 | 範本 | `doc.text.fill`、橘 | 範本的清單和編輯（原「整理工具」的範本段，高度跟著視窗） |
+| 2 | 錄音 | `mic.fill`、紅 | 錄音來源、麥克風、權限；提醒與快捷鍵（原「錄音與轉錄」） |
+| 2 | 轉錄 | `waveform`、藍 | 正式轉錄、說話者辨識、即時逐字稿；語言（預設會議語言、中文的字、自動偵測） |
+| 2 | 模型與空間 | `internaldrive.fill`、灰 | 模型清單（下載、刪除）、儲存空間、第二版留下的檔案 |
+| 3 | 說話者 | `person.2.fill`、青 | 記住說話者的聲音、我的聲音、認識的人 |
+| 3 | 詞彙表 | `character.book.closed.fill`、棕 | 詞彙表 |
+| 4 | 一般 | `gearshape.fill`、灰 | 顯示（文字大小、分享畫面時藏起視窗）、重新顯示引導、重建搜尋索引、匿名使用統計 |
+| 4 | AI 工具 | `puzzlepiece.extension.fill`、靛 | 讓 AI 工具讀取會議（MCP） |
+| 4 | 企業伺服器 | `building.2.fill`、藍灰 | 企業伺服器 |
+| 4 | 檢查與更新 | `checkmark.seal.fill`、綠 | 更新、環境檢查 |
+
+- 搜尋（R108.4）：側欄的 `.searchable`。每一頁有一串關鍵字（就是那一頁項目的名稱，用介面語言；另外加 API key、MCP、快捷鍵這類常用說法），打的字在名稱或關鍵字裡就留那一項；只剩一項時直接選它。
+- 記住頁面（R108.5）：`settingsPage`（UserDefaults，存頁面的代號），預設整理工具。從別處打開設定時指定頁面（`openWindow.settings(_:)` 先寫 `settingsPage` 再打開；已經開著的視窗跟著換，搜尋的字篩掉了那一頁時清掉搜尋）：會議頁、紀錄分頁的「設定整理工具」「打開設定」開整理工具，公司伺服器沒登入時開企業伺服器（`SummarizerProblem.settingsPage`）。
+- 說明文字裡的頁名跟著改（「設定 → 錄音與轉錄」→「錄音」或「模型與空間」、「進階 → 企業伺服器」→「企業伺服器」、「說話者與詞彙」→「說話者」、「進階」→「一般」或「檢查與更新」；使用說明介紹設定各頁的段落照新的十一頁寫）：位置變了，照舊寫會帶錯地方；其他說明文字不變（R108.6）。
+- 程式：原本的 `ProviderSettings`（拿掉範本段）、`TemplateSettings`、`SpeakerSettings`、`GlossarySettings` 直接當一頁；`RecordingSettings`、`AdvancedSettings` 加 `part` 參數（同一份狀態，只畫那一頁的段落），項目和存的鍵都沒變（R108.6）。
+- DEBUG：`preview settings <頁面代號或編號>`（0 整理工具…10 檢查與更新，只當預覽的起始頁，不寫進設定）。
+- Windows：design-windows §11.41（`NavigationView`，同樣十一項、四組、搜尋、記住頁面；圖示是彩色的字、沒有底色方塊，同 Windows 11 的設定）。
 
 ## 14. 決策紀錄
 
@@ -2297,7 +2939,7 @@ id 42 · shiyin://open?meeting=42 · transcript: get_transcript(meeting_id: 42)
 | D107 | 先辨識說話者，在換人處的安靜點切、每段最長 15 秒、混到第二個人的段照片段再切；跳針用「重試→切半→修剪」、幻覺用「有聲音的秒數限制字數、不一致就丟」處理（§32.4） | 固定 30 秒一段再用重疊量標說話者：一段裡換人就標錯，而 Qwen3-ASR 沒有時間點可以切。整段一次轉（官方最長 20 分鐘）：沒有時間點，說話者標不了；固定 30 秒一段（AISHELL 16.2%、AMI 31.6%）準一點，但一段裡換人就標錯。照說話者片段切：重疊處的話被切掉（AISHELL 22.2%、AMI 45.9%）。短段不加防線：AMI 40%。Qwen3-ForcedAligner 對齊時間：llama.cpp 不支援、要再一個 0.6B 模型。一律加重複懲罰：會傷到真的重複（「對對對」） |
 | D108 | 簡轉繁用 OpenCC 的字表＋自己寫的最長匹配，不帶 OpenCC 程式庫（§32.5） | ICU 的 Hans-Hant：逐字轉，「頭發」「皇後」這類一對多的字會錯。OpenCC 的 C++ 程式庫：還要為 Mac、Windows 各包一次，字表加 100 行程式就夠。TWPhrases 用語替換：辨識結果本來就是說話者的用詞 |
 | D109 | 會議頁六個分頁減成三個：摘要和詳細合成「紀錄」，待確認收成紀錄頂部一條，筆記收進逐字稿（§33.1） | 維持六個：使用者 11 場「筆記」分頁 0 次、「詳細」要切過去才看得到議題，待確認已經能就地回答，獨立分頁變成「要處理的事離內容太遠」。只把筆記拿掉：摘要／詳細分開沒有理由，匯出本來就是一份。待確認改成側邊欄：寬度不夠，而且題目就在它問的紀錄旁邊才對 |
-| D110 | 設定四頁：範本歸整理工具、模型歸轉錄、說話者和詞彙合一頁、儲存空間歸進階（§33.3） | 維持七頁：一般人只會碰整理工具和錄音，七個分頁讓設定看起來很難。減少設定項目：每個開關都有人用（分聲道等本來就沒有開關），只搬不刪。模型清單留在「儲存空間」：使用者找「要不要下載模型」會去找「轉錄」，不會去找「儲存空間」 |
+| D110 | （D184 取代）設定四頁：範本歸整理工具、模型歸轉錄、說話者和詞彙合一頁、儲存空間歸進階（§33.3） | 維持七頁：一般人只會碰整理工具和錄音，七個分頁讓設定看起來很難。減少設定項目：每個開關都有人用（分聲道等本來就沒有開關），只搬不刪。模型清單留在「儲存空間」：使用者找「要不要下載模型」會去找「轉錄」，不會去找「儲存空間」 |
 | D111 | 引導三步，整理工具先問「你平常用哪個 AI？」再列選項，費用寫成一句話（§33.4） | 五步：歡迎頁沒有資訊、下載模型不需要人做決定。七個選項平鋪：一般人不知道 CLI 和 API 的差別、也不知道要不要錢。精確的費用數字：價格會變，寫區間就夠；估法：一小時中文會議約 1.2 萬字≈1.5 萬 token 輸入、3 千 token 輸出，Claude Sonnet（$3／$15 per M）約 US$0.09≈NT$3，Gemini、OpenAI 更低，所以寫「通常不到台幣 10 元（2026-10 估）」 |
 | D112 | 整理工具「準備好了沒」只用不花額度的檢查（找得到 CLI 和登入狀態、鑰匙圈有沒有 key、網址和模型），看不出登入狀態時當作準備好；測試請求只在引導和設定頁設定好的時候送一次（§34.1） | 每次整理前送一個測試請求：多花額度和十幾秒，而且失敗的原因跟真的整理一樣，不如直接整理。不檢查、失敗再說（4.0 的做法）：第一場會議就失敗，統計看到 6 台一次都沒成功。看不出登入狀態時當作沒準備好：舊版 CLI 沒有 `auth status` 的人會被擋住，卻其實能用。引導裡沒設定好就不能按下一步：不想現在設定的人卡住，R35 本來就允許「之後再設定」 |
 | D113 | 設定問題的失敗之後暫停自動整理，只記在記憶體，用整理工具設定的指紋判斷要不要解除（§34.4） | 存進 UserDefaults：設定跟使用者的拾音、DEBUG 版共用，測試會留下殘值；重開 app 才多失敗一次可以接受。每次改設定的地方都呼叫解除：入口太多（設定頁、引導、DEBUG、Windows 的設定檔），漏一個就一直暫停。自動重試：設定問題重試也不會好 |
@@ -2336,8 +2978,38 @@ id 42 · shiyin://open?meeting=42 · transcript: get_transcript(meeting_id: 42)
 | D149 | 工具回傳 Markdown 文字、英文的固定標籤，會議內容照原本的語言（§44.2） | 回 JSON（`structuredContent`）：AI 也讀得懂，但中文內容加上欄位名稱、跳脫字元，長度多三成；會議紀錄本來就有匯出用的 Markdown。標籤跟著介面語言：讀的是 AI，不是人，換介面語言時回傳的內容不該跟著變（標準答案也要多一份） |
 | D150 | 寫本地 MCP 的啟動檔時，拿掉 app 自己的隔離屬性（§44.3；2026-11-09 驗證時發現） | 不處理、靠使用者第一次打開時的放行：放行之後 AI 工具直接執行 bundle 裡的執行檔會不會再被擋，要使用者在系統設定裡輸入密碼按「仍要打開」才驗得到，沒辦法確定；還沒放行時實測會跳出提示、程序卡住，AI 工具只看到逾時。叫使用者自己在終端機跑 `xattr -dr`：一般使用者不會，也不該教他們關掉安全機制。啟動檔改成用 `open -a` 透過 LaunchServices 開：stdio 接不起來 |
 | D151 | 麥克風被語音處理佔住：內建麥克風光看音量（8 秒幾乎沒聲音），其他麥克風要這場錄音稍早是正常的才提示（§45.1；2026-11-12，GitHub #4） | 所有麥克風都光看音量：外接的好麥克風、輸入音量調低時，沒人說話就低於 −70 dBFS，線上會議聽對方講話時會誤報（調小 20 dB 的 7 場錄音有 5 場會）。看「有沒有別的 app 在用麥克風」：線上會議本來就有，分不出來。看內建麥克風變成 3 聲道：只在 MacBook Pro 量過，其他機型不確定。自己開語音處理、自動換麥克風：R57.4、D104 |
+| D152 | 拆句的時間照字數比例估，位置用 UTF-16（§46.1；2026-11-12，GitHub #6） | 用每個字的時間：Qwen3-ASR 不給、Breeze 給的是 token 的時間，存檔時就沒留；要留得改轉錄流程和資料庫。位置用 `Character`：Swift 和 C# 算法不同（C# 沒有字素），emoji 會差一格，兩邊結果對不起來 |
+| D153 | 簡體只換字、不換用語（tw2s，不是 tw2sp）（§47.1；2026-11-12，GitHub #3） | 連用語一起換（軟體→软件）：字表大很多、換錯時（專有名詞、產品名）使用者很難察覺；回報的人要的是字體，Qwen3-ASR 原本輸出的簡體也不換用語 |
+| D154 | 繁體做完、存檔前才轉簡體（§47.2） | 提示詞改成要求簡體：中文提示詞要跟 3.0 一字不差，繁體使用者的結果會變；Breeze 本來就輸出繁體，還是要轉。存繁體、顯示時才轉：搜尋要用繁體字才找得到，使用者打簡體編輯又會混在一起 |
+| D155 | 簡體介面的翻譯從繁體自動產生（用語表＋繁轉簡＋少數手動指定），不手寫一份（§48.1；2026-11-12） | 手寫或找人翻一份：一千多條，之後每次改介面都要記得改，一定會漏；繁體跟簡體大部分只差字，用語差異可以列表。只換字不換用語（同 D153）：介面上「設定」「檔案」「匯出」在大陸讀起來不對，介面跟逐字稿不同，介面是使用者天天看的 |
+| D156 | 不查表的中文在簡體介面執行時轉，Windows 查不到的鍵也執行時轉（§48.2、§48.3） | 這些地方全部改成查表：寫死兩種語言的地方本來就是因為同一句中文要不同的英文（D12 的例外），改查表要多一套鍵；範本名稱、語言名稱、更新說明不是介面字串 |
+| D157 | 簡體介面時「中文的字」預設簡體，會議內容的字形跟著「中文的字」（§48.2；2026-11-12 使用者同意） | 預設維持繁體：用簡體介面的人幾乎都要簡體的逐字稿，還要自己去找設定。內容字形跟著介面：繁體介面的人選了簡體逐字稿，會用繁體字形顯示簡體字，標點位置不對 |
 | D158 | 雙聲道的錄音在播放、匯出 m4a 時才混音（MTAudioProcessingTap；Windows 是 MediaStreamSource），錄音檔不變（§49；2026-11-12，GitHub #7） | 錄成單聲道、壓縮時混成單聲道：分聲道轉錄、判斷誰是我（§17.3）就沒有資料了。另外產生一份混好的播放檔：多一倍空間，長會議點了播放要等。用 AVAudioEngine 自己寫播放器：倍速、跳播、時間都要重寫。混音的音量用相加乘 0.71 而不是平均：跟轉錄時 AVAssetReader 混成單聲道一樣，只有一邊有聲音（最常見）時不會小一半 |
 | D159 | 重新連接的間隔逐漸拉長，看門狗在重新連接完先等 5 秒（§50.1；2026-11-12，GitHub #8） | 藍牙的裝置不重新連接：AVAudioEngine 收到裝置變了之後會自己停下來，不重開就一直沒聲音。一直重新連接時自動改用內建麥克風：D104 不自動換麥克風，使用者可能就是要用耳機的麥克風。原因是推測的（沒有 AirPods 4、還沒拿到當機報告），這兩個改動對所有裝置都安全：正常換裝置時前兩次照舊 0.3 秒 |
 | D160 | Mac 的重新連接在背景佇列做，AVAudioEngine 的 Objective-C 例外用一個小的 `.m` 接住（§50.2、§50.3） | 留在主執行緒：藍牙開始收音要好幾秒，畫面卡住（回報的「卡死一會」）。整個錄音（含開始、停止）都搬到背景：Recorder 的狀態都在主執行緒，改動太大。不接例外：格式在中途改變時直接當掉，Swift 的 `do/catch` 接不到 NSException |
 
 沿用 v2 的決策：資料放 Application Support（v2 D3）、GRDB（v2 D5）、會議紀錄存 JSON 加版本（v2 D6）、DEBUG 控制通道（v2 §13）。
+| D161 | Mac 錄不到電腦聲音用「錄製系統音訊」的權限狀態判斷（私有的 `TCCAccessPreflight`，查不到就不提示；§51.1） | 看有沒有 app 在輸出：Mac 的程序物件只看得出 IO 開著，看不出有沒有聲音；拾音錄的是全部的電腦聲音，總有 app 開著輸出，對方都靜音時也是 0，會在權限正常時誤報。權限被拒絕時錄到的全是 0、系統不報錯，看權限是唯一確定的線索 |
+| D162 | 加過哪些提醒事項不存在資料庫，靠提醒事項的 `url` 帶會議 id 和事項文字的雜湊去重（§52.1）；Windows 不做 | 資料庫加一張表記加過的提醒：要 migration、標準答案，Windows 也要跟著改結構卻沒有這個功能；使用者在提醒事項裡刪掉的也還記著。Windows 接 Microsoft To Do：要使用者登入 Microsoft 帳號、拾音要跟微軟註冊 app（Graph API），先看有沒有人要 |
+| D163 | 分享時藏起視窗是全部視窗一起、預設關（§53） | 預設開：拾音自己的截圖驗證、官網截圖都拍不到，使用者自己截圖、錄教學影片也拍不到，要知道有這個設定才不會困惑。只藏主視窗：設定頁、錄音畫面、使用說明一樣看得到會議的內容 |
+| D164 | 錄的聲紋存成一份 `audio_source = 'enroll'` 的聲紋，它的 `person_id` 就是「我」（§56.1），不改資料庫結構、不記在設定 | `people` 加「是不是我」的欄位：要 migration、兩邊的標準答案，只為了一個值。記在設定（原本的設計）：改名合併到同名的人時 id 會變、資料庫複本和設定對不上。錄好幾段、分現場和線上：先看一段夠不夠用（§56.4）。放進首次使用引導：引導維持三步（R44.6），而且第一次打開時還沒有說話者辨識的模型 |
+| D165 | 錄音島用一個自己畫的 `NSPanel` 貼在瀏海兩側（`.statusBar` 層、所有桌面、全螢幕上），大小跟著內容（§57.1） | 只靠選單列和通知：全螢幕時選單列藏起來，分享畫面時通知可能被擋，開會時正好看不到。固定一個大的透明視窗、只畫中間：透明的地方也會擋住下面視窗的點擊（瀏覽器的分頁）。蘋果沒有給 Mac 動態島的 API |
+| D166 | 島打開時，錄音中的提醒只在島上、不送通知；偵測會議的提醒也改由島顯示（§57.2，R81.3、R81.4） | 島和通知都送：同一件事跳兩次；通知在分享畫面、全螢幕時可能看不到，島看得到。保留右上角的浮動視窗：跟島是同一件事，位置還不一樣 |
+| D167 | 說話者的 8 種顏色直接當成「釉色」，頭像是釉色底加名字的第一個字；會議裡照說話者編號、人物頁照名字算（§58） | 換一套新的顏色：使用者已經習慣每個說話者的顏色。人物頁也照編號：同一個人在不同會議的編號不同，沒辦法用。頭像用照片：要上傳、管理，資料夾裡也沒有照片 |
+| D168 | 「其他」的失敗只記固定幾種的次數（HTTP 狀態碼、CLI 結束代碼），後台存成一欄 JSON（§61.1） | 每一種一欄：之後多一種就要 migration。記訊息的前幾個字（D114 已經不採用）。只記 HTTP 狀態碼：CLI 的失敗（Claude Code）也很多 |
+| D169 | Nemotron-3 分人、聲紋借用標準流程裡重疊最多的那位，兩個都跑（§61.2） | 升級 FluidAudio 到有 `embedSpans` 的版本、另外算聲紋：整個說話者辨識的行為會跟著變，要重新評估；而且標準流程本來就要跑（品質檢查、超過 8 人時比較）。只用 Nemotron：沒有聲紋就不能自動帶入名字 |
+| D170 | （D180 取代）分割會議不能復原、不能合併回來；確認對話框寫清楚（§64） | 存一份完整的快照（錄音、每個表）讓它能復原：要另外管理一份錄音大小的副本，所有相關的表都要記。分割前把原本那場放進垃圾桶當備份：垃圾桶多一場看不懂的會議，錄音佔兩倍 |
+| D171 | 刪除一句跟說話者的修正共用「復原」（只復原最近一次，§63） | 另外做「最近刪除的句子」：要新的表和畫面。刪除前確認：一次刪一句，確認比復原麻煩 |
+| D173 | （D177 拿掉）定期會議用與會者、星期幾、時間找，不靠標題；先建議、使用者確認才建立 | 用標題找：同一個週會每次的標題不一樣（整理工具取的、帶日期），反而不同會議會有「週會」這種共同詞；用行事曆：要多一個權限，而且很多會議不在行事曆上（R99 不做）。直接自動建立：猜錯時使用者要自己拆掉，而且會把不相干的待辦接進下一場的會議紀錄 |
+| D174 | （D177 拿掉）「上次的待辦」放在使用者提示詞，system 提示詞不變 | 改 system 提示詞：每一場會議（不在系列裡的也是）都多一條用不到的規則，整理品質要重新評估；放在使用者提示詞只影響系列裡的會議。schema 還是一律多 followUps（OpenAI 的 strict 模式每個欄位都要列在 required，不能只有系列的會議才有） |
+| D175 | 側欄：點資料夾在原地展開最近 5 場（圖示換成打開的資料夾），其餘到下面的列表看；定期會議併進資料夾那一段；段落標題的箭頭滑過才出現 | 列前面加箭頭、點名稱換列表（第一版）：使用者看了說「前面的箭頭不用」，要用兩種圖示表示。點資料夾＝只看這個資料夾＋展開：展開的會議跟下面的列表重複。資料夾展開全部的會議（樹狀）：會議多的資料夾把整個側欄撐長。系統的 `Section(isExpanded:)`：箭頭在標題最右邊，跟「顯示方式」擠在一起，Windows 沒有一樣的 |
+| D176 | 資料夾存在資料庫的一張表（migration v13），跟會議的資料夾欄位、自動加入條件取聯集 | 存在 UserDefaults：資料夾是使用者的資料，換電腦、複製資料庫時要跟著走；Windows 的設定檔也要另外存一份。借用 `folder_rules`（沒有條件的規則）：側欄會把它當成有條件的資料夾（齒輪標記），自動歸類也要特別排除。照舊只從會議推：空的資料夾存不住，會議都移走時資料夾跟著不見 |
+| D177 | 拿掉定期會議，原本的定期會議變成同名資料夾 | 留著定期會議：使用者說不需要，資料夾（加上自動加入的條件）已經夠用，兩種很像的東西放在同一段反而要解釋差別；連「接上一場的待辦」一起拿掉，因為它只對定期會議有用。改成依資料夾接上一場：資料夾不一定是同一系列的會，會接錯 |
+| D178 | 編輯會議的所有改動（裁切、刪段、分成兩場、合併）都化成「依序接起來的片段」，一次套用：一個交易改資料、寫一次錄音（§81.1） | 每個動作馬上套用：錄音要重寫好幾次，還原要一步一步退。不動錄音、只記哪些段落跳過（非破壞式）：播放、匯出、重新轉錄、MCP、分享封包每個讀錄音或時間的地方都要懂跳過的清單，Windows 也要做一份 |
+| D179 | 還原只留第一次編輯前的樣子，最後一次編輯後 30 天刪掉；原本的錄音是搬過去不是複製（§81.3） | 每一步都能復原（多層歷史）：每次編輯都多一份錄音大小的檔。永久留著：錄音很佔空間，使用者說 30 天就好 |
+| D180 | 分成兩場也能還原（取代 D170）：逐字稿右鍵的分成兩場和編輯畫面走同一套快照 | 照 D170 不能還原：同樣是編輯會議，有的能還原、有的不能，使用者要記哪個是哪個；快照已經有了，多記分出去的會議 id 就夠 |
+| D181 | 跨切口的句子看中點決定留或刪；我的筆記一律留下，時間移到切口（§81.1） | 照時間把句子切成兩半：轉錄沒有每個字的時間，切不準。筆記在刪掉的段落裡就刪：筆記是使用者自己寫的，不該因為裁錄音不見 |
+| D182 | 合併時留下打開編輯畫面的那場，另一場複製過來後移到垃圾桶（§81.4） | 合併成新的第三場：原本兩場的連結、資料夾、提醒事項都斷掉。把另一場的資料搬過來：垃圾桶裡那場變成空殼，還原時要一筆一筆搬回去 |
+| D183 | 編輯畫面是 sheet（§81.5） | 獨立的視窗：編輯時同一場會議可能在別的地方被改（開始整理、改名、移到垃圾桶），要處理衝突；sheet 期間這場會議不會有其他操作 |
+| D184 | 設定改成側欄十一項（§82），取代 D110 的四個分頁 | 保留四頁、只整理版面：「錄音與轉錄」「進階」兩頁還是很長要一直捲，模型清單、環境檢查這種長的東西跟常用開關擠在一起。D110 怕「七個分頁看起來很難」是因為上方的分頁一字排開；側欄分組、每項有圖示，十一項也好找，每頁短，加上搜尋 |
+| D185 | 設定用一般的 `Window` 場景（§82） | SwiftUI 的 `Settings` 場景：視窗沒有可以拉大的樣式，`.windowResizability(.contentMinSize)`、內容給最大尺寸、自己補 `styleMask` 都會被改回去（macOS 26 實測），R108.5 的「可以拉大」做不到。代價：選單列的「設定⋯」、⌘, 要自己接，視窗會出現在「視窗」選單 |

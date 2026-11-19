@@ -8,7 +8,7 @@ macOS 的會議紀錄 app。錄下會議（現場或線上），錄音中就能�
 
 - 錄音、轉錄、說話者辨識都在本機完成，錄音不會上傳
 - 不需要安裝 Python、Homebrew 或 ffmpeg，下載 DMG 就能用
-- 介面有繁體中文和英文（跟著 macOS 的語言），會議可以是中文、英文、日文、廣東話或韓文（韓文是實驗性的）
+- 介面有繁體中文、簡體中文和英文（跟著 macOS 的語言），會議可以是中文、英文、日文、廣東話或韓文（韓文是實驗性的）
 - 需要 Apple Silicon 和 macOS 26
 
 ![會議紀錄](docs/images/summary.png)
@@ -251,7 +251,6 @@ app 會檢查新版的簽章是否跟目前的 app 相符。執行過 `make-sign
 | [`docs/design-windows.md`](docs/design-windows.md) | Windows 版跟 Mac 不同的地方、標準答案、驗證環境 |
 | [`docs/website.md`](docs/website.md) | 官網的需求和設計 |
 | [`docs/tasks.md`](docs/tasks.md) | 還沒完成的任務 |
-| [`CLAUDE.md`](CLAUDE.md) | 開發與驗證時要注意的事 |
 
 ### 專案結構
 

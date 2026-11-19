@@ -21,7 +21,14 @@ struct TranscriptTab: View {
     /// 正在改名的說話者和點的那一段：改名視窗掛在點的那一段（逐字稿是延遲建立的，第一段可能還不存在）
     @State private var renaming: (speaker: Int, segment: Int64)?
     @State private var renameText = ""
+    /// 拆成兩句（design §46.2）：正在拆的那一句、游標的位置（UTF-16）、後半句的說話者（nil 是新的說話者）
+    @State private var splittingId: Int64?
+    @State private var splitOffset: Int?
+    @State private var splitTarget: Int?
     @FocusState private var searchFocused: Bool
+    /// 原文／精簡（R96、design §70）
+    @AppStorage(AppSettings.transcriptViewKey) private var transcriptView = "original"
+    private var cleanMode: Bool { transcriptView == "clean" }
 
     init(detail: MeetingDetail, speakerFilter: Int? = nil) {
         self.detail = detail
@@ -29,8 +36,11 @@ struct TranscriptTab: View {
     }
 
     private var visibleSegments: [Segment] {
-        guard let speakerFilter else { return detail.segments }
-        return detail.segments.filter { $0.speaker == speakerFilter }
+        // 精簡：整句都是贅字的那句不顯示（R96.1）
+        let segments = cleanMode && !detail.cleanLines.isEmpty
+            ? detail.segments.filter { segment in segment.id.map { detail.cleanLines[$0] != "" } ?? true } : detail.segments
+        guard let speakerFilter else { return segments }
+        return segments.filter { $0.speaker == speakerFilter }
     }
 
     private var matches: [Int64] {
@@ -72,6 +82,9 @@ struct TranscriptTab: View {
                     .foregroundStyle(.secondary)
                     .padding(32)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                Spacer()
+            } else if cleanMode && detail.cleanLines.isEmpty {
+                cleanPlaceholder
                 Spacer()
             } else if snapshotMode {
                 VStack(alignment: .leading, spacing: 2) {
@@ -126,6 +139,15 @@ struct TranscriptTab: View {
                         model.debugEditSegment = nil
                     }
                     #endif
+                    .onChange(of: model.splitRequest, initial: true) { _, id in
+                        guard let id else { return }
+                        model.splitRequest = nil
+                        startSplit(id)
+                        Task { @MainActor in
+                            try? await Task.sleep(for: .milliseconds(150))
+                            proxy.scrollTo(id, anchor: .center)
+                        }
+                    }
                     .onChange(of: model.highlightSegment, initial: true) { _, id in
                         guard let id else { return }
                         // 要跳到的段落被說話者篩選藏起來時，先取消篩選
@@ -185,6 +207,16 @@ struct TranscriptTab: View {
                 .frame(width: 150)
                 .help("只看某一位說話者的內容")
             }
+            // 原文／精簡（R96）
+            Picker("逐字稿", selection: $transcriptView) {
+                Text("原文").tag("original")
+                Text("精簡").tag("clean")
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .fixedSize()
+            .disabled(detail.segments.isEmpty)
+            .help("精簡：用整理工具去掉贅字、重複和改口的版本；播放、搜尋、匯出照舊用原文")
             Spacer()
             if detail.segments.contains(where: \.lowConfidence) {
                 Label("琥珀色是辨識信心低的段落", systemImage: "circle.fill")
@@ -199,6 +231,32 @@ struct TranscriptTab: View {
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 10)
+    }
+
+    /// 還沒有精簡版（R96.2）：說明和「產生精簡版」；產生中顯示進度；上次失敗寫原因
+    @ViewBuilder private var cleanPlaceholder: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if let progress = model.cleaningProgress(detail.meeting.id!) {
+                HStack(spacing: 10) {
+                    ProgressView().controlSize(.small)
+                    Text(progress.map { String(localized: "正在產生精簡版 \(Int($0 * 100))%") } ?? String(localized: "正在產生精簡版…"))
+                }
+            } else {
+                Text("精簡版用整理工具去掉「嗯、呃、那個」這類贅字、重複的字詞和說到一半改口的部分，不改意思、不摘要。每一句的時間和說話者不變。")
+                    .foregroundStyle(.secondary)
+                if let failure = detail.cleanFailure {
+                    Text(failure.isEmpty ? String(localized: "上次產生精簡版失敗。") : String(localized: "上次產生精簡版失敗：\(failure)"))
+                        .foregroundStyle(Color.signal)
+                }
+                Button(detail.cleanFailure == nil ? "產生精簡版" : "再試一次", systemImage: "text.badge.minus") { model.generateCleanTranscript() }
+                    .disabled(model.detailStatus?.isActive == true)
+                    .help("會用整理工具的額度；長的會議要幾分鐘")
+            }
+        }
+        .contentFont()
+        .padding(32)
+        .frame(maxWidth: 760 * scale, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     /// 重新轉錄會用的模型（design §41.3）
@@ -362,14 +420,21 @@ struct TranscriptTab: View {
             TimeButton(time: TimeFormat.string(segment.start), seek: segment.start)
                 .frame(width: 58 * scale, alignment: .trailing)
             if let idx = segment.speaker {
-                Button(detail.speakerName(idx) ?? "") {
+                Button {
                     renameText = detail.speakerName(idx) ?? ""
                     if let id = segment.id { renaming = (idx, id) }
+                } label: {
+                    // 頭像加名字（design §58.2、R83.2）
+                    HStack(spacing: 6) {
+                        PersonAvatar(name: detail.speakerName(idx) ?? "", color: Color.speaker(idx), isMe: idx == detail.selfIdx)
+                            .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 4 * scale }
+                        Text(detail.speakerName(idx) ?? "")
+                    }
                 }
                 .buttonStyle(.plain)
                 .contentFont(.callout, weight: .medium)
                 .foregroundStyle(Color.speaker(idx))
-                .frame(width: 72 * scale, alignment: .leading)
+                .frame(width: 96 * scale, alignment: .leading)
                 .lineLimit(1)
                 .help("點一下幫這位說話者改名")
                 .popover(isPresented: Binding(get: { renaming?.segment == segment.id && segment.id != nil },
@@ -389,24 +454,28 @@ struct TranscriptTab: View {
                     }
                 }
             }
-            if editingId == segment.id {
+            if splittingId == segment.id {
+                splitEditor(segment)
+            } else if editingId == segment.id {
                 VStack(alignment: .trailing, spacing: 6) {
                     TextField("段落內容", text: $editText, axis: .vertical).meetingText()
-                        .textFieldStyle(.roundedBorder)
+                        .textFieldStyle(.sheet)
                         .onSubmit { saveEdit(segment) }
-                    HStack {
+                    HStack(spacing: 8) {
                         Button("取消") { cancelEdit() }
+                            .buttonStyle(SheetPillButtonStyle(.secondary, compact: true))
                             .keyboardShortcut(.cancelAction)
                         Button("儲存") { saveEdit(segment) }
-                            .buttonStyle(.borderedProminent)
+                            .buttonStyle(SheetPillButtonStyle(.primary, compact: true))
                     }
-                    .controlSize(.small)
                 }
             } else {
                 // 每一段的校正建議（design §17.4）：待確認的標在文字上並列出，已接受的可以還原，已拒絕的不顯示
-                let corrections = segment.id.flatMap { detail.correctionsBySegment[$0] } ?? []
+                // 精簡（R96）：顯示精簡版的文字，不標校正建議（校正對的是原文）；改過的句子沒有精簡版，照原文
+                let clean = cleanMode ? segment.id.flatMap { detail.cleanLines[$0] } : nil
+                let corrections = clean == nil ? (segment.id.flatMap { detail.correctionsBySegment[$0] } ?? []) : []
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(highlighted(segment.text, corrections: corrections)).meetingText()
+                    Text(clean.map { AttributedString($0) } ?? highlighted(segment.text, corrections: corrections)).meetingText()
                         .textSelection(.enabled)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -434,21 +503,96 @@ struct TranscriptTab: View {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(segment.text, forType: .string)
             }
-            // 改這句的說話者（design §24.3、R23.2）
-            if let id = segment.id, segment.kind == "final", !detail.speakers.isEmpty {
+            if let id = segment.id, segment.kind == "final" {
                 Divider()
-                Menu("這句是誰說的") { speakerChoices(for: [id], current: segment.speaker) }
-                let run = detail.speakerRun(around: id)
-                if run.count > 1 {
-                    Menu("這段連續的話是誰說的（\(run.count) 句）") { speakerChoices(for: run, current: segment.speaker) }
+                // 改這句的說話者（design §24.3、R23.2）
+                if !detail.speakers.isEmpty {
+                    Button("拆成兩句…") { startSplit(id) }   // R70
+                    Menu("這句是誰說的") { speakerChoices(for: [id], current: segment.speaker) }
+                    let run = detail.speakerRun(around: id)
+                    if run.count > 1 {
+                        Menu("這段連續的話是誰說的（\(run.count) 句）") { speakerChoices(for: run, current: segment.speaker) }
+                    }
                 }
-                // 復原最近一次說話者的調整（R44.4，原本在「更多」）：有東西可復原才出現
+                // 分割會議（R90、design §64）：第一句之前沒有東西，不能從第一句分
+                if detail.segments.first(where: { $0.kind == "final" })?.id != id {
+                    Button("從這裡分成兩場…") { model.splitMeetingRequest = id }
+                }
+                DestructiveMenuButton(String(localized: "刪除這句")) { model.deleteSegment(id) }   // R89
+                // 復原最近一次說話者的調整、刪除（R44.4、R89）：有東西可復原才出現
                 if let label = detail.speakerUndoLabel {
                     Button("復原：\(label)") { model.undoSpeakerEdit() }
                 }
             }
         }
         .help(segment.lowConfidence ? "辨識信心低，建議對照錄音確認" : "")
+    }
+
+    // MARK: 拆成兩句（R70、design §46.2）
+
+    private func startSplit(_ id: Int64) {
+        guard let index = detail.segments.firstIndex(where: { $0.id == id }) else { return }
+        if model.detailStatus?.isActive == true {
+            model.noticeMessage = String(localized: "正在處理這場會議，完成後才能改說話者")
+            return
+        }
+        if editingId != nil { cancelEdit() }
+        // 預設：下一句的說話者；下一句是同一位時用上一句的；都是同一位時新的說話者
+        let current = detail.segments[index].speaker
+        let next = detail.segments.dropFirst(index + 1).first?.speaker
+        let previous = index > 0 ? detail.segments[index - 1].speaker : nil
+        splitTarget = [next, previous].compactMap { $0 }.first { $0 != current }
+        splitOffset = nil
+        splittingId = id
+    }
+
+    /// 前半句、後半句（去掉頭尾的空白）；任一邊沒有字是 nil（R70.2，同 `AppDatabase.splitSegment`）
+    private func splitParts(_ text: String) -> (head: String, tail: String)? {
+        guard let offset = splitOffset else { return nil }
+        let ns = text as NSString
+        guard offset > 0, offset < ns.length else { return nil }
+        let blanks = CharacterSet(charactersIn: " \t\n\r\u{3000}")
+        let head = ns.substring(to: offset).trimmingCharacters(in: blanks)
+        let tail = ns.substring(from: offset).trimmingCharacters(in: blanks)
+        return head.isEmpty || tail.isEmpty ? nil : (head, tail)
+    }
+
+    @ViewBuilder
+    private func splitEditor(_ segment: Segment) -> some View {
+        let parts = splitParts(segment.text)
+        VStack(alignment: .leading, spacing: 6) {
+            Text("在文字裡點一下要拆開的地方").font(.caption).foregroundStyle(.secondary)
+            SplitTextView(text: segment.text, scale: scale, offset: $splitOffset)
+                .frame(minHeight: 40)
+                .sheetFieldBox(focused: true)
+            if let parts {
+                Text("前半句：…\(String(parts.head.suffix(8)))｜後半句：\(String(parts.tail.prefix(8)))…")
+                    .font(.caption).foregroundStyle(.secondary).meetingText()
+            }
+            HStack {
+                Picker("後半句是", selection: $splitTarget) {
+                    ForEach(detail.speakers.keys.sorted(), id: \.self) { idx in
+                        let name = detail.speakerName(idx) ?? ""
+                        Text(idx == segment.speaker ? String(localized: "\(name)（同一位）") : name).tag(Optional(idx))
+                    }
+                    Divider()
+                    Text("新的說話者").tag(Int?.none)
+                }
+                .fixedSize()
+                .controlSize(.small)
+                Spacer()
+                Button("取消") { splittingId = nil }
+                    .buttonStyle(SheetPillButtonStyle(.secondary, compact: true))
+                    .keyboardShortcut(.cancelAction)
+                Button("拆開") {
+                    guard let id = segment.id, let offset = splitOffset else { return }
+                    splittingId = nil
+                    model.splitSegment(id, at: offset, to: splitTarget)
+                }
+                .buttonStyle(SheetPillButtonStyle(.primary, compact: true))
+                .disabled(parts == nil)
+            }
+        }
     }
 
     /// 除了 idx 以外的說話者（合併、改說話者的選單）
@@ -557,12 +701,11 @@ struct RenameSpeakerForm: View {
     let onSave: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("說話者名字").font(.headline)
-            TextField("例如：小明", text: $name)
-                .textFieldStyle(.roundedBorder)
-                .onSubmit(onSave)
-            if automatic || tagged {
+        // 同彈窗的元件（R106、design §80），小視窗裡小一號
+        VStack(alignment: .leading, spacing: 12) {
+            Text("說話者名字").font(.title3).fontWeight(.bold)
+            SheetTextField(placeholder: String(localized: "例如：小明"), text: $name, focusOnAppear: true, onSubmit: onSave)
+            if automatic || tagged {   // MA-FORK(F2)：標記帶入的名字（F2.9）
                 Text(tagged ? "這個名字是從錄音時的標記帶入的。不對的話直接改名，或按「不是他」。"
                             : "這個名字是拾音認出聲音後自動帶入的。不對的話直接改名，或按「不是他」。")
                     .font(.caption)
@@ -573,19 +716,28 @@ struct RenameSpeakerForm: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            HStack {
-                if automatic || tagged, let onReject { Button("不是他", action: onReject) }
+            HStack(spacing: 8) {
+                if automatic || tagged, let onReject {   // MA-FORK(F2)
+                    Button("不是他", action: onReject).buttonStyle(SheetPillButtonStyle(.secondary))
+                }
                 if !mergeTargets.isEmpty, let onMerge {
-                    Menu("合併到…") {
+                    Menu {
                         ForEach(mergeTargets, id: \.idx) { target in
                             Button(target.name) { onMerge(target.idx) }
                         }
+                    } label: {
+                        Text("合併到…")
                     }
+                    .menuStyle(.button)
+                    .buttonStyle(SheetPillButtonStyle(.secondary))
+                    .menuIndicator(.hidden)
                     .fixedSize()
                     .help("同一個人被分成兩位時，把這位說的話全部算到另一位")
                 }
                 Spacer()
-                Button("儲存", action: onSave).keyboardShortcut(.defaultAction)
+                Button("儲存", action: onSave)
+                    .buttonStyle(SheetPillButtonStyle(.primary))
+                    .keyboardShortcut(.defaultAction)
             }
             if let undoLabel, let onUndo {
                 Button("復原：\(undoLabel)", systemImage: "arrow.uturn.backward", action: onUndo)
@@ -594,8 +746,8 @@ struct RenameSpeakerForm: View {
                     .help("復原最近一次合併或改句子的說話者")
             }
         }
-        .padding(14)
-        .frame(width: 280)
+        .padding(18)
+        .frame(width: 320)
     }
 }
 
@@ -619,37 +771,41 @@ struct ReplaceSheet: View {
     @State private var result: ReplaceResult?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("用詞修正").font(.title3.weight(.semibold))
-            Text("把逐字稿裡的錯字換成正確寫法，會議紀錄裡同樣的字也會一起改。區分大小寫。")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            Form {
-                TextField("錯誤寫法", text: $find)
-                TextField("正確寫法", text: $replacement)
-                Toggle("把正確寫法加進詞彙表，之後轉錄比較容易一次轉對", isOn: $addToGlossary)
+        // 同其他彈窗的樣子（R106、design §80）
+        VStack(alignment: .leading, spacing: 16) {
+            SheetHeader(title: String(localized: "用詞修正"),
+                        subtitle: String(localized: "把逐字稿裡的錯字換成正確寫法，會議紀錄裡同樣的字也會一起改。區分大小寫。"))
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    SheetFieldLabel(String(localized: "錯誤寫法"))
+                    SheetTextField(placeholder: String(localized: "錯誤寫法"), text: $find, focusOnAppear: true)
+                }
+                VStack(alignment: .leading, spacing: 6) {
+                    SheetFieldLabel(String(localized: "正確寫法"))
+                    SheetTextField(placeholder: String(localized: "正確寫法"), text: $replacement)
+                }
             }
-            .formStyle(.columns)
+            Toggle("把正確寫法加進詞彙表，之後轉錄比較容易一次轉對", isOn: $addToGlossary)
+                .toggleStyle(.checkbox)
             if let result {
                 Text(resultText(result))
                     .font(.callout)
                     .foregroundStyle(Color.celadon)
             }
-            HStack {
+            HStack(spacing: 10) {
                 Spacer()
-                Button(result == nil ? "取消" : "完成", role: .cancel) { dismiss() }
+                Button(result == nil ? "取消" : "完成") { dismiss() }
+                    .buttonStyle(SheetPillButtonStyle(.secondary))
                     .keyboardShortcut(.cancelAction)
                 Button("全部取代") {
                     result = model.replace(find: find, with: replacement, addToGlossary: addToGlossary)
                 }
+                .buttonStyle(SheetPillButtonStyle(.primary))
                 .keyboardShortcut(.defaultAction)
-                .buttonStyle(.borderedProminent)
                 .disabled(find.isEmpty || find == replacement)
             }
         }
-        .padding(20)
-        .frame(width: 440)
+        .sheetChrome(width: 480)
         .onAppear { find = initialFind }
     }
 
@@ -677,3 +833,54 @@ private struct PlaybackFollower: View {
             }
     }
 }
+
+/// 拆成兩句時放游標的文字（design §46.2）：看得到游標、選得到位置，但不能改字。位置用 UTF-16（NSString 的單位）
+private struct SplitTextView: NSViewRepresentable {
+    let text: String
+    let scale: CGFloat
+    @Binding var offset: Int?
+
+    func makeNSView(context: Context) -> NSTextView {
+        let view = NSTextView()
+        view.delegate = context.coordinator
+        view.isRichText = false
+        view.drawsBackground = false
+        view.textContainerInset = NSSize(width: 2, height: 2)
+        view.setAccessibilityLabel(String(localized: "要拆開的句子"))
+        view.string = text
+        view.font = .systemFont(ofSize: NSFont.systemFontSize * scale)
+        view.textContainer?.widthTracksTextView = true
+        DispatchQueue.main.async { view.window?.makeFirstResponder(view) }
+        return view
+    }
+
+    func updateNSView(_ view: NSTextView, context: Context) {
+        context.coordinator.parent = self
+        if view.string != text { view.string = text }
+        view.font = .systemFont(ofSize: NSFont.systemFontSize * scale)
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView view: NSTextView, context: Context) -> CGSize? {
+        guard let width = proposal.width, let container = view.textContainer, let layout = view.layoutManager else { return nil }
+        container.containerSize = NSSize(width: max(width - 4, 10), height: .greatestFiniteMagnitude)
+        layout.ensureLayout(for: container)
+        return CGSize(width: width, height: ceil(layout.usedRect(for: container).height) + 4)
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
+
+    final class Coordinator: NSObject, NSTextViewDelegate {
+        var parent: SplitTextView
+        init(parent: SplitTextView) { self.parent = parent }
+
+        /// 不能改字（打字、貼上、刪除都擋掉），游標照樣看得到
+        func textView(_ textView: NSTextView, shouldChangeTextIn range: NSRange, replacementString: String?) -> Bool { false }
+
+        func textViewDidChangeSelection(_ notification: Notification) {
+            guard let view = notification.object as? NSTextView else { return }
+            let location = view.selectedRange().location
+            parent.offset = location == NSNotFound ? nil : location
+        }
+    }
+}
+

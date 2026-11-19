@@ -170,7 +170,7 @@ def apply_info_plist(path):
         return obj
 
     info = fix(info)
-    info["MABrand"] = {"names": CONFIG["names"], "aboutName": CONFIG["aboutName"]}
+    info["MABrand"] = {"names": CONFIG["names"], "aboutName": CONFIG["aboutName"], "shortName": CONFIG["shortName"]}
     path.write_bytes(plistlib.dumps(info, fmt=fmt, sort_keys=True))
 
 

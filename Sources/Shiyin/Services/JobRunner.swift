@@ -11,6 +11,7 @@ enum AppSettings {
     static let autoSummarizeKey = "autoSummarize"
     static let compressAudioKey = "compressAudio"
     static let diarizeKey = "diarize"
+    static let diarizationModelKey = "diarizationModel"
     static let splitChannelsKey = "splitChannels"
     static let correctTranscriptKey = "correctTranscript"
     static let liveTranscriptionKey = "liveTranscription"
@@ -29,6 +30,17 @@ enum AppSettings {
     static let textSizeKey = "contentTextSize"   // 會議內容的文字大小，−1～5，0 是 100%（design §38.5）
     static let notesViewKey = "notesView"   // 紀錄分頁：list（條列）／mindMap（心智圖，design §42.4）
     static let mcpEnabledKey = "mcpEnabled"   // 讓 AI 工具讀取會議（本地 MCP，design §44.1），預設關
+    static let chineseScriptKey = "chineseScript"   // 中文的字：traditional／simplified（沒有值 = traditional，design §47.2）
+    static let hideFromScreenSharingKey = "hideFromScreenSharing"   // 分享畫面時藏起拾音的視窗，預設關（design §53）
+    static let remindersListKey = "remindersListId"   // 提醒事項裡「拾音」列表的 id（design §52.1）
+    static let recordingIslandKey = "recordingIsland"   // 在螢幕上方顯示錄音島，預設開（design §57.2）
+    static let autoStopOnMeetingEndKey = "autoStopOnMeetingEnd"   // 會議結束時倒數後自動停止錄音，預設開（design §69）
+    static let transcriptViewKey = "transcriptView"   // 逐字稿：original（原文）／clean（精簡，design §70）
+    static let meetingSortKey = "meetingSort"   // 會議列表的排序（design §71）
+    static let meetingGroupingKey = "meetingGrouping"   // 會議列表的分組（design §71）
+    static let sidebarCollapsedKey = "sidebarCollapsed"   // 側欄收起來的段落（design §75）
+    static let sidebarExpandedKey = "sidebarExpanded"   // 側欄在原地展開的資料夾（design §75）
+    static let sidebarOrderKey = "sidebarOrder"   // 側欄資料夾拖曳排好的順序（design §77）
 
     private static var d: UserDefaults { .standard }
 
@@ -79,6 +91,8 @@ enum AppSettings {
     static var mcpEnabled: Bool { flag(mcpEnabledKey, default: false) }
     static var compressAudio: Bool { flag(compressAudioKey, default: true) }
     static var diarize: Bool { flag(diarizeKey, default: true) }
+    /// 說話者辨識的模型（design §61.2、R87）：standard（預設）、nemotron；不認得的值當 standard
+    static var diarizationModel: Diarizer.Model { Diarizer.Model(rawValue: d.string(forKey: diarizationModelKey) ?? "") ?? .standard }
     /// 線上會議的麥克風、電腦聲音分開轉錄（design §17.3）；還在評估，設定裡沒有開關，測試時用 defaults 打開
     static var splitChannels: Bool { flag(splitChannelsKey, default: false) }
     /// 轉錄完先找出可能聽錯的字（design §17.4）；評估後預設開啟（§17.6）
@@ -92,6 +106,19 @@ enum AppSettings {
     static var globalHotKey: Bool { flag(globalHotKeyKey, default: true) }
     /// 記住說話者的聲音，之後的會議自動帶入名字（design §21.4、R19.3）
     static var voiceprints: Bool { flag(voiceprintsKey, default: true) }
+    /// 在螢幕上方顯示錄音島（design §57、R81.8）
+    static var recordingIsland: Bool { flag(recordingIslandKey, default: true) }
+    static var autoStopOnMeetingEnd: Bool { flag(autoStopOnMeetingEndKey, default: true) }
+    /// 會議結束後倒數幾秒自動停止（R95）；DEBUG 可以用 -meetingEndCountdownSeconds 改短
+    static var meetingEndCountdown: Int {
+        #if DEBUG
+        let seconds = UserDefaults.standard.integer(forKey: "meetingEndCountdownSeconds")
+        if seconds > 0 { return seconds }
+        #endif
+        return 60
+    }
+    /// 分享畫面時藏起拾音的視窗（design §53、R77）
+    static var hideFromScreenSharing: Bool { flag(hideFromScreenSharingKey, default: false) }
     /// 錄音中按 ⌃⌥⌘B 標記重點（design §21.10、R19.5）
     static var bookmarkHotKey: Bool { flag(bookmarkHotKeyKey, default: true) }
     /// 錄音中按 ⌃⌥⌘M 靜音或打開麥克風（design §F3.3）
@@ -109,6 +136,17 @@ enum AppSettings {
     @MainActor static var usesEnterpriseTranscription: Bool {
         transcriptionEngine == "server" && EnterpriseServer.shared.hasAccount
     }
+    /// 中文會議用簡體（R71、design §47.2）：設定是簡體、會議語言是中文時。轉錄、整理、匯出各自在做的時候看
+    static func simplifiedChinese(for language: MeetingLanguage) -> Bool {
+        language == .zh && chineseScript == "simplified"
+    }
+    /// 「中文的字」：沒有選過時簡體介面是 simplified、其他 traditional（R72.5、D157）
+    static var chineseScript: String { d.string(forKey: chineseScriptKey) ?? defaultChineseScript }
+    static var defaultChineseScript: String { MeetingLanguage.simplifiedInterface ? "simplified" : "traditional" }  // l10n-skip
+    /// 中文會議用簡體時轉成簡體，其他原樣
+    static func script(_ text: String, for language: MeetingLanguage) -> String {
+        simplifiedChinese(for: language) ? ChineseScript.toSimplified(text) : text
+    }
     /// 新會議的會議語言（design §16.3）；沒設定時跟著介面語言
     static var defaultMeetingLanguage: MeetingLanguage {
         MeetingLanguage(rawValue: d.string(forKey: defaultMeetingLanguageKey) ?? "") ?? .systemDefault
@@ -119,9 +157,27 @@ struct RevisePayload: Codable {
     var answers: [ReviewAnswer]
 }
 
-/// 整理工作的 payload：draft 是用即時逐字稿整理草稿（design §21.3）
+/// 整理工作的 payload：draft 是用即時逐字稿整理草稿（design §21.3）；people 是只補上每個人的重點，其他段落不動（design §66）
 struct SummarizePayload: Codable {
     var draft = false
+    var people = false
+
+    init(draft: Bool = false, people: Bool = false) { (self.draft, self.people) = (draft, people) }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        draft = (try? c.decode(Bool.self, forKey: .draft)) ?? false
+        people = (try? c.decode(Bool.self, forKey: .people)) ?? false
+    }
+
+    /// people 是 false 時不寫：草稿的 payload 跟以前一字不差
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(draft, forKey: .draft)
+        if people { try c.encode(true, forKey: .people) }
+    }
+
+    private enum CodingKeys: String, CodingKey { case draft, people }
 }
 
 /// 轉錄工作的 payload（design §35.3）：until 是只轉錄到第幾秒（沒人說話太久而自動停止的錄音）；
@@ -158,6 +214,8 @@ final class JobRunner {
     @ObservationIgnored private var sleepers: [JobLane: Task<Void, Never>] = [:]
     @ObservationIgnored var onChange: (() -> Void)?
     @ObservationIgnored var onFinished: ((Job, Error?) -> Void)?
+    /// 自動放進資料夾了（design §72）：會議 id、資料夾
+    @ObservationIgnored var onOrganized: ((Int64, String?) -> Void)?
     @ObservationIgnored var onAudioReplaced: ((Int64) -> Void)?
     /// 正式版取代了使用者改過的草稿（design §21.3）
     @ObservationIgnored var onEditedDraftReplaced: ((Int64) -> Void)?
@@ -254,12 +312,13 @@ final class JobRunner {
             case .transcribe: try await transcribe(job, lane: lane)
             case .summarize:
                 let payload = (try? JSONDecoder().decode(SummarizePayload.self, from: Data((job.payload ?? "{}").utf8))) ?? SummarizePayload()
-                notify = try await summarize(job, lane: lane, answers: nil, draft: payload.draft)
+                notify = try await summarize(job, lane: lane, answers: nil, draft: payload.draft, peopleOnly: payload.people)
             case .revise:
                 let payload = try JSONDecoder().decode(RevisePayload.self, from: Data((job.payload ?? "{}").utf8))
                 notify = try await summarize(job, lane: lane, answers: payload.answers)
             case .compress: try await compress(job)
             case .correct: await correct(job, lane: lane)
+            case .clean: try await clean(job, lane: lane)
             case .nameSpeakers: await nameSpeakers(job, lane: lane)
             case .rediarize: try await rediarize(job, lane: lane)
             }
@@ -367,9 +426,11 @@ final class JobRunner {
         do {
             guard let value = try await pipeline.run(trimmed ?? meeting.audioURL) else { return }
             result = value
-        } catch is ServerTranscriber.SwitchToLocal {
-            // 改在這台 Mac 轉（R50.5）：用本機的引擎，模型還沒下載好就先下載、先用 macOS 內建（同 D35）
+        } catch let switched as ServerTranscriber.SwitchToLocal {
+            // 改在這台 Mac 轉（R50.5）：用本機的引擎，模型還沒下載好就先下載、先用 macOS 內建（同 D35）；
+            // 連不上太久自動改的（R93）發通知
             running[lane]?.server = nil
+            if switched.automatic { AppModel.shared.notifier.serverFallback(meeting: meeting) }
             pipeline = try makePipeline(local: true)
             if !AppSettings.useSystemTranscriber { AppModel.shared.models.autoStartTranscription(for: meeting.meetingLanguage) }
             guard let value = try await pipeline.run(trimmed ?? meeting.audioURL) else { return }
@@ -380,8 +441,10 @@ final class JobRunner {
         let (transcribed, speakers, duration) = (result.segments, result.speakers, result.duration)
         // 只轉錄前段時，會議長度維持整個錄音（播放、資訊列用）
         let savedDuration = trimmed != nil ? max(Double(meeting.durationSeconds ?? 0), duration) : duration
+        // 中文會議用簡體時，存檔前才轉（design §47.2、D154）
+        let simplified = AppSettings.simplifiedChinese(for: meeting.meetingLanguage)
         let segments = transcribed.enumerated().map { i, s in
-            Segment(meetingId: job.meetingId, seq: i, start: s.start, end: s.end, text: s.text,
+            Segment(meetingId: job.meetingId, seq: i, start: s.start, end: s.end, text: simplified ? ChineseScript.toSimplified(s.text) : s.text,
                     lowConfidence: s.lowConfidence, speaker: speakers[i], kind: "final", channel: result.channels[i])
         }
         try db.saveTranscript(job.meetingId, segments: segments, duration: Int(savedDuration.rounded()),
@@ -400,6 +463,8 @@ final class JobRunner {
             let matched = try db.matchVoiceprints(job.meetingId)
             if matched > 0 { log.info("voiceprints matched \(matched) speakers") }
         }
+        // 說話者對到人物之後：照資料夾的條件放（design §72）
+        if let filed = try db.autoFile(job.meetingId) { onOrganized?(job.meetingId, filed) }
         if AppSettings.compressAudio && meeting.audioURL.pathExtension.lowercased() == "wav" {
             try db.enqueue(job.meetingId, kind: .compress)
         }
@@ -565,10 +630,19 @@ final class JobRunner {
                 knownPeople: try db.peopleNames(), glossary: try glossaryTerms(), unnamed: unnamed,
                 speakerName: { names[$0] ?? language.defaultSpeaker($0) },
                 segments: segments.map { ($0.start, $0.speaker, $0.text) })
-            let suggestions = try await callLLM(lane) { onStart in
+            var suggestions = try await callLLM(lane) { onStart in
                 try await SpeakerNaming.suggest(context, provider: provider, model: AppSettings.model, onStart: onStart)
             }
             guard isStillRunning(job) else { return }
+            // 中文會議用簡體時，原因、名字轉成簡體（design §47.2）
+            if AppSettings.simplifiedChinese(for: language) {
+                suggestions = suggestions.map { s in
+                    var s = s
+                    s.name = ChineseScript.toSimplified(s.name)
+                    s.reason = ChineseScript.toSimplified(s.reason)
+                    return s
+                }
+            }
             try db.saveSpeakerSuggestions(job.meetingId, suggestions)
             log.info("speaker names suggested: \(suggestions.count)")
         } catch {
@@ -603,14 +677,45 @@ final class JobRunner {
                     onProgress: { [weak self] value in self?.running[lane]?.progress = value })
             }
             guard isStillRunning(job) else { return }
+            // 中文會議用簡體時，建議和原因轉成簡體（原文照逐字稿，已經對過，design §47.2）
+            let script = { (text: String) in AppSettings.script(text, for: language) }
             try db.saveCorrections(job.meetingId, suggestions.compactMap { s in
                 segments[s.segment].id.map {
-                    Correction(meetingId: job.meetingId, segmentId: $0, original: s.original, suggestion: s.suggestion, reason: s.reason)
+                    Correction(meetingId: job.meetingId, segmentId: $0, original: s.original, suggestion: script(s.suggestion), reason: script(s.reason))
                 }
             })
         } catch {
             log.error("transcript correction failed: \(error.logSummary, privacy: .public)")
         }
+    }
+
+    // MARK: 精簡逐字稿（R96、design §70）
+
+    /// 每一句都存：整理工具改過的用改過的，沒改的存原文（有沒有產生過看有沒有這份）；中文會議用簡體時轉成簡體
+    private func clean(_ job: Job, lane: JobLane) async throws {
+        guard let meeting = try db.meeting(job.meetingId) else { return }
+        let provider = AppSettings.provider
+        guard provider != .none else { throw LLMError.notConfigured(String(localized: "還沒設定整理工具，請到設定選擇 Claude、Codex 或 API")) }
+        let segments = try db.segments(job.meetingId)
+        guard !segments.isEmpty else { return }
+        running[lane]?.provider = provider
+        running[lane]?.stage = String(localized: "產生精簡版")
+        let language = meeting.meetingLanguage
+        let names = Dictionary(uniqueKeysWithValues: try db.speakers(job.meetingId).map { ($0.idx, $0.name) })
+        let context = TranscriptCleanup.Context(language: language, segments: segments.map { segment in
+            (segment.text, segment.speaker.map { names[$0] ?? language.defaultSpeaker($0) })
+        })
+        let changed = try await callLLM(lane) { onStart in
+            try await TranscriptCleanup.clean(context, provider: provider, model: AppSettings.model, onStart: onStart,
+                                              onProgress: { [weak self] value in self?.running[lane]?.progress = value })
+        }
+        guard isStillRunning(job) else { return }
+        var lines: [Int64: String] = [:]
+        for (index, segment) in segments.enumerated() {
+            guard let id = segment.id else { continue }
+            lines[id] = changed[index].map { AppSettings.script($0, for: language) } ?? segment.text
+        }
+        try db.saveCleanLines(job.meetingId, lines)
     }
 
     // MARK: 壓縮（design §6.4）
@@ -631,7 +736,7 @@ final class JobRunner {
     // MARK: 整理（design §8）
 
     /// 回傳要不要發通知：草稿沒做（正式逐字稿已經好了）、正式版取代了草稿時不發
-    private func summarize(_ job: Job, lane: JobLane, answers: [ReviewAnswer]?, draft: Bool = false) async throws -> Bool {
+    private func summarize(_ job: Job, lane: JobLane, answers: [ReviewAnswer]?, draft: Bool = false, peopleOnly: Bool = false) async throws -> Bool {
         guard let meeting = try db.meeting(job.meetingId) else { return false }
         // 草稿（design §21.3）：正式逐字稿已經好了就不做（短的會議轉錄比較快）
         if try draft && !db.segments(job.meetingId).isEmpty { return false }
@@ -647,11 +752,17 @@ final class JobRunner {
         guard !segments.isEmpty || !meeting.userNotes.isEmpty else { throw LLMError.failed(String(localized: "還沒有逐字稿，請先完成轉錄")) }
         let templates = try db.templates()
         let template = templates.first { $0.id == meeting.templateId } ?? templates.first { $0.id == "general" }
+        var definition = template?.definition(for: meeting.meetingLanguage) ?? TemplateDefinition.decode("{}")
+        // 只補上每個人的重點（design §66）：範本只要 people，整理完只換掉 people，其他段落不動
+        if peopleOnly {
+            guard meeting.decodedNotes != nil else { return false }
+            definition = TemplateDefinition(description: definition.description, sections: ["people"], custom: [], instruction: definition.instruction)
+        }
         let context = NotesContext(
             meeting: meeting, segments: segments,
             speakers: Dictionary(uniqueKeysWithValues: try db.speakers(job.meetingId).map { ($0.idx, $0.name) }),
             bookmarks: try db.bookmarks(job.meetingId), glossary: try glossaryTerms(),
-            template: template?.definition(for: meeting.meetingLanguage) ?? TemplateDefinition.decode("{}"),
+            template: definition,
             documents: try db.documents(job.meetingId).map(DocumentText.init))
         let prompt: String
         if let answers {
@@ -661,10 +772,19 @@ final class JobRunner {
             prompt = NotesPrompt.summarize(context)
         }
         let system = NotesPrompt.system(meeting.meetingLanguage, documents: !context.documents.isEmpty)
-        let notes = try await callLLM(lane) { onStart in
+        var notes = try await callLLM(lane) { onStart in
             try await LLMClient.generate(provider: provider, model: AppSettings.model, system: system, prompt: prompt, onStart: onStart)
         }
         guard isStillRunning(job) else { return false }
+        // 中文會議用簡體時，整理完才轉（提示詞照舊，design §47.2、D154）
+        if AppSettings.simplifiedChinese(for: meeting.meetingLanguage) { notes = notes.simplified() }
+        if peopleOnly {
+            // 整理的期間紀錄可能被改過：用現在的紀錄，只換掉 people
+            guard var current = try db.meeting(job.meetingId)?.decodedNotes else { return false }
+            current.people = notes.people
+            try db.saveNotes(job.meetingId, notes: current, by: nil, reason: String(localized: "補上每個人的重點"), source: .edit)
+            return false
+        }
         if draft {
             // 整理草稿的期間正式逐字稿好了、或已經有會議紀錄：丟掉草稿
             guard try db.segments(job.meetingId).isEmpty, try db.meeting(job.meetingId)?.notes == nil else { return false }
@@ -676,6 +796,8 @@ final class JobRunner {
                                               reason: answers == nil ? String(localized: "重新整理") : String(localized: "校稿"),
                                               source: answers == nil ? .generated : .revised)
         if replacedEdited { onEditedDraftReplaced?(job.meetingId) }
+        // 整理完有標題了，照資料夾的條件放（design §72）
+        if let folder = try db.autoFile(job.meetingId) { onOrganized?(job.meetingId, folder) }
         return answers != nil || hadDraft == 0
     }
 }

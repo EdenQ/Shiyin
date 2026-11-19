@@ -24,7 +24,14 @@ public sealed class Recorder
         Quiet,
         /// <summary>背景一直很大聲</summary>
         Noisy,
+        /// <summary>有 app 正在出聲，但它的聲音在別的輸出裝置上，拾音錄的預設裝置全是 0（R75.3、design-windows §11.18）</summary>
+        SystemElsewhere,
+        /// <summary>有 app 正在出聲、就在預設裝置上，電腦聲音還是全是 0</summary>
+        SystemMissing,
     }
+
+    /// <summary>正在出聲的 app（R75.3）：名稱、種類（meeting／browser／other）、它的輸出裝置、是不是錄音用的預設裝置、預設裝置的名稱</summary>
+    public sealed record PlayingApp(string Name, string Kind, string DeviceName, bool OnDefault, string DefaultDeviceName);
 
     /// <summary>藍牙耳機的提醒（R58.3、M§38.4）：正在收音的那支的名稱、這台電腦的內建麥克風（可以「改用」，沒有時是 null）</summary>
     public sealed record MicHintInfo(string Name, MicrophoneDevice? BuiltIn)
@@ -39,7 +46,8 @@ public sealed class Recorder
         Func<float[], Dictionary<MeetingLanguage, double>>? DetectLanguage,
         Func<string, long?> AvailableBytes,
         Func<IReadOnlyList<MicrophoneDevice>>? Microphones = null,
-        Func<MicrophoneDevice?>? DefaultMicrophone = null);
+        Func<MicrophoneDevice?>? DefaultMicrophone = null,
+        Func<IReadOnlyList<PlayingApp>>? PlayingApps = null);
 
     readonly object gate = new();
     readonly AppSettings settings;
@@ -80,6 +88,12 @@ public sealed class Recorder
     /// <summary>有音源超過 3 秒沒送資料、正在重新連接（M§20.2）</summary>
     public string? DeviceWarning { get; private set; }
     public LevelHint? Hint { get; private set; }
+    /// <summary>錄不到電腦聲音的提示出現時是哪個 app（R75.4：名稱在提示出現時決定，之後不變）</summary>
+    public PlayingApp? SystemCulprit { get; private set; }
+    /// <summary>電腦聲音全是 0 多久才去看有沒有 app 在出聲（R75.3 是 10 秒；測試縮短）</summary>
+    public double SystemMissingSeconds { get; set; } = 10;
+    /// <summary>提示的文字（錄音畫面、系統匣、通知共用，R42）</summary>
+    public string HintText(LevelHint hint) => hint.Text(SystemCulprit);
     /// <summary>正在收音的麥克風（R58.2）：實際開的那支，不是「系統預設」這幾個字；沒有麥克風時是 null</summary>
     public MicrophoneDevice? MicDevice { get; private set; }
     /// <summary>用藍牙耳機的麥克風錄現場會議（R58.3）</summary>
@@ -122,6 +136,9 @@ public sealed class Recorder
     public event Action<MicHintInfo>? MicHintAppeared;
     bool micHintDismissed, micHintNotified;
     int noisySeconds, quietSeconds;
+    /// <summary>電腦聲音全是 0 時最近一次看到的正在出聲的 app；每 2 秒看一次</summary>
+    PlayingApp? playing;
+    DateTime lastPlayingCheck = DateTime.MinValue;
     /// <summary>忘了停止錄音（M§35.1）：最後有人說話的錄音秒數；即時逐字稿有沒有接上音訊</summary>
     double lastSpeechAt;
     bool liveActive;
@@ -130,6 +147,9 @@ public sealed class Recorder
     readonly Dictionary<int, DateTime> reconnecting = [];
     readonly Dictionary<int, string> reconnectErrors = [];
     readonly Dictionary<int, CancellationTokenSource> pendingRestarts = [];
+    /// <summary>重新連接的節奏（M§50.1）：每個聲道 60 秒內重新連接的時間、上次重新連接完的時間</summary>
+    readonly Dictionary<int, List<DateTime>> restarts = [];
+    readonly Dictionary<int, DateTime> restartedAt = [];
     DateTime lastDiskCheck = DateTime.MinValue;
     bool warnedLowDisk;
     bool simulationEnded;
@@ -158,7 +178,7 @@ public sealed class Recorder
     }
 
     /// <summary>DEBUG：用音訊檔模擬錄音（record-sim，speed 是倍速）</summary>
-    public void StartSimulated(long meetingId, string file, double speed, bool both, MeetingLanguage language, IAudioDecoder decoder)
+    public void StartSimulated(long meetingId, string file, double speed, bool both, MeetingLanguage language, IAudioDecoder decoder, bool systemSilent = false)
     {
         lock (gate)
         {
@@ -174,7 +194,7 @@ public sealed class Recorder
                 var list = new List<(int, IAudioSource)> { (0, fileSource) };
                 if (both)
                 {
-                    var mirror = new MirroredSource();
+                    var mirror = new MirroredSource { Silent = systemSilent };
                     fileSource.Mirror = mirror;
                     list.Add((1, mirror));
                 }
@@ -295,7 +315,7 @@ public sealed class Recorder
             if (!IsRecording || !HasMic || !sources.TryGetValue(0, out var source)) return;
             if (source is IMicrophoneSource mic) mic.DeviceId = id;
             Log.Info("switching microphone");
-            RestartSource(0);
+            RestartSource(0, counted: false);
             UpdateMicrophone();
         }
         Notify();
@@ -444,6 +464,7 @@ public sealed class Recorder
             (micHintDismissed, micHintNotified) = (false, false);
             MicHint = null;
             (noisySeconds, quietSeconds) = (0, 0);
+            (playing, SystemCulprit, lastPlayingCheck) = (null, null, DateTime.MinValue);
             lastSpeechAt = 0;
             liveActive = false;
             IdlePrompt = false;
@@ -506,6 +527,7 @@ public sealed class Recorder
                 if (restarted) created.Offset = w.RecordedSeconds;
                 created.Volatile += text =>
                 {
+                    text = settings.Script(text, Language);   // 中文會議用簡體時轉成簡體（M§47.2）
                     lock (gate)
                     {
                         if (live != created) return;
@@ -517,6 +539,7 @@ public sealed class Recorder
                 };
                 created.Final += (start, end, text) =>
                 {
+                    text = settings.Script(text, Language);
                     lock (gate)
                     {
                         if (live != created) return;
@@ -616,6 +639,10 @@ public sealed class Recorder
                     changed |= CheckLevels(w);
                     var idle = CheckIdle(w);
                     changed |= idle.Changed;
+                    // 「一直在重新連接」1 分鐘沒再重新連接就收起（M§50.1）
+                    var warning = DeviceWarning;
+                    UpdateDeviceWarning();
+                    changed |= warning != DeviceWarning;
                     if (idle.Stop)
                     {
                         Log.Info($"recording auto-stopped after {(int)(Elapsed - lastSpeechAt)}s without speech");
@@ -647,31 +674,64 @@ public sealed class Recorder
     /// <summary>收音提醒（M§26.1）：每秒看麥克風最近 30 秒的音量。第 90 百分位是說話的音量、第 10 百分位是背景</summary>
     bool CheckLevels(RecordingWriter w)
     {
-        if (!HasMic || IsPaused) return false;
-        var silent = w.Silence(0) > 10;
-        var levels = w.RecentLevels(0);
-        Array.Sort(levels);
+        if (IsPaused) return false;
+        var system = CheckSystemCapture(w);
+        var silent = false;
         float speech = 0, background = 0;
-        if (levels.Length >= 300)
+        var frames = 0;
+        if (HasMic)
         {
-            speech = levels[(int)((levels.Length - 1) * 0.9)];
-            background = levels[(int)((levels.Length - 1) * 0.1)];
-            noisySeconds = background > -36 ? noisySeconds + 1 : 0;
-            // 說話比背景大 4 dB 以上才算有人在說話（完全安靜時聲音很平），不是安靜的停頓
-            quietSeconds = speech < -50 && speech - background >= 4 ? quietSeconds + 1 : 0;
+            silent = w.Silence(0) > 10;
+            var levels = w.RecentLevels(0);
+            Array.Sort(levels);
+            frames = levels.Length;
+            if (levels.Length >= 300)
+            {
+                speech = levels[(int)((levels.Length - 1) * 0.9)];
+                background = levels[(int)((levels.Length - 1) * 0.1)];
+                noisySeconds = background > -36 ? noisySeconds + 1 : 0;
+                // 說話比背景大 4 dB 以上才算有人在說話（完全安靜時聲音很平），不是安靜的停頓
+                quietSeconds = speech < -50 && speech - background >= 4 ? quietSeconds + 1 : 0;
+            }
         }
-        LevelHint? hint = silent ? LevelHint.Silent : quietSeconds >= 60 ? LevelHint.Quiet : noisySeconds >= 45 ? LevelHint.Noisy : null;
+        // 優先順序同 Mac（M§51.1）：麥克風沒有收到聲音 → 錄不到電腦聲音 → 聲音太小 → 背景太吵
+        LevelHint? hint = silent ? LevelHint.Silent : system ?? (quietSeconds >= 60 ? LevelHint.Quiet : noisySeconds >= 45 ? LevelHint.Noisy : null);
         var shown = hint is LevelHint h && dismissedHints.Contains(h) ? null : hint;
         LevelCheck = new()
         {
-            ["speech"] = speech, ["background"] = background, ["frames"] = levels.Length, ["silentSeconds"] = w.Silence(0),
+            ["speech"] = speech, ["background"] = background, ["frames"] = frames, ["silentSeconds"] = HasMic ? w.Silence(0) : 0,
             ["noisySeconds"] = noisySeconds, ["quietSeconds"] = quietSeconds, ["hint"] = shown?.ToString().ToLowerInvariant() ?? "",
+            ["systemSilentSeconds"] = HasSystem ? w.Silence(Source == "both" ? 1 : 0) : 0, ["playingApp"] = playing?.Name ?? "",
         };
         if (shown == Hint) return false;
+        // 是哪個 app 在提示出現時決定，之後不跟著變（R75.4）
+        if (shown is LevelHint.SystemElsewhere or LevelHint.SystemMissing) SystemCulprit = playing;
         Hint = shown;
         // 第一次出現才通知（R42.1）；提示消失又出現不再通知
         if (shown is LevelHint appeared && notifiedHints.Add(appeared)) HintAppeared?.Invoke(appeared);
         return true;
+    }
+
+    /// <summary>錄不到電腦聲音（R75.3、design-windows §11.18）：電腦聲音那一聲道全是 0 超過 10 秒時，每 2 秒看一次
+    /// 有沒有 app 正在出聲（看得到實際的音量，開著但靜音的不算）。有的話：不在預設裝置上是 SystemElsewhere，在的話是 SystemMissing</summary>
+    LevelHint? CheckSystemCapture(RecordingWriter w)
+    {
+        if (!HasSystem || hooks.PlayingApps is null) return null;
+        if (w.Silence(Source == "both" ? 1 : 0) < SystemMissingSeconds)
+        {
+            playing = null;
+            return null;
+        }
+        if (DateTime.UtcNow - lastPlayingCheck >= TimeSpan.FromSeconds(2))
+        {
+            lastPlayingCheck = DateTime.UtcNow;
+            IReadOnlyList<PlayingApp> apps;
+            try { apps = hooks.PlayingApps(); }
+            catch (Exception e) { Log.Error($"playing apps: {e.GetType().Name}"); apps = []; }
+            // 先寫會議 app，再寫瀏覽器、其他（R75.4）
+            playing = apps.OrderBy(a => a.Kind switch { "meeting" => 0, "browser" => 1, _ => 2 }).FirstOrDefault();
+        }
+        return playing is null ? null : playing.OnDefault ? LevelHint.SystemMissing : LevelHint.SystemElsewhere;
     }
 
     /// <summary>開始錄音時剩不到 1 GB、錄音中剩不到 300 MB 就提醒（錄音照常進行；寫不進去時 Tick 會停止錄音）</summary>
@@ -700,19 +760,32 @@ public sealed class Recorder
         return unit == 0 ? $"{bytes} bytes" : value.ToString(unit >= 3 ? "0.##" : "0.#", System.Globalization.CultureInfo.InvariantCulture) + " " + units[unit];
     }
 
-    // MARK: 換裝置、看門狗（M§20.2、R18.2、D25）
+    // MARK: 換裝置、看門狗（M§20.2、R18.2、D25；節奏 M§50.1）
 
-    /// <summary>裝置切換時通知會連續來好幾次，等 0.3 秒沒有新的通知再重新開始</summary>
+    /// <summary>60 秒內已經重新連接 n 次，下一次等多久：前兩次 0.3 秒，之後 2、4、8、16 秒，最多 30 秒（M§50.1、R74.2）</summary>
+    public static double RestartDelay(int n) => n < 3 ? 0.3 : Math.Min(30, Math.Pow(2, n - 2));
+
+    /// <summary>這個聲道 60 秒內重新連接了幾次（順便丟掉更早的）</summary>
+    int RecentRestarts(int channel, DateTime now)
+    {
+        if (!restarts.TryGetValue(channel, out var times)) return 0;
+        times.RemoveAll(t => now - t >= TimeSpan.FromSeconds(60));
+        return times.Count;
+    }
+
+    /// <summary>裝置切換時通知會連續來好幾次，等一下沒有新的通知再重新開始；一直重新連接時等久一點</summary>
     void ScheduleRestart(int channel)
     {
         CancellationTokenSource cts;
+        double delay;
         lock (gate)
         {
             if (!IsRecording) return;
             pendingRestarts.GetValueOrDefault(channel)?.Cancel();
             pendingRestarts[channel] = cts = new CancellationTokenSource();
+            delay = RestartDelay(RecentRestarts(channel, DateTime.UtcNow));
         }
-        _ = Task.Delay(300, cts.Token).ContinueWith(t =>
+        _ = Task.Delay(TimeSpan.FromSeconds(delay), cts.Token).ContinueWith(t =>
         {
             if (t.IsCanceled) return;
             lock (gate)
@@ -726,9 +799,15 @@ public sealed class Recorder
         }, TaskScheduler.Default);
     }
 
-    void RestartSource(int channel)
+    /// <summary>counted：算進重新連接的次數（使用者換麥克風不算）</summary>
+    void RestartSource(int channel, bool counted = true)
     {
         if (!IsRecording || !sources.TryGetValue(channel, out var source)) return;
+        if (counted)
+        {
+            if (!restarts.TryGetValue(channel, out var times)) restarts[channel] = times = [];
+            times.Add(DateTime.UtcNow);
+        }
         try
         {
             source.Restart();
@@ -737,14 +816,18 @@ public sealed class Recorder
         }
         catch (Exception e)
         {
-            // 錄音不停：另一個音源照常錄，雙聲道時這段會補靜音；看門狗每 5 秒再試
+            // 錄音不停：另一個音源照常錄，雙聲道時這段會補靜音；看門狗再試
             reconnectErrors[channel] = e.Message;
             Log.Error($"audio source {channel} restart failed: {e.GetType().Name}");
         }
+        restartedAt[channel] = DateTime.UtcNow;
         UpdateDeviceWarning();
     }
 
-    /// <summary>音源超過 3 秒沒送資料：提示並每 5 秒試一次重新開始；收到資料後提示消失</summary>
+    /// <summary>
+    /// 音源超過 3 秒沒送資料：提示並重新連接；重新連接完 5 秒內、等著重新連接時不再重開（R74.1），
+    /// 重試的間隔 max(5, 重新連接的節奏)；收到資料後提示消失
+    /// </summary>
     bool Watchdog(RecordingWriter w)
     {
         if (simulationEnded) return false;
@@ -755,8 +838,16 @@ public sealed class Recorder
         {
             if (w.SecondsSinceSamples(channel) > 3)
             {
-                if (reconnecting.TryGetValue(channel, out var last) && now - last < TimeSpan.FromSeconds(5)) continue;
-                if (!reconnecting.ContainsKey(channel)) Log.Info($"audio source {channel} stalled");
+                if (!reconnecting.ContainsKey(channel))
+                {
+                    Log.Info($"audio source {channel} stalled");
+                    reconnecting[channel] = DateTime.MinValue;
+                    UpdateDeviceWarning();
+                }
+                if (pendingRestarts.ContainsKey(channel)) continue;
+                if (restartedAt.TryGetValue(channel, out var done) && now - done < TimeSpan.FromSeconds(5)) continue;
+                var interval = TimeSpan.FromSeconds(Math.Max(5, RestartDelay(RecentRestarts(channel, now))));
+                if (now - reconnecting[channel] < interval) continue;
                 reconnecting[channel] = now;
                 RestartSource(channel);
                 if (channel == 0) micChanged |= UpdateMicrophone();
@@ -771,18 +862,22 @@ public sealed class Recorder
         return before != DeviceWarning || micChanged;
     }
 
+    /// <summary>提示列（M§50.1）：重新連接失敗的原因 ＞ 一直在重新連接（60 秒內 3 次以上）＞ 正在重新連接…</summary>
     void UpdateDeviceWarning()
     {
+        bool IsMic(int channel) => Source != "system" && channel == 0;
+        var now = DateTime.UtcNow;
+        int? stalled = reconnecting.Count > 0 ? reconnecting.Keys.Min() : null;
+        int? flapping = sources.Keys.Order().Where(c => RecentRestarts(c, now) >= 3).Select(c => (int?)c).FirstOrDefault();
         string? warning = null;
-        if (reconnecting.Count > 0)
-        {
-            var channel = reconnecting.Keys.Min();
-            var mic = Source != "system" && channel == 0;
-            warning = reconnectErrors.TryGetValue(channel, out var reason)
-                ? mic ? L.F("麥克風沒有送出聲音，重新連接失敗：%@。會繼續重試，錄音沒有停", reason)
-                      : L.F("電腦聲音的擷取中斷了，重新連接失敗：%@。會繼續重試，錄音沒有停", reason)
-                : mic ? L.T("麥克風沒有送出聲音，正在重新連接…") : L.T("電腦聲音的擷取中斷了，正在重新連接…");
-        }
+        if (stalled is int s && reconnectErrors.TryGetValue(s, out var reason))
+            warning = IsMic(s) ? L.F("麥克風沒有送出聲音，重新連接失敗：%@。會繼續重試，錄音沒有停", reason)
+                : L.F("電腦聲音的擷取中斷了，重新連接失敗：%@。會繼續重試，錄音沒有停", reason);
+        else if (flapping is int f)
+            warning = IsMic(f) ? L.T("麥克風一直在重新連接，錄音可能斷斷續續。藍牙耳機的麥克風常這樣，可以點上面的麥克風名稱換成內建麥克風。")
+                : L.T("電腦聲音的擷取一直在重新連接，錄音可能斷斷續續。");
+        else if (stalled is int r)
+            warning = IsMic(r) ? L.T("麥克風沒有送出聲音，正在重新連接…") : L.T("電腦聲音的擷取中斷了，正在重新連接…");
         DeviceWarning = warning;
     }
 
@@ -805,6 +900,8 @@ public sealed class Recorder
         generation++;
         foreach (var p in pendingRestarts.Values) p.Cancel();
         pendingRestarts.Clear();
+        restarts.Clear();
+        restartedAt.Clear();
         reconnecting.Clear();
         reconnectErrors.Clear();
         DeviceWarning = null;
@@ -855,10 +952,14 @@ public sealed class Recorder
 /// <summary>收音提醒的文字（R42）：錄音畫面、系統匣、通知共用（同 Mac 的 Recorder.LevelHint.text）</summary>
 public static class LevelHints
 {
-    public static string Text(this Recorder.LevelHint hint) => hint switch
+    /// <summary>app：錄不到電腦聲音的那兩種要寫出是哪個 app、哪個裝置（R75.3）</summary>
+    public static string Text(this Recorder.LevelHint hint, Recorder.PlayingApp? app = null) => hint switch
     {
-        Recorder.LevelHint.Silent => L.T("麥克風沒有收到聲音：可能被靜音、被其他 app 佔用，或選錯了麥克風。可以在設定的「錄音與轉錄」換一個。"),
+        Recorder.LevelHint.Silent => L.T("麥克風沒有收到聲音：可能被靜音、被其他 app 佔用，或選錯了麥克風。可以在設定的「錄音」換一個。"),
         Recorder.LevelHint.Quiet => L.T("聲音有點小：手機或筆電放近說話的人一點。"),
+        Recorder.LevelHint.SystemElsewhere when app is not null =>
+            L.F("%1$@ 的聲音從「%2$@」播出，拾音錄的是預設的「%3$@」，所以錄不到。請把 Windows 的預設輸出裝置改成「%2$@」（設定 → 系統 → 音效 → 輸出），或在 %1$@ 裡把喇叭改成預設的裝置。", app.Name, app.DeviceName, app.DefaultDeviceName),
+        Recorder.LevelHint.SystemElsewhere or Recorder.LevelHint.SystemMissing => L.F("%@ 正在播放聲音，但拾音錄不到電腦的聲音。", app?.Name ?? L.T("其他 app")),
         _ => L.T("背景有點吵，說話者可能分不準。錄完可以用「重新辨識說話者」告訴拾音大約幾個人。"),
     };
 }
