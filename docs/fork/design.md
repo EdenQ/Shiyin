@@ -139,6 +139,7 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 ### F2.6 驗證
 
 - 比對規則：`SpeakerTagging` 用小程式單獨測（同名、不同名、不明確、沒人說話、同名兩位）。資料庫：測試用的 `SHIYIN_HOME` 建一場有說話者的會議（直接寫段落），`tagspeaker add`＋`applytags` 跑一遍，加上手動改過名字的說話者不覆蓋、聲紋有存、`tag` 的名字在重新套用時會重算。
+- 「只改這句」的交易（DF8）：`python3 scripts/fork/f2-atomic-check.py <SHIYIN_HOME> <shiyinctl> --out <資料夾>`（DEBUG 版先用那個 home 開著）：SQLite trigger 只擋「改名成丙」，按「只改這句」後說話者、句子、復原快照要跟按之前完全相同；拿掉 trigger 再按一次、再復原，輸出可以跟別的版本逐位元組比。
 - 端到端：多人真人錄音用模擬錄音（`record-sim`），在某人單獨講話時用 `tagspeaker now`、`tagspeaker line` 標記 → 停止 → 轉錄完那些說話者改成標的名字；重新轉錄後名字還在。
 - 畫面：在真的畫面上用 AX 按過「正在說話」的名字、＋ 的輸入框和「加入」、一行的選單（名單、其他名字…的「標記」、清除標記）、錄完的提示「查看」、逐字稿的「套用到…」「刪除標記」。英文介面看過。
 
@@ -177,7 +178,7 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 
 ### F3.5 驗證
 
-- 模擬錄音（`record-sim <檔案> 1 1`，兩個聲道是同一個檔）：錄一段、`micmute on` 一段、`off` 一段，停止後用 numpy 讀 WAV：靜音那段左聲道全是 0、右聲道照常，檔案長度等於錄音秒數；即時逐字稿在靜音那段照樣有字（電腦聲音那一聲道）。
+- 模擬錄音（`record-sim <檔案> 1 1`，兩個聲道是同一個檔）：`python3 scripts/fork/f3-mute-check.py <SHIYIN_HOME> <shiyinctl> --out <資料夾>` 用一直有聲音的測試音錄一段、`micmute on`、快捷鍵解除再靜音、`off`，依這次錄音的會議（`recorder.meetingId`）的 `audio_file` 讀檔（等轉錄後壓成 M4A，用 afconvert 解碼），檢查兩個聲道、靜音那段麥克風是 0、電腦聲音照常、沒靜音的區間兩個聲道都有聲音。不要掃 `audio/` 下所有的檔：同一個 home 裡別的測試放的靜音 WAV 會被當成錄音。舊的做法是停止後用 numpy 讀 WAV：靜音那段左聲道全是 0、右聲道照常，檔案長度等於錄音秒數；即時逐字稿在靜音那段照樣有字（電腦聲音那一聲道）。
 - 提醒：模擬錄音的兩個聲道一樣，電腦聲音一直有聲音，不會提示；用 `recordstall <秒數> 1` 讓電腦聲音停一段（停的部分補 0），靜音中 20 秒左右出現提示、`micmute dismiss` 收掉、再靜音一次又會出現。
 - 收音提醒在靜音時不出現；快捷鍵只在 `both` 的錄音中註冊。
 - 畫面：`windowshot` 看錄音畫面、選單列的靜音狀態和提示列。真的畫面上按圖示、真的按 ⌃⌥⌘M 待使用者。

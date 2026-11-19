@@ -238,6 +238,8 @@ extension AppDatabase {
         try speaker.insert(db)
         return target
     }
+    static func forkSaveSpeakerUndo(_ db: Database, meetingId: Int64, label: String) throws { try saveSpeakerUndo(db, meetingId: meetingId, label: label) }   // MA-FORK(F2)
+    static func forkAddSpeaker(_ db: Database, meetingId: Int64) throws -> Int { try addSpeaker(db, meetingId: meetingId) }   // MA-FORK(F2)
 
     /// 沒有段落的說話者拿掉
     static func removeEmptySpeakers(_ db: Database, meetingId: Int64) throws {

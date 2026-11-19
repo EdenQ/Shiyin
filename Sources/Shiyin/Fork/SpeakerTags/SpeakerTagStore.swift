@@ -85,15 +85,23 @@ extension AppDatabase {
         !(try meeting(meetingId)?.mayHaveMergedSpeakers ?? false)
     }
 
-    /// 「只改這句」（F2.12）：上游的 `reassignSegments`（to nil 是新增一位說話者），新增的那位再改成標記的名字（算手動改的）。
-    /// 上游的復原快照在改之前存，所以復原時新增的說話者和名字一起拿掉
+    /// 「只改這句」（F2.12）：to 是 nil 時新增一位說話者、改成標記的名字（算手動改的）。跟 5.0.1 一樣在同一筆交易裡做完：
+    /// 復原快照、新增、命名、句子歸屬、拿掉空的說話者，任何一步失敗整筆回復（DF8）。to 不是 nil 或沒有名字時就是上游的 `reassignSegments`
     @discardableResult
     func reassignSegments(_ meetingId: Int64, ids: [Int64], to idx: Int?, naming name: String?, label: String) throws -> Int {
-        let target = try reassignSegments(meetingId, ids: ids, to: idx, label: label)
-        if idx == nil, let name {
-            try pool.write { db in try ForkSpeakerTags.nameNewSpeaker(db, meetingId: meetingId, idx: target, name: name) }
+        guard idx == nil, let name else { return try reassignSegments(meetingId, ids: ids, to: idx, label: label) }
+        return try pool.write { db in
+            try Self.forkSaveSpeakerUndo(db, meetingId: meetingId, label: label)
+            let target = try Self.forkAddSpeaker(db, meetingId: meetingId)
+            try ForkSpeakerTags.nameNewSpeaker(db, meetingId: meetingId, idx: target, name: name)
+            // 跟上游 reassignSegments 的迴圈相同（DF8 的複本）
+            for id in ids {
+                try db.execute(sql: "UPDATE segments SET speaker = ?, speaker_manual = 1 WHERE id = ? AND meeting_id = ?",
+                               arguments: [target, id, meetingId])
+            }
+            try Self.removeEmptySpeakers(db, meetingId: meetingId)
+            return target
         }
-        return target
     }
 
     #if DEBUG

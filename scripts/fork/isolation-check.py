@@ -11,6 +11,9 @@ manifest.json 列的 fork 檔要存在、符號要找得到宣告、markers 要�
   python3 scripts/fork/isolation-check.py            # 檢查（exit 1 表示有問題）
   python3 scripts/fork/isolation-check.py --write    # 照程式裡實際的接點重寫 manifest 的 markers、upstreamFiles（行號）
   python3 scripts/fork/isolation-check.py --base <ref>   # 預設 refs/upstream-tags/<manifest upstream.base.tag>
+  python3 scripts/fork/isolation-check.py --root <repo>  # 檢查別的 repo（isolation-check-test.py 的測試資料用）
+上游的檔被搬走、改名、換類型（例如換成連結）都算拿掉：比對一律 --no-renames（改名變成刪舊的、加新的），
+另外直接核對基準裡每個在檢查範圍的上游檔現在還在、還是一般檔。
 """
 import argparse
 import json
@@ -39,14 +42,15 @@ def upstream_files(base):
 
 
 def changed_files(base):
-    # 跟工作目錄比（還沒 commit 的改動也算），不含新增的檔（新增的檔都是 fork 自己的）
-    out = git('diff', '--name-only', '--diff-filter=MD', base, '--')
+    # 跟工作目錄比（還沒 commit、已 stage 的改動也算），不含新增的檔（新增的檔都是 fork 自己的）。
+    # --no-renames：改名一定變成 D（舊路徑）＋ A，舊路徑才會被檢查；T 是換了類型（一般檔換成連結）
+    out = git('diff', '--name-only', '--no-renames', '--diff-filter=MDT', base, '--')
     return [p for p in out.splitlines() if p]
 
 
 def hunks(base, path):
     """回傳 [(上游的開始行, [(kind, 行號, 內容)])]；kind 是 + 或 -，+ 的行號是現在的檔的行號"""
-    out = git('diff', '-U0', '--no-color', base, '--', path)
+    out = git('diff', '-U0', '--no-color', '--no-renames', base, '--', path)
     result, cur, new_line = [], None, 0
     for line in out.splitlines():
         m = re.match(r'^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@', line)
@@ -76,14 +80,23 @@ def hook_code(text):
 def analyze(base):
     up = upstream_files(base)
     report, problems, markers = [], [], []
+    # 不靠 diff 的偵測：基準裡在檢查範圍的上游檔，每個都要還在、還是一般檔
+    gone = set()
+    for path in sorted(up):
+        if not (CODE.match(path) or SCRIPTS.match(path)):
+            continue
+        full = os.path.join(ROOT, path)
+        if os.path.islink(full) or (os.path.exists(full) and not os.path.isfile(full)):
+            problems.append(f'{path}：上游的檔換了類型（不是一般檔了）')
+            gone.add(path)
+        elif not os.path.exists(full):
+            problems.append(f'{path}：上游的檔被刪掉、搬走或改名了')
+            gone.add(path)
     for path in sorted(changed_files(base)):
-        if path not in up:
+        if path not in up or path in gone:
             continue
         is_code, is_script = bool(CODE.match(path)), bool(SCRIPTS.match(path))
         if not (is_code or is_script):
-            continue
-        if not os.path.exists(os.path.join(ROOT, path)):
-            problems.append(f'{path}：上游的檔被刪掉了')
             continue
         added = deleted = 0
         features = {}
@@ -184,7 +197,12 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--base')
     ap.add_argument('--write', action='store_true')
+    ap.add_argument('--root')
     args = ap.parse_args()
+    if args.root:
+        global ROOT, MANIFEST
+        ROOT = os.path.abspath(args.root)
+        MANIFEST = os.path.join(ROOT, 'docs', 'fork', 'manifest.json')
     manifest = json.load(open(MANIFEST, encoding='utf-8'))
     base = args.base or f"refs/upstream-tags/{manifest['upstream']['base']['tag']}"
     budget = manifest['rules'].get('upstreamLineBudget', 100)

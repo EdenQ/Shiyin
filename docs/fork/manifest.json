@@ -118,7 +118,8 @@
         "Sources/Shiyin/Fork/SpeakerTags/SpeakerTagsDebug.swift",
         "Sources/Shiyin/Fork/SpeakerTags/ForkSpeakerTags.swift",
         "Sources/Shiyin/Fork/Store/ForkMigrations.swift",
-        "scripts/dev/check-fork-migrations.py"
+        "scripts/dev/check-fork-migrations.py",
+        "scripts/fork/f2-atomic-check.py"
       ],
       "upstreamFiles": [
         "Sources/Shiyin/IO/Exporters.swift",
@@ -127,6 +128,7 @@
         "Sources/Shiyin/Store/AppDatabase.swift",
         "Sources/Shiyin/Store/AppModel.swift",
         "Sources/Shiyin/Store/MeetingEdits.swift",
+        "Sources/Shiyin/Store/SpeakerEdits.swift",
         "Sources/Shiyin/Store/Voiceprints.swift",
         "Sources/Shiyin/Views/MeetingDetailView.swift",
         "Sources/Shiyin/Views/RecordingView.swift",
@@ -153,7 +155,9 @@
         "UnappliedTagLine",
         "ForkTaggedNameNote",
         "forkSpeakerTagBar",
-        "ForkMigrations"
+        "ForkMigrations",
+        "forkSaveSpeakerUndo",
+        "forkAddSpeaker"
       ],
       "keywords": [
         "speaker_tags",
@@ -296,6 +300,16 @@
           "hook": "try ForkSpeakerTags.restore(db, meetingId: id)"
         },
         {
+          "file": "Sources/Shiyin/Store/SpeakerEdits.swift",
+          "line": 241,
+          "hook": "static func forkSaveSpeakerUndo(_ db: Database, meetingId: Int64, label: String) throws { try saveSpeakerUndo(db, meetingId: meetingId, label: label) }"
+        },
+        {
+          "file": "Sources/Shiyin/Store/SpeakerEdits.swift",
+          "line": 242,
+          "hook": "static func forkAddSpeaker(_ db: Database, meetingId: Int64) throws -> Int { try addSpeaker(db, meetingId: meetingId) }"
+        },
+        {
           "file": "Sources/Shiyin/Store/Voiceprints.swift",
           "line": 142,
           "hook": "guard try ForkSpeakerTags.remembersVoice(db, meetingId: meetingId, source: source), let speaker = try SpeakerName.filter(Column(\"meeting_id\") == meetingId && Column(\"idx\") == idx).fetchOne(db),"
@@ -373,7 +387,8 @@
         "Sources/Shiyin/Fork/Mute/MuteViews.swift",
         "Sources/Shiyin/Fork/Mute/MuteDebug.swift",
         "Sources/Shiyin/Fork/Mute/ForkMuteSettingsRow.swift",
-        "Sources/Shiyin/Fork/Mute/ForkIslandMute.swift"
+        "Sources/Shiyin/Fork/Mute/ForkIslandMute.swift",
+        "scripts/fork/f3-mute-check.py"
       ],
       "upstreamFiles": [
         "Sources/Shiyin/App/RecordingIsland.swift",
@@ -908,7 +923,8 @@
       "forkFiles": [
         "Sources/Shiyin/Fork/Debug/ForkDebug.swift",
         "Sources/Shiyin/Fork/ForkState.swift",
-        "scripts/fork/isolation-check.py"
+        "scripts/fork/isolation-check.py",
+        "scripts/fork/isolation-check-test.py"
       ],
       "symbols": [
         "ForkDebug",
@@ -982,6 +998,11 @@
       "what": "上游成員從 private 改成 internal",
       "where": "GlobalHotKey.register/unregister、MindMap.clean/shownTopics、AppModel.mainWindowInFront/speakerEditProblem",
       "why": "fork 的 extension 要用；上游改名或改簽章時 fork 跟著改"
+    },
+    {
+      "what": "「只改這句」的交易（F2.12，DF8）",
+      "where": "Sources/Shiyin/Fork/SpeakerTags/SpeakerTagStore.swift reassignSegments(…naming:…)；Sources/Shiyin/Store/SpeakerEdits.swift 的 forkSaveSpeakerUndo、forkAddSpeaker",
+      "why": "重用上游 private 的 saveSpeakerUndo、addSpeaker、removeEmptySpeakers 在同一筆 pool.write 做完，改句子說話者的迴圈是上游 reassignSegments 的複本；上游改 reassignSegments、復原快照或新增說話者時要比對，跑 scripts/fork/f2-atomic-check.py"
     },
     {
       "what": "NotesPage 的條列模式整頁換成 ForkNotesList（F4）",
