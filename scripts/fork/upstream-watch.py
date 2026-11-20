@@ -518,7 +518,10 @@ def section_brand(git, a, diff):
         source = git.show(a.head_sha, path) or ''
         lines = source.split('\n')
         for lit in brand.swift_literals(source):
-            if lit.line not in added or not brand.leftover(lit.body):
+            # 字串常值的整個來源範圍（開頭引號那行到結尾那行）只要有一行是新增的就算：三引號多行字串只改內文時，
+            # 開頭那行沒變（REVIEW-3b P2-1）
+            last = lit.line + source.count('\n', lit.start, lit.end)
+            if not any(no in added for no in range(lit.line, last + 1)) or not brand.leftover(lit.body):
                 continue
             line = lines[lit.line - 1] if lit.line <= len(lines) else ''
             if brand.literal_is_localized(lit, line):
@@ -653,6 +656,7 @@ def main(argv=None):
     ap.add_argument('--fork-requirements', help='預設：腳本所在 repo 的 docs/fork/requirements.md')
     ap.add_argument('--state')
     ap.add_argument('--update-state', action='store_true')
+    ap.add_argument('--state-out', help='--update-state 寫到這裡（預設 --state）；workflow 等報告上傳成功才把它搬進 cache')
     ap.add_argument('--out-md')
     ap.add_argument('--out-json')
     ap.add_argument('--date', default=datetime.date.today().isoformat())
@@ -721,8 +725,10 @@ def main(argv=None):
         if a.update_state:
             if not a.state:
                 raise ToolError('--update-state 要搭配 --state')
-            Path(a.state).write_text(json.dumps({'upstreamMain': a.head_sha, 'tags': n['tags'], 'checkedAt': a.date},
-                                                ensure_ascii=False, indent=1), encoding='utf-8')
+            out = Path(a.state_out or a.state)
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_text(json.dumps({'upstreamMain': a.head_sha, 'tags': n['tags'], 'checkedAt': a.date},
+                                      ensure_ascii=False, indent=1), encoding='utf-8')
         print(f"上游監看：{'有新東西' if changed else '沒有新東西'}（建議：{r['recommendation'][0]}）", file=sys.stderr)
         return 1 if changed else 0
     except Exception as e:   # 任何沒預期的錯誤都是 2：Python 預設的 exit 1 會被當成「有新東西」

@@ -98,6 +98,9 @@ def build(tmp):
     r.write('Resources/Localizable.xcstrings', json.dumps({'sourceLanguage': 'zh-Hant', 'strings': {'開始': {}}}, ensure_ascii=False, indent=2))
     r.write('Resources/Info.plist', '<plist><dict>\n<key>CFBundleName</key><string>Shiyin</string>\n</dict></plist>\n')
     r.write('docs/requirements.md', '# 需求\n## 1. 基本\n錄音、轉錄。\n')
+    # 三引號多行字串（REVIEW-3b P2-1）：之後只改內文，開頭那行不變
+    r.write('Sources/Shiyin/Views/Help.swift', 'struct Help {\n    let raw = """\n        第一行\n        """\n'
+            '    var body: some View { Text("""\n        說明第一行\n        """) }\n}\n')
     a = r.commit('A: upstream base')
     r.upstream_tag('v1.0.0', a, '拾音 1.0.0：第一版')
     r.upstream_tag('win-v1.0.0', a, 'Windows 1.0.0')
@@ -275,6 +278,41 @@ class Watch(unittest.TestCase):
         self.assertIn('共同祖先', err)
         self.assertEqual(self.run_watch('--update-state')[0], 2, '--update-state 沒有 --state')
 
+    def test_brand_multiline_literal_interior(self):
+        """三引號多行字串：開頭那行沒變、只在內文加「拾音」→ 不查表的要列出來，經過翻譯表的只計數"""
+        self.repo.git('checkout', '-q', 'up')
+        self.repo.edit('Sources/Shiyin/Views/Help.swift', '        第一行\n', '        第一行\n        拾音在這裡\n')
+        self.repo.edit('Sources/Shiyin/Views/Help.swift', '        說明第一行\n', '        說明第一行\n        拾音的說明\n')
+        d_commit = self.repo.commit('D: only interior lines')
+        self.repo.git('checkout', '-q', 'main')
+        diff = self.repo.git('diff', '-U0', self.b, d_commit)
+        self.assertNotIn('+    let raw', diff, '開頭那行要沒變，才測得到')
+        code, d, md, err = self.run_watch('--base', self.b, '--head', d_commit)
+        self.assertEqual(code, 1, err)
+        texts = [u['text'] for u in d['brand']['unlocalized']]
+        self.assertEqual(len(texts), 1, texts)
+        self.assertIn('拾音在這裡', texts[0])
+        self.assertEqual(d['brand']['localizedCount'], 1, 'Text 的多行字串只計數')
+
+    def test_state_not_advanced_when_upload_fails(self):
+        """workflow 的狀態機（REVIEW-3b P2-2）：新狀態寫到 --state-out；上傳失敗就不搬進 cache，下一輪照樣報出同樣的警告"""
+        cache, nxt = self.tmp / 'cache/state.json', self.tmp / 'next/state.json'
+        code1, d1, _, err = self.run_watch('--state', str(cache), '--update-state', '--state-out', str(nxt))
+        self.assertEqual(code1, 1, err)
+        self.assertTrue(nxt.exists())
+        self.assertFalse(cache.exists(), 'Compare 不能直接改 cache 的狀態')
+        warnings1 = (d1['collisions'], d1['brand']['unlocalized'], [t['tag'] for t in d1['new']['newTags']])
+        self.assertTrue(warnings1[0] and warnings1[1])
+        # 上傳失敗：Promote、Save 不跑 → cache 還是舊的（這裡是沒有）→ 下一輪同樣的警告
+        code2, d2, _, err = self.run_watch('--state', str(cache), '--update-state', '--state-out', str(nxt))
+        self.assertEqual(code2, 1, err)
+        self.assertEqual((d2['collisions'], d2['brand']['unlocalized'], [t['tag'] for t in d2['new']['newTags']]), warnings1)
+        # 上傳成功：Promote（搬進 cache）→ 下一輪沒有新東西
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(nxt, cache)
+        code3, d3, _, err = self.run_watch('--state', str(cache))
+        self.assertEqual(code3, 0, err)
+
     def test_explicit_replay_range(self):
         """重播：--base、--merge-base 指定；merge-tree 用指定的合併基準"""
         code, d, _, err = self.run_watch('--base', self.a, '--merge-base', self.a, '--head', self.b)
@@ -322,9 +360,29 @@ class Workflow(unittest.TestCase):
             self.assertRegex(u, r'^[\w.-]+/[\w./-]+@[0-9a-f]{40}$', u)
 
     def test_summary_is_one_line(self):
-        writes = re.findall(r'>>\s*"\$GITHUB_STEP_SUMMARY"', self.text)
-        self.assertEqual(len(writes), 3, '0／1／其他 各一行')
+        # 沒有報告檔、沒有新東西、有新東西、工具錯誤：四個分支各寫一行固定的字
+        writes = re.findall(r'echo "([^"]*)" >>\s*"\$GITHUB_STEP_SUMMARY"', self.text)
+        self.assertEqual(sorted(writes), sorted(['工具錯誤：沒有報告檔', '沒有新東西', '有新東西，見 artifact', '工具錯誤，見 artifact']))
         self.assertNotIn('cat out/', self.text, '不能把報告內容放進公開的 log 或 summary')
+
+    def test_state_saved_only_after_upload(self):
+        """REVIEW-3b P2-2：Compare → Upload → Promote → Save；Promote、Save 要 Compare 是 0／1 且 Upload 成功"""
+        names = re.findall(r'(?m)^      - name: (.+)$', self.text)
+        for x, y in (('Compare', 'Upload report'), ('Upload report', 'Promote state'), ('Promote state', 'Save state')):
+            self.assertLess(names.index(x), names.index(y), f'{x} 要在 {y} 前面')
+        steps = re.split(r'(?m)^      - name: ', self.text)
+        step = {st.split('\n', 1)[0]: st for st in steps[1:]}
+        for name in ('Promote state', 'Save state'):
+            cond = re.search(r'(?m)^        if: (.+)$', step[name]).group(1)
+            for need in ("steps.watch.outputs.code == '0'", "steps.watch.outputs.code == '1'", "steps.upload.outcome == 'success'", 'success()'):
+                self.assertIn(need, cond, f'{name}：{cond}')
+        self.assertIn('if: always()', step['Upload report'])
+        self.assertIn('id: upload', step['Upload report'])
+        self.assertIn('if-no-files-found: error', step['Upload report'])
+        self.assertIn('--state-out .upstream-watch-next/state.json', step['Compare'])
+        self.assertIn('沒有報告檔', step['Compare'])
+        self.assertIn('cp .upstream-watch-next/state.json .upstream-watch/state.json', step['Promote state'])
+        self.assertNotIn('--state-out', step['Restore last state'])
 
 
 if __name__ == '__main__':

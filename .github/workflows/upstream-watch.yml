@@ -47,30 +47,41 @@ jobs:
         run: |
           set +e
           mkdir -p .upstream-watch out
+          # 新狀態先寫到別的檔：報告上傳成功之後才搬進 cache 的路徑（fork design §F0.5「狀態只能在報告交付之後前移」）
           python3 scripts/fork/upstream-watch.py --fork HEAD --head upstream/main \
-            --state .upstream-watch/state.json --update-state \
+            --state .upstream-watch/state.json --update-state --state-out .upstream-watch-next/state.json \
             --out-md out/upstream-watch.md --out-json out/upstream-watch.json
           code=$?
           set -e
           echo "code=$code" >> "$GITHUB_OUTPUT"
           case $code in
-            0) echo "沒有新東西" >> "$GITHUB_STEP_SUMMARY" ;;
-            1) echo "有新東西，見 artifact" >> "$GITHUB_STEP_SUMMARY" ;;
+            0|1)
+              # 有結果卻沒有報告檔、或沒有新狀態：算錯誤
+              if [ ! -s out/upstream-watch.md ] || [ ! -s out/upstream-watch.json ] || [ ! -s .upstream-watch-next/state.json ]; then
+                echo "工具錯誤：沒有報告檔" >> "$GITHUB_STEP_SUMMARY"; exit 1
+              fi
+              if [ "$code" = 0 ]; then echo "沒有新東西" >> "$GITHUB_STEP_SUMMARY"; else echo "有新東西，見 artifact" >> "$GITHUB_STEP_SUMMARY"; fi ;;
             *) echo "工具錯誤，見 artifact" >> "$GITHUB_STEP_SUMMARY"; exit 1 ;;
           esac
 
-      - name: Save state
-        if: success()
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9   # v6.1.0
-        with:
-          path: .upstream-watch/state.json
-          key: upstream-watch-state-${{ github.run_id }}
-
       - name: Upload report
+        id: upload
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9   # v7.0.2
         with:
           name: upstream-watch-${{ github.run_id }}
           path: out/
           retention-days: 30
-          if-no-files-found: warn
+          if-no-files-found: error
+
+      # 報告上傳成功、而且 Compare 是 0／1 才前移狀態：上傳失敗或取消時 cache 留著舊狀態，下一輪照樣報出同樣的警告
+      - name: Promote state
+        if: success() && (steps.watch.outputs.code == '0' || steps.watch.outputs.code == '1') && steps.upload.outcome == 'success'
+        run: cp .upstream-watch-next/state.json .upstream-watch/state.json
+
+      - name: Save state
+        if: success() && (steps.watch.outputs.code == '0' || steps.watch.outputs.code == '1') && steps.upload.outcome == 'success'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9   # v6.1.0
+        with:
+          path: .upstream-watch/state.json
+          key: upstream-watch-state-${{ github.run_id }}
