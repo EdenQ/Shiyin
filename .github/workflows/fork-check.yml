@@ -1,0 +1,70 @@
+# 推送時自動檢查（fork design §F0.6）：push 到 main、pull request 時，在 Mac runner 上跑 scripts/fork/check.sh --quick。
+# 權限只有 contents: read，不用任何 secret；第三方 action 鎖在 commit SHA。check.sh 的失敗語意不放寬：
+# exit 1（有 FAIL）、2（沒開始）都讓 job 失敗。摘要、log 放 artifact（14 天），job summary 只放摘要的表格。
+name: fork-check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fork-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: 環境
+        run: |
+          xcodebuild -version
+          swift --version
+          sw_vers
+          # #12 依賴「網域不存在」的訊息格式（fork design §F0.4 的嚴格比對）：印出來，第一次推送時核對
+          set +e
+          err="$(defaults read com.weiwei.shiyin 2>&1 >/dev/null)"; code=$?
+          echo "defaults read com.weiwei.shiyin：exit ${code}，stderr：${err}"
+
+      - name: 上游的基準 tag（I1 用；放 refs/upstream-tags/，不碰 refs/tags）
+        run: |
+          set -euo pipefail
+          tag="$(python3 -c "import json; print(json.load(open('docs/fork/manifest.json'))['upstream']['base']['tag'])")"
+          [[ "$tag" =~ ^v[0-9]+(\.[0-9]+)*$ ]] || { echo "::error::manifest 的 upstream.base.tag 不是版本 tag：$tag"; exit 1; }
+          git fetch --no-tags https://github.com/juinwei7/Shiyin.git "+refs/tags/${tag}:refs/upstream-tags/${tag}"
+          git rev-parse --verify "refs/upstream-tags/${tag}^{commit}"
+
+      - name: check.sh --quick
+        run: scripts/fork/check.sh --quick --out "$RUNNER_TEMP/fork-check"
+
+      - name: Job summary
+        if: always()
+        run: |
+          if [ -s "$RUNNER_TEMP/fork-check/summary.md" ]; then
+            { echo "### fork-check（check.sh --quick）"; echo; grep '^|' "$RUNNER_TEMP/fork-check/summary.md"; } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "沒有摘要：check.sh 沒有開始，見 log" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload summary and logs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9   # v7.0.2
+        with:
+          name: fork-check-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/fork-check/summary.md
+            ${{ runner.temp }}/fork-check/logs/
+            ${{ runner.temp }}/fork-check/defaults-*.plist
+          retention-days: 14
+          if-no-files-found: warn

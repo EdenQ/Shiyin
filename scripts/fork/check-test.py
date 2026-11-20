@@ -682,5 +682,67 @@ class CacheLocation(unittest.TestCase):
         self.assertEqual(code, 0, msg)
         self.assertTrue((self.home / 'Library/Caches/ShiyinBuild/check').is_dir())
 
+class ForkCheckWorkflow(unittest.TestCase):
+    """.github/workflows/fork-check.yml 的靜態檢查（fork design §F0.6；推送前，這台電腦跑不了 Actions）"""
+
+    def setUp(self):
+        import re
+        self.re = re
+        self.text = (ROOT / '.github/workflows/fork-check.yml').read_text(encoding='utf-8')
+        self.body = '\n'.join(l.split(' #')[0] if not l.lstrip().startswith('#') else '' for l in self.text.splitlines())
+        parts = re.split(r'(?m)^      - name: ', self.text)
+        self.steps = {st.split('\n', 1)[0]: st for st in parts[1:]}
+
+    def test_triggers(self):
+        self.assertRegex(self.text, r'(?m)^on:\n  push:\n    branches: \[main\]\n  pull_request:\n  workflow_dispatch:\n')
+        self.assertNotIn('pull_request_target', self.text, 'pull_request_target 會拿到寫入權限')
+        self.assertNotIn('schedule:', self.text)
+
+    def test_permissions_read_only(self):
+        self.assertRegex(self.text, r'(?m)^permissions:\n  contents: read\n\n')
+        self.assertEqual(self.text.count('permissions:'), 1, '工作層級不能另外加權限')
+
+    def test_no_secret_no_write(self):
+        for bad in (r'secrets\.', r'GITHUB_TOKEN', r'github\.token', r'\bwrite\b', r'\bgh\s+(issue|pr|api|release)',
+                    r'git\s+push', r'github-script', r'continue-on-error', r'\|\|\s*true', r'GH_TOKEN'):
+            self.assertIsNone(self.re.search(bad, self.body), bad)
+        self.assertIn('persist-credentials: false', self.body)
+
+    def test_actions_pinned_to_sha(self):
+        uses = self.re.findall(r'uses:\s*([^\s#]+)', self.text)
+        self.assertGreaterEqual(len(uses), 2)
+        for u in uses:
+            self.assertRegex(u, r'^[\w.-]+/[\w./-]+@[0-9a-f]{40}$', u)
+
+    def test_runner_concurrency_timeout(self):
+        self.assertRegex(self.text, r'(?m)^    runs-on: macos-26$')
+        m = self.re.search(r'(?m)^    timeout-minutes: (\d+)$', self.text)
+        self.assertTrue(m and 10 <= int(m.group(1)) <= 60, 'timeout 要合理')
+        self.assertRegex(self.text, r'(?m)^concurrency:\n  group: fork-check-\$\{\{ github\.ref \}\}\n  cancel-in-progress: true\n')
+
+    def test_runs_quick_without_swallowing_failure(self):
+        run = self.steps['check.sh --quick']
+        self.assertRegex(run, r'(?m)^        run: scripts/fork/check\.sh --quick --out "\$RUNNER_TEMP/fork-check"$')
+        self.assertNotIn('--only', run, '全部的 quick 項目在 runner 上都跑得了（fork design §F0.6）')
+        self.assertNotIn('if:', run)
+
+    def test_upstream_tag_namespace(self):
+        step = self.steps['上游的基準 tag（I1 用；放 refs/upstream-tags/，不碰 refs/tags）']
+        self.assertIn('+refs/tags/${tag}:refs/upstream-tags/${tag}', step)
+        self.assertIn("['upstream']['base']['tag']", step, 'tag 從 manifest 讀')
+        self.assertIn('--no-tags', step)
+
+    def test_artifact_and_summary(self):
+        up = self.steps['Upload summary and logs']
+        self.assertIn('if: always()', up)
+        self.assertIn('retention-days: 14', up)
+        self.assertIn('fork-check/summary.md', up)
+        self.assertIn('fork-check/logs/', up)
+        js = self.steps['Job summary']
+        self.assertIn('if: always()', js)
+        self.assertIn("grep '^|'", js, 'job summary 只放摘要的表格行')
+        self.assertEqual(self.text.count('$GITHUB_STEP_SUMMARY'), 2)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2 if '-v' in sys.argv else 1, argv=[sys.argv[0]])
