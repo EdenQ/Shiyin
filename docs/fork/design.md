@@ -534,7 +534,7 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 
 ### F10.1 備份方式：GRDB 的 `backup(to:)`（sqlite3_backup）
 
-- `ForkBackup.write`（背景）：`model.db.pool.backup(to: DatabaseQueue(path: <暫存檔>))`。GRDB 7 的 `DatabaseReader.backup` 是 `pool.read { … sqlite3_backup … }`：在讀取連線的交易裡一次複製全部頁面（`pagesPerStep: -1`），拿到的是開始那一刻的快照；WAL 模式下讀不擋寫，錄音、轉錄照常寫入。
+- `ForkBackup.write`（背景）：來源照 GRDB 7 `DatabaseReader.backup` 的做法，在 `pool.read { db in … }` 的讀取交易裡，用 `db.sqliteConnection` 跑 `sqlite3_backup_init／step(-1)／finish`，一次複製全部頁面，拿到的是開始那一刻的快照；WAL 模式下讀不擋寫，錄音、轉錄照常寫入。**目的地不交給 GRDB 用路徑開**（GRDB 沒有 `SQLITE_OPEN_NOFOLLOW`，SQLite 會跟著符號連結把連結指到的檔覆寫掉，REVIEW-F10b P2-3），改用下面 §F10.1a 的步驟自己開。
 - 不採用 `VACUUM INTO`：它不能在交易裡跑，GRDB 的 `read` 一律包交易，要另外開一條不經 GRDB 交易的連線才行；它會重排整個檔案（多花 CPU、暫存空間），一致性的保證跟 backup 一樣，沒有多的好處。
 - 不採用直接複製檔案（上游 N3 的做法）：N3 先 `checkpoint(.truncate)` 再複製，那時 app 還沒開始用資料庫；開著時複製可能拿到寫到一半的 WAL。
 - 寫完在背景依序：關掉目的地的連線 → 用新連線跑 `PRAGMA integrity_check`，結果要剛好是 `ok` → `PRAGMA journal_mode=DELETE`（備份是一個獨立的檔，不帶 `-wal`、`-shm`；還原時直接複製一個檔就好）→ 關掉 → 把 `ma-daily-<時間>.partial` 改名成 `ma-daily-<時間>.sqlite`，再刪掉驗證時 WAL 模式留在暫存檔名旁的 `-shm`、`-wal`（實測會留下 `-shm`）。任何一步失敗：刪掉 `.partial` 和它的 `-wal`、`-shm`、`-journal`，記下原因。
