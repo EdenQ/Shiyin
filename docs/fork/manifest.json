@@ -1142,6 +1142,7 @@
     "design": "docs/fork/design.md",
     "tasks": "docs/fork/tasks.md",
     "upstreamSync": "docs/fork/upstream-sync.md",
+    "acceptanceMac": "docs/fork/acceptance-mac.md",
     "upstreamDocsUnchanged": [
       "docs/requirements.md",
       "docs/design.md",

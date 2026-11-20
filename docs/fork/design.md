@@ -181,6 +181,81 @@ exit 0：沒有 FAIL（SKIP、需人工不算失敗）；1：有 FAIL；2：沒�
 
 **測試**：`python3 scripts/fork/upstream-watch-test.py` 在暫存 git repo 造上游、fork 的合成情境，測每一節（新 tag、改寫歷史、衝突歸屬、改到接點、各種名稱碰撞、搬資料的 SQL、相似功能、品牌）和 exit code（沒有變化 0、有新東西 1、工具錯誤 2）。列進 check.sh 的 quick（W，§F0.4）。
 
+### F0.6 推送時自動檢查（`.github/workflows/fork-check.yml`）
+
+每次推送到 main、每個 pull request 都在 GitHub 的 Mac runner 上跑 `scripts/fork/check.sh --quick`（§F0.4）。這樣靜態的回歸檢查不必等人在本機跑，push 之後就知道有沒有壞。完整模式（建置、DEBUG 版）照舊在本機跑，CI 不跑：要開 GUI app、等太久，runner 也沒有螢幕可以 `windowshot`。
+
+**觸發、環境**
+
+- 觸發：`push`（只有 `main`）、`pull_request`、`workflow_dispatch`。
+- 同一個分支或 PR 有新的推送時，取消還在跑的舊 run：`concurrency` 用 `github.ref`，`cancel-in-progress: true`。
+- `runs-on: macos-26`，跟 `release.yml` 一樣。Xcode 也一樣用 runner 預設的那一版，只在「環境」步驟印出 `xcodebuild -version`、`swift --version`、`sw_vers`。
+- 不快取 SPM：`--quick` 不跑 `swift build`。只用 `xcrun swiftc` 編兩個小檔：`brand-hooks-test`、TSan 的 `LockedValue`。
+- `timeout-minutes: 30`。本機約 2 分鐘，runner 慢一些也夠。
+
+**安全**
+
+- 權限只有 `contents: read`，工作層級不另外加權限。
+- 不用任何 secret、不用 `GITHUB_TOKEN`。
+- `actions/checkout` 用 `persist-credentials: false`。
+- 第三方 action 鎖在 commit SHA，沿用 §F0.5 查證過的 checkout、upload-artifact。
+- 不推送、不建 Issue、不留言。
+
+**要準備的東西**
+
+- I1 要上游的基準 tag（`refs/upstream-tags/<manifest upstream.base.tag>`）。checkout 之後，只把那一個 tag 從上游抓進 `refs/upstream-tags/`，不碰 `refs/tags`。tag 名稱從 manifest 讀，不寫死。
+- checkout 用 `fetch-depth: 0`。
+
+**在 runner 上每一項應該是什麼結果**
+
+不改 check.sh 的失敗語意。runner 跟使用者的 Mac 只有下面這些差別，每一項都照原本的規則判斷：
+
+| 項目 | runner 上 | 預期 |
+|---|---|---|
+| 開始前 | 沒有 `~/Library/Application Support/Shiyin`、沒有 DEBUG 版 | 照常開始（沒有錄音資料夾就不算在錄音） |
+| 12、開始時的快照 | 沒有 `com.weiwei.shiyin` 網域 | 「網域不存在」是明確的狀態（§F0.4 的嚴格比對），快照寫成 `MA-CHECK: domain absent`，前後相同 → PASS |
+| 4、4u | 有 `gh`，但沒有給 token | `gh variable get` 失敗 → 4u SKIP，4 照樣 PASS（4u 是唯一可選的子項） |
+| 3、T、W、I1、I2、L、11 | 只用 python3、git、`xcrun swiftc`、`codesign` | PASS |
+| C | 沒有開 DEBUG 版 | PASS |
+
+**macOS 26 上「網域不存在」的訊息還沒看過**：§F0.4 只認兩種完全相同的訊息：
+
+- 27.2.1 實測的 `Error: Domain '<網域>' not found.`；
+- 舊的 `Domain <網域> does not exist`。
+
+runner 的 macOS 26 如果是別的寫法，開始時就判斷不了設定快照，check.sh 會 exit 2，CI 變紅。
+
+- 這是預期中的失敗方式，不是假通過。
+- 處理方式：「環境」步驟會把 `defaults read com.weiwei.shiyin` 的 exit code 和 stderr 印在 log。看過那一行後，把那個寫法加進 `domain_absent_message`（一樣要整行完全相同），不放寬比對。
+
+**輸出**
+
+- artifact：check.sh 輸出資料夾裡的 `summary.md`、`logs/`、`defaults-*.plist`，名稱 `fork-check-<run_id>`，保留 14 天；`if: always()`，失敗時也上傳。
+- job summary：只放 `summary.md` 裡的表格行（`|` 開頭的行）。
+  - 內容是項目、狀態、耗時、證據檔名、說明，沒有使用者資料。
+  - runner 上的路徑是 runner 自己的（`/Users/runner/…`）。
+- check.sh 的 exit code 就是這一步的結果：1（有 FAIL）、2（沒開始）都讓 job 失敗。不加 `continue-on-error`、`|| true`。
+
+**測試**：`check-test.py` 的 `ForkCheckWorkflow` 做靜態檢查。
+
+- 觸發條件、`contents: read`、工作層級沒有權限。
+- action 都鎖 SHA，沒有 secret、`GITHUB_TOKEN`、寫入、`gh issue`、`git push`。
+- `persist-credentials: false`；`concurrency` 會取消舊的 run。
+- 跑的是 `check.sh --quick`，而且沒有吞掉失敗。
+- 上游 tag 放 `refs/upstream-tags/`。
+- artifact 保留 14 天、`if: always()`；job summary 只取表格行。
+
+**推送後第一次要確認**
+
+- run 是綠的。
+- 摘要表格裡：
+  - 3、T、W、I1、I2、L、4、11、12、C 都是 PASS，4u 是 SKIP；
+  - 12 的說明是「前後逐位元組相同」。
+- 「環境」那一步印出的 `defaults read` 訊息是支援的兩種之一。
+- artifact 有 `summary.md`、`logs/`。
+- 沒有建 Issue。
+- 再推一次（或對同一個 PR 連推兩次）時，舊的 run 被取消。
+
 ## F1. 名稱（F1）
 
 - `CFBundleName`（含繁中在地化）設為 `MA`，提供應用程式選單的短名稱；`CFBundleDisplayName` 英文為 `Meeting Assistant`，繁中為「會議助手」。
