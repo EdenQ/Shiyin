@@ -93,7 +93,7 @@ exit 0：沒有 FAIL（SKIP、需人工不算失敗）；1：有 FAIL；2：沒�
 
 **失敗一律不放行**（check.sh 是安全防線：判斷不了的情況算失敗，不算通過）
 
-- 設定快照：`defaults export` 成功、而且 `plutil -lint` 認得是 plist 才算快照。網域確實不存在（`defaults read` 說 `Error: Domain '…' not found.`，舊的寫法 `Domain … does not exist` 也認；`defaults export` 這時寫出空的 plist）是另一種明確狀態，快照檔寫成 `MA-CHECK: domain absent`；其他失敗（權限、服務、I/O、輸出不是 plist）：開始時 exit 2（不跑），結束時 #12 FAIL。不會用空檔代替。
+- 設定快照：`defaults export` 成功、而且 `plutil -lint` 認得是 plist 才算快照。網域確實不存在（`defaults read <網域>` exit 非 0、stdout 是空的、stderr 去掉結尾換行後**只有一行而且完全等於** `Error: Domain '<網域>' not found.`（macOS 27.2.1 實測）或舊的 `Domain <網域> does not exist`；前後多一個字、多一行、別的網域都不算，例如 `cfprefsd: Domain '<網域>' not found in cache; …`；`defaults export` 這時寫出空的 plist）是另一種明確狀態，快照檔寫成 `MA-CHECK: domain absent`；其他失敗（權限、服務、I/O、輸出不是 plist）：開始時 exit 2（不跑），結束時 #12 FAIL。不會用空檔代替。
 - 資料庫：DEBUG 版啟動後用 `lsof -p <pid> -Fn`（每個路徑一行、保留空白）列出開著的檔，`lsof` 失敗或沒有輸出就算失敗；所有 `shiyin.sqlite`、`-wal`、`-shm` 都要在這次的暫存 home 底下，而且一定要看得到暫存 home 的 `shiyin.sqlite`；開了任何正式資料夾（`~/Library/Application Support/Shiyin/`）底下的檔也算失敗。失敗時結束那個 DEBUG 版，DEBUG 版的項目全部 FAIL。
 - 品牌比對：`brand.py compare` 的 exit code 分三種：0 相同、1 比完有差異（需人工）、2 工具或輸入錯誤（基準或新版不是有效的 app：沒有 `Contents/Info.plist`、讀不了、沒有任何 `.lproj` 的 `Localizable.strings`；或比對中丟例外）。check.sh 只把 1 當「需人工」，其他非 0 一律 FAIL；呼叫前也先確認基準 bundle 有這些檔。
 - 結束 DEBUG 版：送訊號前核對那個 pid 的執行檔還是這次暫存資料夾裡的 app（`ps -o comm=`），不是就不送（pid 可能被別的程序重用）。
@@ -106,10 +106,10 @@ exit 0：沒有 FAIL（SKIP、需人工不算失敗）；1：有 FAIL；2：沒�
   5. 做出測試 id 的複本（`isolate_debug_app`）；
   6. 啟動、`lsof` 核對資料庫；
   7. 測試版開著時再讀一次處理程式（要讀得到、候選裡沒有測試版）。
-- 測試網域的清理（`cleanup_test_domain`）：`lsregister -u`、`defaults delete`、刪檔每一步的失敗都算；做完核對後置條件：`defaults read <測試 id>` 要明確說網域不存在（其他錯誤不算「已確認不存在」），Preferences、HTTPStorages、Caches、Saved Application State、WebKit 底下那個 id 的檔都不在。不成立就 return 1：開 DEBUG 版前的清理失敗 → DEBUG 項目 FAIL；結束時的清理失敗 → C FAIL。對正式 id 照樣拒絕、什麼都不做。
+- 測試網域的清理（`cleanup_test_domain`）：`lsregister -u`、`defaults delete`、刪檔每一步的失敗都算；做完核對後置條件：`defaults read <測試 id>` 要明確說網域不存在（同上面設定快照的嚴格比對；其他錯誤、近似的訊息都不算「已確認不存在」），Preferences、HTTPStorages、Caches、Saved Application State、WebKit 底下那個 id 的檔都不在。不成立就 return 1：開 DEBUG 版前的清理失敗 → DEBUG 項目 FAIL；結束時的清理失敗 → C FAIL。對正式 id 照樣拒絕、什麼都不做。
 - 結束 DEBUG 版：TERM 10 秒、再 KILL，之後那個 pid 還是這次的 app 就算失敗（C FAIL）；收尾時再用 `debug_apps` 確認沒有留下這次測試版的程序。
 - 開始前：`audio/recording/` 存在卻列不出來（權限）、`ps` 列不出程序，都 exit 2（判斷不了使用者是不是在錄音、有沒有別的 DEBUG 版）。
-- 其他前置步驟：`git archive <基準 tag> | tar` 任何一邊失敗都算基準建不出來（#3 FAIL）；`l10n.py check` 前備份翻譯表、讀 `git status` 失敗就 L FAIL；`seedfixtures` 失敗就那一項 FAIL；`check-debug.py` 的 `restoreedit` 後編輯紀錄沒清掉也算不符。
+- 其他前置步驟：`git archive <基準 tag> | tar` 任何一邊失敗都算基準建不出來（#3 FAIL；pipeline 結束後立刻把 `PIPESTATUS` 整個存下來再判斷，`extract_tag`）；`l10n.py check` 前備份翻譯表、讀 `git status` 失敗就 L FAIL；`seedfixtures` 失敗就那一項 FAIL；`check-debug.py` 的 `restoreedit` 後編輯紀錄沒清掉也算不符。
 - 每個外部指令、helper、前置步驟失敗會走到哪裡，列在 IMPL／FIX 的報告（FIX-3a3 的自查表）；新增步驟時照同樣原則：必要的失敗 → 依賴的項目 FAIL；只有明確定義成可選、摘要標 SKIP 的才可以跳過（目前只有 `4u`）。
 
 **check.sh 自己的測試**（`python3 scripts/fork/check-test.py`，也是 quick 的 T）：check.sh 的判斷寫在 `scripts/fork/check-lib.sh`（`check.sh` source 它），測試在暫存資料夾放假的 `defaults`、`lsof`、`ps`、`plutil` 指令（PATH 最前面），只呼叫 lib 的函式，不讀寫真的設定、不碰任何資料庫。負對照都要失敗或 exit 2：
@@ -130,6 +130,8 @@ exit 0：沒有 FAIL（SKIP、需人工不算失敗）；1：有 FAIL；2：沒�
 | `check.sh`（CLI） | `--only`、`--out` 後面沒有值 | exit 2 |
 
 另外 `brand-test.py` 加 `brand.py compare` 的測試：相同 0、有差異 1、基準缺 `Info.plist` 或沒有翻譯 2。
+
+**快取位置**：預設 `~/Library/Caches/ShiyinBuild/check`（建置快取 `scratch/`、基準版 `base/<tag>/`、這次的 `run-<時間>/`）；環境變數 `MA_CHECK_CACHE` 可以換到別的資料夾，用來在不刪現有快取的情況下測「沒有基準快取」的路徑。
 
 **品牌比對的基準**：`--base-app` 沒給時，用 `git describe --tags --abbrev=0 --match 'v[0-9]*' HEAD^` 找到的 fork tag（現在是 v5.0.1），`git archive` 那個 tag 到暫存資料夾、用它自己的 `build-app.sh`（同樣的複本規則）建 release，放在 `~/Library/Caches/ShiyinBuild/check/base/<tag>/`，之後直接用。用同一台電腦、同一版 Xcode 建，`xcstringstool` 的版本差異不會變成假的差異（F7.5 跟 GitHub 上的 4.7.6 比時就多了 3 條）。
 
