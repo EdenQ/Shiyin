@@ -1,8 +1,8 @@
 #!/bin/bash
 # fork 的回歸檢查（fork design §F0.4；PLAN-fork-5.0 §8.1、階段 3a）：一個指令跑完能自動化的 1～12 項，輸出 markdown 摘要。
 # 用法：scripts/fork/check.sh [--quick] [--only 3,5,I1] [--base-app <舊版.app> | --base-ref <tag>] [--out <資料夾>] [--keep] [--clean-cache]
-#   --quick        只跑靜態的（不建 app、不開 DEBUG 版）：3（原始碼）、4（repo）、T、I1、I2、L、11、12
-#   --only         只跑這幾項（逗號分隔，只收 1～13、I1、I2、L、T、S；不認得或一項都沒有就 exit 2）；
+#   --quick        只跑靜態的（不建 app、不開 DEBUG 版）：3（原始碼）、4（repo）、T、W、I1、I2、L、11、12
+#   --only         只跑這幾項（逗號分隔，只收 1～13、I1、I2、L、T、W、S；不認得或一項都沒有就 exit 2）；
 #                  需要的建置、DEBUG 版會自己做（加 --quick 時 3、4 只做靜態的部分，選到的其他項目照常建置）
 #   --base-app     品牌逐鍵比對的基準；預設用 HEAD^ 之前最近的 fork tag 在本機建（快取在 ~/Library/Caches/ShiyinBuild/check/base/<tag>）
 #   --out          摘要、log、截圖放這裡（預設 $TMPDIR/shiyin-check-<時間>）
@@ -81,7 +81,7 @@ want() {   # 這一項要不要跑
   local id="$1"
   if [ -n "$ONLY" ]; then case "$ONLY" in *",$id,"*) return 0;; *) return 1;; esac; fi
   [ "$MODE" = full ] && return 0
-  case "$id" in 3|4|T|I1|I2|L|11|12) return 0;; esac
+  case "$id" in 3|4|T|W|I1|I2|L|11|12) return 0;; esac
   return 1
 }
 # item <編號> <名稱> <函式>：函式 return 0 PASS、1 FAIL、3 SKIP、4 需人工；可以設 NOTE、EVID；輸出寫到 $LOG
@@ -204,6 +204,7 @@ i_iso() {
   return $c
 }
 i_selftest() { run python3 "$ROOT/scripts/fork/check-test.py"; }
+i_watchtest() { run python3 "$ROOT/scripts/fork/upstream-watch-test.py"; }   # 上游監看（fork design §F0.5）
 i_isotest() { run python3 "$ROOT/scripts/fork/isolation-check-test.py"; }
 i_l10n() {
   local table="$ROOT/Resources/Localizable.xcstrings" before after code
@@ -338,6 +339,7 @@ item 1 "編譯（swift build、release、DEBUG）" i_build
 item 2 "migration（check-fork-migrations）" i_mig
 item 3 "品牌（掃描、brand-test、建置結果、逐鍵比對）" i_brand
 item T "check.sh 自己的負對照（check-test.py）" i_selftest
+item W "上游監看的測試（upstream-watch-test.py）" i_watchtest
 item I1 "接點隔離（isolation-check）" i_iso
 item I2 "隔離檢查的回歸測試" i_isotest
 item L "介面字串（l10n.py check）" i_l10n

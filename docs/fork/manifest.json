@@ -108,22 +108,21 @@
       "symbols": [],
       "watchKeywords": {
         "zh": [
-          "名稱",
-          "圖示",
+          "應用程式選單",
           "回報問題",
           "更新網址",
           "贊助",
-          "關於"
+          "App 圖示",
+          "關於拾音"
         ],
         "en": [
-          "icon",
-          "issues",
-          "update url",
-          "credits",
           "ko-fi",
+          "credits",
           "cfbundlename",
-          "display name",
-          "about"
+          "cfbundledisplayname",
+          "issues url",
+          "about panel",
+          "app icon"
         ]
       }
     },
@@ -407,7 +406,7 @@
           "正在說話",
           "只改這句",
           "不是他",
-          "標記"
+          "標記的名字"
         ],
         "en": [
           "tag speaker",
@@ -657,8 +656,7 @@
           "mute",
           "muted",
           "micmute",
-          "unmute",
-          "mute hint"
+          "unmute"
         ]
       }
     },
@@ -774,20 +772,19 @@
       "watchKeywords": {
         "zh": [
           "條列",
-          "議題",
+          "議題帶",
           "複製這一段",
           "分段複製",
-          "議題帶",
+          "複製這個議題",
           "全部展開",
           "全部收合"
         ],
         "en": [
-          "topic",
           "copy section",
           "copysection",
           "topic band",
-          "notes list",
-          "action items"
+          "topic chips",
+          "notes list"
         ]
       }
     },
@@ -930,18 +927,14 @@
       ],
       "watchKeywords": {
         "zh": [
-          "品牌",
           "會議助手",
-          "拾音",
-          "翻譯表",
+          "品牌",
           "名稱替換"
         ],
         "en": [
-          "brand",
           "meeting assistant",
-          "shiyin",
-          "localizable",
-          "infoplist"
+          "brand",
+          "mabrand"
         ]
       }
     },
@@ -1008,8 +1001,7 @@
       ],
       "watchKeywords": {
         "zh": [
-          "資料競態",
-          "鎖"
+          "資料競態"
         ],
         "en": [
           "lockedvalue",
@@ -1032,7 +1024,10 @@
         "scripts/fork/check-f1.py",
         "scripts/fork/check-lib.sh",
         "scripts/fork/check-test.py",
-        "scripts/fork/check-handlers.swift"
+        "scripts/fork/check-handlers.swift",
+        "scripts/fork/upstream-watch.py",
+        "scripts/fork/upstream-watch-test.py",
+        ".github/workflows/upstream-watch.yml"
       ],
       "symbols": [
         "ForkDebug",
@@ -1053,7 +1048,8 @@
         "python3 scripts/fork/isolation-check.py",
         "python3 scripts/fork/check-test.py",
         "scripts/fork/check.sh --quick",
-        "scripts/fork/check.sh"
+        "scripts/fork/check.sh",
+        "python3 scripts/fork/upstream-watch-test.py"
       ],
       "markers": [
         {

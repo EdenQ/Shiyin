@@ -156,11 +156,11 @@ exit 0：沒有 FAIL（SKIP、需人工不算失敗）；1：有 FAIL；2：沒�
 
 **比對方法**（只用 Python 標準函式庫和 git）：
 1. **新東西**：`refs/upstream-tags/*`（不看 `win-v*`，fork 只做 Mac）和 `head` 跟狀態檔比。列新 tag（附 tag 的說明文字）、`base..head` 的 commit 標題。上次看過的 `upstreamMain` 不再是 `head` 的祖先 → 🔴「上游改寫了歷史」；已經看過的 tag 指到別的 commit → 🔴。
-2. **試合併**：`git merge-tree --write-tree --name-only [--merge-base=…] fork head`。列衝突檔、每個檔的衝突處數（合併結果裡 `<<<<<<<` 的數量）；每一處看前後 20 行的 `MA-FORK(F#)` 標記歸到功能，沒有標記的歸「品牌／其他」。
+2. **試合併**：`git merge-tree --write-tree --name-only [--merge-base=…] fork head`。列衝突檔、每個檔的衝突處數（合併結果裡 `<<<<<<<` 的數量）；每一處看前後 20 行的 `MA-FORK(F#)` 標記歸到功能；附近沒有標記時，歸到 manifest 把這個檔列為接點或 `upstreamFiles` 的功能（標「依檔」）；都沒有才歸「品牌／其他」。
 3. **改到 fork 接點但沒衝突**：fork 的接點在上游檔裡是加上的行，所以先用 `git diff -U0 <merge-base> fork -- <檔>` 找出含 `MA-FORK` 的 hunk 在合併基準版上的位置（錨點），再看上游 `git diff -U0 <merge-base> head` 的 hunk 有沒有落在錨點前後 3 行內；有衝突的檔不重複列。檔案清單來自 manifest 的 `markers`。
 4. **名稱碰撞**（上游新增的行，精確比對 manifest 和 fork 的命名規則）：UserDefaults 鍵（`forKey: "…"`、`…Key = "…"`、`@AppStorage("…")`）、DebugControl 的 `case "…"`、`registerMigration("…")`、`CREATE TABLE …`、翻譯表的鍵（上游新增的鍵 ∩ fork 自己加的鍵）、型別和函式名（`class|struct|enum|actor|protocol|func <名>` 對 manifest 的 `symbols`）、改到 `Sources/Shiyin/Fork/` 底下的檔、Info.plist 的新鍵（對 `infoPlistKeys` 和 `MA` 開頭的）。fork 的名稱來源：manifest 各功能的 `settingsKeys`、`debugCommands`、`migrations`、`tables`、`symbols`、`infoPlistKeys`，`rules.legacyNames`，以及 `ma` 開頭的命名規則（`rules` 的前綴）。
 5. **搬動會議資料的 SQL**：上游新增的行符合 `UPDATE (segments|bookmarks|speakers|meetings) SET … (start|end|time|meeting_id)`、`INSERT INTO … SELECT`，或新增名稱含 snapshot／restore 的函式 → 🟡，列成「fork 的表要不要跟著處理」（§F-DB）。
-6. **相似功能**：manifest 每個功能有 `watchKeywords`（`zh`、`en`），掃上游新增的行（程式、翻譯表、docs），每個功能列命中的關鍵字和幾行例子；上游 `docs/requirements.md` 新的章節（`## `、`### ` 開頭、標題在 base 沒有的）跟 `docs/fork/requirements.md` 每個 F 段落算相似度：中文用 CJK 字的雙字組、英文用小寫單字（3 個字母以上），兩組合起來算 Jaccard。分數 ≥ 門檻、或那一節命中同一個功能的關鍵字 ≥ 2 個 → 列為「可能相似」，附兩邊的標題、摘要、分數、命中的關鍵字。門檻用 78ceab8..v5.0.0 校正（結果寫在 `upstream-watch.py` 的 `SIMILARITY_THRESHOLD` 旁）。
+6. **相似功能**：manifest 每個功能有 `watchKeywords`（`zh`、`en`），掃上游新增的行（程式、翻譯表、docs），每個功能列命中的關鍵字和幾行例子；上游 `docs/requirements.md` 新的章節（`## `、`### ` 開頭、標題在 base 沒有的）跟 `docs/fork/requirements.md` 每個 F 段落算相似度：中文用 CJK 字的雙字組、英文用小寫單字（3 個字母以上），兩組合起來算 Jaccard。分數 ≥ 門檻、或那一節命中同一個功能的關鍵字 ≥ 2 個 → 列為「可能相似」，附兩邊的標題、摘要、分數、命中的關鍵字。門檻 PLAN 先定 0.2，用 78ceab8..v5.0.0 校正成 **0.08**：上游 57 個新章節對 fork F 段落最高的五對（R81 錄音島／F3、R75 錄不到電腦聲音／F3、R92、R101／F4、R74／F3）都是 5.0 合併時真的要處理的，第六名起開始混進不相干的，0.2 一對都抓不到（理由寫在 `SIMILARITY_THRESHOLD` 旁）。關鍵字要具體：太常見的字（「標記」會撞到「標記重點」、「拾音」「名稱」「圖示」到處都是）不放進 `watchKeywords`，品牌由第 7 點管。
 7. **品牌**：上游新增或改過的 Swift 檔，用 `brand.py` 同一個掃描器找新增行上含「拾音」「Shiyin」的字串常值：不經過翻譯表又不在白名單的（建置時換不到）→ ⚪ 列出來（報告的格式表把品牌放在 ⚪，但這一類在摘要裡標 🔴 計數）；經過翻譯表的只計數。
 
 **報告**（markdown 一份，標題「上游監看 YYYY-MM-DD：上游 x.y.z（N 個新 commit）」，x.y.z 是 head 能走到的最新 `v*` tag）：
