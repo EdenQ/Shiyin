@@ -24,10 +24,17 @@ extension ForkDebug {
             if let out { write(backupStatus(model), to: out) }
         case "prune":
             backup.prune()
-        case "simulate":   // mabackup simulate lowdisk|fail|off
+        case "simulate":   // mabackup simulate lowdisk|fail|off|slow <秒數>
             let what = args.count > 2 ? args[2] : "off"
-            backup.simulateLowDisk = what == "lowdisk"
-            backup.simulateFail = what == "fail"
+            if what == "slow" {
+                backup.simulateDelay = args.count > 3 ? Double(args[3]) ?? 0 : 0
+            } else {
+                backup.simulateLowDisk = what == "lowdisk"
+                backup.simulateFail = what == "fail"
+                backup.simulateDelay = 0
+            }
+        case "schedule":   // mabackup schedule off|on
+            backup.setSchedule(args.count > 2 && args[2] == "on")
         case "age":   // mabackup age <天數>
             if args.count > 2, let days = Double(args[2]) { backup.age(days: days) }
         case "menu":   // mabackup menu <輸出.json>：「MA」選單每一項的標題、能不能按
@@ -59,6 +66,7 @@ extension ForkDebug {
             "failingSince": (UserDefaults.standard.object(forKey: ForkBackup.failingSinceKey) as? Date).map { iso.string(from: $0) } ?? NSNull(),
             "warning": backup.warning ?? NSNull(),
             "menuEnabled": backup.canBackupNow,
+            "partials": ForkBackup.stalePartials(in: ForkBackup.folder),
             "folder": ForkBackup.folder.path,
         ]
     }

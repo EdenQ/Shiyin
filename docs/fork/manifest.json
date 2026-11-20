@@ -1095,7 +1095,8 @@
       "forkFiles": [
         "Sources/Shiyin/Fork/Backup/DatabaseBackup.swift",
         "Sources/Shiyin/Fork/Backup/BackupViews.swift",
-        "Sources/Shiyin/Fork/Backup/BackupDebug.swift"
+        "Sources/Shiyin/Fork/Backup/BackupDebug.swift",
+        "scripts/fork/f10-backup-check.py"
       ],
       "upstreamFiles": [
         "Sources/Shiyin/Views/SettingsView.swift"
@@ -1131,6 +1132,10 @@
           "line": 1521,
           "hook": "ForkBackupSettingsSection()"
         }
+      ],
+      "checks": [
+        "python3 scripts/fork/f10-backup-check.py <SHIYIN_HOME> <shiyinctl> --out <資料夾>",
+        "scripts/fork/check.sh --only 14"
       ]
     }
   },

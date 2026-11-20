@@ -38,6 +38,8 @@ final class ForkBackup {
     /// mabackup simulate lowdisk|fail（design §F10.4、§F10.5）
     @ObservationIgnored var simulateLowDisk = false
     @ObservationIgnored var simulateFail = false
+    /// mabackup simulate slow <秒數>：下一次備份在複製完、驗證前多等（讓排程和立即備份真的重疊，design §F10.7）
+    @ObservationIgnored var simulateDelay: Double = 0
     #endif
 
     static var enabled: Bool {
@@ -95,12 +97,17 @@ final class ForkBackup {
         let db = model.db
         let folder = Self.folder
         var fail = false
+        var delay: Double = 0
         #if DEBUG
         fail = simulateFail
         simulateFail = false
+        delay = simulateDelay
+        simulateDelay = 0
         #endif
         let started = Date()
-        let result = await Task.detached(priority: .utility) { Self.write(db: db, folder: folder, simulateFail: fail) }.value
+        let result = await Task.detached(priority: .utility) {
+            Self.write(db: db, folder: folder, simulateFail: fail, simulateDelay: delay)
+        }.value
         switch result {
         case .success(let url):
             let bytes = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
@@ -108,7 +115,10 @@ final class ForkBackup {
             UserDefaults.standard.removeObject(forKey: Self.lastErrorKey)
             UserDefaults.standard.removeObject(forKey: Self.failingSinceKey)
             lastReason = nil
-            prune()
+            // 還在 running（互斥沒放開）：同一個 app 不會有別的備份在寫暫存檔，這時清掉以前中斷留下的暫存檔（design §F10.3）
+            pruneBackups()
+            removeStalePartials()
+            revision += 1
             return .done
         case .failure(let failure):
             Self.blog.error("backup failed: \(failure.log, privacy: .public) (database \(size, privacy: .public) bytes)")
@@ -134,7 +144,7 @@ final class ForkBackup {
     }
 
     /// 背景執行：暫存檔 → integrity_check → 單一檔（DELETE 模式）→ 改名。失敗時刪掉暫存檔
-    nonisolated static func write(db: AppDatabase, folder: URL, simulateFail: Bool) -> Result<URL, Failure> {
+    nonisolated static func write(db: AppDatabase, folder: URL, simulateFail: Bool, simulateDelay: Double = 0) -> Result<URL, Failure> {
         let fm = FileManager.default
         let stamp = stampFormatter().string(from: Date())
         let final = folder.appendingPathComponent("ma-daily-\(stamp).sqlite")
@@ -144,7 +154,7 @@ final class ForkBackup {
         } catch {
             return .failure(Failure(reason: String(localized: "建立備份資料夾失敗"), log: "create folder: \(fileCode(error))"))
         }
-        if fm.fileExists(atPath: final.path) {
+        if exists(final) {
             return .failure(Failure(reason: String(localized: "同名的備份已經存在"), log: "file exists"))
         }
         removePartial(partial)
@@ -152,6 +162,7 @@ final class ForkBackup {
             let dest = try DatabaseQueue(path: partial.path)
             try db.pool.backup(to: dest)
             try dest.close()
+            if simulateDelay > 0 { Thread.sleep(forTimeInterval: simulateDelay) }
             if simulateFail { throw Failure(reason: "simulated failure (DEBUG)", log: "simulated failure") }
             let verify = try DatabaseQueue(path: partial.path)
             let lines = try verify.read { try String.fetchAll($0, sql: "PRAGMA integrity_check") }
@@ -182,10 +193,36 @@ final class ForkBackup {
         return "\(ns.domain) \(ns.code)"
     }
 
-    /// 暫存檔和 SQLite 在旁邊開的檔
+    /// SQLite 在暫存檔旁開的檔
+    nonisolated static let partialSidecars = ["", "-wal", "-shm", "-journal"]
+
+    /// 這次的暫存檔和它旁邊的檔（確切的路徑；只刪一般檔案）
     nonisolated static func removePartial(_ partial: URL) {
-        for suffix in ["", "-wal", "-shm", "-journal"] {
-            try? FileManager.default.removeItem(at: URL(fileURLWithPath: partial.path + suffix))
+        for suffix in partialSidecars {
+            removeIfRegularFile(URL(fileURLWithPath: partial.path + suffix))
+        }
+    }
+
+    /// lstat 看類型（不跟著符號連結走）：一般檔案才是 true
+    nonisolated static func isRegularFile(_ url: URL) -> Bool {
+        (try? FileManager.default.attributesOfItem(atPath: url.path)[.type] as? FileAttributeType) == .typeRegular
+    }
+
+    /// 這個路徑上有沒有任何東西（含斷掉的符號連結）
+    nonisolated static func exists(_ url: URL) -> Bool {
+        (try? FileManager.default.attributesOfItem(atPath: url.path)) != nil
+    }
+
+    /// 刪之前再確認一次是一般檔案（資料夾、符號連結一律不碰）
+    @discardableResult
+    nonisolated static func removeIfRegularFile(_ url: URL) -> Bool {
+        guard isRegularFile(url) else { return false }
+        do {
+            try FileManager.default.removeItem(at: url)
+            return true
+        } catch {
+            blog.error("backup cleanup failed: \((error as NSError).code, privacy: .public)")
+            return false
         }
     }
 
@@ -200,20 +237,40 @@ final class ForkBackup {
 
     // MARK: 資料夾
 
-    /// 檔名的時間部分（`ma-daily-yyyyMMdd-HHmmss.sqlite` 的 yyyyMMdd-HHmmss）；名稱不完全符合時 nil
-    nonisolated static func stamp(of name: String) -> String? {
-        let prefix = "ma-daily-", suffix = ".sqlite"
-        guard name.hasPrefix(prefix), name.hasSuffix(suffix) else { return nil }
+    /// 檔名的時間部分：名稱完全是 `ma-daily-<yyyyMMdd-HHmmss><suffix>`，而且時間合法（解析後再格式化回去相同）。
+    /// 不符合時 nil（design §F10.3）
+    nonisolated static func stamp(of name: String, suffix: String = ".sqlite") -> String? {
+        let prefix = "ma-daily-"
+        guard name.hasPrefix(prefix), name.hasSuffix(suffix), name.count == prefix.count + 15 + suffix.count else { return nil }
         let middle = Array(name.dropFirst(prefix.count).dropLast(suffix.count))
         guard middle.count == 15 else { return nil }
         for (i, c) in middle.enumerated() where i == 8 ? c != "-" : !("0"..."9").contains(c) { return nil }
-        return String(middle)
+        let text = String(middle)
+        let formatter = stampFormatter()
+        guard let date = formatter.date(from: text), formatter.string(from: date) == text else { return nil }
+        return text
     }
 
-    /// 資料夾裡的定期備份（只看這一層、名稱完全符合的檔），舊到新
+    /// 資料夾這一層的名稱（不遞迴）
+    nonisolated static func entries(in folder: URL) -> [String] {
+        (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
+    }
+
+    /// 資料夾裡的定期備份，舊到新：一般檔案、名稱完全符合、時間合法。份數、上一次成功、清理、age 都用這個（design §F10.3）
     static func backups() -> [String] {
-        let names = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
-        return names.filter { stamp(of: $0) != nil }.sorted()
+        backups(in: folder)
+    }
+
+    nonisolated static func backups(in folder: URL) -> [String] {
+        entries(in: folder).filter { stamp(of: $0) != nil && isRegularFile(folder.appendingPathComponent($0)) }.sorted()
+    }
+
+    /// 以前中斷留下的暫存檔：一般檔案、名稱完全是 `ma-daily-<合法時間>.partial` 或加上 -wal／-shm／-journal
+    nonisolated static func stalePartials(in folder: URL) -> [String] {
+        entries(in: folder).filter { name in
+            partialSidecars.contains { stamp(of: name, suffix: ".partial" + $0) != nil }
+                && isRegularFile(folder.appendingPathComponent(name))
+        }.sorted()
     }
 
     static func date(of name: String) -> Date? {
@@ -225,24 +282,29 @@ final class ForkBackup {
         backups().last.flatMap(date(of:))
     }
 
-    /// 留最新 7 份；沒在備份時順便刪掉沒寫完的暫存檔。migration 前的備份（backups/ 那一層）、其他名字的檔都不碰
-    func prune() {
-        let fm = FileManager.default
+    /// 留最新 7 份。只刪 backups() 認得的一般檔，刪之前再確認類型；migration 前的備份、其他名字的檔、資料夾、連結都不碰
+    func pruneBackups() {
         let all = Self.backups()
-        for name in all.dropLast(Self.keep) {
-            do {
-                try fm.removeItem(at: Self.folder.appendingPathComponent(name))
-            } catch {
-                Self.blog.error("backup prune failed: \((error as NSError).code, privacy: .public)")
-            }
+        var removed = 0
+        for name in all.dropLast(Self.keep) where Self.removeIfRegularFile(Self.folder.appendingPathComponent(name)) {
+            removed += 1
         }
-        if !running {
-            let names = (try? fm.contentsOfDirectory(atPath: Self.folder.path)) ?? []
-            for name in names where name.hasPrefix("ma-daily-") && name.contains(".partial") {
-                try? fm.removeItem(at: Self.folder.appendingPathComponent(name))
-            }
+        if removed > 0 { Self.blog.info("backup pruned \(removed, privacy: .public) old file(s)") }
+    }
+
+    /// 刪以前中斷留下的暫存檔。呼叫的地方要保證沒有正在寫的備份（成功收尾時 running 還是 true，或 running 是 false）
+    func removeStalePartials() {
+        var removed = 0
+        for name in Self.stalePartials(in: Self.folder) where Self.removeIfRegularFile(Self.folder.appendingPathComponent(name)) {
+            removed += 1
         }
-        if all.count > Self.keep { Self.blog.info("backup pruned \(all.count - Self.keep, privacy: .public) old file(s)") }
+        if removed > 0 { Self.blog.info("backup removed \(removed, privacy: .public) leftover partial file(s)") }
+    }
+
+    /// mabackup prune：份數；沒在備份時才清暫存檔
+    func prune() {
+        pruneBackups()
+        if !running { removeStalePartials() }
         revision += 1
     }
 
@@ -294,6 +356,13 @@ final class ForkBackup {
     }
 
     #if DEBUG
+    /// mabackup schedule off|on：停掉、重新開始排程（自動化測試時不讓啟動後 2 分鐘的檢查插進來）
+    func setSchedule(_ on: Bool) {
+        timer?.invalidate()
+        timer = nil
+        if on, let model { Self.install(model) }
+    }
+
     /// mabackup age <天數>：每份備份的檔名時間往前移（只改檔名），failingSince 也往前移
     func age(days: Double) {
         let fm = FileManager.default
