@@ -190,8 +190,14 @@ exit 0：沒有 FAIL（SKIP、需人工不算失敗）；1：有 FAIL；2：沒�
 - 觸發：`push`（只有 `main`）、`pull_request`、`workflow_dispatch`。
 - 同一個分支或 PR 有新的推送時，取消還在跑的舊 run：`concurrency` 用 `github.ref`，`cancel-in-progress: true`。
 - `runs-on: macos-26`，跟 `release.yml` 一樣。Xcode 也一樣用 runner 預設的那一版，只在「環境」步驟印出 `xcodebuild -version`、`swift --version`、`sw_vers`。
-- 不快取 SPM：`--quick` 不跑 `swift build`。只用 `xcrun swiftc` 編兩個小檔：`brand-hooks-test`、TSan 的 `LockedValue`。
-- `timeout-minutes: 30`。本機約 2 分鐘，runner 慢一些也夠。
+- `--quick` 不建 app、不開 DEBUG 版，但**會編譯**：
+  - L（`l10n.py check`）用 `swift build --target Shiyin`（`-emit-localized-strings`）抽介面字串，建置快取在 `~/Library/Caches/ShiyinBuild-l10n`。runner 是全新的，所以每次都是冷編譯，會下載 GRDB、FluidAudio 等依賴和 whisper、llama 的 binary target。
+  - 另外用 `xcrun swiftc` 編兩個小檔：`brand-hooks-test`、TSan 的 `LockedValue`。
+- 時間：
+  - 隔離的冷跑實測（全新 HOME、SwiftPM 的快取也是空的；REVIEW-CA）：L 約 3 分鐘，整個 quick 約 4.5 分鐘。
+  - 本機有快取時約 2 分鐘。
+- 目前**不快取 SPM**。
+- `timeout-minutes: 30`：照上面的實測應該夠，但 runner 的下載速度、編譯速度沒看過。第一次 CI 看實際耗時，太接近 30 分鐘或太慢時，再考慮放大 timeout，或用 `actions/cache` 快取 `ShiyinBuild-l10n` 的依賴（同樣鎖 SHA）。
 
 **安全**
 
@@ -215,7 +221,8 @@ exit 0：沒有 FAIL（SKIP、需人工不算失敗）；1：有 FAIL；2：沒�
 | 開始前 | 沒有 `~/Library/Application Support/Shiyin`、沒有 DEBUG 版 | 照常開始（沒有錄音資料夾就不算在錄音） |
 | 12、開始時的快照 | 沒有 `com.weiwei.shiyin` 網域 | macOS 27.2.1 上 `defaults export` 不存在的網域會寫出空的 plist、exit 0，快照就是空的 plist；前後相同 → PASS。export 失敗時才看「網域不存在」的訊息（§F0.4 的嚴格比對） |
 | 4、4u | 有 `gh`，但沒有給 token | `gh variable get` 失敗 → 4u SKIP，4 照樣 PASS（4u 是唯一可選的子項） |
-| 3、T、W、I1、I2、L、11 | 只用 python3、git、`xcrun swiftc`、`codesign` | PASS |
+| 3、T、W、I1、I2、11 | 只用 python3、git、`xcrun swiftc`、`codesign` | PASS |
+| L | `swift build --target Shiyin` 冷編譯，要下載依賴（要網路） | PASS（約 3 分鐘） |
 | C | 沒有開 DEBUG 版 | PASS |
 
 **macOS 26 上還沒看過**：runner 是 macOS 26，下面兩件事還沒看過：
@@ -243,6 +250,7 @@ exit 0：沒有 FAIL（SKIP、需人工不算失敗）；1：有 FAIL；2：沒�
 - `persist-credentials: false`；`concurrency` 會取消舊的 run。
 - 跑的是 `check.sh --quick`，而且沒有吞掉失敗。
 - 上游 tag 放 `refs/upstream-tags/`。
+- tag 步驟實際跑一次：從 workflow 抽出那一步的 shell，換上假的 `git`（記下有沒有被呼叫），用惡意或型別不對的 manifest 跑。跨 ref、`../`、換行、分號、命令替換、null、數字、空字串都要被拒絕（exit 非 0）而且 `git` 沒被呼叫；正常的 `v5.0.0` 要呼叫 `git fetch`，refspec 是 `+refs/tags/v5.0.0:refs/upstream-tags/v5.0.0`。拿掉格式檢查那一行時，這個測試要失敗。
 - artifact 保留 14 天、`if: always()`；job summary 只取表格行。
 
 **推送後第一次要確認**
