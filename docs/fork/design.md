@@ -353,7 +353,7 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 - `tagspeaker now <名字>`：錄音中等於按「正在說話」的名字。
 - `tagspeaker line <第幾行> <名字|->`：錄音中標記即時逐字稿的第 N 行（從 0 開始），`-` 是清除標記。
 - `tagspeaker add <會議 id> <開始> <結束> <名字>`：直接加一個 line 標記，測套用規則用；`tagspeaker delete <標記 id>`。
-- `tagspeaker only <會議 id> <標記 id>`：等於按沒套用的標記的「只改這句」（F2.12）。
+- `tagspeaker only <會議 id> <標記 id> [<錯誤輸出.json>]`：等於按沒套用的標記的「只改這句」（F2.12）。加了第 3 個參數、而且是 `-debugQuietPrompts YES` 時：先記下呼叫前的 `model.errorMessage`，照常同步呼叫真正的 `reassignTaggedSegments`（同一筆交易、同樣的 `perform`），返回後立刻把這次新出現的錯誤寫進輸出檔，再把 `errorMessage` 還原成呼叫前的值，主視窗的「出了一點問題」對話框（綁在上游 `MainWindow` 的 `errorMessage`）就不會跳出來。只有這一條指令、只有給了輸出檔的那一次這樣做，不清別的錯誤；正式版沒有這條路。約 1 秒後在同一個檔補上 `errorMessageAfter`（那時的 `errorMessage`）、`sheetVisible`（有沒有視窗掛著 sheet 或對話框）、`mainWindowVisible`，給 `f2-atomic-check.py` 確認畫面上沒有對話框。
 - `addparticipant <會議 id> <名字>`：等於在 ＋ 按「加入」。
 - `tagui add`、`tagui name <第幾行>`：等於按 ＋、一行選單裡的「其他名字…」，打開輸入名字的彈出視窗；接著用 `typefield 名字 <名字>`、`submitfield 名字` 送出（走表單的送出路徑）。這台電腦沒有輔助使用權限時用這個代替 AX。
 - `applytags <會議 id>`：等於重新轉錄存檔後那幾步（`tag` 的名字先回到預設，再套用標記、學聲紋，然後聲紋比對）。
@@ -365,7 +365,7 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 ### F2.6 驗證
 
 - 比對規則：`SpeakerTagging` 用小程式單獨測（同名、不同名、不明確、沒人說話、同名兩位）。資料庫：測試用的 `SHIYIN_HOME` 建一場有說話者的會議（直接寫段落），`tagspeaker add`＋`applytags` 跑一遍，加上手動改過名字的說話者不覆蓋、聲紋有存、`tag` 的名字在重新套用時會重算。
-- 「只改這句」的交易（DF8）：`python3 scripts/fork/f2-atomic-check.py <SHIYIN_HOME> <shiyinctl> --out <資料夾>`（DEBUG 版先用那個 home 開著）：SQLite trigger 只擋「改名成丙」，按「只改這句」後說話者、句子、復原快照要跟按之前完全相同；拿掉 trigger 再按一次、再復原，輸出可以跟別的版本逐位元組比。
+- 「只改這句」的交易（DF8）：`python3 scripts/fork/f2-atomic-check.py <SHIYIN_HOME> <shiyinctl> --out <資料夾>`（DEBUG 版先用那個 home 開著）：SQLite trigger 只擋「改名成丙」，按「只改這句」後說話者、句子、復原快照要跟按之前完全相同，而且錯誤要是預期的 SQLite 19（`tagspeaker only` 的錯誤輸出檔），`state` 的 `errorMessage` 是空的、沒有視窗掛著對話框（不在使用者畫面上跳出「出了一點問題」）；拿掉 trigger 再按一次、再復原，輸出可以跟別的版本逐位元組比。
 - 端到端：多人真人錄音用模擬錄音（`record-sim`），在某人單獨講話時用 `tagspeaker now`、`tagspeaker line` 標記 → 停止 → 轉錄完那些說話者改成標的名字；重新轉錄後名字還在。
 - 畫面：在真的畫面上用 AX 按過「正在說話」的名字、＋ 的輸入框和「加入」、一行的選單（名單、其他名字…的「標記」、清除標記）、錄完的提示「查看」、逐字稿的「套用到…」「刪除標記」。英文介面看過。
 
@@ -553,6 +553,11 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 7. 驗證：確認三個旁檔的名字都沒有東西後，`sqlite3_open_v2(<partial>, SQLITE_OPEN_READONLY | SQLITE_OPEN_NOFOLLOW)`，`PRAGMA integrity_check` 要剛好是 `ok`、`PRAGMA journal_mode` 要是 `delete`；關掉後再核對一次 inode。唯讀、rollback 模式不會建旁檔。
 8. 改名：`renameatx_np(dirfd, <partial>, dirfd, <正式檔名>, RENAME_EXCL)`：正式檔名有任何東西（含斷掉的連結）就失敗，不覆蓋；改名前核對 `<partial>` 還是同一個一般檔。
 9. 失敗時只刪「還是同一個 inode 的一般檔」的暫存檔；旁檔照 §F10.3 只刪一般檔。成功、失敗都關掉 fd。
+
+**安全前提（能防什麼、不保證什麼）**：
+- 能防：開始備份前就已經在 `backups/daily` 裡的東西——這次檔名上的符號連結（含斷掉的）、資料夾、`-wal`／`-shm`／`-journal` 的連結、正式檔名上的連結，以及 `daily` 本身是連結。遇到這些一律不寫、不刪、回報失敗。
+- 不保證：跟會議助手同一個使用者權限、正在主動搶時間的程式，在 open、核對、rename 之間的極短空檔改掉資料夾的內容（例如把 `daily` 或暫存檔換掉）。inode 核對、`O_NOFOLLOW`、`RENAME_EXCL` 縮小了這個空檔，但沒有把它變成零；同權限的程式本來就能直接改使用者的資料，這不在這個功能的防護範圍內。
+- 不宣稱：任意時間斷電後目錄的 metadata 一定持久。檔案內容有 `fsync`，但 rename 之後沒有對 `dirfd` 做 `fsync`；斷電時剛改名的備份可能還是暫存檔名（下一次成功時當殘檔清掉）或不見，舊的備份不受影響。
 - 整個過程在背景執行（`Task.detached`），主執行緒只更新狀態。同一時間只有一個備份（`running`）。
 
 ### F10.2 排程（`ForkBackup.install`，由 `ForkStartup.install` 呼叫）
