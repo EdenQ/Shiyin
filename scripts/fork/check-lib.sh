@@ -5,6 +5,14 @@
 MA_DOMAIN="com.weiwei.shiyin"
 MA_ITEMS="1 2 3 4 5 6 7 8 9 10 11 12 13 I1 I2 L T S"
 
+# domain_absent_message <網域> <defaults read 的錯誤訊息>：是不是「網域不存在」。macOS 27 是
+# `Error: Domain 'X' not found.`（2026-11-20 實測；FIX-3a3 第一次完整跑因為只認舊的寫法，安全地全部 FAIL）；
+# 舊的寫法 `Domain X does not exist` 也認。其他訊息（cfprefsd、權限）都不算
+domain_absent_message() {
+  case "$2" in *"Domain '$1' not found"*|*"Domain $1 does not exist"*) return 0;; esac
+  return 1
+}
+
 # defaults_snapshot <輸出檔>：共用設定的快照。0：成功（plist，或網域確實不存在時寫 MA-CHECK: domain absent）；1：拿不到
 defaults_snapshot() {
   local out="$1" err
@@ -14,7 +22,7 @@ defaults_snapshot() {
     echo "defaults export 成功，但輸出不是 plist：$out"
     rm -f "$out"; return 1
   fi
-  if defaults read "$MA_DOMAIN" 2>&1 >/dev/null | grep -q "Domain $MA_DOMAIN does not exist"; then
+  if domain_absent_message "$MA_DOMAIN" "$(defaults read "$MA_DOMAIN" 2>&1 >/dev/null)"; then
     printf 'MA-CHECK: domain absent\n' > "$out"; return 0
   fi
   echo "defaults export 失敗：$err"
@@ -90,7 +98,7 @@ domain_state() {   # domain_state <id>：印 absent／present；判斷不了（�
   local err
   if defaults read "$1" >/dev/null 2>&1; then echo present; return 0; fi
   err="$(defaults read "$1" 2>&1 >/dev/null)"
-  case "$err" in *"Domain $1 does not exist"*) echo absent; return 0;; esac
+  domain_absent_message "$1" "$err" && { echo absent; return 0; }
   echo "讀不了網域 ${1}：$err" >&2; return 1
 }
 cleanup_test_domain() {

@@ -28,12 +28,12 @@ case "$1" in
     case "$mode" in
       ok) printf '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict><key>a</key><string>b</string></dict></plist>\n' > "$3"; exit 0;;
       notplist) echo 'not a plist' > "$3"; exit 0;;
-      absent) echo "Domain $2 does not exist" >&2; exit 1;;
+      absent) echo "Error: Domain '$2' not found." >&2; exit 1;;
       *) echo 'Could not export domain: Operation not permitted' >&2; exit 1;;
     esac;;
   read)
     case "$mode" in
-      absent) echo "Domain $2 does not exist" >&2; exit 1;;
+      absent) echo "Error: Domain '$2' not found." >&2; exit 1;;
       ok) echo '{ a = b; }'; exit 0;;
       *) echo 'cfprefsd error' >&2; exit 1;;
     esac;;
@@ -59,11 +59,11 @@ if cmd == 'delete' and os.environ.get('STUB_DELETE_EXIT'):
 data = json.load(open(path)) if os.path.exists(path) else None
 if cmd == 'export':
     if data is None:
-        sys.exit('Domain %s does not exist' % domain)
+        sys.exit("Error: Domain '%s' not found." % domain)
     plistlib.dump(data, open(sys.argv[3], 'wb')); sys.exit(0)
 if cmd == 'read':
     if data is None:
-        sys.exit('Domain %s does not exist' % domain)
+        sys.exit("Error: Domain '%s' not found." % domain)
     if len(sys.argv) > 3:
         if sys.argv[3] not in data: sys.exit('does not exist')
         print(data[sys.argv[3]]); sys.exit(0)
@@ -374,6 +374,14 @@ class Lib(unittest.TestCase):
         code, msg, *_ = self.cleanup_case(STUB_READ_ERROR='1')
         self.assertEqual(code, 1, msg)
         self.assertIn('讀不了網域', msg)
+
+    def test_domain_absent_message(self):
+        """macOS 27 的寫法和舊的寫法都認；其他錯誤不算不存在"""
+        d = 'com.weiwei.shiyin.macheck'
+        for msg, want in ((f"Error: Domain '{d}' not found.", 0), (f'Domain {d} does not exist', 0),
+                          ('cfprefsd: connection interrupted', 1), (f"Error: Domain 'other' not found.", 1), ('', 1)):
+            code, out = self.call('domain_absent_message', d, msg)
+            self.assertEqual(code, want, f'{msg!r}：{out}')
 
     # ---------- P2-5：處理程式的 helper、開始時的快照是必要條件 ----------
     def handlers_case(self, mode):

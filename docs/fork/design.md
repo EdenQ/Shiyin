@@ -93,7 +93,7 @@ exit 0：沒有 FAIL（SKIP、需人工不算失敗）；1：有 FAIL；2：沒�
 
 **失敗一律不放行**（check.sh 是安全防線：判斷不了的情況算失敗，不算通過）
 
-- 設定快照：`defaults export` 成功、而且 `plutil -lint` 認得是 plist 才算快照。網域確實不存在（`defaults read` 說 `Domain … does not exist`）是另一種明確狀態，快照檔寫成 `MA-CHECK: domain absent`；其他失敗（權限、服務、I/O、輸出不是 plist）：開始時 exit 2（不跑），結束時 #12 FAIL。不會用空檔代替。
+- 設定快照：`defaults export` 成功、而且 `plutil -lint` 認得是 plist 才算快照。網域確實不存在（`defaults read` 說 `Error: Domain '…' not found.`，舊的寫法 `Domain … does not exist` 也認；`defaults export` 這時寫出空的 plist）是另一種明確狀態，快照檔寫成 `MA-CHECK: domain absent`；其他失敗（權限、服務、I/O、輸出不是 plist）：開始時 exit 2（不跑），結束時 #12 FAIL。不會用空檔代替。
 - 資料庫：DEBUG 版啟動後用 `lsof -p <pid> -Fn`（每個路徑一行、保留空白）列出開著的檔，`lsof` 失敗或沒有輸出就算失敗；所有 `shiyin.sqlite`、`-wal`、`-shm` 都要在這次的暫存 home 底下，而且一定要看得到暫存 home 的 `shiyin.sqlite`；開了任何正式資料夾（`~/Library/Application Support/Shiyin/`）底下的檔也算失敗。失敗時結束那個 DEBUG 版，DEBUG 版的項目全部 FAIL。
 - 品牌比對：`brand.py compare` 的 exit code 分三種：0 相同、1 比完有差異（需人工）、2 工具或輸入錯誤（基準或新版不是有效的 app：沒有 `Contents/Info.plist`、讀不了、沒有任何 `.lproj` 的 `Localizable.strings`；或比對中丟例外）。check.sh 只把 1 當「需人工」，其他非 0 一律 FAIL；呼叫前也先確認基準 bundle 有這些檔。
 - 結束 DEBUG 版：送訊號前核對那個 pid 的執行檔還是這次暫存資料夾裡的 app（`ps -o comm=`），不是就不送（pid 可能被別的程序重用）。
