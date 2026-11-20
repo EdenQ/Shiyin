@@ -4455,6 +4455,23 @@
         }
       }
     },
+    "備份資料夾不是一般的資料夾": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "备份文件夹不是一般的文件夹"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The backup folder isn’t a regular folder"
+          }
+        }
+      }
+    },
     "儲存": {
       "extractionState": "manual",
       "localizations": {
@@ -10113,6 +10130,23 @@
         }
       }
     },
+    "建立暫存檔失敗": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "建立暂保存失败"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn’t create the temporary backup file"
+          }
+        }
+      }
+    },
     "建立系統聲音擷取": {
       "extractionState": "manual",
       "localizations": {
@@ -14200,6 +14234,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "暂停（空白键）"
+          }
+        }
+      }
+    },
+    "暫存檔在寫入時被換掉了": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂保存在写入时被换掉了"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The temporary backup file was replaced while writing"
+          }
+        }
+      }
+    },
+    "暫存檔的位置已經有別的東西": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂保存的位置已经有别的东西"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Something else is already where the temporary backup file goes"
           }
         }
       }

@@ -10,6 +10,8 @@
      非備份的檔照樣在
   3. 重疊：age 成到期、simulate slow 6 後 now；第一份還在寫時 check 和 now 都回 running；第一份 done，只多一份、沒有暫存檔
   4. 錄完後到期的檢查：age 成到期、record-sim 中 check 回 deferredRecording，record stop 後 check 回 done、多一份
+  4b. 寫入目的地（REVIEW-F10b P2-3）：這次時間名稱的 .partial 是連結（到含 sentinel 的 SQLite、斷掉的）、資料夾，
+     -wal／-shm／-journal 是連結，正式檔名是連結：每種 now 都回 failed、連結和目標不變、正常備份照留
   5. 最後一般檔備份還是 7 份，反例的東西都還在；schedule on、simulate off
 用法：python3 scripts/fork/f10-backup-check.py <SHIYIN_HOME> <shiyinctl> --out <資料夾>
 只讀寫 <SHIYIN_HOME>/backups 和 --out；同時只能開一個 DEBUG 版（shiyinctl 是廣播）。exit 0 通過、1 不符。
@@ -195,6 +197,10 @@ if new:
     f = DAILY / new[0]
     check('清理：新的備份 integrity_check ok、會議數相同', integrity(f) == ['ok'] and meetings(f) == live_meetings,
           f'{integrity(f)} {meetings(f)}/{live_meetings}')
+    header = f.read_bytes()[18:20]
+    sidecars = [s for s in ('-wal', '-shm', '-journal') if Path(str(f) + s).exists()]
+    check('清理：新的備份是 rollback 模式的單一檔（檔頭 18、19 是 1、沒有旁檔）', header == b'\x01\x01' and not sidecars,
+          f'{header.hex()} {sidecars}')
 ctl('mabackup', 'prune')
 time.sleep(1)
 others_intact('prune（沒在備份時）後（P3-1）')
@@ -241,6 +247,149 @@ r = bk('check', 'after-recording-check', timeout=120)
 added = sorted(set(regular_backups()) - before)
 check('錄完後：到期的 check 回 done、多一份', r and r.get('outcome') == 'done' and len(added) == 1,
       f'{r and r.get("outcome")} {added}')
+
+# ---------- 4b. 寫入目的地（REVIEW-F10b P2-3）----------
+# 在接下來幾秒會用到的每個時間名稱上放同一種東西，各跑一次 now：要回 failed、連結和目標、資料夾都不變。
+# 目標檔全部在 --out（測試資料夾）裡自建，不指向任何真實資料
+from datetime import datetime, timedelta
+
+
+def make_victim(path):
+    path.unlink(missing_ok=True)
+    with sqlite3.connect(path) as c:
+        c.execute('create table important_sentinel(v text)')
+        c.execute("insert into important_sentinel values ('KEEP THIS SYNTHETIC DATA')")
+    return sha(path)
+
+
+def victim_ok(path, digest):
+    if not path.is_file() or sha(path) != digest:
+        return False
+    with sqlite3.connect(f'file:{path}?mode=ro', uri=True) as c:
+        return c.execute('select v from important_sentinel').fetchall() == [('KEEP THIS SYNTHETIC DATA',)]
+
+
+def upcoming_stamps(seconds=8):
+    now = datetime.now()
+    return [(now + timedelta(seconds=i)).strftime('%Y%m%d-%H%M%S') for i in range(0, seconds)]
+
+
+def name_free(stamp):
+    return not any(os.path.lexists(DAILY / f'ma-daily-{stamp}{s}')
+                   for s in ('.sqlite', '.partial', '.partial-wal', '.partial-shm', '.partial-journal'))
+
+
+def write_case(label, plant, verify):
+    """plant(stamp) 在一個時間名稱上放東西、回傳要清掉的路徑；verify() 回傳 (ok, detail)"""
+    # 先等到下一秒：不然這次的時間可能跟上一份備份同一秒，先撞到「同名的備份已經存在」，測不到暫存檔那段
+    time.sleep(1.1)
+    regular_before = regular_backups()
+    planted = []
+    for stamp in upcoming_stamps():
+        if name_free(stamp):   # 已經有東西的名字（剛做的備份）不放，避免測試自己出錯
+            planted += plant(stamp)
+    r = bk('now', f'write-{label}', timeout=60)
+    ok, detail = verify()
+    regular_after = regular_backups()
+    check(f'寫入目的地 {label}：now 回 failed、沒有假成功', r and r.get('outcome') == 'failed',
+          f'{r and r.get("outcome")} {r and r.get("reason")}')
+    check(f'寫入目的地 {label}：連結、目標、資料夾都不變（沒有寫穿）', ok, detail)
+    check(f'寫入目的地 {label}：正常備份照留、沒有多出備份或暫存檔', regular_after == regular_before and not leftover_partials(),
+          f'{len(regular_before)}→{len(regular_after)} partials={leftover_partials()}')
+    for path in planted:   # 這些都是這個測試自己放的
+        if path.is_symlink() or path.is_file():
+            path.unlink()
+        elif path.is_dir():
+            subprocess.run(['rm', '-rf', str(path)], check=True)
+
+
+# a. .partial 是指向含 sentinel 的 SQLite 的連結
+victim = OUT / 'victim-partial.sqlite'
+victim_sha = make_victim(victim)
+links_a = []
+
+
+def plant_a(stamp):
+    link = DAILY / f'ma-daily-{stamp}.partial'
+    os.symlink(victim, link)
+    links_a.append(link)
+    return [link]
+
+
+write_case('.partial 連結到 SQLite', plant_a,
+           lambda: (victim_ok(victim, victim_sha) and all(l.is_symlink() and os.readlink(l) == str(victim) for l in links_a),
+                    f'victim_ok={victim_ok(victim, victim_sha)}'))
+
+# b. 斷掉的 .partial 連結
+missing = OUT / 'missing-target.sqlite'
+missing.unlink(missing_ok=True)
+links_b = []
+
+
+def plant_b(stamp):
+    link = DAILY / f'ma-daily-{stamp}.partial'
+    os.symlink(missing, link)
+    links_b.append(link)
+    return [link]
+
+
+write_case('斷掉的 .partial 連結', plant_b,
+           lambda: (not missing.exists() and all(l.is_symlink() and os.readlink(l) == str(missing) for l in links_b),
+                    f'target_created={missing.exists()}'))
+
+# c. .partial 是資料夾（裡面有檔）
+dirs_c = []
+
+
+def plant_c(stamp):
+    d = DAILY / f'ma-daily-{stamp}.partial'
+    d.mkdir()
+    (d / 'inside.txt').write_text('inside (synthetic)\n')
+    dirs_c.append(d)
+    return [d]
+
+
+write_case('.partial 資料夾', plant_c,
+           lambda: (all(d.is_dir() and (d / 'inside.txt').read_text() == 'inside (synthetic)\n' and len(list(d.iterdir())) == 1
+                        for d in dirs_c), ''))
+
+# d. -wal、-shm、-journal 是指向 sentinel 檔的連結
+for suffix in ('-wal', '-shm', '-journal'):
+    target = OUT / f'sentinel{suffix}.txt'
+    target.write_text(f'sidecar sentinel {suffix} (synthetic)\n')
+    target_sha = sha(target)
+    links_d = []
+
+    def plant_d(stamp, suffix=suffix, target=target, links_d=links_d):
+        link = DAILY / f'ma-daily-{stamp}.partial{suffix}'
+        os.symlink(target, link)
+        links_d.append(link)
+        return [link]
+
+    write_case(f'{suffix} 連結', plant_d,
+               lambda target=target, target_sha=target_sha, links_d=links_d:
+               (target.is_file() and sha(target) == target_sha
+                and all(l.is_symlink() and os.readlink(l) == str(target) for l in links_d), ''))
+
+# e. 正式檔名是連結
+victim_final = OUT / 'victim-final.sqlite'
+victim_final_sha = make_victim(victim_final)
+links_e = []
+
+
+def plant_e(stamp):
+    link = DAILY / f'ma-daily-{stamp}.sqlite'
+    os.symlink(victim_final, link)
+    links_e.append(link)
+    return [link]
+
+
+write_case('正式檔名是連結', plant_e,
+           lambda: (victim_ok(victim_final, victim_final_sha)
+                    and all(l.is_symlink() and os.readlink(l) == str(victim_final) for l in links_e), ''))
+
+r = bk('now', 'write-after-cases', timeout=120)
+check('寫入目的地：反例清掉後 now 照常 done', r and r.get('outcome') == 'done', str(r and r.get('outcome')))
 
 # ---------- 5. 最後 ----------
 final = regular_backups()

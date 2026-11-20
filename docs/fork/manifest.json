@@ -1094,6 +1094,7 @@
       "design": "docs/fork/design.md §F10",
       "forkFiles": [
         "Sources/Shiyin/Fork/Backup/DatabaseBackup.swift",
+        "Sources/Shiyin/Fork/Backup/BackupWriter.swift",
         "Sources/Shiyin/Fork/Backup/BackupViews.swift",
         "Sources/Shiyin/Fork/Backup/BackupDebug.swift",
         "scripts/fork/f10-backup-check.py"
@@ -1107,7 +1108,8 @@
         "ForkBackup.check",
         "ForkBackup.prune",
         "ForkBackupMenuCommands",
-        "ForkBackupSettingsSection"
+        "ForkBackupSettingsSection",
+        "BackupWriter"
       ],
       "keywords": [
         "備份",

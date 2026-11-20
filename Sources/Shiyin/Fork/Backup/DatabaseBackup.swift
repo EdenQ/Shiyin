@@ -143,74 +143,18 @@ final class ForkBackup {
         var log: String
     }
 
-    /// 背景執行：暫存檔 → integrity_check → 單一檔（DELETE 模式）→ 改名。失敗時刪掉暫存檔
+    /// 背景執行：寫入目的地的步驟在 BackupWriter（fork design §F10.1a：只寫進這次 O_EXCL | O_NOFOLLOW 新建的一般檔）
     nonisolated static func write(db: AppDatabase, folder: URL, simulateFail: Bool, simulateDelay: Double = 0) -> Result<URL, Failure> {
-        let fm = FileManager.default
-        let stamp = stampFormatter().string(from: Date())
-        let final = folder.appendingPathComponent("ma-daily-\(stamp).sqlite")
-        let partial = folder.appendingPathComponent("ma-daily-\(stamp).partial")
-        do {
-            try fm.createDirectory(at: folder, withIntermediateDirectories: true)
-        } catch {
-            return .failure(Failure(reason: String(localized: "建立備份資料夾失敗"), log: "create folder: \(fileCode(error))"))
-        }
-        if exists(final) {
-            return .failure(Failure(reason: String(localized: "同名的備份已經存在"), log: "file exists"))
-        }
-        removePartial(partial)
-        do {
-            let dest = try DatabaseQueue(path: partial.path)
-            try db.pool.backup(to: dest)
-            try dest.close()
-            if simulateDelay > 0 { Thread.sleep(forTimeInterval: simulateDelay) }
-            if simulateFail { throw Failure(reason: "simulated failure (DEBUG)", log: "simulated failure") }
-            let verify = try DatabaseQueue(path: partial.path)
-            let lines = try verify.read { try String.fetchAll($0, sql: "PRAGMA integrity_check") }
-            guard lines == ["ok"] else {
-                try? verify.close()
-                throw Failure(reason: String(localized: "備份的完整性檢查沒有通過"), log: "integrity_check: \(lines.count) lines")
-            }
-            _ = try verify.writeWithoutTransaction { try String.fetchOne($0, sql: "PRAGMA journal_mode=DELETE") }
-            try verify.close()
-            try fm.moveItem(at: partial, to: final)
-            removePartial(partial)   // 驗證時 WAL 模式留下的 -shm（改名後不會再用）
-            return .success(final)
-        } catch let failure as Failure {
-            removePartial(partial)
-            return .failure(failure)
-        } catch let error as DatabaseError {
-            removePartial(partial)
-            return .failure(Failure(reason: String(localized: "資料庫錯誤（\(error.resultCode.rawValue)）"),
-                                    log: "sqlite \(error.resultCode.rawValue)"))
-        } catch {
-            removePartial(partial)
-            return .failure(Failure(reason: String(localized: "寫入備份失敗"), log: "file: \(fileCode(error))"))
-        }
+        BackupWriter.write(db: db, folder: folder, stamp: stampFormatter().string(from: Date()),
+                           simulateFail: simulateFail, simulateDelay: simulateDelay)
     }
 
-    nonisolated private static func fileCode(_ error: Error) -> String {
-        let ns = error as NSError
-        return "\(ns.domain) \(ns.code)"
-    }
-
-    /// SQLite 在暫存檔旁開的檔
+    /// SQLite 在暫存檔旁開的檔（殘檔的判斷用，design §F10.3）
     nonisolated static let partialSidecars = ["", "-wal", "-shm", "-journal"]
-
-    /// 這次的暫存檔和它旁邊的檔（確切的路徑；只刪一般檔案）
-    nonisolated static func removePartial(_ partial: URL) {
-        for suffix in partialSidecars {
-            removeIfRegularFile(URL(fileURLWithPath: partial.path + suffix))
-        }
-    }
 
     /// lstat 看類型（不跟著符號連結走）：一般檔案才是 true
     nonisolated static func isRegularFile(_ url: URL) -> Bool {
         (try? FileManager.default.attributesOfItem(atPath: url.path)[.type] as? FileAttributeType) == .typeRegular
-    }
-
-    /// 這個路徑上有沒有任何東西（含斷掉的符號連結）
-    nonisolated static func exists(_ url: URL) -> Bool {
-        (try? FileManager.default.attributesOfItem(atPath: url.path)) != nil
     }
 
     /// 刪之前再確認一次是一般檔案（資料夾、符號連結一律不碰）
