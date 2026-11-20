@@ -107,4 +107,3 @@ GitHub Actions 的 `upstream-watch`（fork design §F0.5）每天跑一次，報
 1. 沒有新東西：不用動。
 2. 有 🔴 或新 tag：使用者在統一入口說一聲，由統一入口派 Claude 做語意判斷：讀 artifact 的報告，逐條看 🔴 和「可能相似」的兩邊段落，寫出「直接跟／先看／先等」的理由和要動的接點。需要時在本機跑 `scripts/fork/check.sh`（先看 `audio/recording/`）。
 3. 決定要跟時照 §2.2 合併；合併後跑 `check.sh` 完整模式。
-

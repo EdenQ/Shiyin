@@ -58,4 +58,3 @@
 ## 上游監看（PLAN-fork-5.0 階段 3b，fork design §F0.5）
 
 - [~] **W1 推送後手動觸發一次**：`upstream-watch.yml` 要在 GitHub 上才會跑。推送到 EdenQ/Shiyin 的 main 後，在 Actions 分頁手動執行 upstream-watch（或 `gh workflow run upstream-watch.yml -R EdenQ/Shiyin`），確認：exit 不是工具錯誤、artifact 有 `upstream-watch.md`／`.json`、job summary 只有一行、沒有建立 Issue；第二次執行時 cache 有取回上次的狀態（報告的「比對起點」是上次的 upstream/main）。
-
