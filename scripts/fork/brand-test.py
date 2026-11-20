@@ -392,6 +392,50 @@ class Phrases(unittest.TestCase):
             brand.CONFIG["names"]["zh-Hant"] = saved
 
 
+class Compare(unittest.TestCase):
+    """brand.py compare 的 exit code（fork design §F0.4）：0 相同、1 有差異、2 工具或輸入錯誤"""
+
+    def make(self, name, strings):
+        app = self.tmp / name
+        (app / "Contents/Resources/en.lproj").mkdir(parents=True)
+        (app / "Contents/Info.plist").write_bytes(plistlib.dumps({"CFBundleName": "MA"}))
+        (app / "Contents/Resources/en.lproj/Localizable.strings").write_bytes(plistlib.dumps(strings))
+        return app
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp)
+
+    def test_same_is_0(self):
+        code, out = run("compare", self.make("A.app", {"a": "A"}), self.make("B.app", {"a": "A"}))
+        self.assertEqual(code, 0, out)
+
+    def test_difference_is_1(self):
+        code, out = run("compare", self.make("A.app", {"a": "A"}), self.make("B.app", {"a": "B"}))
+        self.assertEqual(code, 1, out)
+
+    def test_missing_info_plist_is_2(self):
+        bad = self.tmp / "Bad.app"
+        bad.mkdir()
+        code, out = run("compare", bad, self.make("B.app", {"a": "A"}))
+        self.assertEqual(code, 2, out)
+        self.assertIn("Info.plist", out)
+
+    def test_no_strings_is_2(self):
+        bad = self.make("Bad.app", {"a": "A"})
+        (bad / "Contents/Resources/en.lproj/Localizable.strings").unlink()
+        code, out = run("compare", self.make("A.app", {"a": "A"}), bad)
+        self.assertEqual(code, 2, out)
+
+    def test_unreadable_strings_is_2(self):
+        bad = self.make("Bad.app", {"a": "A"})
+        (bad / "Contents/Resources/en.lproj/Localizable.strings").write_bytes(b"\x00 not a plist")
+        code, out = run("compare", self.make("A.app", {"a": "A"}), bad)
+        self.assertEqual(code, 2, out)
+
+
 class Guides(unittest.TestCase):
     def guides(self, edit=None):
         with tempfile.TemporaryDirectory() as tmp:

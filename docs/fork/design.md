@@ -37,7 +37,111 @@
 - 上游的檔被搬走、改名、換類型（例如換成連結）都算拿掉上游的檔：比對時不偵測改名（`git diff --no-renames`，改名會變成刪掉舊的、加新的），舊路徑一定會被檢查到。
 - 檢查的範圍：上游 tag（manifest 的 `upstream.base.tag`，現在是 v5.0.0）裡就有的 `Sources/**/*.swift`、`Package.swift`（程式）和 `scripts/` 底下的 `.sh`、`.swift`（腳本）。程式加的行數合計不超過 `rules.upstreamLineBudget`（100）；腳本另外算。不檢查：文件、README、CLAUDE.md、翻譯表、Info.plist、圖示、`.github`（品牌由 `brand.py` 管，§F7.4；版本號照 DF6）。
 - manifest 要對得上：每個功能的 `forkFiles`、`upstreamFiles` 存在；`symbols` 找得到宣告；`markers`（`file`、`line`、`hook`＝那一行去掉接點註解）跟程式裡實際的接點一致，多的、少的都算錯，只有行號不同時提示用 `--write` 更新。
-- 跑法：`python3 scripts/fork/isolation-check.py`（exit 1 表示有問題，列出每一處）；新增、搬動接點後 `--write` 重寫 manifest 的 `markers`、`upstreamFiles`，再跑一次不加參數的。目前的檔數、行數看檢查的輸出（「上游程式 N 個檔、M 行」），這裡不寫固定的數字（會過期）。`python3 scripts/fork/isolation-check-test.py` 是檢查本身的回歸測試（未標記的修改、已 stage 和已 commit 的改名、刪檔、換類型都要失敗）。之後會串進 `scripts/fork/check.sh`（PLAN 階段 3a）。
+- 跑法：`python3 scripts/fork/isolation-check.py`（exit 1 表示有問題，列出每一處）；新增、搬動接點後 `--write` 重寫 manifest 的 `markers`、`upstreamFiles`，再跑一次不加參數的。目前的檔數、行數看檢查的輸出（「上游程式 N 個檔、M 行」），這裡不寫固定的數字（會過期）。`python3 scripts/fork/isolation-check-test.py` 是檢查本身的回歸測試（未標記的修改、已 stage 和已 commit 的改名、刪檔、換類型都要失敗）。兩支都串在 `scripts/fork/check.sh`（§F0.4）。
+
+### F0.4 回歸檢查（`scripts/fork/check.sh`，PLAN-fork-5.0 §8.1、階段 3a）
+
+合併上游、改 fork 功能之後，一個指令跑完 PLAN §8.1 的回歸清單裡能自動化的項目（1～12），輸出 markdown 摘要。
+
+**用法**
+
+```bash
+scripts/fork/check.sh                 # 完整：建置、DEBUG 版實際操作（約 15～25 分鐘，第一次要建基準版更久）
+scripts/fork/check.sh --quick         # 只跑靜態的（不建 app、不開 DEBUG 版，約 1～2 分鐘）
+scripts/fork/check.sh --base-app <舊版.app>   # 品牌逐鍵比對的基準（預設：HEAD 之前最近的 fork tag 的 release 建置，見下）
+scripts/fork/check.sh --base-ref v5.0.1        # 基準改用這個 tag 建
+scripts/fork/check.sh --only 3,5,7    # 只跑這幾項（1～13、I1、I2、L、T、S；要用到的建置、DEBUG 版自己會建、會開）
+scripts/fork/check.sh --out <資料夾>  # 摘要、log、截圖放這裡（預設 $TMPDIR/shiyin-check-<時間>）
+scripts/fork/check.sh --keep          # 留下這次的 app、暫存 SHIYIN_HOME（除錯用）
+scripts/fork/check.sh --clean-cache   # 結束時連建置快取、基準版也刪掉
+```
+
+exit 0：沒有 FAIL（SKIP、需人工不算失敗）；1：有 FAIL；2：沒開始（使用者正在錄音、有別的 DEBUG 版在跑、拿不到開始時的設定快照、參數錯，含 `--only` 有不認得的項目或一項都沒選到）。
+
+`--only` 只收 `1`～`13`、`I1`、`I2`、`L`、`T`、`S`（逗號分隔），有一個不認得就 exit 2。跟 `--quick` 合用時：`--only` 決定跑哪幾項，`--quick` 只讓 3、4 停在靜態的部分（不建 app）；`--only` 選到的非 Q 項目（1、2、5～10、S）照常建置、開 DEBUG 版，所以 `--quick --only 5` 還是會建 app。摘要是輸出資料夾的 `summary.md`，最後也印在終端機。每一項一列：狀態（PASS／FAIL／SKIP／需人工）、耗時、證據路徑（log、JSON、截圖），細項寫在下面。
+
+**項目**（編號照 PLAN §8.1；`--quick` 只跑標 Q 的）
+
+| # | 項目 | 做法 |
+|---|---|---|
+| 1 | 編譯 | `swift build -c debug`；release、DEBUG 版用 `build-app.sh` 的複本建到這次的暫存資料夾（只換 `SCRATCH`、`APP` 兩行，其他照 repo 的腳本） |
+| 2 | migration | `scripts/dev/check-fork-migrations.py --scratch-path <check 的建置快取>` |
+| 3 | 品牌 | Q：`brand.py check-sources`、`brand-test.py`；完整：`brand.py check` release 和 DEBUG 版、`brand.py compare <基準> <release>`（有差異是「需人工」，差異清單在證據；新版本本來就可能多字串） |
+| 4 | F1 | Q：repo 的 `Resources/AppIcon.icns` sha256 等於 manifest `F1.iconSha256`、`Info.plist` 的 `ShiyinIssuesURL` 等於 manifest、`BrandAboutCommand()   // MA-FORK(F7)` 和 ReleaseNotes 的 F7 接點在、`brand-hooks-test`（更新說明選段落）；完整：建好的 app 的 icns、`ShiyinIssuesURL` 也一樣；更新網址（CI 的 `vars.SHIYIN_UPDATE_URL`）用 `gh variable get` 讀得到時要指到 fork（`EdenQ/Shiyin`），讀不到是 SKIP：這是唯一定義成可選的子項，摘要另外列一行 `4u`、狀態 SKIP |
+| 5 | F2 標記 | `record-sim` 中 `tagspeaker now 甲`、停止：`speaker_tags` 有這一筆、時間在送出指令時的 elapsed 附近；`f2-atomic-check.py`（套用：說話者 1 變「甲」、說話者 2 有乙又有丙不套用；「只改這句」的交易、復原） |
+| 6 | F2 加上 5.0 | 兩場示範會議加標記：`editmeeting` 裁頭尾、刪中間、分割、合併，標記跟著平移、分到新會議、合併後加上偏移；每次 `restoreedit` 都回到原本；`.shiyin` 封包帶標記、匯入回來一樣，舊封包沒有標記也能匯入 |
+| 7 | F3 靜音 | `f3-mute-check.py`（狀態、⌃⌥⌘M、錄音檔兩聲道、靜音那段麥克風是 0、電腦聲音照常） |
+| 8 | F3 加上 5.0 | `check-debug.py f3-hint`：靜音中 `levelCheck` 沒有收音提示；選單列圖示是 `mic.slash.circle.fill`；`hotkey.muteRegistered` 錄音中是 true、停止後 false；靜音中 `recordstall 32 1`（電腦聲音停下）：20 秒左右 `muteHint` 出現、`micmute dismiss` 收掉；提示列的 windowshot 放進截圖 |
+| 9 | F4 | `scripts/dev/f4-check.py`（議題切段、中英日的分段複製） |
+| 10 | F4 加上 5.0 | **只自動驗證刪除**：`noteitem delete actionItems 0` 之後 `copysection` 的待辦少一條、其他條和別的段落照舊（示範會議的決議只有 1 條，刪了整段變空）；刪除後的 windowshot 放進截圖。`noteitem edit` 之後的樣式、「人物」頁不套 F4 樣式沒有自動驗證，摘要的說明欄寫明，留給 S 和使用者 |
+| S | 截圖 | 繁中、英文各開一次 DEBUG 版：示範會議的紀錄、逐字稿分頁（`windowshot`）、設定「錄音」頁（`preview settings recording` 加 `mawindowshot`），加上 #8、#10 的圖，放在輸出資料夾的 `shots/`；狀態一律「需人工」（看條數、色條、「加到提醒事項」、靜音開關、提示列；還沒有基準圖，不做像素比對） |
+| 11 | DF5 | Q：`scripts/fork/tsan-lockedvalue/run.sh` |
+| 12 | 設定殘留 | Q：開始、結束各 `defaults export com.weiwei.shiyin`（正式 app 的網域），要逐位元組相同；不同時列出哪幾個鍵、FAIL，**保留現值、不改寫也不刪**（分不出是檢查還是使用者同時改的，例如使用者自己移動了主視窗）。DEBUG 版用測試專用的 bundle id（見安全規則），本來就不寫正式網域，所以這一項不靠任何還原。有選 DEBUG 版的項目（5～10、S）時另外核對 `shiyin://` 和 `.shiyin`（`com.weiwei.shiyin.meeting`）的預設處理程式在檢查前後相同：這時處理程式的快照是**必要的**，開始時沒拿到、結束時讀不到都算 FAIL，不會因為缺檔就跳過 |
+| 13 | 實機更新 | 不自動：列為「需人工」（4.7.6 → 新版的 app 內更新，開舊會議看標記、靜音、條列頁） |
+| C | 收尾 | 每次都跑（不能用 `--only` 選）：結束自己的 DEBUG 版、確認沒有留下測試版的程序、清掉測試網域（後置條件見下）、刪掉這次的暫存資料夾（`--keep` 時留著）。任何一步失敗就 FAIL，整體 exit 1 |
+
+另外四項也標 Q：`check-test.py`（T，check.sh 自己的負對照，見下）、`isolation-check.py`（I1）、`isolation-check-test.py`（I2，§F0.3）、`l10n.py check`（L；跑之前存一份翻譯表，跑完翻譯表有變就算 FAIL 並放回原本的內容：檢查不該改到 repo）。摘要列在 #3 之後。#4 的子項（例如 CI 的更新網址）讀不到時整項照樣 PASS，說明欄寫哪一個子項 SKIP。
+
+**安全規則**（CLAUDE.md「驗證時要注意」）
+
+- 開始前看 `~/Library/Application Support/Shiyin/audio/recording/`：有檔案就停（exit 2）。有別的 DEBUG 版在跑也停（`shiyinctl` 是廣播）；檢查中同時只開自己的一個 DEBUG 版。
+- 建置：`build-app.sh` 的複本，`APP` 在這次的暫存資料夾（`~/Library/Caches/ShiyinBuild/check/run-<時間>/`），`SCRATCH` 是 check 自己的建置快取 `~/Library/Caches/ShiyinBuild/check/scratch`；不碰 `~/Library/Caches/ShiyinBuild/app`（使用者可能拿它錄音）、不跑 `--install`。`shiyinctl` 也編到暫存資料夾。
+- DEBUG 版用**測試專用的 bundle id**（`com.weiwei.shiyin.macheck`）：建好的 DEBUG 版（#3、#4 檢查的那一份不動）複製一份到 `run-<時間>/debug-test/`，Info.plist 的 `CFBundleIdentifier` 換成測試 id、拿掉 `CFBundleURLTypes`（`shiyin://`）、`CFBundleDocumentTypes`、`UTExportedTypeDeclarations`（`.shiyin`、`meeting-ids`），再 ad-hoc 重簽。AppKit 存的視窗位置、`preview settings` 記住的頁面、其他 `UserDefaults.standard` 都寫進測試網域，不碰正式 app 的設定；系統的 `shiyin://`、`.shiyin` 處理程式也不會被測試版搶走（開 DEBUG 版後核對候選的 app 裡沒有測試版，結束後預設處理程式跟開始前相同）。換 id 不影響檢查要用的東西：控制通道是固定名稱的 distributed notification（`com.weiwei.shiyin.debug`，`shiyinctl` 照用）、`SHIYIN_HOME` 是環境變數、啟動參數是這次執行的 argument domain；寫死 `com.weiwei.shiyin` 的其他地方是 log subsystem、DispatchQueue 名稱、鑰匙圈 service（DEBUG 預設不讀）、UTType 名稱、`Notification.Name`，都跟偏好設定網域無關。結束時（含失敗、Ctrl-C）先 `lsregister -u` 取消登記測試版，再刪測試網域（`defaults delete com.weiwei.shiyin.macheck`、`~/Library/Preferences`、`HTTPStorages`、`Caches`、`Saved Application State`、`WebKit` 底下那個 id 的檔）；刪之前核對 id 不是正式的。
+- DEBUG 版：暫存 `SHIYIN_HOME`，`open -g -n --env SHIYIN_HOME=…`，參數 `-ApplePersistenceIgnoreState YES -llmProvider none -autoSummarize NO -correctTranscript NO -debugQuietPrompts YES -recordingIsland NO -mcpEnabled NO -autoCheckUpdates NO -muteHotKey YES`（設定只在這次執行有效）；啟動後用 `lsof` 確認開的是暫存的資料庫，開到正式資料庫就結束 app、FAIL。錄音島關掉：上游 5.0 的 DEBUG `state` 在島出現時寫不出 JSON。結束用 `kill`（TERM，10 秒後 KILL），不用 `quit`：正常結束會把視窗位置寫進共用設定。
+- 不送按鍵、不用 System Events、不用 AX：畫面一律 `windowshot`、`mawindowshot`（app 自己畫）。
+- 結束（含失敗、Ctrl-C）時結束自己的 DEBUG 版、刪掉這次的暫存資料夾（app、home、`shiyinctl`）；輸出資料夾留著（摘要和證據）。建置快取和基準版留著給下次用（`--clean-cache` 才刪）。
+
+**失敗一律不放行**（check.sh 是安全防線：判斷不了的情況算失敗，不算通過）
+
+- 設定快照：`defaults export` 成功、而且 `plutil -lint` 認得是 plist 才算快照。網域確實不存在（`defaults read <網域>` exit 非 0、stdout 是空的、stderr 去掉結尾換行後**只有一行而且完全等於** `Error: Domain '<網域>' not found.`（macOS 27.2.1 實測）或舊的 `Domain <網域> does not exist`；前後多一個字、多一行、別的網域都不算，例如 `cfprefsd: Domain '<網域>' not found in cache; …`；`defaults export` 這時寫出空的 plist）是另一種明確狀態，快照檔寫成 `MA-CHECK: domain absent`；其他失敗（權限、服務、I/O、輸出不是 plist）：開始時 exit 2（不跑），結束時 #12 FAIL。不會用空檔代替。
+- 資料庫：DEBUG 版啟動後用 `lsof -p <pid> -Fn`（每個路徑一行、保留空白）列出開著的檔，`lsof` 失敗或沒有輸出就算失敗；所有 `shiyin.sqlite`、`-wal`、`-shm` 都要在這次的暫存 home 底下，而且一定要看得到暫存 home 的 `shiyin.sqlite`；開了任何正式資料夾（`~/Library/Application Support/Shiyin/`）底下的檔也算失敗。失敗時結束那個 DEBUG 版，DEBUG 版的項目全部 FAIL。
+- 品牌比對：`brand.py compare` 的 exit code 分三種：0 相同、1 比完有差異（需人工）、2 工具或輸入錯誤（基準或新版不是有效的 app：沒有 `Contents/Info.plist`、讀不了、沒有任何 `.lproj` 的 `Localizable.strings`；或比對中丟例外）。check.sh 只把 1 當「需人工」，其他非 0 一律 FAIL；呼叫前也先確認基準 bundle 有這些檔。
+- 結束 DEBUG 版：送訊號前核對那個 pid 的執行檔還是這次暫存資料夾裡的 app（`ps -o comm=`），不是就不送（pid 可能被別的程序重用）。
+- `--only`：照上面的白名單驗證；`--only`、`--base-app`、`--base-ref`、`--out` 後面少了值也是 exit 2（不是 shell 的錯誤）。單選 DEBUG 版的項目（`--only 5`、`--only 5,12`、`--quick --only 5`）要能正常跑：每一項的說明、證據欄在用到前就有初始值。
+- DEBUG 版的**必要條件**（依序；任一步失敗，5～10、S 全部 FAIL，說明欄寫哪一步，不會「沒核對就照跑」）：
+  1. 清掉上次中斷留下的測試網域（後置條件要成立）；
+  2. 建置（#1）；
+  3. 編譯 `check-handlers.swift`；
+  4. 拿到開始時的處理程式快照，而且內容有效（有 `scheme-default`、`type-default` 兩行）；
+  5. 做出測試 id 的複本（`isolate_debug_app`）；
+  6. 啟動、`lsof` 核對資料庫；
+  7. 測試版開著時再讀一次處理程式（要讀得到、候選裡沒有測試版）。
+- 測試網域的清理（`cleanup_test_domain`）：`lsregister -u`、`defaults delete`、刪檔每一步的失敗都算；做完核對後置條件：`defaults read <測試 id>` 要明確說網域不存在（同上面設定快照的嚴格比對；其他錯誤、近似的訊息都不算「已確認不存在」），Preferences、HTTPStorages、Caches、Saved Application State、WebKit 底下那個 id 的檔都不在。不成立就 return 1：開 DEBUG 版前的清理失敗 → DEBUG 項目 FAIL；結束時的清理失敗 → C FAIL。對正式 id 照樣拒絕、什麼都不做。
+- 結束 DEBUG 版：TERM 10 秒、再 KILL，之後那個 pid 還是這次的 app 就算失敗（C FAIL）；收尾時再用 `debug_apps` 確認沒有留下這次測試版的程序。
+- 開始前：`audio/recording/` 存在卻列不出來（權限）、`ps` 列不出程序，都 exit 2（判斷不了使用者是不是在錄音、有沒有別的 DEBUG 版）。
+- 其他前置步驟：`git archive <基準 tag> | tar` 任何一邊失敗都算基準建不出來（#3 FAIL；pipeline 結束後立刻把 `PIPESTATUS` 整個存下來再判斷，`extract_tag`）；`l10n.py check` 前備份翻譯表、讀 `git status` 失敗就 L FAIL；`seedfixtures` 失敗就那一項 FAIL；`check-debug.py` 的 `restoreedit` 後編輯紀錄沒清掉也算不符。
+- 每個外部指令、helper、前置步驟失敗會走到哪裡，列在 IMPL／FIX 的報告（FIX-3a3 的自查表）；新增步驟時照同樣原則：必要的失敗 → 依賴的項目 FAIL；只有明確定義成可選、摘要標 SKIP 的才可以跳過（目前只有 `4u`）。
+
+**check.sh 自己的測試**（`python3 scripts/fork/check-test.py`，也是 quick 的 T）：check.sh 的判斷寫在 `scripts/fork/check-lib.sh`（`check.sh` source 它），測試在暫存資料夾放假的 `defaults`、`lsof`、`ps`、`plutil` 指令（PATH 最前面），只呼叫 lib 的函式，不讀寫真的設定、不碰任何資料庫。負對照都要失敗或 exit 2：
+
+| 函式 | 情境 | 要的結果 |
+|---|---|---|
+| `defaults_snapshot` | export 失敗（非網域不存在）、export 成功但不是 plist、網域不存在 | 前兩個 return 1；不存在寫 `MA-CHECK: domain absent`、return 0 |
+| `verify_db_files` | 只有暫存、只有正式、兩者都有、路徑有空白（暫存 home 有空白；正式的 `Application Support`）、只有 `-wal` 在正式、lsof 失敗、lsof 沒輸出 | 只有「只有暫存」（含有空白的暫存 home）通過 |
+| `compare_status` | brand.py compare 回 0、1、2、其他 | PASS、需人工、FAIL、FAIL |
+| `validate_only` | `999`、空字串、`3,999`、`3,I1,S` | 前三個 return 2，最後一個通過 |
+| `owned_pid` | pid 的執行檔是這次的 app、是別的程式、pid 不在 | 只有第一個通過 |
+| `isolate_debug_app` | 複製出來的 DEBUG 版 | `CFBundleIdentifier` 是測試 id、沒有 URL scheme、文件類型、匯出的 UTType；簽章驗得過；id 給成正式的就拒絕 |
+| `cleanup_test_domain` | 測試網域、它的 Preferences／HTTPStorages／Caches 檔 | 只刪測試 id 的；給正式 id 就拒絕、什麼都不刪 |
+| `snapshot_diff` 和結束流程 | 檢查中使用者把正式網域的既有值改了（移動主視窗）、建立了原本沒有的鍵（`settingsPage`） | #12 FAIL、列出那些鍵；正式網域一次 `write`、`delete` 都沒有，使用者的值原樣留著 |
+| `cleanup_test_domain`（失敗） | `lsregister -u` 失敗、`defaults delete` 失敗而網域還在、刪檔失敗而檔還在、`defaults read` 回的不是「不存在」 | 都 return 1、印出哪一步 |
+| `prepare_handlers` | `check-handlers.swift` 編譯失敗、helper 執行失敗、輸出缺 `scheme-default` 或 `type-default` | 都 return 1（DEBUG 項目不開始） |
+| `check.sh`（CLI，假的 `swift`、`defaults`、HOME 在暫存資料夾） | `--only 5`、`--only 5,12`、`--quick --only 5`，建置失敗 | 不會因為 `NOTE` 沒有值而中止；5 FAIL（說明是建置失敗）、12 FAIL（缺處理程式快照）、exit 1 |
+| `check.sh`（CLI） | `--only`、`--out` 後面沒有值 | exit 2 |
+
+另外 `brand-test.py` 加 `brand.py compare` 的測試：相同 0、有差異 1、基準缺 `Info.plist` 或沒有翻譯 2。
+
+**快取位置**：預設 `~/Library/Caches/ShiyinBuild/check`（建置快取 `scratch/`、基準版 `base/<tag>/`、這次的 `run-<時間>/`）；環境變數 `MA_CHECK_CACHE` 可以換到別的資料夾，用來在不刪現有快取的情況下測「沒有基準快取」的路徑。快取會被建立、`--clean-cache` 會刪裡面的東西，所以在任何建立、建置、清理之前先核對（`resolve_cache`，REVIEW-3a5 P2-9），不通過就 exit 2、什麼都不建也不刪：
+
+- 先解析成真實的絕對路徑（符號連結解開；不存在的部分照字面接上）。`MA_CHECK_CACHE` 本身、或預設路徑被換成符號連結，都看解開後指到哪裡。
+- 受保護的位置（也先解析）：`~/Library/Caches/ShiyinBuild/app`（使用者可能拿來錄音的 app）、`~/Library/Application Support/Shiyin`（正式資料）、有設的話 `SHIYIN_HOME`、這個 repo。快取等於它們、在它們底下、或是它們的上層，都拒絕。另外快取不能是 `$HOME` 或 `/`，也不能是 `$HOME` 的上層。
+- 自訂值（有設 `MA_CHECK_CACHE`）只接受三種：還不存在（check.sh 會建立）、空資料夾、已經有 check.sh 放的所有權標記 `.ma-check-cache`。其他既有的資料夾、不是資料夾的檔都拒絕。通過後建立資料夾並寫入標記。
+- 預設值不用標記（照舊可用），但同樣要通過受保護位置的核對。
+- `--clean-cache` 只刪快取底下 check.sh 自己的三個子資料夾（`scratch`、`scratch-base`、`base`），而且只在快取是預設位置、或有 `.ma-check-cache` 標記時才刪。
+
+**品牌比對的基準**：`--base-app` 沒給時，用 `git describe --tags --abbrev=0 --match 'v[0-9]*' HEAD^` 找到的 fork tag（現在是 v5.0.1），`git archive` 那個 tag 到暫存資料夾、用它自己的 `build-app.sh`（同樣的複本規則）建 release，放在 `~/Library/Caches/ShiyinBuild/check/base/<tag>/`，之後直接用。用同一台電腦、同一版 Xcode 建，`xcstringstool` 的版本差異不會變成假的差異（F7.5 跟 GitHub 上的 4.7.6 比時就多了 3 條）。
+
+**怎麼確定檢查會抓到問題**（PLAN 階段 3a 的驗收）：在暫存 worktree 故意弄壞、不 commit，跑對應的項目要 FAIL、整體 exit 1，例如拿掉一個 `MA-FORK` 接點（I1）、原始碼加一句不查表的品牌字（#3）、讓「只改這句」不在同一筆交易或標記不套用（#5）。結果寫在 commit 訊息。
 
 ## F1. 名稱（F1）
 

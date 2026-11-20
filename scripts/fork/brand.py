@@ -15,7 +15,8 @@
   測試：python3 scripts/fork/brand-test.py -v
   brand.py guides <輸出資料夾> <html>…   安裝說明換好放到輸出資料夾（make-dmg.sh 呼叫），也會檢查
   brand.py compare <舊.app> <新.app>    逐鍵比對兩個建置的翻譯、Info.plist、Credits（每版跟上一版比；
-                                       舊版的鍵是換過品牌的寫法時，先還原成上游的鍵再找）。有差異 exit 1
+                                       舊版的鍵是換過品牌的寫法時，先還原成上游的鍵再找）。
+                                       exit 0 相同、1 比完有差異、2 工具或輸入錯誤（不是有效的 app、讀檔失敗）
 
 只用 Python 標準函式庫。repo 裡的翻譯表、Info.plist 都不改。
 """
@@ -566,7 +567,32 @@ def bundle_strings(app):
     return out
 
 
+def bundle_problem(app):
+    """compare 的輸入檢查：不是有效的 app 時回傳原因（fork design §F0.4：工具／輸入錯誤不能當成差異）"""
+    if not app.is_dir():
+        return f"{app} 不是資料夾"
+    if not (app / "Contents/Info.plist").is_file():
+        return f"{app} 沒有 Contents/Info.plist"
+    if not list((app / "Contents/Resources").glob("*.lproj/Localizable.strings")):
+        return f"{app} 沒有任何 .lproj/Localizable.strings"
+    return None
+
+
 def compare(old_app, new_app):
+    """0 相同、1 比完有差異、2 工具或輸入錯誤"""
+    for app in (old_app, new_app):
+        problem = bundle_problem(app)
+        if problem:
+            print(f"brand.py compare：輸入錯誤：{problem}", file=sys.stderr)
+            return 2
+    try:
+        return compare_bundles(old_app, new_app)
+    except Exception as e:   # 讀檔、解析失敗：沒有比完，不是差異
+        print(f"brand.py compare：工具錯誤：{type(e).__name__}: {e}", file=sys.stderr)
+        return 2
+
+
+def compare_bundles(old_app, new_app):
     old, new = bundle_strings(old_app), bundle_strings(new_app)
     skip = {"CFBundleShortVersionString", "CFBundleVersion"}
     diffs, matched, seen = [], 0, set()

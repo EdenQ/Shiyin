@@ -31,7 +31,12 @@
 - 只想要上游某一個修正時，照樣 merge 到那個 tag；**避免 cherry-pick**：cherry-pick 的 commit 跟上游的不是同一個，下次合併同一段又會衝突（4.7.6 帶入 4.8.1 的 R57、R73、R74 就是這樣，F6）。
 - `rerere` 已經打開（`rerere.enabled`、`rerere.autoupdate`，只在這台電腦）：同一個衝突解過一次會記下來，試合併重做、審查退回再合時重用。衝突用 diff3 看（`-c merge.conflictStyle=diff3`）。
 - 解衝突時：上游檔裡 fork 的改動只會在 `MA-FORK` 接點上（fork design §F0.3）。衝突在接點那一行就把接點搬到上游的新寫法上；上游改了 fork 有複本的元件（manifest 的 `highRisk`）時，把上游的改動也帶進 fork 的複本。
-- 合併後：版本照 §1 改；跑回歸檢查（`isolation-check.py`〔把 manifest 的 `upstream.base.tag` 改成新的 tag 再跑，`--write` 更新行號〕、`brand.py check-sources`、`l10n.py check`、`check-fork-migrations.py`、`f4-check.py`、`brand-test.py`、`brand-hooks-test`，合併後再加 `brand.py crosscheck`，fork design §F7.4）；上游文件跟上游的 tag 比對要沒有差異（`git diff refs/upstream-tags/vX.Y.Z -- docs/requirements.md docs/design.md docs/tasks.md`）；fork 對上游的補充（fork design §F-UP）、資料庫規則的清單（§F-DB.2）照上游的新寫法檢查一次。
+- 合併後：版本照 §1 改；manifest 的 `upstream.base.tag` 改成新的 tag，`python3 scripts/fork/isolation-check.py --write` 更新接點的行號；再跑回歸檢查：
+  ```bash
+  scripts/fork/check.sh --quick   # 解衝突時隨時跑：接點、品牌掃描、l10n、F1 靜態、TSan（1～2 分鐘）
+  scripts/fork/check.sh           # 合併完、交給審查前：建置、migration、品牌逐鍵比對上一版、F2／F3／F4 在 DEBUG 版實際操作、設定殘留
+  ```
+  完整模式的摘要（`summary.md`，路徑印在最後）附在交接裡；FAIL 要修到沒有，「需人工」的截圖、品牌差異看過一次，第 13 項（實機 app 內更新）交給使用者。範圍、項目、安全規則見 fork design §F0.4。check.sh 沒包的：`brand.py crosscheck`（合併後跑一次，fork design §F7.4）；上游文件跟上游的 tag 比對要沒有差異（`git diff refs/upstream-tags/vX.Y.Z -- docs/requirements.md docs/design.md docs/tasks.md`）；fork 對上游的補充（fork design §F-UP）、資料庫規則的清單（§F-DB.2）照上游的新寫法檢查一次。
 - 時機：上游發布新版後 1～3 天決定跟不跟；修正版（patch）通常直接跟，大版本先等它的第一個修正版。分工照 CLAUDE.md 現行的 Herdr 角色：Claude Code 做合併的實作和 Release；Codex 負責同步、審查、驗證、merge、push。
 
 ## 3. refs 的命名空間
