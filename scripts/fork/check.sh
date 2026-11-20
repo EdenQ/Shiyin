@@ -19,13 +19,14 @@ REAL="$HOME/Library/Application Support/Shiyin"
 # shellcheck source=check-lib.sh
 . "$ROOT/scripts/fork/check-lib.sh" || exit 2
 MODE=full; ONLY=""; BASE_APP=""; BASE_REF=""; OUT=""; KEEP=0; CLEAN=0
+need_value() { [ $# -ge 2 ] || { echo "$1 後面要有值（--help 看用法）"; exit 2; }; }
 while [ $# -gt 0 ]; do
   case "$1" in
     --quick) MODE=quick;;
-    --only) ONLY=",$2,"; shift;;
-    --base-app) BASE_APP="$2"; shift;;
-    --base-ref) BASE_REF="$2"; shift;;
-    --out) OUT="$2"; shift;;
+    --only) need_value "$@"; ONLY=",$2,"; shift;;
+    --base-app) need_value "$@"; BASE_APP="$2"; shift;;
+    --base-ref) need_value "$@"; BASE_REF="$2"; shift;;
+    --out) need_value "$@"; OUT="$2"; shift;;
     --keep) KEEP=1;;
     --clean-cache) CLEAN=1;;
     -h|--help) sed -n '2,13p' "$0"; exit 0;;
@@ -43,27 +44,28 @@ SUMMARY="$OUT/summary.md"
 START=$(date +%s)
 
 # ---------- 開始前 ----------
-if [ -n "$(ls -A "$REAL/audio/recording" 2>/dev/null)" ]; then
-  echo "停止：$REAL/audio/recording/ 有檔案（使用者可能正在錄音），不跑檢查"; exit 2
+if [ -e "$REAL/audio/recording" ]; then
+  recording="$(ls -A "$REAL/audio/recording")" || { echo "停止：列不出 $REAL/audio/recording/，判斷不了使用者是不是在錄音"; exit 2; }
+  [ -z "$recording" ] || { echo "停止：$REAL/audio/recording/ 有檔案（使用者可能正在錄音），不跑檢查"; exit 2; }
 fi
-debug_apps() {   # 正在跑的 DEBUG 版（只有 DEBUG 版的執行檔有控制通道的名字）
-  ps -axo pid=,comm= | awk '/\/Contents\/MacOS\/Shiyin$/ {print $1}' | while read -r p; do
-    exe="$(ps -o comm= -p "$p" 2>/dev/null)"
-    [ -n "$exe" ] && grep -q 'com.weiwei.shiyin.debug' "$exe" 2>/dev/null && echo "$p $exe"
-  done
-}
-others="$(debug_apps)"
+others="$(debug_apps)" || { echo "停止：列不出程序，判斷不了有沒有別的 DEBUG 版"; exit 2; }
 if [ -n "$others" ]; then echo "停止：已經有 DEBUG 版在跑（shiyinctl 是廣播，同時只能一個）：$others"; exit 2; fi
 mkdir -p "$RUN" || exit 2
 # 開始時拿不到有效的設定快照就不跑：沒有快照，#12 證明不了什麼（fork design §F0.4）
 if ! defaults_snapshot "$OUT/defaults-before.plist"; then echo "停止：拿不到開始時的設定快照"; rm -rf "$RUN"; exit 2; fi
 
 DBG_PID=""; DBG_APP=""; TEST_APP=""; REL_APP=""; CTL=""; BUILT=""; BUILD_FAILED=0
+NOTE=""; EVID=""; LOG="$OUT/logs/main.log"   # 每一項用之前 item() 會重設；先給值，--only 單選 DEBUG 項目時 need_build 才不會在 set -u 下中止
+DEBUG_WANTED=0; HANDLERS_REQUIRED=0; FINISHED=0
+# 中斷、出錯時的安全網：正常流程在摘要前由收尾項 C 做同樣的事並列入結果；這裡清不乾淨就讓 exit 變成 1
 cleanup() {
-  stop_debug
-  [ -n "$TEST_APP" ] && cleanup_test_domain "$MA_TEST_DOMAIN" "$TEST_APP"
-  if [ "$KEEP" = 1 ]; then echo "留下暫存資料夾：$RUN"; else rm -rf "$RUN"; fi
-  if [ "$CLEAN" = 1 ]; then rm -rf "$SCRATCH" "$CACHE/scratch-base" "$CACHE/base"; fi
+  local code=$? bad=0
+  [ "$FINISHED" = 1 ] && return
+  stop_debug || bad=1
+  if [ "$DEBUG_WANTED" = 1 ]; then cleanup_test_domain "$MA_TEST_DOMAIN" "$TEST_APP" || bad=1; fi
+  if [ "$KEEP" = 1 ]; then echo "留下暫存資料夾：$RUN"; else rm -rf "$RUN" || bad=1; fi
+  if [ $bad = 1 ]; then echo "收尾失敗：DEBUG 版、測試網域或暫存資料夾沒清乾淨" >&2; exit 1; fi
+  exit $code
 }
 trap cleanup EXIT
 trap 'echo "中斷"; exit 1' INT TERM
@@ -92,6 +94,7 @@ item() {
   echo "${status}（$(( $(date +%s) - t0 )) 秒）${NOTE:+：$NOTE}"
   ROWS+=("$id|$title|$status|$(( $(date +%s) - t0 ))|$EVID|$NOTE")
 }
+add_row() { ROWS+=("$1|$2|$3|$4|$5|$6"); printf '%-4s %s … %s%s\n' "$1" "$2" "$3" "${6:+：$6}"; }   # 不經過 item 的列（4u、C）
 # 在 log 裡記一行指令並執行
 run() { echo "\$ $*"; "$@"; local c=$?; echo "→ exit $c"; return $c; }
 
@@ -143,7 +146,8 @@ base_app() {   # 品牌比對的基準
   if [ ! -f "$dir/.ok" ]; then
     local src="$RUN/base-src"
     rm -rf "$src" "$dir"; mkdir -p "$src"
-    git -C "$ROOT" archive "$tag" | tar -x -C "$src" || return 1
+    git -C "$ROOT" archive "$tag" | tar -x -C "$src"
+    [ "${PIPESTATUS[0]}" = 0 ] && [ "${PIPESTATUS[1]}" = 0 ] || { echo "git archive $tag | tar 失敗" >&2; return 1; }
     build_app "$src" release "$dir" "$CACHE/scratch-base" >&2 || return 1
     touch "$dir/.ok"; rm -rf "$src" "$CACHE/scratch-base"
   fi
@@ -199,12 +203,13 @@ i_selftest() { run python3 "$ROOT/scripts/fork/check-test.py"; }
 i_isotest() { run python3 "$ROOT/scripts/fork/isolation-check-test.py"; }
 i_l10n() {
   local table="$ROOT/Resources/Localizable.xcstrings" before after code
-  cp "$table" "$RUN/xcstrings.bak"
-  before="$(git -C "$ROOT" status --porcelain)"
+  cp "$table" "$RUN/xcstrings.bak" || { NOTE="備份不了翻譯表，不跑（l10n.py check 會改它）"; return 1; }
+  before="$(git -C "$ROOT" status --porcelain)" || { NOTE="git status 失敗"; return 1; }
   run python3 "$ROOT/scripts/dev/l10n.py" check; code=$?
-  after="$(git -C "$ROOT" status --porcelain)"
+  after="$(git -C "$ROOT" status --porcelain)" || { NOTE="git status 失敗"; return 1; }
   if ! cmp -s "$table" "$RUN/xcstrings.bak"; then
-    cp "$RUN/xcstrings.bak" "$table"; echo "l10n.py check 改了翻譯表（有新的介面字串沒進表）：已放回原本的內容"
+    cp "$RUN/xcstrings.bak" "$table" || echo "放不回翻譯表：備份在 $RUN/xcstrings.bak"
+    echo "l10n.py check 改了翻譯表（有新的介面字串沒進表）：已放回原本的內容"
     NOTE="翻譯表會被改：有字串沒進表，先跑 l10n.py check、apply"; return 1
   fi
   [ "$before" = "$after" ] || { echo "git status 前後不同：$before ／ $after"; NOTE="l10n.py check 改了 repo 的檔"; return 1; }
@@ -214,7 +219,9 @@ i_l10n() {
 # ---------- DEBUG 版 ----------
 start_debug() {   # start_debug <AppleLanguages 的語言：zh-Hant、en>（只寫 zh 會解析成簡體）
   local lang="$1" home="$RUN/home-$1" exe pid=""
-  [ -z "$(debug_apps)" ] || { echo "已經有 DEBUG 版在跑：$(debug_apps)"; return 1; }
+  local running
+  running="$(debug_apps)" || { echo "列不出程序"; return 1; }
+  [ -z "$running" ] || { echo "已經有 DEBUG 版在跑：$running"; return 1; }
   if [ -z "$TEST_APP" ]; then   # 測試專用 bundle id 的複本：不寫正式網域、不搶 shiyin://、.shiyin（fork design §F0.4）
     TEST_APP="$(isolate_debug_app "$DBG_APP" "$RUN/debug-test")" || { echo "做不出測試 id 的 DEBUG 版"; TEST_APP=""; return 1; }
     echo "DEBUG 版複本：${TEST_APP}（bundle id ${MA_TEST_DOMAIN}）"
@@ -234,14 +241,15 @@ start_debug() {   # start_debug <AppleLanguages 的語言：zh-Hant、en>（只�
   fi
   echo "DEBUG 版 pid=${pid}，SHIYIN_HOME=${home}（lsof 確認只開暫存的資料庫）"
   # 測試版開著時，shiyin://、.shiyin 的候選 app 裡不能有它（沒有 URL scheme、文件類型宣告才對）
-  if [ -x "$RUN/handlers" ]; then
-    "$RUN/handlers" > "$OUT/logs/handlers-$lang.txt" 2>&1 || { echo "讀不了預設處理程式"; stop_debug; return 1; }
-    if grep -qF "$TEST_APP" "$OUT/logs/handlers-$lang.txt"; then
-      echo "測試版出現在 shiyin://、.shiyin 的處理程式裡：$(cat "$OUT/logs/handlers-$lang.txt")"; stop_debug; return 1
-    fi
-    echo "shiyin://、.shiyin 的處理程式裡沒有測試版"
+  # 必要條件：helper 在前面已經編好（prepare_handlers），這裡讀不到就不跑
+  if ! "$RUN/handlers" > "$OUT/logs/handlers-$lang.txt" 2>&1 || ! valid_handlers "$OUT/logs/handlers-$lang.txt"; then
+    echo "測試版開著時讀不了 shiyin://、.shiyin 的處理程式"; stop_debug; return 1
   fi
-  "$CTL" closewindow onboarding >/dev/null 2>&1
+  if grep -qF "$TEST_APP" "$OUT/logs/handlers-$lang.txt"; then
+    echo "測試版出現在 shiyin://、.shiyin 的處理程式裡：$(cat "$OUT/logs/handlers-$lang.txt")"; stop_debug; return 1
+  fi
+  echo "shiyin://、.shiyin 的處理程式裡沒有測試版"
+  "$CTL" closewindow onboarding >/dev/null 2>&1   # 沒有引導視窗時也是 exit 0（廣播）；不是必要步驟
   sleep 1
 }
 stop_debug() {   # kill，不用 quit：正常結束會把視窗位置寫進共用設定
@@ -250,11 +258,14 @@ stop_debug() {   # kill，不用 quit：正常結束會把視窗位置寫進共�
   if ! owned_pid "$DBG_PID" "$TEST_APP"; then echo "pid $DBG_PID 已經不是這次的 DEBUG 版，不送訊號"; DBG_PID=""; return 0; fi
   kill -TERM "$DBG_PID" 2>/dev/null
   for _ in $(seq 1 20); do owned_pid "$DBG_PID" "$TEST_APP" || break; sleep 0.5; done
-  owned_pid "$DBG_PID" "$TEST_APP" && kill -KILL "$DBG_PID" 2>/dev/null
+  if owned_pid "$DBG_PID" "$TEST_APP"; then
+    kill -KILL "$DBG_PID" 2>/dev/null
+    for _ in $(seq 1 10); do owned_pid "$DBG_PID" "$TEST_APP" || break; sleep 0.5; done
+    if owned_pid "$DBG_PID" "$TEST_APP"; then echo "DEBUG 版 pid $DBG_PID 結束不了"; return 1; fi
+  fi
   DBG_PID=""
 }
 dbg() { run python3 "$ROOT/scripts/fork/check-debug.py" "$1" "$HOME_DIR" "$CTL" --out "$OUT/$2" "${@:3}"; }
-SESSION_OK=0
 i_f2() {
   local fail=0
   run python3 "$ROOT/scripts/fork/f2-atomic-check.py" "$HOME_DIR" "$CTL" --out "$OUT/f2" || fail=1
@@ -266,7 +277,8 @@ i_f2edit() { dbg f2-edit f2-edit; local c=$?; EVID="logs/6.log、f2-edit/"; retu
 i_f3() { run python3 "$ROOT/scripts/fork/f3-mute-check.py" "$HOME_DIR" "$CTL" --out "$OUT/f3"; local c=$?; EVID="logs/7.log、f3/"; return $c; }
 i_f3hint() { dbg f3-hint f3-hint; local c=$?; cp "$OUT/f3-hint/f3-hint-main.png" "$OUT/shots/f3-hint-main-zh.png" 2>/dev/null; EVID="logs/8.log、f3-hint/"; return $c; }
 i_f4() {
-  run "$CTL" seedfixtures "$ROOT/shared/golden/fixtures.json" zh en ja; sleep 3
+  run "$CTL" seedfixtures "$ROOT/shared/golden/fixtures.json" zh en ja || { NOTE="seedfixtures 失敗"; return 1; }
+  sleep 3
   run python3 "$ROOT/scripts/dev/f4-check.py" "$HOME_DIR" "$CTL"
 }
 i_f4items() {
@@ -279,18 +291,19 @@ i_f4items() {
 i_shots() {
   local fail=0
   dbg shots shots --lang zh || fail=1
-  stop_debug
-  start_debug en || return 1
-  "$CTL" seedfixtures "$ROOT/shared/golden/fixtures.json" zh en >/dev/null; sleep 3
+  stop_debug || { NOTE="繁中的 DEBUG 版結束不了"; return 1; }
+  start_debug en || { NOTE="英文的 DEBUG 版開不起來（必要條件見 log）"; return 1; }
+  run "$CTL" seedfixtures "$ROOT/shared/golden/fixtures.json" zh en || { NOTE="seedfixtures 失敗"; return 1; }
+  sleep 3
   dbg shots shots --lang en || fail=1
-  stop_debug
+  stop_debug || { NOTE="英文的 DEBUG 版結束不了"; return 1; }
   rm -f "$OUT/shots/state-raw.json"
   EVID="shots/"
   NOTE="看一眼：$(cd "$OUT/shots" && ls *.png 2>/dev/null | tr '\n' ' ')"
   [ $fail = 1 ] && return 1
   return 4
 }
-i_session_fail() { NOTE="DEBUG 版沒有開起來（看 logs/debug-start.log）"; return 1; }
+i_session_fail() { NOTE="沒有跑：DEBUG 版的必要條件不成立：${SESSION_REASON}（logs/debug-start.log）"; return 1; }
 
 # ---------- 11、12、13 ----------
 i_tsan() { run bash "$ROOT/scripts/fork/tsan-lockedvalue/run.sh"; }
@@ -301,12 +314,14 @@ i_defaults() {
   defaults_snapshot "$OUT/defaults-after.plist" || { NOTE="結束時拿不到設定快照，無法比對"; return 1; }
   if snapshot_diff "$OUT/defaults-before.plist" "$OUT/defaults-after.plist"; then NOTE="正式網域 defaults export 前後逐位元組相同"
   else NOTE="正式網域跟開始前不同（鍵列在 log；可能是使用者同時改的），保留現值、沒有改寫"; fail=1; fi
-  if [ -f "$OUT/handlers-before.txt" ]; then   # 完整模式：shiyin://、.shiyin 的預設處理程式前後相同
-    "$RUN/handlers" > "$OUT/handlers-after.txt" 2>&1 || { NOTE="${NOTE}；讀不了預設處理程式"; return 1; }
+  if [ "$HANDLERS_REQUIRED" = 1 ]; then   # 選了 DEBUG 項目：shiyin://、.shiyin 的預設處理程式前後相同，快照是必要的
+    EVID="${EVID}、handlers-before.txt、handlers-after.txt"
+    valid_handlers "$OUT/handlers-before.txt" || { NOTE="${NOTE}；沒有開始時的處理程式快照，核對不了 shiyin://、.shiyin"; return 1; }
+    { [ -x "$RUN/handlers" ] && "$RUN/handlers" > "$OUT/handlers-after.txt" 2>&1 && valid_handlers "$OUT/handlers-after.txt"; } \
+      || { NOTE="${NOTE}；結束時讀不了處理程式"; return 1; }
     if ! diff <(grep -- '-default' "$OUT/handlers-before.txt") <(grep -- '-default' "$OUT/handlers-after.txt"); then
       NOTE="${NOTE}；shiyin://、.shiyin 的預設處理程式跟開始前不同"; fail=1
     else NOTE="${NOTE}；shiyin://、.shiyin 的預設處理程式前後相同"; fi
-    EVID="${EVID}、handlers-before.txt、handlers-after.txt"
   fi
   return $fail
 }
@@ -323,12 +338,21 @@ item I1 "接點隔離（isolation-check）" i_iso
 item I2 "隔離檢查的回歸測試" i_isotest
 item L "介面字串（l10n.py check）" i_l10n
 item 4 "F1 名稱、網址、圖示、接點" i_f1
+if want 4 && grep -q '^SKIP' "$OUT/logs/4.log" 2>/dev/null; then   # 唯一定義成可選的子項（fork design §F0.4）
+  add_row 4u "CI 的更新網址（vars.SHIYIN_UPDATE_URL）" SKIP 0 logs/4.log "$(grep '^SKIP' "$OUT/logs/4.log" | head -1 | cut -c6-90)"
+fi
+SESSION_REASON=""
 if want 5 || want 6 || want 7 || want 8 || want 9 || want 10 || want S; then
-  # 測試網域如果是上次中斷留下的，先清掉；記下 shiyin://、.shiyin 的預設處理程式（#12 比對）
-  cleanup_test_domain "$MA_TEST_DOMAIN"
-  need_build && xcrun swiftc "$ROOT/scripts/fork/check-handlers.swift" -module-cache-path "$RUN/mc" -o "$RUN/handlers" > "$OUT/logs/handlers-build.log" 2>&1 \
-    && "$RUN/handlers" > "$OUT/handlers-before.txt" 2>&1
-  if need_build && start_debug zh-Hant > "$OUT/logs/debug-start.log" 2>&1; then
+  DEBUG_WANTED=1; HANDLERS_REQUIRED=1
+  # 必要條件（fork design §F0.4）：任一步不成立，5～10、S 全部 FAIL，不會沒核對就照跑
+  {
+    if ! cleanup_test_domain "$MA_TEST_DOMAIN"; then SESSION_REASON="上次留下的測試網域清不掉"
+    elif ! need_build; then SESSION_REASON="建置失敗（logs/1.log）"
+    elif ! prepare_handlers "$RUN/handlers" "$OUT/handlers-before.txt" "$OUT/logs/handlers-build.log"; then SESSION_REASON="處理程式的 helper 或開始時的快照失敗"
+    elif ! start_debug zh-Hant; then SESSION_REASON="DEBUG 版開不起來或核對沒過"
+    fi
+  } > "$OUT/logs/debug-start.log" 2>&1
+  if [ -z "$SESSION_REASON" ]; then
     item 5 "F2 標記（錄音中標記、套用、只改這句的交易）" i_f2
     item 6 "F2 加上 5.0（編輯會議、分割、合併、封包）" i_f2edit
     item 7 "F3 靜音（狀態、快捷鍵、錄音檔）" i_f3
@@ -336,16 +360,35 @@ if want 5 || want 6 || want 7 || want 8 || want 9 || want 10 || want S; then
     item 9 "F4（議題切段、分段複製）" i_f4
     item 10 "F4 加上 5.0（noteitem 刪除後）" i_f4items
     item S "截圖（#7～#10 要看一眼的畫面，zh、en）" i_shots
-    stop_debug
-    cleanup_test_domain "$MA_TEST_DOMAIN" "$TEST_APP" && echo "已取消登記測試版、刪掉測試網域 $MA_TEST_DOMAIN" >> "$OUT/logs/debug-start.log"
   else
-    cat "$OUT/logs/debug-start.log" 2>/dev/null
+    cat "$OUT/logs/debug-start.log"
     for id in 5 6 7 8 9 10 S; do item "$id" "DEBUG 版的項目" i_session_fail; done
   fi
 fi
 item 11 "DF5（TSan LockedValue）" i_tsan
 item 12 "設定殘留（defaults 前後比對）" i_defaults
 want 13 && item 13 "4.7.6 → 新版實機更新" i_manual
+
+# ---------- 收尾（C）：每次都跑、列進結果 ----------
+finish() {
+  local bad=0 t0 left
+  t0=$(date +%s); : > "$OUT/logs/C.log"
+  {
+    stop_debug || bad=1
+    left="$(debug_apps)" || { echo "列不出程序"; bad=1; }
+    if [ -n "$TEST_APP" ] && printf '%s' "$left" | grep -qF "$TEST_APP"; then echo "還有測試版在跑：$left"; bad=1; fi
+    if [ "$DEBUG_WANTED" = 1 ]; then
+      cleanup_test_domain "$MA_TEST_DOMAIN" "$TEST_APP" && echo "測試網域 $MA_TEST_DOMAIN 和它的快取都不在了" || bad=1
+    fi
+    if [ "$KEEP" = 1 ]; then echo "留下暫存資料夾：$RUN"
+    else rm -rf "$RUN"; [ -e "$RUN" ] && { echo "刪不掉暫存資料夾 $RUN"; bad=1; } || echo "暫存資料夾刪了"; fi
+    if [ "$CLEAN" = 1 ]; then rm -rf "$SCRATCH" "$CACHE/scratch-base" "$CACHE/base" || bad=1; fi
+  } >> "$OUT/logs/C.log" 2>&1
+  if [ $bad = 0 ]; then add_row C "收尾（DEBUG 版、測試網域、暫存資料夾）" PASS $(( $(date +%s) - t0 )) logs/C.log ""
+  else add_row C "收尾（DEBUG 版、測試網域、暫存資料夾）" FAIL $(( $(date +%s) - t0 )) logs/C.log "$(grep -E '失敗|不了|還在|刪不掉|列不出|結束不了' "$OUT/logs/C.log" | head -1 | cut -c1-100)"; fi
+  FINISHED=1
+}
+finish
 
 # ---------- 摘要 ----------
 fails=0

@@ -52,6 +52,10 @@ store, log = os.environ['STUB_STORE'], os.environ['STUB_LOG']
 open(log, 'a').write(json.dumps(sys.argv[1:]) + '\n')
 cmd, domain = sys.argv[1], sys.argv[2]
 path = os.path.join(store, domain + '.json')
+if cmd == 'read' and os.environ.get('STUB_READ_ERROR'):   # cfprefsd 之類的錯誤：不是「不存在」
+    sys.exit('cfprefsd: connection interrupted')
+if cmd == 'delete' and os.environ.get('STUB_DELETE_EXIT'):
+    sys.exit(int(os.environ['STUB_DELETE_EXIT']))
 data = json.load(open(path)) if os.path.exists(path) else None
 if cmd == 'export':
     if data is None:
@@ -76,6 +80,23 @@ sys.exit(1)
     # lsregister：只記下呼叫
     'lsregister': r'''#!/bin/bash
 echo "lsregister $*" >> "$STUB_LOG"
+exit "${STUB_LSREG_EXIT:-0}"
+''',
+    # rm：參數含 STUB_RM_FAIL 時失敗（檔留著），其他交給真的 rm
+    'rm': r'''#!/bin/bash
+if [ -n "${STUB_RM_FAIL:-}" ]; then for a in "$@"; do case "$a" in *"$STUB_RM_FAIL"*) echo "rm: $a: Operation not permitted" >&2; exit 1;; esac; done; fi
+exec /bin/rm "$@"
+''',
+    # xcrun：編 check-handlers.swift 時照 STUB_HELPER 做出假的 helper（fail-compile／fail-run／incomplete／ok）
+    'xcrun': r'''#!/bin/bash
+out=""; prev=""; for a in "$@"; do [ "$prev" = -o ] && out="$a"; prev="$a"; done
+case "${STUB_HELPER:-ok}" in
+  fail-compile) echo "error: forced compile failure" >&2; exit 42;;
+  fail-run) printf '#!/bin/bash\necho broken >&2; exit 3\n' > "$out";;
+  incomplete) printf '#!/bin/bash\nprintf "scheme-default\\t/x.app\\n"\n' > "$out";;
+  *) printf '#!/bin/bash\nprintf "scheme-default\\t/x.app\\ntype-default\\t/x.app\\n"\n' > "$out";;
+esac
+chmod +x "$out"
 ''',
     # ps -o comm= -p <pid>：印 STUB_PS_COMM；空的時候等於 pid 不在
     'ps': r'''#!/bin/bash
@@ -226,10 +247,11 @@ class Lib(unittest.TestCase):
         store, sbin = Path(tempfile.mkdtemp(dir=self.tmp)), Path(tempfile.mkdtemp(dir=self.tmp))
         log = store / 'calls.log'
         shutil.copy(self.bin / 'sdefaults', sbin / 'defaults')
+        shutil.copy(self.bin / 'rm', sbin / 'rm')
         env = {'PATH': f'{sbin}:/usr/bin:/bin', 'HOME': str(store / 'home'), 'STUB_STORE': str(store),
                'STUB_LOG': str(log), 'MA_LSREGISTER': str(self.bin / 'lsregister')}
-        def sh(script):
-            p = subprocess.run(['/bin/bash', '-c', f'. "{LIB}"; {script}'], capture_output=True, text=True, env=env)
+        def sh(script, **extra):
+            p = subprocess.run(['/bin/bash', '-c', f'. "{LIB}"; {script}'], capture_output=True, text=True, env={**env, **extra})
             return p.returncode, p.stdout + p.stderr
         def domain(name):
             f = store / f'{name}.json'
@@ -311,6 +333,68 @@ class Lib(unittest.TestCase):
         self.assertIn(f'lsregister -u {app}', calls())
         self.assert_production_untouched_by_check(calls())
 
+    # ---------- P2-6：清理失敗要回報，後置條件要成立 ----------
+    def cleanup_case(self, **extra):
+        store, sh, domain, put, calls = self.stateful()
+        pref = store / 'home/Library/Preferences/com.weiwei.shiyin.macheck.plist'
+        pref.parent.mkdir(parents=True, exist_ok=True); pref.write_text('x')
+        put('com.weiwei.shiyin.macheck', {'settingsPage': 'recording'})
+        put('com.weiwei.shiyin', {'llmProvider': 'claude'})
+        app = store / 'debug-test/Meeting Assistant.app'
+        app.mkdir(parents=True)
+        code, msg = sh(f'cleanup_test_domain com.weiwei.shiyin.macheck "{app}"', **extra)
+        return code, msg, store, domain, pref, calls
+
+    def test_cleanup_ok_postconditions(self):
+        code, msg, store, domain, pref, calls = self.cleanup_case()
+        self.assertEqual(code, 0, msg)
+        self.assertIsNone(domain('com.weiwei.shiyin.macheck'))
+        self.assertFalse(pref.exists())
+        self.assertEqual(domain('com.weiwei.shiyin'), {'llmProvider': 'claude'})
+
+    def test_cleanup_rm_failure_fails(self):
+        code, msg, store, domain, pref, calls = self.cleanup_case(STUB_RM_FAIL='com.weiwei.shiyin.macheck.plist')
+        self.assertEqual(code, 1, msg)
+        self.assertTrue(pref.exists())
+        self.assertIn('還在', msg)
+
+    def test_cleanup_defaults_delete_failure_fails(self):
+        code, msg, store, domain, pref, calls = self.cleanup_case(STUB_DELETE_EXIT='23')
+        self.assertEqual(code, 1, msg)
+        self.assertIsNotNone(domain('com.weiwei.shiyin.macheck'), '假的刪除失敗：網域還在')
+        self.assertIn('defaults delete', msg)
+
+    def test_cleanup_lsregister_failure_fails(self):
+        code, msg, *_ = self.cleanup_case(STUB_LSREG_EXIT='5')
+        self.assertEqual(code, 1, msg)
+        self.assertIn('lsregister', msg)
+
+    def test_cleanup_unreadable_domain_is_not_absent(self):
+        """defaults read 回的不是「不存在」：不能當成清乾淨"""
+        code, msg, *_ = self.cleanup_case(STUB_READ_ERROR='1')
+        self.assertEqual(code, 1, msg)
+        self.assertIn('讀不了網域', msg)
+
+    # ---------- P2-5：處理程式的 helper、開始時的快照是必要條件 ----------
+    def handlers_case(self, mode):
+        work = Path(tempfile.mkdtemp(dir=self.tmp))
+        e = {'PATH': f'{self.bin}:/usr/bin:/bin', 'HOME': str(self.tmp), 'STUB_HELPER': mode}
+        p = subprocess.run(['/bin/bash', '-c', f'. "{LIB}"; prepare_handlers "$1" "$2" "$3"', 'x',
+                            work / 'handlers', work / 'before.txt', work / 'build.log'], capture_output=True, text=True, env=e)
+        return p.returncode, p.stdout + p.stderr
+
+    def test_prepare_handlers(self):
+        for mode, want in (('fail-compile', 1), ('fail-run', 1), ('incomplete', 1), ('ok', 0)):
+            code, msg = self.handlers_case(mode)
+            self.assertEqual(code, want, f'{mode}：{msg}')
+
+    def test_debug_apps_ps_failure(self):
+        bad = Path(tempfile.mkdtemp(dir=self.tmp))
+        (bad / 'ps').write_text('#!/bin/bash\nexit 1\n'); (bad / 'ps').chmod(0o755)
+        p = subprocess.run(['/bin/bash', '-c', f'. "{LIB}"; debug_apps'], capture_output=True, text=True,
+                           env={'PATH': f'{bad}:/usr/bin:/bin', 'HOME': str(self.tmp)})
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+
     def test_isolate_debug_app(self):
         src = self.tmp / 'iso-src/Meeting Assistant.app'
         (src / 'Contents/MacOS').mkdir(parents=True, exist_ok=True)
@@ -360,6 +444,42 @@ class CheckScript(unittest.TestCase):
     def test_unknown_option_exits_2(self):
         code, _ = self.run_check('--bogus')
         self.assertEqual(code, 2)
+
+    def test_missing_option_value_exits_2(self):
+        for args in (['--only'], ['--quick', '--base-app'], ['--quick', '--out']):
+            p = subprocess.run(['/bin/bash', str(ROOT / 'scripts/fork/check.sh'), *args], capture_output=True, text=True, timeout=60)
+            self.assertEqual(p.returncode, 2, f'{args}：{p.stdout}{p.stderr}')
+            self.assertNotIn('unbound variable', p.stderr)
+
+    def test_single_debug_item_with_failed_build(self):
+        """P3-2、P2-5：--only 5、5,12、--quick --only 5 要能跑完；建置失敗 → 5 FAIL、12 FAIL（缺處理程式快照）、C PASS、exit 1。
+        假的 swift（建置失敗）、有狀態的假 defaults、HOME 在暫存資料夾：不建 app、不開 DEBUG 版、不碰真的設定"""
+        tmp = Path(tempfile.mkdtemp(prefix='check-cli '))
+        try:
+            sbin, store = tmp / 'bin', tmp / 'store'
+            sbin.mkdir(); store.mkdir()
+            (sbin / 'swift').write_text('#!/bin/bash\necho "error: forced build failure" >&2; exit 1\n'); (sbin / 'swift').chmod(0o755)
+            (sbin / 'defaults').write_text(STUBS['sdefaults']); (sbin / 'defaults').chmod(0o755)
+            (store / 'com.weiwei.shiyin.json').write_text(json.dumps({'llmProvider': 'claude'}))
+            env = {'PATH': f'{sbin}:/usr/bin:/bin', 'HOME': str(tmp / 'home'), 'STUB_STORE': str(store), 'STUB_LOG': str(tmp / 'calls.log'),
+                   'TMPDIR': str(tmp)}
+            for args in (['--only', '5'], ['--only', '5,12'], ['--quick', '--only', '5']):
+                out = tmp / ('out-' + '-'.join(a.strip('-') for a in args))
+                p = subprocess.run(['/bin/bash', str(ROOT / 'scripts/fork/check.sh'), *args, '--out', str(out)],
+                                   capture_output=True, text=True, timeout=120, env=env)
+                msg = p.stdout + p.stderr
+                self.assertNotIn('unbound variable', msg, f'{args}')
+                self.assertEqual(p.returncode, 1, f'{args}：{msg}')
+                summary = (out / 'summary.md').read_text()
+                self.assertRegex(summary, r'\| 5 \| .* \| FAIL \|.*建置失敗', f'{args}')
+                self.assertRegex(summary, r'\| C \| .* \| PASS \|', f'{args}')
+                if '12' in ','.join(args):
+                    self.assertRegex(summary, r'\| 12 \| .* \| FAIL \|.*處理程式快照', f'{args}')
+            calls = (tmp / 'calls.log').read_text() if (tmp / 'calls.log').exists() else ''
+            self.assertNotIn('"write", "com.weiwei.shiyin"', calls)
+            self.assertNotIn('"delete", "com.weiwei.shiyin"]', calls)
+        finally:
+            shutil.rmtree(tmp)
 
 
 if __name__ == '__main__':

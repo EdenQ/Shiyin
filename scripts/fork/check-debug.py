@@ -165,8 +165,10 @@ def restore(mid, expected, label):
     tag_check(label, mid, expected)
     try:
         wait(lambda: query('SELECT COUNT(*) FROM meeting_edits WHERE meeting_id=?', (mid,))[0][0] == 0, 30, '編輯紀錄清掉')
+        cleared = True
     except TimeoutError:
-        pass
+        cleared = False
+    check(cleared, f'{label}：restoreedit 之後 meeting_edits 清掉')
     left = query('SELECT COUNT(*) FROM ma_meeting_edit_tags WHERE meeting_id=?', (mid,))[0][0]
     check(left == 0, f'{label}：ma_meeting_edit_tags 跟著清掉（剩 {left}）')
 

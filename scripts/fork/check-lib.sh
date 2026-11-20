@@ -78,14 +78,68 @@ isolate_debug_app() {
   echo "$app"
 }
 
-# cleanup_test_domain <測試 id> [複本 app]：取消登記複本、刪測試網域和它的快取。id 不是測試網域就什麼都不做、return 1
+# cleanup_test_domain <測試 id> [複本 app]：取消登記複本、刪測試網域和它的快取，做完核對後置條件（fork design §F0.4）。
+# 0：確認清乾淨（網域明確不存在、快取檔都不在）；1：任何一步失敗或後置條件不成立（印出哪一步）。
+# id 不是測試網域就什麼都不做、return 1
+test_domain_files() {
+  local id="$1" lib="$HOME/Library"
+  printf '%s\n' "$lib/Preferences/$id.plist" "$lib/HTTPStorages/$id" "$lib/HTTPStorages/$id.binarycookies" \
+    "$lib/Caches/$id" "$lib/Saved Application State/$id.savedState" "$lib/WebKit/$id"
+}
+domain_state() {   # domain_state <id>：印 absent／present；判斷不了（讀失敗但不是「不存在」）return 1
+  local err
+  if defaults read "$1" >/dev/null 2>&1; then echo present; return 0; fi
+  err="$(defaults read "$1" 2>&1 >/dev/null)"
+  case "$err" in *"Domain $1 does not exist"*) echo absent; return 0;; esac
+  echo "讀不了網域 ${1}：$err" >&2; return 1
+}
 cleanup_test_domain() {
-  local id="$1" app="${2:-}" lib="$HOME/Library"
+  local id="$1" app="${2:-}" err=0 state f
   case "$id" in "$MA_TEST_DOMAIN"|"$MA_TEST_DOMAIN".*) ;; *) echo "拒絕清理：$id 不是測試網域" >&2; return 1;; esac
-  [ -n "$app" ] && [ -d "$app" ] && "$MA_LSREGISTER" -u "$app" >/dev/null 2>&1
-  defaults delete "$id" >/dev/null 2>&1
-  rm -rf "$lib/Preferences/$id.plist" "$lib/HTTPStorages/$id" "$lib/HTTPStorages/$id.binarycookies" \
-         "$lib/Caches/$id" "$lib/Saved Application State/$id.savedState" "$lib/WebKit/$id"
+  if [ -n "$app" ] && [ -d "$app" ]; then
+    "$MA_LSREGISTER" -u "$app" >/dev/null 2>&1 || { echo "lsregister -u 失敗：$app" >&2; err=1; }
+  fi
+  state="$(domain_state "$id")" || err=1
+  if [ "$state" = present ]; then
+    defaults delete "$id" >/dev/null 2>&1 || { echo "defaults delete $id 失敗" >&2; err=1; }
+  fi
+  while IFS= read -r f; do
+    rm -rf "$f" 2>/dev/null || { echo "刪不掉：$f" >&2; err=1; }
+  done < <(test_domain_files "$id")
+  # 後置條件：網域明確不存在、檔都不在
+  state="$(domain_state "$id")" || err=1
+  [ "$state" = absent ] || { echo "清理後測試網域 $id 還在（${state:-判斷不了}）" >&2; err=1; }
+  while IFS= read -r f; do
+    [ -e "$f" ] && { echo "清理後還在：$f" >&2; err=1; }
+  done < <(test_domain_files "$id")
+  return $err
+}
+
+# valid_handlers <快照檔>：check-handlers 的輸出要有 scheme-default、type-default 兩行
+valid_handlers() {
+  [ -s "$1" ] && grep -q $'^scheme-default\t' "$1" && grep -q $'^type-default\t' "$1"
+}
+# prepare_handlers <放 helper 的路徑> <快照檔> <log>：編譯 check-handlers.swift、拿開始時的快照、核對內容。
+# 都是開 DEBUG 版的必要條件：任一步失敗 return 1（印出哪一步）
+prepare_handlers() {
+  local bin="$1" snap="$2" log="$3" src
+  src="$(dirname "${BASH_SOURCE[0]}")/check-handlers.swift"
+  rm -f "$bin" "$snap"
+  xcrun swiftc "$src" -module-cache-path "$(dirname "$bin")/mc" -o "$bin" > "$log" 2>&1 || { echo "check-handlers.swift 編譯失敗（${log}）"; return 1; }
+  [ -x "$bin" ] || { echo "check-handlers 沒有產生執行檔"; return 1; }
+  "$bin" > "$snap" 2>&1 || { echo "check-handlers 執行失敗：$(head -3 "$snap")"; return 1; }
+  valid_handlers "$snap" || { echo "處理程式快照不完整（缺 scheme-default 或 type-default）：$(head -3 "$snap")"; return 1; }
+}
+
+# debug_apps：正在跑的 DEBUG 版（只有 DEBUG 版的執行檔有控制通道的名字），每行「pid 路徑」；ps 失敗 return 1
+debug_apps() {
+  local list p exe
+  list="$(ps -axo pid=,comm=)" || { echo "ps 列不出程序" >&2; return 1; }
+  while read -r p exe; do
+    case "$exe" in */Contents/MacOS/Shiyin) ;; *) continue;; esac
+    exe="$(ps -o comm= -p "$p" 2>/dev/null)" || continue   # 已經結束
+    [ -n "$exe" ] && grep -q 'com.weiwei.shiyin.debug' "$exe" 2>/dev/null && echo "$p $exe"
+  done <<< "$list"
   return 0
 }
 
