@@ -21,11 +21,11 @@
 
 | 功能 | `Sources/Shiyin/Fork/` | 上游檔的接點（manifest 的 `markers`） |
 |---|---|---|
-| F0 共用 | `ForkState.swift`（`ForkAppState`：F2、F4 的畫面狀態）、`Debug/ForkDebug.swift`（DEBUG 指令入口、`augmentState`、`ForkDebugPrompts`） | AppModel 的 `let fork`、DebugControl 的 `default:`、`state` 的 `return out` 前、Notifier 的 `-debugQuietPrompts` |
+| F0 共用 | `ForkState.swift`（`ForkAppState`：F2、F4 的畫面狀態）、`Debug/ForkDebug.swift`（DEBUG 指令入口、`augmentState`、`ForkDebugPrompts`）、`ForkStartup.swift`（`ForkStartup.install`：啟動時各功能的安裝；`ForkAppMenuCommands`：「MA」選單，§F10.6） | AppModel 的 `let fork`、`ForkStartup.install(self)`、ShiyinApp 的 `ForkAppMenuCommands(model: model)`、DebugControl 的 `default:`、`state` 的 `return out` 前、Notifier 的 `-debugQuietPrompts` |
 | F2 說話者標記 | `SpeakerTags/`：`SpeakerTagging`（規則）、`SpeakerTag`（資料表 `speaker_tags`）、`SpeakerTagStore`（`extension AppDatabase`）、`AppModel+SpeakerTags`（`MeetingDetail`、`AppModel` 的 extension）、`SpeakerTagViews`（錄音畫面、會議頁、逐字稿的畫面）、`SpeakerTagsDebug`、`ForkSpeakerTags`（跟著上游的編輯、分割、合併、封包）；`Store/ForkMigrations` | RecordingView、MeetingDetailView、TranscriptTab、JobRunner、AppModel、AppDatabase、MeetingEdits、Package、Exporters、Voiceprints、SpeakerEdits（`forkSaveSpeakerUndo`、`forkAddSpeaker`：轉呼叫 private 的 `saveSpeakerUndo`、`addSpeaker`） |
 | F3 靜音 | `Mute/`：`MicMute`（`ForkMute`、`extension Recorder/GlobalHotKey/AppSettings/AppModel`）、`MuteViews`、`MuteDebug`、`ForkMuteSettingsRow`、`ForkIslandMute` | Recorder、RecordingWriter（`muted`、`setMuted`、混音，跟寫檔的鎖綁在一起，留在原檔）、GlobalHotKey、AppModel、RecordingView、MenuBar、ShiyinApp、SettingsView、IslandView、RecordingIsland、DebugControl 的 `hotkey mute` |
 | F4 條列頁 | `Notes/`：`NotesListViews`（`ForkNotesList` 整個條列模式、`ForkNotesSection`、`NoteRow`、`TopicBlock`、`TopicChips`、`ForkActionItemsTable`、`FlowLayout`）、`NotesModel`（`NotesSectionScope`、`plainSection`、`topicSegments`、顏色、`AppModel` 的議題狀態、播放條的 `forkTrackTopic`）、`NotesDebug` | NotesTabs（條列模式換成 `ForkNotesList`；`ItemList` 的符號、`NoteRow`）、PlayerBar、AppModel、MindMap（`clean`、`shownTopics` 改 internal） |
-| F7 品牌 | `Brand.swift` | ShiyinApp、ReleaseNotes、Reminders、IslandView、`build-app.sh`、`make-dmg.sh`、`make-update-fixtures.sh` |
+| F7 品牌 | `Brand.swift`（「關於 MA」的 `BrandAboutCommand` 由 F0 的 `ForkAppMenuCommands` 放進選單） | ReleaseNotes、Reminders、IslandView、`build-app.sh`、`make-dmg.sh`、`make-update-fixtures.sh` |
 | DF5 | `DF5/LockedValue.swift` | AudioSources 的 `MicrophoneSource`、`FileSource`（`deviceUID`、`current` 用 `LockedValue` 存，7 行） |
 
 - 跟上游元件長得一樣的 fork 複本（上游改了原本的，複本不會跟著變；manifest 的 `highRisk` 有列，監看要比對）：`ForkTaggedSpeakerName`（上游 `AutoSpeakerName`，多了「標記」）、`ForkSubduedTimeButton`（`TimeButton`，平常淡色）、`ForkNotesSection`（`NotesSection`，條數、色條、複製鈕）、`ForkActionItemsTable`（`ActionItemsTable`，fork 的欄位順序）。上游的原元件不動，人物頁照用上游的 `NotesSection`。
@@ -67,7 +67,7 @@ exit 0：沒有 FAIL（SKIP、需人工不算失敗）；1：有 FAIL；2：沒�
 | 1 | 編譯 | `swift build -c debug`；release、DEBUG 版用 `build-app.sh` 的複本建到這次的暫存資料夾（只換 `SCRATCH`、`APP` 兩行，其他照 repo 的腳本） |
 | 2 | migration | `scripts/dev/check-fork-migrations.py --scratch-path <check 的建置快取>` |
 | 3 | 品牌 | Q：`brand.py check-sources`、`brand-test.py`；完整：`brand.py check` release 和 DEBUG 版、`brand.py compare <基準> <release>`（有差異是「需人工」，差異清單在證據；新版本本來就可能多字串） |
-| 4 | F1 | Q：repo 的 `Resources/AppIcon.icns` sha256 等於 manifest `F1.iconSha256`、`Info.plist` 的 `ShiyinIssuesURL` 等於 manifest、`BrandAboutCommand()   // MA-FORK(F7)` 和 ReleaseNotes 的 F7 接點在、`brand-hooks-test`（更新說明選段落）；完整：建好的 app 的 icns、`ShiyinIssuesURL` 也一樣；更新網址（CI 的 `vars.SHIYIN_UPDATE_URL`）用 `gh variable get` 讀得到時要指到 fork（`EdenQ/Shiyin`），讀不到是 SKIP：這是唯一定義成可選的子項，摘要另外列一行 `4u`、狀態 SKIP |
+| 4 | F1 | Q：repo 的 `Resources/AppIcon.icns` sha256 等於 manifest `F1.iconSha256`、`Info.plist` 的 `ShiyinIssuesURL` 等於 manifest、ShiyinApp 的 `ForkAppMenuCommands(model: model)   // MA-FORK(F0)`、`ForkStartup.swift` 裡的 `BrandAboutCommand()` 和 ReleaseNotes 的 F7 接點在、`brand-hooks-test`（更新說明選段落）；完整：建好的 app 的 icns、`ShiyinIssuesURL` 也一樣；更新網址（CI 的 `vars.SHIYIN_UPDATE_URL`）用 `gh variable get` 讀得到時要指到 fork（`EdenQ/Shiyin`），讀不到是 SKIP：這是唯一定義成可選的子項，摘要另外列一行 `4u`、狀態 SKIP |
 | 5 | F2 標記 | `record-sim` 中 `tagspeaker now 甲`、停止：`speaker_tags` 有這一筆、時間在送出指令時的 elapsed 附近；`f2-atomic-check.py`（套用：說話者 1 變「甲」、說話者 2 有乙又有丙不套用；「只改這句」的交易、復原） |
 | 6 | F2 加上 5.0 | 兩場示範會議加標記：`editmeeting` 裁頭尾、刪中間、分割、合併，標記跟著平移、分到新會議、合併後加上偏移；每次 `restoreedit` 都回到原本；`.shiyin` 封包帶標記、匯入回來一樣，舊封包沒有標記也能匯入 |
 | 7 | F3 靜音 | `f3-mute-check.py`（狀態、⌃⌥⌘M、錄音檔兩聲道、靜音那段麥克風是 0、電腦聲音照常） |
@@ -501,7 +501,7 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 
 `Brand` 讀 Info.plist 的 `MABrand`；沒有（`swift build` 直接跑、上游原樣）時回傳上游名稱。上游檔裡的接點各 1 行，標 `// MA-FORK(F7)`：
 
-- 「關於 MA」：`AppCommands` 裡放 `BrandAboutCommand()`，取代系統的 `.appInfo`，`orderFrontStandardAboutPanel(options: [.applicationName: Brand.aboutName])`（F1.3）。
+- 「關於 MA」：`BrandAboutCommand` 取代系統的 `.appInfo`；5.0.1 時 `AppCommands` 直接放 `BrandAboutCommand()   // MA-FORK(F7)`，F10 起改由 F0 的共用入口 `ForkAppMenuCommands(model: model)   // MA-FORK(F0)` 放（§F10.6，同一行換掉、不多一行），`orderFrontStandardAboutPanel(options: [.applicationName: Brand.aboutName])`（F1.3）。
 - 更新說明選段落（`ReleaseNotes.items`）：`Brand.names("拾音")`、`Brand.names("Shiyin")` 認得 fork（會議助手、Meeting Assistant）和上游開頭的段落。
 - 上游 5.0 的提醒事項（5.0.1 接上，F7.5）：`Reminders.listTitle` 包成 `Brand.name(MeetingLanguage.ui(zh: "拾音", en: "Shiyin"))`；`EventKitReminders.list()` 找已存在的列表時把 `["拾音", "Shiyin"].contains($0.title)` 換成 `Brand.isListTitle($0.title)`（會議助手、Meeting Assistant、拾音、Shiyin 都認得，舊列表沿用）。
 - MCP 給 AI 工具的英文訊息、`serverInfo`：不換（F7.3），列白名單。
@@ -526,6 +526,77 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 - `scripts/fork/brand-test.py`（`python3 scripts/fork/brand-test.py -v`，暫存資料夾、不碰 repo 和使用者的 app）：審查的 ReviewBrandProbe（前一行有 `Text(`、下一行不查表）要報；真正跨行的查表（三元運算分兩行、`.help`、插值、`String(` 換行才寫 `localized:`）要放過；`+` 串接、`verbatim:`、`??`、陣列、`ui(zh:`、`String(format:`、插值裡的 `ui`、raw、多行、`l10n-skip` 要報；複審的四種 String 運算式（三元一邊是變數、`.uppercased()`、註解隔開的 `+`、`as String`）要報；§F7.4 的支援寫法要放過、保守報錯的寫法要報；小 probe 檔用編譯器核對（掃描器放行的都要在編譯器的位置裡）；白名單只放過那一個字串、用不到的條目要報；Credits 中英贊助句、授權開場白、安裝說明的選單名和 `xattr` 指令漂移都要失敗；正常的 apply、guides 重跑結果不變；漏換、格式碼不同、必要的檔案不見要失敗。
 - `scripts/fork/brand-hooks-test/main.swift`：`swiftc -swift-version 5 -o <輸出> scripts/fork/brand-hooks-test/main.swift Sources/Shiyin/Fork/Brand.swift` 跑過接點（沒有 MABrand 時不變、舊名列表沿用、都沒有時新建「會議助手」、更新說明選段落）。
 - DEBUG 版 `shiyinctl windowshot` 拍繁中、英文、簡體（4.7.6 沒有簡體翻譯，系統退回英文，跟 4.7.6 一樣）的主畫面、錄音畫面，`snapshot … guide` 拍使用說明；`state` 的主視窗標題是「會議助手」／Meeting Assistant。
+
+## F10. 定期備份資料庫（F10，DF9）
+
+需求在 requirements F10。程式在 `Sources/Shiyin/Fork/Backup/`：`DatabaseBackup.swift`（`ForkBackup`：排程、備份、清理、狀態）、`BackupViews.swift`（「MA」選單的兩項、設定的一段）、`BackupDebug.swift`（`mabackup`）。
+
+### F10.1 備份方式：GRDB 的 `backup(to:)`（sqlite3_backup）
+
+- `ForkBackup.run`：`model.db.pool.backup(to: DatabaseQueue(path: <暫存檔>))`。GRDB 7 的 `DatabaseReader.backup` 是 `pool.read { … sqlite3_backup … }`：在讀取連線的交易裡一次複製全部頁面（`pagesPerStep: -1`），拿到的是開始那一刻的快照；WAL 模式下讀不擋寫，錄音、轉錄照常寫入。
+- 不採用 `VACUUM INTO`：它不能在交易裡跑，GRDB 的 `read` 一律包交易，要另外開一條不經 GRDB 交易的連線才行；它會重排整個檔案（多花 CPU、暫存空間），一致性的保證跟 backup 一樣，沒有多的好處。
+- 不採用直接複製檔案（上游 N3 的做法）：N3 先 `checkpoint(.truncate)` 再複製，那時 app 還沒開始用資料庫；開著時複製可能拿到寫到一半的 WAL。
+- 寫完在背景依序：關掉目的地的連線 → 用新連線跑 `PRAGMA integrity_check`，結果要剛好是 `ok` → `PRAGMA journal_mode=DELETE`（備份是一個獨立的檔，不帶 `-wal`、`-shm`；還原時直接複製一個檔就好）→ 關掉 → 把 `ma-daily-<時間>.partial` 改名成 `ma-daily-<時間>.sqlite`。任何一步失敗：刪掉 `.partial` 和它的 `-wal`、`-shm`、`-journal`，記下原因。
+- 正式檔名已經存在（同一秒內做了兩次）時算失敗，不覆蓋。
+- 整個過程在背景執行（`Task.detached`），主執行緒只更新狀態。同一時間只有一個備份（`running`）。
+
+### F10.2 排程（`ForkBackup.install`，由 `ForkStartup.install` 呼叫）
+
+- 啟動後 120 秒第一次檢查，之後每 3600 秒（`Timer`，`.common` mode）。`Shiyin --mcp` 在 `main.swift` 就分流、不建 `AppModel`，不會走到這裡；`shiyinctl` 是另一支程式。
+- 每次檢查（`check(reason:)`）依序判斷，第一個不符合的就記成這次的結果（`lastCheck`，DEBUG 的 `state` 看得到），不往下做：
+  1. 設定 `maBackupEnabled` 關掉 → `disabled`；
+  2. 正在備份 → `running`；
+  3. 錄音中（`model.recorder.isRecording`，暫停也算）→ `deferredRecording`；下一次檢查（最多 1 小時後）再判斷；
+  4. 最新一份的時間（§F10.3）距離現在不到 24 小時 → `notDue`；
+  5. 可用空間不夠（§F10.4）→ `lowDisk`；
+  6. 開始備份。
+- 「立即備份」、`mabackup now` 跳過第 1、4 項（照樣看 2、3、5）。
+
+### F10.3 檔名、上一次成功、清理
+
+- 資料夾 `Paths.backupsDir/daily`（`SHIYIN_HOME/backups/daily/`），第一次備份時建立。檔名用本地時間 `yyyyMMdd-HHmmss`（`en_US_POSIX`、公曆）。
+- **上一次成功的時間看資料夾裡最新的那份**（檔名的時間，照名稱排序），不存在設定裡（DF9）。
+- 清理（每次成功後、`mabackup prune`）：只看 `backups/daily/` 這一層、名稱完全符合 `^ma-daily-\d{8}-\d{6}\.sqlite$` 的檔，照名稱排序留最新 7 份，其餘刪掉；另外刪 `ma-daily-` 開頭、含 `.partial` 的殘檔（沒在備份時才刪）。`backups/` 本身（migration 前的 `shiyin-*-before-*.sqlite`）、其他名字的檔、子資料夾都不碰。
+
+### F10.4 磁碟空間
+
+- 資料庫大小 = `shiyin.sqlite` + `shiyin.sqlite-wal` 的大小。可用空間用 `SHIYIN_HOME` 的 `volumeAvailableCapacityForImportantUsageKey`（讀不到時用 `volumeAvailableCapacityKey`）。少於「大小 × 2 + 1 GB」就跳過，log 寫大小和可用空間。
+- DEBUG：`mabackup simulate lowdisk` 讓這一項一律判斷成不夠。
+
+### F10.5 失敗、狀態、設定鍵
+
+- 失敗時：`maBackupLastError` 寫原因（錯誤的種類、SQLite 的錯誤碼或 `integrity_check` 的第一行，不含會議內容），`maBackupFailingSince` 沒有值時寫現在的時間；log（`com.weiwei.shiyin`、category `backup`）寫原因、大小。成功時兩個鍵都刪掉。空間不夠也算失敗（原因寫空間）；錄音中延後、還沒到 24 小時、關掉不算。
+- 設定顯示的提示：有 `maBackupLastError`，而且（最新一份的時間，沒有時用 `maBackupFailingSince`）距離現在超過 7 天，顯示「上次成功備份是 N 天前：<原因>」（沒成功過時「還沒有成功備份過：<原因>」）。不送通知。
+- 設定鍵：`maBackupEnabled`（`bool`，沒有值時當成 true）、`maBackupLastError`（字串）、`maBackupFailingSince`（日期）。都跟著 bundle id 的設定網域；測試版用測試 bundle id，正式網域不動。
+- DEBUG：`mabackup simulate fail` 讓下一次備份在寫完暫存檔之後失敗（看得到 `.partial` 被清掉、原因寫進 log 和設定）；`mabackup age <天數>` 把資料夾裡每份備份的檔名時間往前移（只在 DEBUG，改檔名、不改內容），`maBackupFailingSince` 也往前移，用來看 24 小時的判斷和 7 天的提示。
+
+### F10.6 介面與共用入口
+
+- `ForkStartup.install(model)`（`Fork/ForkStartup.swift`，F0）：依序呼叫 `ForkMute.install(model)`、`ForkBackup.install(model)`。AppModel 原本的 `ForkMute.install(self)   // MA-FORK(F3)` 換成 `ForkStartup.install(self)   // MA-FORK(F0)`，位置不變（F3 的安裝照舊在同一個時間點）。以後的 fork 功能要在啟動時安裝，加在這裡、不再加接點。
+- `ForkAppMenuCommands(model:)`（同一個檔，F0）：`BrandAboutCommand()`（F7，取代 `.appInfo`）＋ `ForkBackupMenuCommands(model:)`（`CommandGroup(before: .appSettings)`：分隔線、「立即備份資料庫」、「打開備份資料夾」）。ShiyinApp 的 `BrandAboutCommand()   // MA-FORK(F7)` 換成 `ForkAppMenuCommands(model: model)   // MA-FORK(F0)`。「MA」選單的順序：關於 MA、檢查更新…、立即備份資料庫、打開備份資料夾、設定⋯。
+- 「立即備份資料庫」：錄音中、正在備份時 `.disabled`。做完設 `model.noticeMessage`（主視窗下方的短暫提示，3 秒）：「資料庫已備份」或「備份失敗：<原因>」。主視窗沒開時看不到這一句，結果在設定的「資料庫備份」也看得到。
+- 「打開備份資料夾」：資料夾不存在時先建立，`NSWorkspace.shared.open`。
+- 設定「一般」頁（`AdvancedSettings(part: .general)`，在「重新顯示首次使用引導、重建搜尋索引」那段後面）加一行 `ForkBackupSettingsSection()   // MA-FORK(F10)`：`Section("資料庫備份")`：開關「每天自動備份資料庫」（`@AppStorage("maBackupEnabled")`，預設 true）、「上次備份」（時間，或「還沒有備份」）、說明「保留最近 7 份，放在資料夾的 backups/daily。錄音中不備份。」和「打開備份資料夾」按鈕；§F10.5 的提示用紅字。
+- 介面文字照 §F0.1 第 7 點：寫中文、照上游寫「拾音」，`l10n.py check` 後用 `apply` 寫英文。
+
+### F10.7 DEBUG（`mabackup`，`BackupDebug.swift`）
+
+- `mabackup now [<輸出.json>]`：等於「立即備份」，等做完；輸出 `ok`、`file`、`reason`（`deferredRecording`、`lowDisk`、`failed`…）。
+- `mabackup check [<輸出.json>]`：馬上做一次排程的檢查（不用等 1 小時），等做完，輸出這次的結果。
+- `mabackup status <輸出.json>`：`enabled`、`running`、`lastCheck`、`backups`（檔名）、`lastSuccess`、`lastError`、`failingSince`、`warning`（設定會顯示的那一行）、`menuEnabled`（「立即備份」能不能按）。
+- `mabackup prune`：只做清理。
+- `mabackup simulate lowdisk|fail|off`、`mabackup age <天數>`：見 §F10.4、§F10.5。
+- `mabackup menu <輸出.json>`：倒出「MA」選單每一項的標題、能不能按（沒有輔助使用權限也看得到選單）。
+- `state` 的 `backup`：同 `status` 的主要欄位。
+
+### F10.8 驗證
+
+- 用測試 bundle id 的 DEBUG 版複本（`check-lib.sh` 的 `isolate_debug_app`）和暫存的 `SHIYIN_HOME`，`seedfixtures` 放示範會議：`mabackup now` → `sqlite3` 看 `integrity_check`、`meetings`、`segments` 的筆數跟原本相同；`record-sim` 寫入中同時 `mabackup now`，備份照樣 ok。
+- 錄音中 `mabackup now`／`check` 回報 `deferredRecording`、`menu` 的「立即備份資料庫」不能按；停止後 `check` 做了備份。
+- 放一個 `backups/shiyin-…-before-….sqlite`，做 8 份（每份之間 `age` 往前移），最舊的被刪、migration 前的還在。
+- `simulate lowdisk`、`simulate fail`、`age 8` 看 `status`、log、設定的提示（`preview settings general`、`windowshot`）。
+- 還原：照 requirements F10.8 的步驟（測試的 `SHIYIN_HOME`），重開後會議都在。
+- 測完 `defaults read` 正式網域前後比對：完全相同。
 
 ## F-DB. 資料庫規則（PLAN-fork-5.0 §6）
 
@@ -606,3 +677,4 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 | DF6 | 版本號規則：build 號從 31 起單調遞增、不跟上游；合併上游 X.Y.Z 的那一版是 X.Y.(Z+1)，比 fork 目前的版本小時取 fork 的 patch + 1；fork 自己的發布只加 patch；說明文字第一行後面加「- 基於上游 拾音 X.Y.Z」（PLAN-fork-5.0 §2.3，2026-11-18 使用者同意） | 照上游的版本號：fork 自己的修正沒有號碼可用，跟上游同號會讓使用者以為是同一版。另外一套版本號（例如 1.0 起）：看不出基於上游哪一版，`Updater.isNewer` 只比數字，從 4.7.6 換到 1.0 使用者就收不到更新。這個規則永遠往上，app 內更新照常 |
 | DF7 | 品牌在建置時換建好的 app（`brand.py apply`），原始碼、翻譯表、Info.plist 照上游寫（F7，2026-11-18） | 原始碼直接寫「會議助手」（4.7.6 以前）：每次合併上游，32 個 Swift 檔、翻譯表 89 個鍵、Info.plist、安裝說明都衝突，而且上游新加的字串一定是「拾音」，要人工找。在建置前換一份翻譯表再編（PLAN 的原案）：繁中是來源語言，要另外寫明確的繁中值，還要處理鍵；編出來的繁中 `.strings` 本來就有全部的鍵，直接換值比較簡單，也能一起處理 `.stringsdict`、InfoPlist.strings。Swift 裡用 `Brand.name(...)` 包每一處：還是會衝突。代價：有幾處不經過翻譯表（關於、更新說明、5.0 的提醒事項）要留 1 行接點，原始碼掃描擋住上游新增的。防護要嚴：原始碼掃描只認包住字串的最內層查表呼叫，不看附近幾行；整句特例依資源規定一定要命中，不能只看有沒有殘留的「拾音」（2026-11-18 審查 P2-1、P2-2）。原始碼掃描只放行能證明會查表的參數寫法（單一常值、兩邊都是常值的三元運算），其他保守報錯；正確性用 Swift 編譯器的 `-emit-localized-strings` 依位置核對（`brand.py crosscheck`），不在每次建置都跑編譯器：那要改上游的 `swift build` 那行或多編一次整個模組（複審 P2-3） |
 | DF8 | fork 功能隔離到 `Sources/Shiyin/Fork/`，上游檔只留標了 `MA-FORK` 的單行接點（PLAN-fork-5.0 階段 2，2026-11-19）：狀態放 fork 自己的物件（`ForkAppState`、`MeetingDetail.forkTags`、`ForkMute.State`），要用的上游 `private` 成員改 internal 並標成接點，條列模式整頁、`AutoSpeakerName` 這種整塊改過的畫面用 fork 的複本；「只改這句」在 fork 的函式裡用一筆交易重用上游的 `saveSpeakerUndo`、`addSpeaker`、`removeEmptySpeakers`（兩個 private 的由 SpeakerEdits 裡各 1 行轉呼叫的接點 `forkSaveSpeakerUndo`、`forkAddSpeaker` 開出來），改句子說話者的那幾行是 fork 的複本（跟上游 `reassignSegments` 的迴圈相同）；不改成先呼叫上游的 `reassignSegments` 再另開一筆改名：第二筆失敗時第一筆已經存了（多出一位預設名稱的說話者、句子已改、留下復原快照），跟 5.0.1 的整筆回復不同（REVIEW-2 P2-1，`scripts/fork/f2-atomic-check.py` 用 SQLite trigger 讓改名失敗來檢查）；標記的名字存不存聲紋改由 `learnVoiceprint` 裡 1 行接點問 `ForkSpeakerTags.remembersVoice`；`LockedValue` 類別搬到 `Fork/DF5`；用 `isolation-check.py` 檢查（§F0.3） | 照舊在上游的函式加參數（`reassignSegments(name:)`、`learnVoiceprint(remember:)`）：改了上游函式的簽章，上游改同一個函式就衝突（§F0.1 第 4 點）。在上游元件加參數（`NotesSection` 的 count、accent、copy，`TimeButton` 的 subdued）：上游 5.0 就地編輯時已經衝突過一次，複本的代價是上游改原元件時要人工比對（manifest `highRisk`）。把上游的條列模式留著、fork 的另開一頁：同一份內容兩份程式，使用者看到的仍是 fork 的，上游的那份只是佔位。「只改這句」第二筆失敗時再補做復原：補做本身也可能失敗，中間別的寫入看得到改了一半的資料，不是原子性。接點的範圍用「開始、結束」兩個記號包住一段：可以包很長一段，失去「上游檔只留接點」的意思，行數也看不出來 |
+| DF9 | 定期備份用 GRDB 的 `backup(to:)`（sqlite3_backup，讀取交易裡的快照），寫完跑 `integrity_check` 才改名；上一次成功的時間看 `backups/daily/` 裡最新的檔，不存在設定；設定（一般頁）的一段用 1 行接點（98 → 99），啟動、「MA」選單改走 F0 的共用入口 `ForkStartup`、`ForkAppMenuCommands`，換掉既有的 2 行（F10，2026-11-20 使用者確認） | `VACUUM INTO`：不能在交易裡跑，GRDB 的讀取一律包交易，要另開連線，又會重排整個檔，沒有多的好處。存 `maBackupLastSuccess`（需求草稿的寫法）：設定跟著 bundle id、不跟著 `SHIYIN_HOME`，換了資料夾（測試、示範資料夾）時會拿別的資料夾的時間判斷，所以改成看檔案、另存 `maBackupFailingSince` 算 7 天。各功能各加接點：會用掉剩下的 2 行；提高接點上限：使用者選共用入口 |

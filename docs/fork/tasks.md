@@ -4,6 +4,15 @@
 > 上游任務在 fork 這邊的實測狀態寫在這裡。需求在 `docs/fork/requirements.md`，設計在 `docs/fork/design.md`。
 > 規則同 CLAUDE.md：每項都有驗證方式；`[~]` 是程式完成、還差要使用者的驗證。要使用者在電腦前測的，照場次排在 `docs/fork/acceptance-mac.md`。「design §F#」指 fork design，「design §數字」「D#」「R#」指上游文件。
 
+## 定期備份資料庫（F10，design §F10、DF9；2026-11-20 使用者確認）
+
+在電腦前怎麼測：`docs/fork/acceptance-mac.md` 場次 6。還原的步驟也寫在場次 6（給使用者看）。
+
+只做 Mac。測試用另外的 `SHIYIN_HOME`、測試 bundle id 的 DEBUG 版複本，正式網域的設定不動。
+
+- [ ] **BK0 程式與自動驗證**（F10.1～F10.10）：照 design §F10.8 跑過——`mabackup now` 的檔 `integrity_check` ok、會議數和句數相同、`record-sim` 寫入中備份一致；錄音中延後、錄完 `check` 會做；第 8 份刪最舊、migration 前的備份還在；空間不夠跳過、失敗清掉 `.partial`、超過 7 天設定顯示提示；照文件步驟還原；`mabackup menu`、`preview settings general` 看中英文；isolation-check 99／100、`check.sh` 完整模式通過
+- [ ] **BK1 真的畫面上按**（F10.7）：「MA」選單的兩項、設定「一般」頁的「資料庫備份」、錄音中「立即備份」是灰的、英文介面
+
 ## 5.0.1（合併上游 5.0.0）待使用者實測
 
 在電腦前怎麼測：`docs/fork/acceptance-mac.md` 場次 1（更新）、場次 2（M6、M7 的紀錄分頁）、場次 3（M5、M7 的標記名字）。
