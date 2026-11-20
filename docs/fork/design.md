@@ -50,7 +50,7 @@ scripts/fork/check.sh                 # 完整：建置、DEBUG 版實際操作�
 scripts/fork/check.sh --quick         # 只跑靜態的（不建 app、不開 DEBUG 版，約 1～2 分鐘）
 scripts/fork/check.sh --base-app <舊版.app>   # 品牌逐鍵比對的基準（預設：HEAD 之前最近的 fork tag 的 release 建置，見下）
 scripts/fork/check.sh --base-ref v5.0.1        # 基準改用這個 tag 建
-scripts/fork/check.sh --only 3,5,7    # 只跑這幾項（1～13、I1、I2、L、T、W、S；要用到的建置、DEBUG 版自己會建、會開）
+scripts/fork/check.sh --only 3,5,7    # 只跑這幾項（1～14、I1、I2、L、T、W、S；要用到的建置、DEBUG 版自己會建、會開）
 scripts/fork/check.sh --out <資料夾>  # 摘要、log、截圖放這裡（預設 $TMPDIR/shiyin-check-<時間>）
 scripts/fork/check.sh --keep          # 留下這次的 app、暫存 SHIYIN_HOME（除錯用）
 scripts/fork/check.sh --clean-cache   # 結束時連建置快取、基準版也刪掉
@@ -58,7 +58,7 @@ scripts/fork/check.sh --clean-cache   # 結束時連建置快取、基準版也�
 
 exit 0：沒有 FAIL（SKIP、需人工不算失敗）；1：有 FAIL；2：沒開始（使用者正在錄音、有別的 DEBUG 版在跑、拿不到開始時的設定快照、參數錯，含 `--only` 有不認得的項目或一項都沒選到）。
 
-`--only` 只收 `1`～`13`、`I1`、`I2`、`L`、`T`、`W`、`S`（逗號分隔），有一個不認得就 exit 2。跟 `--quick` 合用時：`--only` 決定跑哪幾項，`--quick` 只讓 3、4 停在靜態的部分（不建 app）；`--only` 選到的非 Q 項目（1、2、5～10、S）照常建置、開 DEBUG 版，所以 `--quick --only 5` 還是會建 app。摘要是輸出資料夾的 `summary.md`，最後也印在終端機。每一項一列：狀態（PASS／FAIL／SKIP／需人工）、耗時、證據路徑（log、JSON、截圖），細項寫在下面。
+`--only` 只收 `1`～`14`、`I1`、`I2`、`L`、`T`、`W`、`S`（逗號分隔），有一個不認得就 exit 2。跟 `--quick` 合用時：`--only` 決定跑哪幾項，`--quick` 只讓 3、4 停在靜態的部分（不建 app）；`--only` 選到的非 Q 項目（1、2、5～10、14、S）照常建置、開 DEBUG 版，所以 `--quick --only 5` 還是會建 app。摘要是輸出資料夾的 `summary.md`，最後也印在終端機。每一項一列：狀態（PASS／FAIL／SKIP／需人工）、耗時、證據路徑（log、JSON、截圖），細項寫在下面。
 
 **項目**（編號照 PLAN §8.1；`--quick` 只跑標 Q 的）
 
@@ -74,6 +74,7 @@ exit 0：沒有 FAIL（SKIP、需人工不算失敗）；1：有 FAIL；2：沒�
 | 8 | F3 加上 5.0 | `check-debug.py f3-hint`：靜音中 `levelCheck` 沒有收音提示；選單列圖示是 `mic.slash.circle.fill`；`hotkey.muteRegistered` 錄音中是 true、停止後 false；靜音中 `recordstall 32 1`（電腦聲音停下）：20 秒左右 `muteHint` 出現、`micmute dismiss` 收掉；提示列的 windowshot 放進截圖 |
 | 9 | F4 | `scripts/dev/f4-check.py`（議題切段、中英日的分段複製） |
 | 10 | F4 加上 5.0 | **只自動驗證刪除**：`noteitem delete actionItems 0` 之後 `copysection` 的待辦少一條、其他條和別的段落照舊（示範會議的決議只有 1 條，刪了整段變空）；刪除後的 windowshot 放進截圖。`noteitem edit` 之後的樣式、「人物」頁不套 F4 樣式沒有自動驗證，摘要的說明欄寫明，留給 S 和使用者 |
+| 14 | F10 備份 | `scripts/fork/f10-backup-check.py`（§F10.8 的自動化：清理只動自己的一般檔、舊暫存檔在成功時清掉、排程和立即備份重疊時第二個回 `running`、錄完後到期的檢查會做） |
 | S | 截圖 | 繁中、英文各開一次 DEBUG 版：示範會議的紀錄、逐字稿分頁（`windowshot`）、設定「錄音」頁（`preview settings recording` 加 `mawindowshot`），加上 #8、#10 的圖，放在輸出資料夾的 `shots/`；狀態一律「需人工」（看條數、色條、「加到提醒事項」、靜音開關、提示列；還沒有基準圖，不做像素比對） |
 | 11 | DF5 | Q：`scripts/fork/tsan-lockedvalue/run.sh` |
 | 12 | 設定殘留 | Q：開始、結束各 `defaults export com.weiwei.shiyin`（正式 app 的網域），要逐位元組相同；不同時列出哪幾個鍵、FAIL，**保留現值、不改寫也不刪**（分不出是檢查還是使用者同時改的，例如使用者自己移動了主視窗）。DEBUG 版用測試專用的 bundle id（見安全規則），本來就不寫正式網域，所以這一項不靠任何還原。有選 DEBUG 版的項目（5～10、S）時另外核對 `shiyin://` 和 `.shiyin`（`com.weiwei.shiyin.meeting`）的預設處理程式在檢查前後相同：這時處理程式的快照是**必要的**，開始時沒拿到、結束時讀不到都算 FAIL，不會因為缺檔就跳過 |
@@ -98,7 +99,7 @@ exit 0：沒有 FAIL（SKIP、需人工不算失敗）；1：有 FAIL；2：沒�
 - 品牌比對：`brand.py compare` 的 exit code 分三種：0 相同、1 比完有差異（需人工）、2 工具或輸入錯誤（基準或新版不是有效的 app：沒有 `Contents/Info.plist`、讀不了、沒有任何 `.lproj` 的 `Localizable.strings`；或比對中丟例外）。check.sh 只把 1 當「需人工」，其他非 0 一律 FAIL；呼叫前也先確認基準 bundle 有這些檔。
 - 結束 DEBUG 版：送訊號前核對那個 pid 的執行檔還是這次暫存資料夾裡的 app（`ps -o comm=`），不是就不送（pid 可能被別的程序重用）。
 - `--only`：照上面的白名單驗證；`--only`、`--base-app`、`--base-ref`、`--out` 後面少了值也是 exit 2（不是 shell 的錯誤）。單選 DEBUG 版的項目（`--only 5`、`--only 5,12`、`--quick --only 5`）要能正常跑：每一項的說明、證據欄在用到前就有初始值。
-- DEBUG 版的**必要條件**（依序；任一步失敗，5～10、S 全部 FAIL，說明欄寫哪一步，不會「沒核對就照跑」）：
+- DEBUG 版的**必要條件**（依序；任一步失敗，5～10、14、S 全部 FAIL，說明欄寫哪一步，不會「沒核對就照跑」）：
   1. 清掉上次中斷留下的測試網域（後置條件要成立）；
   2. 建置（#1）；
   3. 編譯 `check-handlers.swift`；
@@ -556,7 +557,17 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 
 - 資料夾 `Paths.backupsDir/daily`（`SHIYIN_HOME/backups/daily/`），第一次備份時建立。檔名用本地時間 `yyyyMMdd-HHmmss`（`en_US_POSIX`、公曆）。
 - **上一次成功的時間看資料夾裡最新的那份**（檔名的時間，照名稱排序），不存在設定裡（DF9）。
-- 清理（每次成功後、`mabackup prune`）：只看 `backups/daily/` 這一層、名稱完全符合 `^ma-daily-\d{8}-\d{6}\.sqlite$` 的檔，照名稱排序留最新 7 份，其餘刪掉；另外刪 `ma-daily-` 開頭、含 `.partial` 的殘檔（沒在備份時才刪）。`backups/` 本身（migration 前的 `shiyin-*-before-*.sqlite`）、其他名字的檔、子資料夾都不碰。
+- **哪些算備份**（`ForkBackup.backups()`，份數、上一次成功、清理、`age` 共用）：`backups/daily/` 這一層（不遞迴）裡同時符合：
+  1. `lstat` 的類型是一般檔案（`FileManager.attributesOfItem` 的 `.type == .typeRegular`，不跟著連結走）：資料夾、符號連結、其他類型一律排除；
+  2. 檔名完全是 `ma-daily-` + 15 個字（8 位數字、`-`、6 位數字）+ `.sqlite`；
+  3. 時間合法：用同一個格式（`en_US_POSIX`、公曆、目前時區）解析得到日期，而且再格式化回去跟原字串相同（擋掉 `20261399-000000` 這種會被寬鬆解析的值）。
+- **哪些算暫存殘檔**（`stalePartials()`）：同樣只看一般檔案，檔名完全是 `ma-daily-<合法時間>.partial`，或再加上 `-wal`、`-shm`、`-journal` 之一（SQLite 在暫存檔旁開的檔）。`ma-daily-my.partial-notes.txt`、名稱符合的資料夾都不算。
+- 清理分兩步，都只刪上面兩種：
+  - `pruneBackups()`：照名稱排序留最新 7 份，其餘的在刪之前再 `lstat` 一次，確定還是一般檔案才 `removeItem`。
+  - `removeStalePartials()`：刪暫存殘檔，同樣刪之前再確認類型。
+- 什麼時候清：成功路徑在 `running` 還是 true 時（暫存檔已改名、兩個連線都已關掉）依序呼叫 `pruneBackups()`、`removeStalePartials()`：同一個 app 裡不會有別的備份正在寫暫存檔，不用為了清理先放開互斥。app 在背景備份途中結束時留下的暫存檔，下一次成功備份就會清掉。前提跟上游一樣：同一個 `SHIYIN_HOME` 同時只有一個 app 在用。`mabackup prune` 只在沒在備份時才清暫存檔。
+- 這次的暫存檔（失敗時、改名後的旁檔）用確切的路徑刪，同樣先確認是一般檔案。
+- `backups/` 本身（migration 前的 `shiyin-*-before-*.sqlite`）、其他名字的檔、子資料夾和裡面的東西、符號連結和它指到的檔都不碰。
 
 ### F10.4 磁碟空間
 
@@ -586,17 +597,24 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 - `mabackup status <輸出.json>`：`enabled`、`running`、`lastCheck`、`backups`（檔名）、`lastSuccess`、`lastError`、`failingSince`、`warning`（設定會顯示的那一行）、`menuEnabled`（「立即備份」能不能按）。
 - `mabackup prune`：只做清理。
 - `mabackup simulate lowdisk|fail|off`、`mabackup age <天數>`：見 §F10.4、§F10.5。
+- `mabackup simulate slow <秒數>`：下一次備份在複製完、驗證前多等這麼久（背景執行緒），用來讓排程的檢查和「立即備份」真的重疊。
+- `mabackup schedule off|on`：停掉、重新開始排程的 Timer（自動化測試時，避免啟動後 2 分鐘的那次檢查插進來；`on` 從現在起算 2 分鐘）。
 - `mabackup menu <輸出.json>`：倒出「MA」選單每一項的標題、能不能按（沒有輔助使用權限也看得到選單）。
 - `state` 的 `backup`：同 `status` 的主要欄位。
 
 ### F10.8 驗證
 
-- 用測試 bundle id 的 DEBUG 版複本（`check-lib.sh` 的 `isolate_debug_app`）和暫存的 `SHIYIN_HOME`，`seedfixtures` 放示範會議：`mabackup now` → `sqlite3` 看 `integrity_check`、`meetings`、`segments` 的筆數跟原本相同；`record-sim` 寫入中同時 `mabackup now`，備份照樣 ok。
+- 用測試 bundle id 的 DEBUG 版複本（`check-lib.sh` 的 `isolate_debug_app`）和暫存的 `SHIYIN_HOME`，`seedfixtures` 放示範會議：`mabackup now` → `sqlite3` 看 `integrity_check`、`meetings`、`segments` 的筆數跟原本相同；錄音中不備份，所以「寫入中」用別的程式對測試資料庫連續寫入（每筆交易成對寫兩列）時同時 `mabackup now`，每份 `integrity_check` ok、成對的列數是偶數（一致的快照）。
 - 錄音中 `mabackup now`／`check` 回報 `deferredRecording`、`menu` 的「立即備份資料庫」不能按；停止後 `check` 做了備份。
 - 放一個 `backups/shiyin-…-before-….sqlite`，做 8 份（每份之間 `age` 往前移），最舊的被刪、migration 前的還在。
 - `simulate lowdisk`、`simulate fail`、`age 8` 看 `status`、log、設定的提示（`preview settings general`、`windowshot`）。
 - 還原：照 requirements F10.8 的步驟（測試的 `SHIYIN_HOME`），重開後會議都在。
 - 測完 `defaults read` 正式網域前後比對：完全相同。
+- 自動化：`scripts/fork/f10-backup-check.py <SHIYIN_HOME> <shiyinctl> --out <資料夾>`（`check.sh` 的 #14）對開著的 DEBUG 版跑，先 `schedule off`，最後 `schedule on`：
+  - 清理的反例（REVIEW-F10 P2-1、P2-2、P3-1）：放 7 份舊的一般檔備份，另外放名稱符合的資料夾（裡面有檔）、名稱符合但時間在 2099 年的符號連結和它指到的檔、時間不合法的檔、`ma-daily-notes.txt`、`ma-daily-my.partial-notes.txt`、名稱符合的 `.partial` 資料夾、migration 前的備份，和合法的舊暫存檔（`.partial` 加三個旁檔）。`mabackup now` 一次：一般檔的備份剩 7 份、最舊的被刪，舊暫存檔四個都清掉，其他全部原樣（資料夾裡的檔內容不變、連結還在、指到的檔還在），`lastSuccess` 是剛做的那份（不是 2099 年的連結），新的備份 `integrity_check` ok、會議數相同。
+  - 重疊：`simulate slow 6` 後 `now`，第一份還在寫時送 `check`（已 `age` 成到期）和 `now`，兩個都回 `running`；第一份 `done`，資料夾只多一份、沒有殘檔。
+  - 錄完後到期的檢查：`age` 成到期、`record-sim` 中 `check` 回 `deferredRecording`，`record stop` 後 `check` 回 `done`、多一份。
+  - 最後份數還是 7，反例的東西都還在。
 
 ## F-DB. 資料庫規則（PLAN-fork-5.0 §6）
 

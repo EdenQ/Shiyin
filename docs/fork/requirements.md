@@ -181,7 +181,11 @@
 - F10.3 **放哪裡、檔名**：`SHIYIN_HOME/backups/daily/ma-daily-<yyyyMMdd-HHmmss>.sqlite`（本地時間）。在 migration 前備份的 `backups/` 底下另開資料夾，清理不會碰到 migration 的備份。換了 `SHIYIN_HOME` 時跟著那個資料夾走。
 - F10.4 **保留幾份、怎麼清**：
   - 保留最近 **7** 份定期備份。新的備份成功之後才刪最舊的。
-  - 清理只刪 `backups/daily/` 裡符合 `ma-daily-*.sqlite` 的檔和沒寫完的 `ma-daily-*.partial`。
+  - 清理只刪 `backups/daily/` 這一層裡、這個功能自己產生的**一般檔案**：
+    - 定期備份：檔名完全是 `ma-daily-<yyyyMMdd-HHmmss>.sqlite`，而且時間是合法的日期時間；
+    - 沒寫完的暫存檔：檔名完全是 `ma-daily-<合法時間>.partial`，或它旁邊 SQLite 開的 `…partial-wal`、`…partial-shm`、`…partial-journal`。
+  - 資料夾、符號連結、其他非一般檔案，就算名稱符合也**不算備份、不刪、不往裡面找**；名稱只是開頭像（例如 `ma-daily-my.partial-notes.txt`）或時間不合法的檔也不碰。算份數、上一次成功的時間、清理用同一套判斷；刪之前再確認一次是一般檔案。
+  - 暫存檔在備份成功時清（這時還沒放開「同時只有一個備份」的保護）：app 在備份途中結束留下的暫存檔，下一次成功備份時會被清掉。
   - **不刪** `backups/` 底下 migration 前的備份（`shiyin-*-before-*.sqlite`）。份數先寫死 7，不做成設定。
 - F10.5 **磁碟空間**：開始前看 `SHIYIN_HOME` 所在磁碟的可用空間，少於「資料庫大小 × 2 + 1 GB」就不備份，記在 log，下一次檢查再試。不為了騰出空間多刪備份。
 - F10.6 **失敗時**：
