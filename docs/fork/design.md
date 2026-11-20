@@ -131,7 +131,13 @@ exit 0：沒有 FAIL（SKIP、需人工不算失敗）；1：有 FAIL；2：沒�
 
 另外 `brand-test.py` 加 `brand.py compare` 的測試：相同 0、有差異 1、基準缺 `Info.plist` 或沒有翻譯 2。
 
-**快取位置**：預設 `~/Library/Caches/ShiyinBuild/check`（建置快取 `scratch/`、基準版 `base/<tag>/`、這次的 `run-<時間>/`）；環境變數 `MA_CHECK_CACHE` 可以換到別的資料夾，用來在不刪現有快取的情況下測「沒有基準快取」的路徑。
+**快取位置**：預設 `~/Library/Caches/ShiyinBuild/check`（建置快取 `scratch/`、基準版 `base/<tag>/`、這次的 `run-<時間>/`）；環境變數 `MA_CHECK_CACHE` 可以換到別的資料夾，用來在不刪現有快取的情況下測「沒有基準快取」的路徑。快取會被建立、`--clean-cache` 會刪裡面的東西，所以在任何建立、建置、清理之前先核對（`resolve_cache`，REVIEW-3a5 P2-9），不通過就 exit 2、什麼都不建也不刪：
+
+- 先解析成真實的絕對路徑（符號連結解開；不存在的部分照字面接上）。`MA_CHECK_CACHE` 本身、或預設路徑被換成符號連結，都看解開後指到哪裡。
+- 受保護的位置（也先解析）：`~/Library/Caches/ShiyinBuild/app`（使用者可能拿來錄音的 app）、`~/Library/Application Support/Shiyin`（正式資料）、有設的話 `SHIYIN_HOME`、這個 repo。快取等於它們、在它們底下、或是它們的上層，都拒絕。另外快取不能是 `$HOME` 或 `/`，也不能是 `$HOME` 的上層。
+- 自訂值（有設 `MA_CHECK_CACHE`）只接受三種：還不存在（check.sh 會建立）、空資料夾、已經有 check.sh 放的所有權標記 `.ma-check-cache`。其他既有的資料夾、不是資料夾的檔都拒絕。通過後建立資料夾並寫入標記。
+- 預設值不用標記（照舊可用），但同樣要通過受保護位置的核對。
+- `--clean-cache` 只刪快取底下 check.sh 自己的三個子資料夾（`scratch`、`scratch-base`、`base`），而且只在快取是預設位置、或有 `.ma-check-cache` 標記時才刪。
 
 **品牌比對的基準**：`--base-app` 沒給時，用 `git describe --tags --abbrev=0 --match 'v[0-9]*' HEAD^` 找到的 fork tag（現在是 v5.0.1），`git archive` 那個 tag 到暫存資料夾、用它自己的 `build-app.sh`（同樣的複本規則）建 release，放在 `~/Library/Caches/ShiyinBuild/check/base/<tag>/`，之後直接用。用同一台電腦、同一版 Xcode 建，`xcstringstool` 的版本差異不會變成假的差異（F7.5 跟 GitHub 上的 4.7.6 比時就多了 3 條）。
 
