@@ -533,10 +533,10 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 
 ### F10.1 備份方式：GRDB 的 `backup(to:)`（sqlite3_backup）
 
-- `ForkBackup.run`：`model.db.pool.backup(to: DatabaseQueue(path: <暫存檔>))`。GRDB 7 的 `DatabaseReader.backup` 是 `pool.read { … sqlite3_backup … }`：在讀取連線的交易裡一次複製全部頁面（`pagesPerStep: -1`），拿到的是開始那一刻的快照；WAL 模式下讀不擋寫，錄音、轉錄照常寫入。
+- `ForkBackup.write`（背景）：`model.db.pool.backup(to: DatabaseQueue(path: <暫存檔>))`。GRDB 7 的 `DatabaseReader.backup` 是 `pool.read { … sqlite3_backup … }`：在讀取連線的交易裡一次複製全部頁面（`pagesPerStep: -1`），拿到的是開始那一刻的快照；WAL 模式下讀不擋寫，錄音、轉錄照常寫入。
 - 不採用 `VACUUM INTO`：它不能在交易裡跑，GRDB 的 `read` 一律包交易，要另外開一條不經 GRDB 交易的連線才行；它會重排整個檔案（多花 CPU、暫存空間），一致性的保證跟 backup 一樣，沒有多的好處。
 - 不採用直接複製檔案（上游 N3 的做法）：N3 先 `checkpoint(.truncate)` 再複製，那時 app 還沒開始用資料庫；開著時複製可能拿到寫到一半的 WAL。
-- 寫完在背景依序：關掉目的地的連線 → 用新連線跑 `PRAGMA integrity_check`，結果要剛好是 `ok` → `PRAGMA journal_mode=DELETE`（備份是一個獨立的檔，不帶 `-wal`、`-shm`；還原時直接複製一個檔就好）→ 關掉 → 把 `ma-daily-<時間>.partial` 改名成 `ma-daily-<時間>.sqlite`。任何一步失敗：刪掉 `.partial` 和它的 `-wal`、`-shm`、`-journal`，記下原因。
+- 寫完在背景依序：關掉目的地的連線 → 用新連線跑 `PRAGMA integrity_check`，結果要剛好是 `ok` → `PRAGMA journal_mode=DELETE`（備份是一個獨立的檔，不帶 `-wal`、`-shm`；還原時直接複製一個檔就好）→ 關掉 → 把 `ma-daily-<時間>.partial` 改名成 `ma-daily-<時間>.sqlite`，再刪掉驗證時 WAL 模式留在暫存檔名旁的 `-shm`、`-wal`（實測會留下 `-shm`）。任何一步失敗：刪掉 `.partial` 和它的 `-wal`、`-shm`、`-journal`，記下原因。
 - 正式檔名已經存在（同一秒內做了兩次）時算失敗，不覆蓋。
 - 整個過程在背景執行（`Task.detached`），主執行緒只更新狀態。同一時間只有一個備份（`running`）。
 
@@ -573,7 +573,7 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 ### F10.6 介面與共用入口
 
 - `ForkStartup.install(model)`（`Fork/ForkStartup.swift`，F0）：依序呼叫 `ForkMute.install(model)`、`ForkBackup.install(model)`。AppModel 原本的 `ForkMute.install(self)   // MA-FORK(F3)` 換成 `ForkStartup.install(self)   // MA-FORK(F0)`，位置不變（F3 的安裝照舊在同一個時間點）。以後的 fork 功能要在啟動時安裝，加在這裡、不再加接點。
-- `ForkAppMenuCommands(model:)`（同一個檔，F0）：`BrandAboutCommand()`（F7，取代 `.appInfo`）＋ `ForkBackupMenuCommands(model:)`（`CommandGroup(before: .appSettings)`：分隔線、「立即備份資料庫」、「打開備份資料夾」）。ShiyinApp 的 `BrandAboutCommand()   // MA-FORK(F7)` 換成 `ForkAppMenuCommands(model: model)   // MA-FORK(F0)`。「MA」選單的順序：關於 MA、檢查更新…、立即備份資料庫、打開備份資料夾、設定⋯。
+- `ForkAppMenuCommands(model:)`（同一個檔，F0）：`BrandAboutCommand()`（F7，取代 `.appInfo`）＋ `ForkBackupMenuCommands(model:)`（`CommandGroup(before: .systemServices)`：「立即備份資料庫」、「打開備份資料夾」、分隔線；不用 `before: .appSettings`：上游用 `replacing: .appSettings` 換掉設定那一組，放在它前面的項目實測不會出現）。ShiyinApp 的 `BrandAboutCommand()   // MA-FORK(F7)` 換成 `ForkAppMenuCommands(model: model)   // MA-FORK(F0)`。「MA」選單的順序：關於 MA、檢查更新…、設定⋯、立即備份資料庫、打開備份資料夾、服務…。
 - 「立即備份資料庫」：錄音中、正在備份時 `.disabled`。做完設 `model.noticeMessage`（主視窗下方的短暫提示，3 秒）：「資料庫已備份」或「備份失敗：<原因>」。主視窗沒開時看不到這一句，結果在設定的「資料庫備份」也看得到。
 - 「打開備份資料夾」：資料夾不存在時先建立，`NSWorkspace.shared.open`。
 - 設定「一般」頁（`AdvancedSettings(part: .general)`，在「重新顯示首次使用引導、重建搜尋索引」那段後面）加一行 `ForkBackupSettingsSection()   // MA-FORK(F10)`：`Section("資料庫備份")`：開關「每天自動備份資料庫」（`@AppStorage("maBackupEnabled")`，預設 true）、「上次備份」（時間，或「還沒有備份」）、說明「保留最近 7 份，放在資料夾的 backups/daily。錄音中不備份。」和「打開備份資料夾」按鈕；§F10.5 的提示用紅字。
