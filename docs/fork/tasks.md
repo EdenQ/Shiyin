@@ -10,8 +10,7 @@
 
 只做 Mac。測試用另外的 `SHIYIN_HOME`、測試 bundle id 的 DEBUG 版複本，正式網域的設定不動。
 
-- [ ] **BK0 程式與自動驗證**（F10.1～F10.10）：照 design §F10.8 跑過——`mabackup now` 的檔 `integrity_check` ok、會議數和句數相同、`record-sim` 寫入中備份一致；錄音中延後、錄完 `check` 會做；第 8 份刪最舊、migration 前的備份還在；空間不夠跳過、失敗清掉 `.partial`、超過 7 天設定顯示提示；照文件步驟還原；`mabackup menu`、`preview settings general` 看中英文；isolation-check 99／100、`check.sh` 完整模式通過
-- [ ] **BK1 真的畫面上按**（F10.7）：「MA」選單的兩項、設定「一般」頁的「資料庫備份」、錄音中「立即備份」是灰的、英文介面
+- [~] **BK1 真的畫面上按**（F10.7）：程式完成，DEBUG 版用 `mabackup menu`、`preview settings general` 看過中英文（自動驗證見 F10 的程式 commit）。還差：「MA」選單的兩項、設定「一般」頁的「資料庫備份」、錄音中「立即備份」是灰的、英文介面
 
 ## 5.0.1（合併上游 5.0.0）待使用者實測
 
