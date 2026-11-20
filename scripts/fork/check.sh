@@ -13,7 +13,7 @@
 # 同時只開一個；不送按鍵、不用 System Events；結束時結束自己的 DEBUG 版、刪掉暫存資料夾。
 set -u
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-CACHE="$HOME/Library/Caches/ShiyinBuild/check"
+CACHE="${MA_CHECK_CACHE:-$HOME/Library/Caches/ShiyinBuild/check}"   # MA_CHECK_CACHE：測沒有基準快取的路徑（fork design §F0.4）
 SCRATCH="$CACHE/scratch"
 REAL="$HOME/Library/Application Support/Shiyin"
 # shellcheck source=check-lib.sh
@@ -146,8 +146,7 @@ base_app() {   # 品牌比對的基準
   if [ ! -f "$dir/.ok" ]; then
     local src="$RUN/base-src"
     rm -rf "$src" "$dir"; mkdir -p "$src"
-    git -C "$ROOT" archive "$tag" | tar -x -C "$src"
-    [ "${PIPESTATUS[0]}" = 0 ] && [ "${PIPESTATUS[1]}" = 0 ] || { echo "git archive $tag | tar 失敗" >&2; return 1; }
+    extract_tag "$ROOT" "$tag" "$src" || return 1
     build_app "$src" release "$dir" "$CACHE/scratch-base" >&2 || return 1
     touch "$dir/.ok"; rm -rf "$src" "$CACHE/scratch-base"
   fi

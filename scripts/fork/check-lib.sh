@@ -5,11 +5,15 @@
 MA_DOMAIN="com.weiwei.shiyin"
 MA_ITEMS="1 2 3 4 5 6 7 8 9 10 11 12 13 I1 I2 L T S"
 
-# domain_absent_message <網域> <defaults read 的錯誤訊息>：是不是「網域不存在」。macOS 27 是
-# `Error: Domain 'X' not found.`（2026-11-20 實測；FIX-3a3 第一次完整跑因為只認舊的寫法，安全地全部 FAIL）；
-# 舊的寫法 `Domain X does not exist` 也認。其他訊息（cfprefsd、權限）都不算
+# domain_absent_message <網域> <defaults read 的 stderr，去掉結尾換行>：是不是「網域不存在」。
+# 整段訊息要「只有一行、完全等於」支援的格式之一（REVIEW-3a4 P2-7：前後萬用字元會把
+# `cfprefsd: Domain 'X' not found in cache; …`、正常訊息後面再接一行錯誤都當成不存在）：
+#   macOS 27.2.1 實測（2026-11-20）：exit 1、stdout 空、stderr `Error: Domain 'X' not found.` 加換行
+#   舊的寫法：`Domain X does not exist`
 domain_absent_message() {
-  case "$2" in *"Domain '$1' not found"*|*"Domain $1 does not exist"*) return 0;; esac
+  [ -n "$1" ] || return 1
+  [ "$2" = "Error: Domain '$1' not found." ] && return 0
+  [ "$2" = "Domain $1 does not exist" ] && return 0
   return 1
 }
 
@@ -22,7 +26,7 @@ defaults_snapshot() {
     echo "defaults export 成功，但輸出不是 plist：$out"
     rm -f "$out"; return 1
   fi
-  if domain_absent_message "$MA_DOMAIN" "$(defaults read "$MA_DOMAIN" 2>&1 >/dev/null)"; then
+  if [ "$(domain_state "$MA_DOMAIN" 2>/dev/null)" = absent ]; then
     printf 'MA-CHECK: domain absent\n' > "$out"; return 0
   fi
   echo "defaults export 失敗：$err"
@@ -94,12 +98,14 @@ test_domain_files() {
   printf '%s\n' "$lib/Preferences/$id.plist" "$lib/HTTPStorages/$id" "$lib/HTTPStorages/$id.binarycookies" \
     "$lib/Caches/$id" "$lib/Saved Application State/$id.savedState" "$lib/WebKit/$id"
 }
-domain_state() {   # domain_state <id>：印 absent／present；判斷不了（讀失敗但不是「不存在」）return 1
-  local err
-  if defaults read "$1" >/dev/null 2>&1; then echo present; return 0; fi
-  err="$(defaults read "$1" 2>&1 >/dev/null)"
-  domain_absent_message "$1" "$err" && { echo absent; return 0; }
-  echo "讀不了網域 ${1}：$err" >&2; return 1
+domain_state() {   # domain_state <id>：印 absent／present；判斷不了（讀失敗但不是明確的「不存在」）return 1
+  local out err rc tmp
+  tmp="$(mktemp)" || { echo "mktemp 失敗" >&2; return 1; }
+  out="$(defaults read "$1" 2>"$tmp")"; rc=$?   # 讀一次，stdout、stderr、exit code 分開看
+  err="$(cat "$tmp")"; rm -f "$tmp"
+  if [ $rc = 0 ]; then echo present; return 0; fi
+  if [ -z "$out" ] && domain_absent_message "$1" "$err"; then echo absent; return 0; fi
+  echo "讀不了網域 ${1}（exit ${rc}）：$err" >&2; return 1
 }
 cleanup_test_domain() {
   local id="$1" app="${2:-}" err=0 state f
@@ -121,6 +127,16 @@ cleanup_test_domain() {
     [ -e "$f" ] && { echo "清理後還在：$f" >&2; err=1; }
   done < <(test_domain_files "$id")
   return $err
+}
+
+# extract_tag <repo> <tag> <放原始碼的資料夾>：git archive | tar；兩邊的 exit 都要是 0。
+# pipeline 結束後立刻把 PIPESTATUS 整個存下來（REVIEW-3a4 P2-8：第一個 [ 會蓋掉 PIPESTATUS）
+extract_tag() {
+  local st
+  git -C "$1" archive "$2" | tar -x -C "$3"
+  st=("${PIPESTATUS[@]}")
+  [ "${st[0]}" = 0 ] && [ "${st[1]:-1}" = 0 ] && return 0
+  echo "git archive $2 | tar 失敗（git exit ${st[0]}、tar exit ${st[1]:-?}）" >&2; return 1
 }
 
 # valid_handlers <快照檔>：check-handlers 的輸出要有 scheme-default、type-default 兩行

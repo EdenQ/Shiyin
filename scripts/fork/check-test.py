@@ -54,6 +54,12 @@ cmd, domain = sys.argv[1], sys.argv[2]
 path = os.path.join(store, domain + '.json')
 if cmd == 'read' and os.environ.get('STUB_READ_ERROR'):   # cfprefsd 之類的錯誤：不是「不存在」
     sys.exit('cfprefsd: connection interrupted')
+# 指定 read 的 stdout／stderr／exit（STUB_READ_DOMAIN 沒給時只套用在測試網域）：測「不存在」的嚴格比對
+if cmd == 'read' and 'STUB_READ_STDERR' in os.environ and domain == os.environ.get('STUB_READ_DOMAIN', 'com.weiwei.shiyin.macheck'):
+    sys.stdout.write(os.environ.get('STUB_READ_STDOUT', '')); sys.stderr.write(os.environ['STUB_READ_STDERR'])
+    sys.exit(int(os.environ.get('STUB_READ_EXIT', '1')))
+if cmd == 'export' and os.environ.get('STUB_EXPORT_EXIT'):
+    sys.exit(int(os.environ['STUB_EXPORT_EXIT']))
 if cmd == 'delete' and os.environ.get('STUB_DELETE_EXIT'):
     sys.exit(int(os.environ['STUB_DELETE_EXIT']))
 data = json.load(open(path)) if os.path.exists(path) else None
@@ -375,13 +381,73 @@ class Lib(unittest.TestCase):
         self.assertEqual(code, 1, msg)
         self.assertIn('讀不了網域', msg)
 
+    # REVIEW-3a4 P2-7：只有「完全等於」支援的格式才算不存在
+    NEAR_MISSES = (
+        "cfprefsd: Domain '{d}' not found in cache; Operation not permitted",   # 審查的例子
+        "Error: Domain '{d}' not found.\ncfprefsd: connection interrupted",       # 正常訊息後面再接一行錯誤
+        "cfprefsd: warming up\nError: Domain '{d}' not found.",                   # 前面多一行
+        "Error: Domain '{d}' not found. ",                                         # 多一個空白
+        " Error: Domain '{d}' not found.",
+        "Error: Domain '{d}' not found",                                           # 少句點
+        "Error: Domain 'com.weiwei.shiyin' not found.",                            # 別的網域（正式的）
+        "Error: Domain '{d}.other' not found.",
+        "Domain {d} does not exist (cached)",
+        "",
+    )
+
     def test_domain_absent_message(self):
-        """macOS 27 的寫法和舊的寫法都認；其他錯誤不算不存在"""
         d = 'com.weiwei.shiyin.macheck'
-        for msg, want in ((f"Error: Domain '{d}' not found.", 0), (f'Domain {d} does not exist', 0),
-                          ('cfprefsd: connection interrupted', 1), (f"Error: Domain 'other' not found.", 1), ('', 1)):
-            code, out = self.call('domain_absent_message', d, msg)
-            self.assertEqual(code, want, f'{msg!r}：{out}')
+        for msg, want in ((f"Error: Domain '{d}' not found.", 0), (f'Domain {d} does not exist', 0)):
+            self.assertEqual(self.call('domain_absent_message', d, msg)[0], want, msg)
+        for msg in self.NEAR_MISSES + ('cfprefsd: connection interrupted',):
+            code, out = self.call('domain_absent_message', d, msg.format(d=d))
+            self.assertEqual(code, 1, f'{msg!r} 不能當成不存在：{out}')
+        self.assertEqual(self.call('domain_absent_message', '', "Error: Domain '' not found.")[0], 1, '空的網域名稱')
+
+    def test_domain_state_strict(self):
+        """domain_state：exit 非 0、stdout 空、stderr 完全等於才是 absent；其他都 return 1"""
+        store, sh, domain, put, calls = self.stateful()
+        d = 'com.weiwei.shiyin.macheck'
+        exact = f"Error: Domain '{d}' not found.\n"
+        code, out = sh(f'domain_state {d}', STUB_READ_STDERR=exact)
+        self.assertEqual((code, out.strip()), (0, 'absent'))
+        code, out = sh(f'domain_state {d}', STUB_READ_STDERR=exact, STUB_READ_STDOUT='{ a = b; }\n')
+        self.assertEqual(code, 1, f'stdout 不是空的：{out}')
+        for msg in self.NEAR_MISSES:
+            code, out = sh(f'domain_state {d}', STUB_READ_STDERR=msg.format(d=d) + '\n')
+            self.assertEqual(code, 1, f'{msg!r}：{out}')
+            self.assertNotIn('absent', out.split('\n')[0])
+
+    def test_cleanup_and_snapshot_reject_near_miss(self):
+        """cleanup_test_domain、defaults_snapshot 共用同一個判斷：近似訊息都失敗"""
+        d = 'com.weiwei.shiyin.macheck'
+        for msg in self.NEAR_MISSES:
+            code, out, *_ = self.cleanup_case(STUB_READ_STDERR=msg.format(d=d) + '\n')
+            self.assertEqual(code, 1, f'cleanup {msg!r}：{out}')
+        store, sh, domain, put, calls = self.stateful()
+        for msg in self.NEAR_MISSES:
+            if msg.format(d='com.weiwei.shiyin') == "Error: Domain 'com.weiwei.shiyin' not found.":
+                continue   # 「別的網域」那一條用的正好是正式網域的名字：對正式網域的快照來說是完全相符
+            code, out = sh(f'defaults_snapshot "{store}/s.plist"', STUB_EXPORT_EXIT='1', STUB_READ_DOMAIN='com.weiwei.shiyin',
+                           STUB_READ_STDERR=msg.format(d='com.weiwei.shiyin') + '\n')
+            self.assertEqual(code, 1, f'snapshot {msg!r}：{out}')
+        code, out = sh(f'defaults_snapshot "{store}/s.plist"', STUB_EXPORT_EXIT='1', STUB_READ_DOMAIN='com.weiwei.shiyin',
+                       STUB_READ_STDERR="Error: Domain 'com.weiwei.shiyin' not found.\n")
+        self.assertEqual(code, 0, out)
+        self.assertEqual((store / 's.plist').read_text(), 'MA-CHECK: domain absent\n')
+
+    # ---------- REVIEW-3a4 P2-8：git archive | tar 兩邊的 exit ----------
+    def test_extract_tag(self):
+        work = Path(tempfile.mkdtemp(dir=self.tmp))
+        sbin = work / 'bin'; sbin.mkdir()
+        (sbin / 'git').write_text('#!/bin/bash\necho payload; exit "${STUB_GIT_EXIT:-0}"\n')
+        (sbin / 'tar').write_text('#!/bin/bash\ncat >/dev/null; exit "${STUB_TAR_EXIT:-0}"\n')
+        for f in ('git', 'tar'): (sbin / f).chmod(0o755)
+        for git, tar, want in (('0', '0', 0), ('128', '0', 1), ('0', '2', 1), ('128', '2', 1)):
+            p = subprocess.run(['/bin/bash', '-c', f'set -u; . "{LIB}"; extract_tag /repo v5.0.1 "{work}"'], capture_output=True, text=True,
+                               env={'PATH': f'{sbin}:/usr/bin:/bin', 'HOME': str(self.tmp), 'STUB_GIT_EXIT': git, 'STUB_TAR_EXIT': tar})
+            self.assertEqual(p.returncode, want, f'git {git}、tar {tar}：{p.stdout}{p.stderr}')
+            self.assertNotIn('unbound variable', p.stderr)
 
     # ---------- P2-5：處理程式的 helper、開始時的快照是必要條件 ----------
     def handlers_case(self, mode):
@@ -486,6 +552,17 @@ class CheckScript(unittest.TestCase):
             calls = (tmp / 'calls.log').read_text() if (tmp / 'calls.log').exists() else ''
             self.assertNotIn('"write", "com.weiwei.shiyin"', calls)
             self.assertNotIn('"delete", "com.weiwei.shiyin"]', calls)
+            # REVIEW-3a4 P2-7：測試網域的 defaults read 回近似的訊息 → 開始前清不掉、收尾 C FAIL、exit 1
+            d = 'com.weiwei.shiyin.macheck'
+            for msg in ("cfprefsd: Domain '{d}' not found in cache; Operation not permitted",
+                        "Error: Domain '{d}' not found.\ncfprefsd: connection interrupted"):
+                out = tmp / f'out-near-{len(msg)}'
+                p = subprocess.run(['/bin/bash', str(ROOT / 'scripts/fork/check.sh'), '--only', '5', '--out', str(out)],
+                                   capture_output=True, text=True, timeout=120, env={**env, 'STUB_READ_STDERR': msg.format(d=d) + '\n'})
+                summary = (out / 'summary.md').read_text()
+                self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+                self.assertRegex(summary, r'\| 5 \| .* \| FAIL \|.*測試網域清不掉', msg)
+                self.assertRegex(summary, r'\| C \| .* \| FAIL \|', msg)
         finally:
             shutil.rmtree(tmp)
 
