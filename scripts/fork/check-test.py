@@ -732,6 +732,65 @@ class ForkCheckWorkflow(unittest.TestCase):
         self.assertIn("['upstream']['base']['tag']", step, 'tag 從 manifest 讀')
         self.assertIn('--no-tags', step)
 
+    TAG_STEP = '上游的基準 tag（I1 用；放 refs/upstream-tags/，不碰 refs/tags）'
+
+    def tag_script(self):
+        """workflow 裡 tag 那一步實際的 shell（`run: |` 底下的每一行，去掉縮排）"""
+        lines = self.steps[self.TAG_STEP].split('\n')
+        start = next(i for i, l in enumerate(lines) if l.strip() == 'run: |') + 1
+        body = []
+        for l in lines[start:]:
+            if l.strip() and not l.startswith(' ' * 10):
+                break
+            body.append(l[10:])
+        return '\n'.join(body).strip() + '\n'
+
+    def run_tag_step(self, tag, has_tag=True):
+        """在暫存資料夾放只有 upstream.base.tag 的 manifest，用假的 git（只記下參數）跑那一步；回傳 (exit, git 的呼叫, 輸出, 暫存資料夾裡多出的檔)"""
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp) / 'repo'; (work / 'docs/fork').mkdir(parents=True)
+            base = {'tag': tag} if has_tag else {}
+            (work / 'docs/fork/manifest.json').write_text(json.dumps({'upstream': {'base': base}}))
+            script = Path(tmp) / 'step.sh'; script.write_text(self.tag_script())
+            bindir = Path(tmp) / 'bin'; bindir.mkdir()
+            log = Path(tmp) / 'git-calls.jsonl'
+            git = bindir / 'git'
+            git.write_text('#!/usr/bin/python3\nimport json, os, sys\n'
+                           'open(os.environ["FAKE_GIT_LOG"], "a").write(json.dumps(sys.argv[1:]) + "\\n")\n')
+            git.chmod(0o755)
+            before = set(os.listdir(work))
+            # GitHub 的 run 用 bash --noprofile --norc -eo pipefail {0}
+            p = subprocess.run(['/bin/bash', '--noprofile', '--norc', '-eo', 'pipefail', str(script)], cwd=work,
+                               env={'PATH': f'{bindir}:/usr/bin:/bin', 'HOME': tmp, 'FAKE_GIT_LOG': str(log)},
+                               capture_output=True, text=True, timeout=30)
+            calls = [json.loads(l) for l in log.read_text().splitlines()] if log.exists() else []
+            extra = set(os.listdir(work)) - before
+            return p.returncode, calls, p.stdout + p.stderr, extra
+
+    def test_tag_step_accepts_version_tag(self):
+        code, calls, out, _ = self.run_tag_step('v5.0.0')
+        self.assertEqual(code, 0, out)
+        fetch = calls[0]
+        self.assertEqual(fetch[0], 'fetch')
+        self.assertIn('--no-tags', fetch)
+        self.assertEqual(fetch[-1], '+refs/tags/v5.0.0:refs/upstream-tags/v5.0.0')
+        self.assertEqual(calls[1], ['rev-parse', '--verify', 'refs/upstream-tags/v5.0.0^{commit}'])
+
+    def test_tag_step_rejects_bad_manifest(self):
+        """REVIEW-CA P3-4：惡意或型別不對的 tag 要在呼叫 git 之前被拒絕"""
+        bad = ['v5.0.0:refs/heads/main', '../tags/main', 'v5.0.0/../../heads/main',
+               'v5.0.0\n+refs/tags/*:refs/tags/*', 'v5.0.0; touch sentinel', '$(touch sentinel)', '`touch sentinel`',
+               'v5.0.0 --upload-pack=touch', '', None, 5, ['v5.0.0'], {'v': 1}]
+        for tag in bad:
+            with self.subTest(tag=tag):
+                code, calls, out, extra = self.run_tag_step(tag)
+                self.assertNotEqual(code, 0, out)
+                self.assertEqual(calls, [], f'git 不能被呼叫：{calls}')
+                self.assertEqual(extra, set(), f'不能多出檔案：{extra}')
+        code, calls, out, _ = self.run_tag_step(None, has_tag=False)   # 沒有這個鍵
+        self.assertNotEqual(code, 0, out)
+        self.assertEqual(calls, [])
+
     def test_artifact_and_summary(self):
         up = self.steps['Upload summary and logs']
         self.assertIn('if: always()', up)
