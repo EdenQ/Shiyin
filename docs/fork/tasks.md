@@ -2,9 +2,11 @@
 
 > 只放 fork 還沒完成的任務；做完就刪掉（紀錄在 git 歷史）。上游的任務在 `docs/tasks.md`，照上游原樣、fork 不改；
 > 上游任務在 fork 這邊的實測狀態寫在這裡。需求在 `docs/fork/requirements.md`，設計在 `docs/fork/design.md`。
-> 規則同 CLAUDE.md：每項都有驗證方式；`[~]` 是程式完成、還差要使用者的驗證。「design §F#」指 fork design，「design §數字」「D#」「R#」指上游文件。
+> 規則同 CLAUDE.md：每項都有驗證方式；`[~]` 是程式完成、還差要使用者的驗證。要使用者在電腦前測的，照場次排在 `docs/fork/acceptance-mac.md`。「design §F#」指 fork design，「design §數字」「D#」「R#」指上游文件。
 
 ## 5.0.1（合併上游 5.0.0）待使用者實測
+
+在電腦前怎麼測：`docs/fork/acceptance-mac.md` 場次 1（更新）、場次 2（M6、M7 的紀錄分頁）、場次 3（M5、M7 的標記名字）。
 
 合併、M2～M7 的程式和自動驗證做完了（分支 feature/f9-merge-upstream-5.0）。這台電腦沒有給 Claude 輔助使用、螢幕錄製的權限，下面要使用者在電腦前：
 
@@ -15,10 +17,14 @@
 
 ## 上游 R74 在 fork 的實測（design §50、D159、D160；fork 4.7.6 帶入，F6）
 
+在電腦前怎麼測：`docs/fork/acceptance-mac.md` 場次 3（RC1）、場次 5（RC3）。
+
 - [~] **RC1 Mac**（§50.1～§50.3）：程式完成；fork 4.7.6 用 DEBUG 版 `record-sim`＋`recordflap 6 3` 驗過（2026-11-16，見版本 commit）：麥克風重新連接 7 次、間隔 3.9、3.8、5.6、7.6、11.6、19.5 秒，第 3 次起提示「麥克風一直在重新連接」、60 秒後收起，`maxMainGapMs` 104 ms；F3 靜音中遇到重新連接時兩種提示同時出現（windowshot）。還差（要使用者在電腦前：DEBUG 版用真的麥克風可能跳出權限確認）：內建麥克風錄音、錄音中從麥克風名稱換到別的麥克風再換回來，錄音照常、log 沒有 `microphone engine exception`
 - [ ] **RC3 真的 AirPods**：回報的人（GitHub #8）提供當機報告、更新後再試；或使用者用 AirPods 錄一段
 
 ## 上游 R57 在 fork 的實測（design §45、D151；fork 4.7.6 帶入，F6）
+
+在電腦前怎麼測：`docs/fork/acceptance-mac.md` 場次 3（vpio-hold）、場次 4（Safari 的 Google Meet）。
 
 - [~] **R57 Mac 實作**（R57.1～R57.5，design §45）：程式完成，用 `record-sim` 驗過（2026-11-12，見 commit 訊息）。還差（要使用者在電腦前，會用到麥克風）：
   - 真的語音處理：DEBUG 版用內建麥克風錄音時跑 `scripts/dev/vpio-hold.swift`，10 秒內出現提示；關掉後提示收起
@@ -26,9 +32,13 @@
 
 ## 系統預設麥克風的名稱、藍牙提醒（上游 54bc6f5，design §38.1；fork 4.7.6 帶入）
 
+在電腦前怎麼測：`docs/fork/acceptance-mac.md` 場次 3（裝置名稱）、場次 5（AirPods 的提醒）。
+
 - [~] **DM1 真的麥克風**：程式完成、能編譯；模擬錄音不走這條路，沒有驗證。還差（要使用者在電腦前，會用到麥克風）：麥克風選「系統預設」錄幾秒，錄音畫面的麥克風名稱是真的裝置名稱（不是 `CADefaultDeviceAggregate-…`）、錄音中的麥克風清單沒有多一項；AirPods 當系統預設時，錄現場會議出現藍牙耳機的提醒（R58.3）
 
 ## App 圖示換成使用者的貓（F1.6，design §F1；2026-11-12 使用者從草稿選定）
+
+在電腦前怎麼測：`docs/fork/acceptance-mac.md` 場次 1。
 
 只做 Mac；`windows/` 不動。
 
@@ -37,6 +47,8 @@
 
 ## 紀錄條列頁的閱讀與複製（F4，design §F4、DF4；2026-11-10 使用者看過預覽後確認）
 
+在電腦前怎麼測：`docs/fork/acceptance-mac.md` 場次 2。
+
 只做 Mac；`windows/`、`shared/golden/`、`MindMap.topicRanges` 不動。測試用另外的 `SHIYIN_HOME` 和另外的建置資料夾（使用者用 build cache 的 app 錄音）。
 
 - [~] **NL 真的畫面上操作**（F4.1～F4.11）：程式完成；`f4-check.py`（議題切段的所有案例、中英日分段複製）和畫面的 `windowshot` 已驗過（見各 commit 訊息）。這台電腦沒有給 Claude 輔助使用和螢幕錄製的權限
@@ -44,9 +56,13 @@
 
 ## 錄音中靜音麥克風（F3，design §F3；2026-11-03 使用者已確認做法）
 
+在電腦前怎麼測：`docs/fork/acceptance-mac.md` 場次 3（一個人錄音）、場次 4（Teams）。
+
 - [~] **MU1 真的線上＋實體會議**（F3.1～F3.4，要使用者）：程式完成、模擬錄音驗過（見 commit 訊息）。還差：真的麥克風＋Teams 的錄音中，按錄音畫面的麥克風圖示、選單列的「靜音麥克風」、⇧⌘M、在 Teams 裡按 ⌃⌥⌘M（聽得到聲音、選單列圖示變成靜音），錄完逐字稿裡沒有靜音那段的現場對話、Teams 的話都在；靜音中 Teams 沒人說話、現場有人說話約 20 秒時出現提示（不在前景時送通知）；英文介面看一次
 
 ## 錄音中標記說話者（F2，fork design §F2；2026-10-22 使用者已確認做法）
+
+在電腦前怎麼測：`docs/fork/acceptance-mac.md` 場次 3（S2、S3）、場次 4（S4）。
 
 錄音中不辨識說話者（DF1）。測試一律用另外的 `SHIYIN_HOME`；使用者的拾音可能正在錄音，不要跑會結束它的 `build-app.sh`。資料表、比對規則、錄完套用、重新轉錄、錄音畫面、錄完的提示、英文介面都已經驗證（見 commit）。
 

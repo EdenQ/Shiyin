@@ -1027,7 +1027,8 @@
         "scripts/fork/check-handlers.swift",
         "scripts/fork/upstream-watch.py",
         "scripts/fork/upstream-watch-test.py",
-        ".github/workflows/upstream-watch.yml"
+        ".github/workflows/upstream-watch.yml",
+        ".github/workflows/fork-check.yml"
       ],
       "symbols": [
         "ForkDebug",
@@ -1142,6 +1143,7 @@
     "design": "docs/fork/design.md",
     "tasks": "docs/fork/tasks.md",
     "upstreamSync": "docs/fork/upstream-sync.md",
+    "acceptanceMac": "docs/fork/acceptance-mac.md",
     "upstreamDocsUnchanged": [
       "docs/requirements.md",
       "docs/design.md",
