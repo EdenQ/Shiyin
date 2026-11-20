@@ -85,3 +85,25 @@
 
 - `refs/tags/v4.5.0`～`v4.7.2` 在本機和 origin 上是 **fork 自己的發布**，跟上游同版號的發布不是同一個 commit；上游的在 `refs/upstream-tags/v4.5.0`～`v4.7.2`（上游 Mac、Windows 同一個 commit 發布，所以跟同版號的 `win-` tag 相同）。
 - 用法：上游的說明、issue 引用舊 SHA 時，用這張表找重寫後的 commit；fork 的 commit 訊息引用上游時，寫重寫後的 SHA。
+
+## 5. 上游監看報告怎麼讀、看到後做什麼
+
+GitHub Actions 的 `upstream-watch`（fork design §F0.5）每天跑一次，報告只在那次執行的 artifact（`upstream-watch-<run_id>`，保留 30 天），不開 Issue、不推送。job summary 只有一行：「沒有新東西」「有新東西，見 artifact」或「工具錯誤」。
+
+- **手動跑一次**：GitHub 的 Actions 分頁選 upstream-watch → Run workflow；或 `gh workflow run upstream-watch.yml -R EdenQ/Shiyin`，跑完 `gh run download <run id> -R EdenQ/Shiyin -n upstream-watch-<run id>` 取報告。
+- **本機跑**：`git fetch upstream`，再 `python3 scripts/fork/upstream-watch.py --out-md <檔> --out-json <檔>`（預設跟 `git merge-base main upstream/main` 比，不寫狀態）；重播一段歷史加 `--fork`、`--base`、`--head`、`--merge-base`。
+
+**怎麼讀**（各節的意思見 fork design §F0.5）：
+- 🔴 **改寫歷史**：上游又 force-push 了。先照 §2.1、§4 的做法對照新舊 SHA，再談合併。
+- 🔴 **衝突**：歸屬到哪個功能就看那個功能的接點（manifest 的 `markers`）；「品牌／其他」多半是翻譯表、Info.plist、文件。
+- 🔴 **名稱碰撞**：上游用了 fork 的設定鍵、DEBUG 指令、migration、資料表、翻譯鍵、型別名或 `Sources/Shiyin/Fork/` 路徑。合併前要改名或對齊，不然會靜默覆蓋。
+- 🟡 **改到接點但沒衝突**：最容易語意壞掉的一類，合併後要在 DEBUG 版實際跑那個功能。
+- 🟡 **搬動會議資料的 SQL**：檢查 fork 的表（`speaker_tags`、`ma_*`）有沒有跟著處理（§F-DB）。
+- 🟡 **可能相似**：只是篩選。上游可能做了跟 fork 一樣或衝突的功能，要讀兩邊的段落才知道。
+- ⚪ **品牌**：換不到的字串要加接點或列白名單（§F7.4）。
+- ⚪ **新 migration、設定鍵、DEBUG 指令、`scripts/dev` 工具**：合併後補 CLAUDE.md、manifest。
+
+**看到後做什麼**：
+1. 沒有新東西：不用動。
+2. 有 🔴 或新 tag：使用者在統一入口說一聲，由統一入口派 Claude 做語意判斷：讀 artifact 的報告，逐條看 🔴 和「可能相似」的兩邊段落，寫出「直接跟／先看／先等」的理由和要動的接點。需要時在本機跑 `scripts/fork/check.sh`（先看 `audio/recording/`）。
+3. 決定要跟時照 §2.2 合併；合併後跑 `check.sh` 完整模式。
