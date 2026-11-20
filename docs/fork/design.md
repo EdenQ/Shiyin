@@ -532,13 +532,27 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 
 需求在 requirements F10。程式在 `Sources/Shiyin/Fork/Backup/`：`DatabaseBackup.swift`（`ForkBackup`：排程、備份、清理、狀態）、`BackupViews.swift`（「MA」選單的兩項、設定的一段）、`BackupDebug.swift`（`mabackup`）。
 
-### F10.1 備份方式：GRDB 的 `backup(to:)`（sqlite3_backup）
+### F10.1 備份方式：sqlite3_backup（來源用 GRDB 的讀取交易）
 
 - `ForkBackup.write`（背景）：來源照 GRDB 7 `DatabaseReader.backup` 的做法，在 `pool.read { db in … }` 的讀取交易裡，用 `db.sqliteConnection` 跑 `sqlite3_backup_init／step(-1)／finish`，一次複製全部頁面，拿到的是開始那一刻的快照；WAL 模式下讀不擋寫，錄音、轉錄照常寫入。**目的地不交給 GRDB 用路徑開**（GRDB 沒有 `SQLITE_OPEN_NOFOLLOW`，SQLite 會跟著符號連結把連結指到的檔覆寫掉，REVIEW-F10b P2-3），改用下面 §F10.1a 的步驟自己開。
 - 不採用 `VACUUM INTO`：它不能在交易裡跑，GRDB 的 `read` 一律包交易，要另外開一條不經 GRDB 交易的連線才行；它會重排整個檔案（多花 CPU、暫存空間），一致性的保證跟 backup 一樣，沒有多的好處。
 - 不採用直接複製檔案（上游 N3 的做法）：N3 先 `checkpoint(.truncate)` 再複製，那時 app 還沒開始用資料庫；開著時複製可能拿到寫到一半的 WAL。
-- 寫完在背景依序：關掉目的地的連線 → 用新連線跑 `PRAGMA integrity_check`，結果要剛好是 `ok` → `PRAGMA journal_mode=DELETE`（備份是一個獨立的檔，不帶 `-wal`、`-shm`；還原時直接複製一個檔就好）→ 關掉 → 把 `ma-daily-<時間>.partial` 改名成 `ma-daily-<時間>.sqlite`，再刪掉驗證時 WAL 模式留在暫存檔名旁的 `-shm`、`-wal`（實測會留下 `-shm`）。任何一步失敗：刪掉 `.partial` 和它的 `-wal`、`-shm`、`-journal`，記下原因。
-- 正式檔名已經存在（同一秒內做了兩次）時算失敗，不覆蓋。
+- 寫完的備份是不帶 `-wal`、`-shm` 的單一檔（rollback 模式），驗證 `integrity_check` 剛好是 `ok` 才改成正式檔名；還原時直接複製一個檔就好。步驟見 §F10.1a。
+- 正式檔名已經有任何東西（同一秒內做了兩次、或使用者放的連結）時算失敗，不覆蓋。
+
+### F10.1a 寫入目的地的安全規則（REVIEW-F10b P2-3）
+
+清理的保護（§F10.3：不刪連結、資料夾）跟寫入目的地的保護分開：不刪的東西也一定不能寫進去。依序：
+
+1. `backups/daily` 用 `lstat` 確認是真的資料夾（不是連結），再 `open(O_DIRECTORY | O_NOFOLLOW)` 拿到資料夾的 fd，之後的建立、刪除、改名都用這個 fd 的 `openat`／`unlinkat`／`renameatx_np`。
+2. 先刪掉這次檔名（`ma-daily-<時間>.partial` 和 `-wal`、`-shm`、`-journal`）上以前留下的一般檔（§F10.3 的殘檔規則）；刪完四個名字只要還有任何東西（連結、斷掉的連結、資料夾、其他類型）就**失敗**：原物件不刪、不寫，log 和 `maBackupLastError` 記「暫存檔的位置已經有別的東西」。
+3. `openat(dirfd, <partial>, O_RDWR | O_CREAT | O_EXCL | O_NOFOLLOW, 0600)` 新建這次的暫存檔：名字已經有東西（含連結）就失敗，不會跟著連結；`fstat` 記下 dev／inode，這個 fd 開到最後。
+4. SQLite 用 `sqlite3_open_v2(<partial>, SQLITE_OPEN_READWRITE | SQLITE_OPEN_NOFOLLOW)` 開（沒有 `CREATE`：檔一定要是剛剛建的那個），開完 `lstat` 這個路徑，要是一般檔而且 dev／inode 跟第 3 步相同，不然失敗（處理「建好到開啟之間被換掉」）。
+5. 目的地連線先 `PRAGMA journal_mode=OFF`：寫入時不建 `-journal`；備份頁面直接寫進檔案，不會建 `-wal`、`-shm`。複製完馬上關掉連線（不再下任何指令：檔頭這時是來源的 WAL 標記，再用會讓 SQLite 開 WAL 旁檔）。
+6. 用第 3 步的 fd 把檔頭第 18、19 位元組（file format write／read version）從 2（WAL）改成 1（rollback journal），`fsync`：效果跟 `journal_mode=DELETE` 一樣，但不用經過 SQLite 開 WAL。
+7. 驗證：確認三個旁檔的名字都沒有東西後，`sqlite3_open_v2(<partial>, SQLITE_OPEN_READONLY | SQLITE_OPEN_NOFOLLOW)`，`PRAGMA integrity_check` 要剛好是 `ok`、`PRAGMA journal_mode` 要是 `delete`；關掉後再核對一次 inode。唯讀、rollback 模式不會建旁檔。
+8. 改名：`renameatx_np(dirfd, <partial>, dirfd, <正式檔名>, RENAME_EXCL)`：正式檔名有任何東西（含斷掉的連結）就失敗，不覆蓋；改名前核對 `<partial>` 還是同一個一般檔。
+9. 失敗時只刪「還是同一個 inode 的一般檔」的暫存檔；旁檔照 §F10.3 只刪一般檔。成功、失敗都關掉 fd。
 - 整個過程在背景執行（`Task.detached`），主執行緒只更新狀態。同一時間只有一個備份（`running`）。
 
 ### F10.2 排程（`ForkBackup.install`，由 `ForkStartup.install` 呼叫）
@@ -566,7 +580,7 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
   - `pruneBackups()`：照名稱排序留最新 7 份，其餘的在刪之前再 `lstat` 一次，確定還是一般檔案才 `removeItem`。
   - `removeStalePartials()`：刪暫存殘檔，同樣刪之前再確認類型。
 - 什麼時候清：成功路徑在 `running` 還是 true 時（暫存檔已改名、兩個連線都已關掉）依序呼叫 `pruneBackups()`、`removeStalePartials()`：同一個 app 裡不會有別的備份正在寫暫存檔，不用為了清理先放開互斥。app 在背景備份途中結束時留下的暫存檔，下一次成功備份就會清掉。前提跟上游一樣：同一個 `SHIYIN_HOME` 同時只有一個 app 在用。`mabackup prune` 只在沒在備份時才清暫存檔。
-- 這次的暫存檔（失敗時、改名後的旁檔）用確切的路徑刪，同樣先確認是一般檔案。
+- 這次的暫存檔：失敗時只刪 inode 跟這次建的相同的一般檔（§F10.1a 第 9 步）；這次檔名上的連結、資料夾不刪、不寫（第 2 步）。
 - `backups/` 本身（migration 前的 `shiyin-*-before-*.sqlite`）、其他名字的檔、子資料夾和裡面的東西、符號連結和它指到的檔都不碰。
 
 ### F10.4 磁碟空間
@@ -614,6 +628,7 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
   - 清理的反例（REVIEW-F10 P2-1、P2-2、P3-1）：放 7 份舊的一般檔備份，另外放名稱符合的資料夾（裡面有檔）、名稱符合但時間在 2099 年的符號連結和它指到的檔、時間不合法的檔、`ma-daily-notes.txt`、`ma-daily-my.partial-notes.txt`、名稱符合的 `.partial` 資料夾、migration 前的備份，和合法的舊暫存檔（`.partial` 加三個旁檔）。`mabackup now` 一次：一般檔的備份剩 7 份、最舊的被刪，舊暫存檔四個都清掉，其他全部原樣（資料夾裡的檔內容不變、連結還在、指到的檔還在），`lastSuccess` 是剛做的那份（不是 2099 年的連結），新的備份 `integrity_check` ok、會議數相同。
   - 重疊：`simulate slow 6` 後 `now`，第一份還在寫時送 `check`（已 `age` 成到期）和 `now`，兩個都回 `running`；第一份 `done`，資料夾只多一份、沒有殘檔。
   - 錄完後到期的檢查：`age` 成到期、`record-sim` 中 `check` 回 `deferredRecording`，`record stop` 後 `check` 回 `done`、多一份。
+  - 寫入目的地（REVIEW-F10b P2-3）：在接下來幾秒會用到的每個時間名稱上放同一種東西，每種各跑一次 `mabackup now`：`.partial` 連結到測試資料夾裡含 sentinel 的 SQLite、斷掉的 `.partial` 連結、`.partial` 資料夾、`-wal`／`-shm`／`-journal` 連結到測試資料夾裡的 sentinel 檔、正式檔名是連結。每次都要回 `failed`（不是 `done`）、連結本身和目標的內容（sha256、sentinel 表）不變、資料夾和裡面的檔還在、正常備份照留。
   - 最後份數還是 7，反例的東西都還在。
 
 ## F-DB. 資料庫規則（PLAN-fork-5.0 §6）
@@ -695,4 +710,4 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 | DF6 | 版本號規則：build 號從 31 起單調遞增、不跟上游；合併上游 X.Y.Z 的那一版是 X.Y.(Z+1)，比 fork 目前的版本小時取 fork 的 patch + 1；fork 自己的發布只加 patch；說明文字第一行後面加「- 基於上游 拾音 X.Y.Z」（PLAN-fork-5.0 §2.3，2026-11-18 使用者同意） | 照上游的版本號：fork 自己的修正沒有號碼可用，跟上游同號會讓使用者以為是同一版。另外一套版本號（例如 1.0 起）：看不出基於上游哪一版，`Updater.isNewer` 只比數字，從 4.7.6 換到 1.0 使用者就收不到更新。這個規則永遠往上，app 內更新照常 |
 | DF7 | 品牌在建置時換建好的 app（`brand.py apply`），原始碼、翻譯表、Info.plist 照上游寫（F7，2026-11-18） | 原始碼直接寫「會議助手」（4.7.6 以前）：每次合併上游，32 個 Swift 檔、翻譯表 89 個鍵、Info.plist、安裝說明都衝突，而且上游新加的字串一定是「拾音」，要人工找。在建置前換一份翻譯表再編（PLAN 的原案）：繁中是來源語言，要另外寫明確的繁中值，還要處理鍵；編出來的繁中 `.strings` 本來就有全部的鍵，直接換值比較簡單，也能一起處理 `.stringsdict`、InfoPlist.strings。Swift 裡用 `Brand.name(...)` 包每一處：還是會衝突。代價：有幾處不經過翻譯表（關於、更新說明、5.0 的提醒事項）要留 1 行接點，原始碼掃描擋住上游新增的。防護要嚴：原始碼掃描只認包住字串的最內層查表呼叫，不看附近幾行；整句特例依資源規定一定要命中，不能只看有沒有殘留的「拾音」（2026-11-18 審查 P2-1、P2-2）。原始碼掃描只放行能證明會查表的參數寫法（單一常值、兩邊都是常值的三元運算），其他保守報錯；正確性用 Swift 編譯器的 `-emit-localized-strings` 依位置核對（`brand.py crosscheck`），不在每次建置都跑編譯器：那要改上游的 `swift build` 那行或多編一次整個模組（複審 P2-3） |
 | DF8 | fork 功能隔離到 `Sources/Shiyin/Fork/`，上游檔只留標了 `MA-FORK` 的單行接點（PLAN-fork-5.0 階段 2，2026-11-19）：狀態放 fork 自己的物件（`ForkAppState`、`MeetingDetail.forkTags`、`ForkMute.State`），要用的上游 `private` 成員改 internal 並標成接點，條列模式整頁、`AutoSpeakerName` 這種整塊改過的畫面用 fork 的複本；「只改這句」在 fork 的函式裡用一筆交易重用上游的 `saveSpeakerUndo`、`addSpeaker`、`removeEmptySpeakers`（兩個 private 的由 SpeakerEdits 裡各 1 行轉呼叫的接點 `forkSaveSpeakerUndo`、`forkAddSpeaker` 開出來），改句子說話者的那幾行是 fork 的複本（跟上游 `reassignSegments` 的迴圈相同）；不改成先呼叫上游的 `reassignSegments` 再另開一筆改名：第二筆失敗時第一筆已經存了（多出一位預設名稱的說話者、句子已改、留下復原快照），跟 5.0.1 的整筆回復不同（REVIEW-2 P2-1，`scripts/fork/f2-atomic-check.py` 用 SQLite trigger 讓改名失敗來檢查）；標記的名字存不存聲紋改由 `learnVoiceprint` 裡 1 行接點問 `ForkSpeakerTags.remembersVoice`；`LockedValue` 類別搬到 `Fork/DF5`；用 `isolation-check.py` 檢查（§F0.3） | 照舊在上游的函式加參數（`reassignSegments(name:)`、`learnVoiceprint(remember:)`）：改了上游函式的簽章，上游改同一個函式就衝突（§F0.1 第 4 點）。在上游元件加參數（`NotesSection` 的 count、accent、copy，`TimeButton` 的 subdued）：上游 5.0 就地編輯時已經衝突過一次，複本的代價是上游改原元件時要人工比對（manifest `highRisk`）。把上游的條列模式留著、fork 的另開一頁：同一份內容兩份程式，使用者看到的仍是 fork 的，上游的那份只是佔位。「只改這句」第二筆失敗時再補做復原：補做本身也可能失敗，中間別的寫入看得到改了一半的資料，不是原子性。接點的範圍用「開始、結束」兩個記號包住一段：可以包很長一段，失去「上游檔只留接點」的意思，行數也看不出來 |
-| DF9 | 定期備份用 GRDB 的 `backup(to:)`（sqlite3_backup，讀取交易裡的快照），寫完跑 `integrity_check` 才改名；上一次成功的時間看 `backups/daily/` 裡最新的檔，不存在設定；設定（一般頁）的一段用 1 行接點（98 → 99），啟動、「MA」選單改走 F0 的共用入口 `ForkStartup`、`ForkAppMenuCommands`，換掉既有的 2 行（F10，2026-11-20 使用者確認） | `VACUUM INTO`：不能在交易裡跑，GRDB 的讀取一律包交易，要另開連線，又會重排整個檔，沒有多的好處。存 `maBackupLastSuccess`（需求草稿的寫法）：設定跟著 bundle id、不跟著 `SHIYIN_HOME`，換了資料夾（測試、示範資料夾）時會拿別的資料夾的時間判斷，所以改成看檔案、另存 `maBackupFailingSince` 算 7 天。各功能各加接點：會用掉剩下的 2 行；提高接點上限：使用者選共用入口 |
+| DF9 | 定期備份用 sqlite3_backup（來源是 GRDB 讀取交易裡的快照；目的地自己用 `O_EXCL | O_NOFOLLOW` 建、`SQLITE_OPEN_NOFOLLOW` 開，§F10.1a），寫完跑 `integrity_check` 才改名；上一次成功的時間看 `backups/daily/` 裡最新的檔，不存在設定；設定（一般頁）的一段用 1 行接點（98 → 99），啟動、「MA」選單改走 F0 的共用入口 `ForkStartup`、`ForkAppMenuCommands`，換掉既有的 2 行（F10，2026-11-20 使用者確認） | `VACUUM INTO`：不能在交易裡跑，GRDB 的讀取一律包交易，要另開連線，又會重排整個檔，沒有多的好處。存 `maBackupLastSuccess`（需求草稿的寫法）：設定跟著 bundle id、不跟著 `SHIYIN_HOME`，換了資料夾（測試、示範資料夾）時會拿別的資料夾的時間判斷，所以改成看檔案、另存 `maBackupFailingSince` 算 7 天。各功能各加接點：會用掉剩下的 2 行；提高接點上限：使用者選共用入口 |
