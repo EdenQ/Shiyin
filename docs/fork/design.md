@@ -213,20 +213,20 @@ exit 0：沒有 FAIL（SKIP、需人工不算失敗）；1：有 FAIL；2：沒�
 | 項目 | runner 上 | 預期 |
 |---|---|---|
 | 開始前 | 沒有 `~/Library/Application Support/Shiyin`、沒有 DEBUG 版 | 照常開始（沒有錄音資料夾就不算在錄音） |
-| 12、開始時的快照 | 沒有 `com.weiwei.shiyin` 網域 | 「網域不存在」是明確的狀態（§F0.4 的嚴格比對），快照寫成 `MA-CHECK: domain absent`，前後相同 → PASS |
+| 12、開始時的快照 | 沒有 `com.weiwei.shiyin` 網域 | macOS 27.2.1 上 `defaults export` 不存在的網域會寫出空的 plist、exit 0，快照就是空的 plist；前後相同 → PASS。export 失敗時才看「網域不存在」的訊息（§F0.4 的嚴格比對） |
 | 4、4u | 有 `gh`，但沒有給 token | `gh variable get` 失敗 → 4u SKIP，4 照樣 PASS（4u 是唯一可選的子項） |
 | 3、T、W、I1、I2、L、11 | 只用 python3、git、`xcrun swiftc`、`codesign` | PASS |
 | C | 沒有開 DEBUG 版 | PASS |
 
-**macOS 26 上「網域不存在」的訊息還沒看過**：§F0.4 只認兩種完全相同的訊息：
+**macOS 26 上還沒看過**：runner 是 macOS 26，下面兩件事還沒看過：
 
-- 27.2.1 實測的 `Error: Domain '<網域>' not found.`；
-- 舊的 `Domain <網域> does not exist`。
+- `defaults export` 不存在的網域會不會像 27.2.1 一樣寫出空的 plist；
+- export 失敗時的訊息是什麼。§F0.4 只認兩種完全相同的訊息：27.2.1 實測的 `Error: Domain '<網域>' not found.`，和舊的 `Domain <網域> does not exist`。
 
-runner 的 macOS 26 如果是別的寫法，開始時就判斷不了設定快照，check.sh 會 exit 2，CI 變紅。
+如果 export 失敗、訊息又是別的寫法，開始時就判斷不了設定快照，check.sh 會 exit 2，CI 變紅。
 
 - 這是預期中的失敗方式，不是假通過。
-- 處理方式：「環境」步驟會把 `defaults read com.weiwei.shiyin` 的 exit code 和 stderr 印在 log。看過那一行後，把那個寫法加進 `domain_absent_message`（一樣要整行完全相同），不放寬比對。
+- 處理方式：「環境」步驟會把 `defaults read com.weiwei.shiyin` 的 exit code 和 stderr 印在 log，check.sh 的輸出會寫 export 為什麼失敗。看過那一行後，把那個寫法加進 `domain_absent_message`（一樣要整行完全相同），不放寬比對。
 
 **輸出**
 
@@ -251,7 +251,7 @@ runner 的 macOS 26 如果是別的寫法，開始時就判斷不了設定快照
 - 摘要表格裡：
   - 3、T、W、I1、I2、L、4、11、12、C 都是 PASS，4u 是 SKIP；
   - 12 的說明是「前後逐位元組相同」。
-- 「環境」那一步印出的 `defaults read` 訊息是支援的兩種之一。
+- 「環境」那一步印出的 `defaults read` 訊息記下來，是不是支援的兩種之一。現在用不到，export 失敗時才用得到。
 - artifact 有 `summary.md`、`logs/`。
 - 沒有建 Issue。
 - 再推一次（或對同一個 PR 連推兩次）時，舊的 run 被取消。
