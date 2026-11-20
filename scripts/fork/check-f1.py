@@ -3,7 +3,8 @@
 
   - repo 的 Resources/AppIcon.icns 的 sha256 等於 manifest F1.iconSha256（合併上游時圖示衝突一律保留 fork 的）
   - repo 的 Info.plist 的 ShiyinIssuesURL 等於 manifest F1.infoPlistKeys
-  - 「關於 MA」、更新說明選段落的接點還在（ShiyinApp 的 BrandAboutCommand、ReleaseNotes 的 Brand.names，都標 MA-FORK(F7)）
+  - 「關於 MA」、更新說明選段落的接點還在（ShiyinApp 的 ForkAppMenuCommands〔MA-FORK(F0)，裡面放 BrandAboutCommand，fork design §F10.6〕、
+    ReleaseNotes 的 Brand.names〔MA-FORK(F7)〕）
   - --app：建好的 app 的 icns、ShiyinIssuesURL 也一樣，Info.plist 有 MABrand
   - --update-url：CI 的 vars.SHIYIN_UPDATE_URL（gh variable get）要指到 fork；gh 讀不到就印 SKIP
 用法：python3 scripts/fork/check-f1.py [--app <App.app>]… [--update-url]
@@ -44,7 +45,8 @@ plist = plistlib.loads((ROOT / 'Resources/Info.plist').read_bytes())
 for key, value in F1['infoPlistKeys'].items():
     check(plist.get(key) == value, f'Resources/Info.plist {key} = {value}（{plist.get(key)}）')
 hooks = {
-    'Sources/Shiyin/App/ShiyinApp.swift': r'^\s*BrandAboutCommand\(\)\s*// MA-FORK\(F7\)$',
+    'Sources/Shiyin/App/ShiyinApp.swift': r'^\s*ForkAppMenuCommands\(model: model\)\s*// MA-FORK\(F0\)',
+    'Sources/Shiyin/Fork/ForkStartup.swift': r'^\s*BrandAboutCommand\(\)',
     'Sources/Shiyin/Fork/Brand.swift': r'orderFrontStandardAboutPanel\(options: Brand\.aboutName',
 }
 for path, pattern in hooks.items():

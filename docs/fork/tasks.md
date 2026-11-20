@@ -4,6 +4,14 @@
 > 上游任務在 fork 這邊的實測狀態寫在這裡。需求在 `docs/fork/requirements.md`，設計在 `docs/fork/design.md`。
 > 規則同 CLAUDE.md：每項都有驗證方式；`[~]` 是程式完成、還差要使用者的驗證。要使用者在電腦前測的，照場次排在 `docs/fork/acceptance-mac.md`。「design §F#」指 fork design，「design §數字」「D#」「R#」指上游文件。
 
+## 定期備份資料庫（F10，design §F10、DF9；2026-11-20 使用者確認）
+
+在電腦前怎麼測：`docs/fork/acceptance-mac.md` 場次 6。還原的步驟也寫在場次 6（給使用者看）。
+
+只做 Mac。測試用另外的 `SHIYIN_HOME`、測試 bundle id 的 DEBUG 版複本，正式網域的設定不動。
+
+- [~] **BK1 真的畫面上按**（F10.7）：程式完成，DEBUG 版用 `mabackup menu`、`preview settings general` 看過中英文（自動驗證見 F10 的程式 commit）。還差：「MA」選單的兩項、設定「一般」頁的「資料庫備份」、錄音中「立即備份」是灰的、英文介面
+
 ## 5.0.1（合併上游 5.0.0）待使用者實測
 
 在電腦前怎麼測：`docs/fork/acceptance-mac.md` 場次 1（更新）、場次 2（M6、M7 的紀錄分頁）、場次 3（M5、M7 的標記名字）。

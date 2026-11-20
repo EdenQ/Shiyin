@@ -465,7 +465,7 @@ final class AppModel {
         GlobalHotKey.shared.onPress = { [weak self] in self?.toggleRecording() }
         GlobalHotKey.shared.onBookmark = { [weak self] in self?.bookmarkFromHotKey() }
         recorder.onStarted = { GlobalHotKey.shared.setBookmarkEnabled(AppSettings.bookmarkHotKey) }
-        ForkMute.install(self)   // MA-FORK(F3)：⌃⌥⌘M、靜音的提醒（F3.3、F3.4）
+        ForkStartup.install(self)   // MA-FORK(F0)：F3 的 ⌃⌥⌘M、靜音的提醒，F10 的定期備份（fork design §F10.6）
         recorder.onLevelHint = { [weak self] hint in self?.levelHintAppeared(hint) }
         recorder.microphoneUser = { [weak self] in self?.meetingDetector.microphoneUser() }
         recorder.onMicHint = { [weak self] hint in self?.micHintAppeared(hint) }

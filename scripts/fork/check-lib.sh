@@ -3,7 +3,7 @@
 # 判斷不了的情況一律算失敗：拿不到快照、lsof 失敗、比對工具出錯都不能當成「相同」「通過」。
 
 MA_DOMAIN="com.weiwei.shiyin"
-MA_ITEMS="1 2 3 4 5 6 7 8 9 10 11 12 13 I1 I2 L T W S"
+MA_ITEMS="1 2 3 4 5 6 7 8 9 10 11 12 13 14 I1 I2 L T W S"
 
 # domain_absent_message <網域> <defaults read 的 stderr，去掉結尾換行>：是不是「網域不存在」。
 # 整段訊息要「只有一行、完全等於」支援的格式之一（REVIEW-3a4 P2-7：前後萬用字元會把

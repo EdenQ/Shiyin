@@ -1518,6 +1518,7 @@ struct AdvancedSettings: View {
                         model.noticeMessage = String(localized: "搜尋索引已重建")
                     }
                 }
+                ForkBackupSettingsSection()   // MA-FORK(F10)：資料庫備份（fork design §F10.6）
                 // 匿名使用統計（design §30.5、R40.4）：有統計網址的版本才有。放在最下面、只留一行，開關收在「詳細…」裡
                 if UsageStats.isOffered {
                     Section {

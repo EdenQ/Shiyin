@@ -79,7 +79,7 @@ struct AppCommands: Commands {
     @AppStorage(AppSettings.textSizeKey) private var textSize = 0
 
     var body: some Commands {
-        BrandAboutCommand()   // MA-FORK(F7)
+        ForkAppMenuCommands(model: model)   // MA-FORK(F0)：關於 MA（F7）、立即備份資料庫（F10）
         CommandGroup(after: .appInfo) {
             Button("檢查更新…") { Task { await model.checkForUpdatesFromMenu() } }
         }
