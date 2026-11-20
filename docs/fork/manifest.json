@@ -575,11 +575,6 @@
         },
         {
           "file": "Sources/Shiyin/Store/AppModel.swift",
-          "line": 468,
-          "hook": "ForkMute.install(self)"
-        },
-        {
-          "file": "Sources/Shiyin/Store/AppModel.swift",
           "line": 709,
           "hook": "if let symbol = ForkMute.menuBarSymbol(recorder) { return symbol }"
         },
@@ -800,7 +795,6 @@
         "Sources/Shiyin/Fork/Brand.swift"
       ],
       "upstreamFiles": [
-        "Sources/Shiyin/App/ShiyinApp.swift",
         "Sources/Shiyin/Services/ReleaseNotes.swift",
         "Sources/Shiyin/Services/Reminders.swift",
         "Sources/Shiyin/Views/IslandView.swift",
@@ -829,11 +823,6 @@
       "migrations": [],
       "tables": [],
       "markers": [
-        {
-          "file": "Sources/Shiyin/App/ShiyinApp.swift",
-          "line": 82,
-          "hook": "BrandAboutCommand()"
-        },
         {
           "file": "Sources/Shiyin/Services/ReleaseNotes.swift",
           "line": 25,
@@ -1012,11 +1001,12 @@
       }
     },
     "F0": {
-      "title": "fork 的共用入口：DEBUG 指令、state 欄位、畫面狀態（fork design §F0.1、§F0.2）",
+      "title": "fork 的共用入口：DEBUG 指令、state 欄位、畫面狀態、啟動與「MA」選單（fork design §F0.1、§F0.2、§F10.6）",
       "design": "docs/fork/design.md §F0",
       "forkFiles": [
         "Sources/Shiyin/Fork/Debug/ForkDebug.swift",
         "Sources/Shiyin/Fork/ForkState.swift",
+        "Sources/Shiyin/Fork/ForkStartup.swift",
         "scripts/fork/isolation-check.py",
         "scripts/fork/isolation-check-test.py",
         "scripts/fork/check.sh",
@@ -1035,7 +1025,10 @@
         "ForkDebug.handle",
         "ForkDebug.augmentState",
         "ForkDebugPrompts",
-        "ForkAppState"
+        "ForkAppState",
+        "ForkStartup",
+        "ForkStartup.install",
+        "ForkAppMenuCommands"
       ],
       "settingsKeys": [],
       "debugCommands": [
@@ -1053,6 +1046,11 @@
         "python3 scripts/fork/upstream-watch-test.py"
       ],
       "markers": [
+        {
+          "file": "Sources/Shiyin/App/ShiyinApp.swift",
+          "line": 82,
+          "hook": "ForkAppMenuCommands(model: model)"
+        },
         {
           "file": "Sources/Shiyin/Debug/DebugControl.swift",
           "line": 30,
@@ -1077,12 +1075,62 @@
           "file": "Sources/Shiyin/Store/AppModel.swift",
           "line": 273,
           "hook": "let fork = ForkAppState()"
+        },
+        {
+          "file": "Sources/Shiyin/Store/AppModel.swift",
+          "line": 468,
+          "hook": "ForkStartup.install(self)"
         }
       ],
       "upstreamFiles": [
+        "Sources/Shiyin/App/ShiyinApp.swift",
         "Sources/Shiyin/Debug/DebugControl.swift",
         "Sources/Shiyin/Services/Notifier.swift",
         "Sources/Shiyin/Store/AppModel.swift"
+      ]
+    },
+    "F10": {
+      "title": "定期備份資料庫",
+      "design": "docs/fork/design.md §F10",
+      "forkFiles": [
+        "Sources/Shiyin/Fork/Backup/DatabaseBackup.swift",
+        "Sources/Shiyin/Fork/Backup/BackupViews.swift",
+        "Sources/Shiyin/Fork/Backup/BackupDebug.swift"
+      ],
+      "upstreamFiles": [
+        "Sources/Shiyin/Views/SettingsView.swift"
+      ],
+      "symbols": [
+        "ForkBackup",
+        "ForkBackup.install",
+        "ForkBackup.check",
+        "ForkBackup.prune",
+        "ForkBackupMenuCommands",
+        "ForkBackupSettingsSection"
+      ],
+      "keywords": [
+        "備份",
+        "立即備份資料庫",
+        "打開備份資料夾",
+        "ma-daily",
+        "backups/daily"
+      ],
+      "settingsKeys": [
+        "maBackupEnabled",
+        "maBackupLastError",
+        "maBackupFailingSince"
+      ],
+      "debugCommands": [
+        "mabackup"
+      ],
+      "migrations": [],
+      "tables": [],
+      "markers": [
+        {
+          "file": "Sources/Shiyin/Views/SettingsView.swift",
+          "line": 1521,
+          "hook": "ForkBackupSettingsSection()"
+        }
       ]
     }
   },

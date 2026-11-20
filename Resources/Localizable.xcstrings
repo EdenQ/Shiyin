@@ -2753,6 +2753,52 @@
         }
       }
     },
+    "上次備份": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上次备份"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last backup"
+          }
+        }
+      }
+    },
+    "上次成功備份是 %lld 天前：%@": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上次成功备份是 %lld 天前：%@"
+          }
+        },
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Last successful backup was %lld day ago: %@"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Last successful backup was %lld days ago: %@"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "上次整理失敗：%@。改好設定，或按「測試整理工具」成功之後，才會再自動整理。": {
       "extractionState": "manual",
       "localizations": {
@@ -4188,6 +4234,23 @@
         }
       }
     },
+    "保留最近 7 份，放在資料夾的 backups/daily。錄音中不備份。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保留最近 7 份，放在文件夹的 backups/daily。录音中不备份。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keeps the 7 most recent backups in the backups/daily folder. No backups while recording."
+          }
+        }
+      }
+    },
     "修改「%@」": {
       "extractionState": "manual",
       "localizations": {
@@ -4354,6 +4417,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "检测到线上会议时提醒录音"
+          }
+        }
+      }
+    },
+    "備份失敗：%@": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "备份失败：%@"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Backup failed: %@"
+          }
+        }
+      }
+    },
+    "備份的完整性檢查沒有通過": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "备份的完整性检查没有通过"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The backup failed its integrity check"
           }
         }
       }
@@ -7193,6 +7290,23 @@
         }
       }
     },
+    "可用空間不夠（需要 %@，只剩 %@）": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可用空间不够（需要 %@，只剩 %@）"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not enough free space (needs %@, only %@ left)"
+          }
+        }
+      }
+    },
     "合併": {
       "extractionState": "manual",
       "localizations": {
@@ -7410,6 +7524,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "同一个词的每一处一起接受或忽略"
+          }
+        }
+      }
+    },
+    "同名的備份已經存在": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同名的备份已经存在"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A backup with the same name already exists"
           }
         }
       }
@@ -8340,6 +8471,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "实际大小"
+          }
+        }
+      }
+    },
+    "寫入備份失敗": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "写入备份失败"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn’t write the backup"
           }
         }
       }
@@ -9948,6 +10096,23 @@
         }
       }
     },
+    "建立備份資料夾失敗": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "建立备份文件夹失败"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn’t create the backup folder"
+          }
+        }
+      }
+    },
     "建立系統聲音擷取": {
       "extractionState": "manual",
       "localizations": {
@@ -10762,6 +10927,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "打开“终端”，粘贴这一行安装："
+          }
+        }
+      }
+    },
+    "打開備份資料夾": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开备份文件夹"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Backup Folder"
           }
         }
       }
@@ -16438,6 +16620,23 @@
         }
       }
     },
+    "每天自動備份資料庫": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每天自动备份数据库"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back up the database automatically every day"
+          }
+        }
+      }
+    },
     "每天送一份匿名的使用統計給拾音的開發者：版本、系統、錄音和轉錄了幾分鐘、用了哪些功能、失敗幾次和哪一種失敗。不會送會議標題、逐字稿、會議紀錄、人名、聲紋或任何檔案。": {
       "extractionState": "manual",
       "localizations": {
@@ -18563,6 +18762,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "空白键"
+          }
+        }
+      }
+    },
+    "立即備份資料庫": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "立即备份数据库"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back Up Database Now"
           }
         }
       }
@@ -21379,6 +21595,57 @@
         }
       }
     },
+    "資料庫備份": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "数据库备份"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Database Backup"
+          }
+        }
+      }
+    },
+    "資料庫已備份": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "数据库已备份"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Database backed up"
+          }
+        }
+      }
+    },
+    "資料庫錯誤（%d）": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "数据库错误（%d）"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Database error (%d)"
+          }
+        }
+      }
+    },
     "資料與隱私": {
       "extractionState": "manual",
       "localizations": {
@@ -23547,6 +23814,23 @@
         }
       }
     },
+    "還沒有備份": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还没有备份"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No backups yet"
+          }
+        }
+      }
+    },
     "還沒有填 %@ 的 API key，請到設定 → 整理工具填寫": {
       "extractionState": "manual",
       "localizations": {
@@ -23645,6 +23929,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "还没有存 API key：粘贴之后按“保存 key”。设置好之前不会自动整理。"
+          }
+        }
+      }
+    },
+    "還沒有成功備份過：%@": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还没有成功备份过：%@"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No successful backup yet: %@"
           }
         }
       }
@@ -24716,6 +25017,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "录音中 15 分钟没人说话时提醒你；再 15 分钟还是没人说话就自动停止，只转录到最后有人说话的地方，录音文件完整保留。"
+          }
+        }
+      }
+    },
+    "錄音中不備份，錄完再試": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录音中不备份，录完再试"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Can’t back up while recording. Try again after recording."
           }
         }
       }

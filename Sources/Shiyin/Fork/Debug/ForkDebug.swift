@@ -7,7 +7,7 @@ import AppKit
 enum ForkDebug {
     static func handle(_ args: [String], model: AppModel) -> Bool {
         guard !args.isEmpty else { return false }
-        return general(args, model: model) || speakerTags(args, model: model) || mute(args, model: model) || notes(args, model: model)
+        return general(args, model: model) || speakerTags(args, model: model) || mute(args, model: model) || notes(args, model: model) || backup(args, model: model)
     }
 
     /// 跟上游同名、fork 要蓋過的指令（上游 DebugControl 的 switch 之前先問這裡，`// MA-FORK(F0)`）：
@@ -24,6 +24,7 @@ enum ForkDebug {
         speakerTagsState(&out, model: model)
         muteState(&out, model: model)
         notesState(&out, model: model)
+        backupState(&out, model: model)
     }
 
     private static func general(_ args: [String], model: AppModel) -> Bool {
