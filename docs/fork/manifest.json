@@ -105,7 +105,27 @@
           "hook": "// Fork（會議助手）不用這支：圖示改由 scripts/make-icon-from-png.sh 從 Resources/AppIcon-1024.png 產生（F1.6，design §F1）。跑這支會蓋掉 fork 的圖示。"
         }
       ],
-      "symbols": []
+      "symbols": [],
+      "watchKeywords": {
+        "zh": [
+          "名稱",
+          "圖示",
+          "回報問題",
+          "更新網址",
+          "贊助",
+          "關於"
+        ],
+        "en": [
+          "icon",
+          "issues",
+          "update url",
+          "credits",
+          "ko-fi",
+          "cfbundlename",
+          "display name",
+          "about"
+        ]
+      }
     },
     "F2": {
       "title": "錄音中標記說話者",
@@ -378,7 +398,25 @@
       ],
       "packageFiles": [
         "ma-speaker-tags.json"
-      ]
+      ],
+      "watchKeywords": {
+        "zh": [
+          "說話者標記",
+          "標記說話者",
+          "錄音中標記",
+          "正在說話",
+          "只改這句",
+          "不是他",
+          "標記"
+        ],
+        "en": [
+          "tag speaker",
+          "speaker tag",
+          "tagspeaker",
+          "speaker_tags",
+          "name_source"
+        ]
+      }
     },
     "F3": {
       "title": "錄音中靜音麥克風",
@@ -606,7 +644,23 @@
           "line": 1274,
           "hook": "ForkMuteSettingsRow()"
         }
-      ]
+      ],
+      "watchKeywords": {
+        "zh": [
+          "靜音",
+          "麥克風關掉",
+          "麥克風已靜音",
+          "打開麥克風",
+          "忘了打開"
+        ],
+        "en": [
+          "mute",
+          "muted",
+          "micmute",
+          "unmute",
+          "mute hint"
+        ]
+      }
     },
     "F4": {
       "title": "紀錄條列頁的閱讀與複製",
@@ -716,7 +770,26 @@
           "line": 109,
           "hook": "return Button { onSeek(range.start); onTopic?(range.branch) } label: {"
         }
-      ]
+      ],
+      "watchKeywords": {
+        "zh": [
+          "條列",
+          "議題",
+          "複製這一段",
+          "分段複製",
+          "議題帶",
+          "全部展開",
+          "全部收合"
+        ],
+        "en": [
+          "topic",
+          "copy section",
+          "copysection",
+          "topic band",
+          "notes list",
+          "action items"
+        ]
+      }
     },
     "F7": {
       "title": "品牌集中在建置時替換",
@@ -854,7 +927,23 @@
           "line": 31,
           "hook": "hdiutil create -volname \"Meeting Assistant ${VERSION}\" -srcfolder \"$STAGE\" -fs HFS+ -format UDZO -ov \"$DMG\" >/dev/null && break"
         }
-      ]
+      ],
+      "watchKeywords": {
+        "zh": [
+          "品牌",
+          "會議助手",
+          "拾音",
+          "翻譯表",
+          "名稱替換"
+        ],
+        "en": [
+          "brand",
+          "meeting assistant",
+          "shiyin",
+          "localizable",
+          "infoplist"
+        ]
+      }
     },
     "DF5": {
       "title": "麥克風音源的 LockedValue（上游 R74 的同步修正）",
@@ -916,7 +1005,19 @@
       "note": "LockedValue 的類別放 Fork/DF5，用的地方（MicrophoneSource、FileSource 的 deviceUID、current）留在上游的 AudioSources、標成接點；上游哪天自己加鎖時刪掉 fork 的",
       "checks": [
         "scripts/fork/tsan-lockedvalue/run.sh"
-      ]
+      ],
+      "watchKeywords": {
+        "zh": [
+          "資料競態",
+          "鎖"
+        ],
+        "en": [
+          "lockedvalue",
+          "nslock",
+          "data race",
+          "deviceuid"
+        ]
+      }
     },
     "F0": {
       "title": "fork 的共用入口：DEBUG 指令、state 欄位、畫面狀態（fork design §F0.1、§F0.2）",

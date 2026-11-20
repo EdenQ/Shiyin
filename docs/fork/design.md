@@ -50,7 +50,7 @@ scripts/fork/check.sh                 # 完整：建置、DEBUG 版實際操作�
 scripts/fork/check.sh --quick         # 只跑靜態的（不建 app、不開 DEBUG 版，約 1～2 分鐘）
 scripts/fork/check.sh --base-app <舊版.app>   # 品牌逐鍵比對的基準（預設：HEAD 之前最近的 fork tag 的 release 建置，見下）
 scripts/fork/check.sh --base-ref v5.0.1        # 基準改用這個 tag 建
-scripts/fork/check.sh --only 3,5,7    # 只跑這幾項（1～13、I1、I2、L、T、S；要用到的建置、DEBUG 版自己會建、會開）
+scripts/fork/check.sh --only 3,5,7    # 只跑這幾項（1～13、I1、I2、L、T、W、S；要用到的建置、DEBUG 版自己會建、會開）
 scripts/fork/check.sh --out <資料夾>  # 摘要、log、截圖放這裡（預設 $TMPDIR/shiyin-check-<時間>）
 scripts/fork/check.sh --keep          # 留下這次的 app、暫存 SHIYIN_HOME（除錯用）
 scripts/fork/check.sh --clean-cache   # 結束時連建置快取、基準版也刪掉
@@ -58,7 +58,7 @@ scripts/fork/check.sh --clean-cache   # 結束時連建置快取、基準版也�
 
 exit 0：沒有 FAIL（SKIP、需人工不算失敗）；1：有 FAIL；2：沒開始（使用者正在錄音、有別的 DEBUG 版在跑、拿不到開始時的設定快照、參數錯，含 `--only` 有不認得的項目或一項都沒選到）。
 
-`--only` 只收 `1`～`13`、`I1`、`I2`、`L`、`T`、`S`（逗號分隔），有一個不認得就 exit 2。跟 `--quick` 合用時：`--only` 決定跑哪幾項，`--quick` 只讓 3、4 停在靜態的部分（不建 app）；`--only` 選到的非 Q 項目（1、2、5～10、S）照常建置、開 DEBUG 版，所以 `--quick --only 5` 還是會建 app。摘要是輸出資料夾的 `summary.md`，最後也印在終端機。每一項一列：狀態（PASS／FAIL／SKIP／需人工）、耗時、證據路徑（log、JSON、截圖），細項寫在下面。
+`--only` 只收 `1`～`13`、`I1`、`I2`、`L`、`T`、`W`、`S`（逗號分隔），有一個不認得就 exit 2。跟 `--quick` 合用時：`--only` 決定跑哪幾項，`--quick` 只讓 3、4 停在靜態的部分（不建 app）；`--only` 選到的非 Q 項目（1、2、5～10、S）照常建置、開 DEBUG 版，所以 `--quick --only 5` 還是會建 app。摘要是輸出資料夾的 `summary.md`，最後也印在終端機。每一項一列：狀態（PASS／FAIL／SKIP／需人工）、耗時、證據路徑（log、JSON、截圖），細項寫在下面。
 
 **項目**（編號照 PLAN §8.1；`--quick` 只跑標 Q 的）
 
@@ -80,7 +80,7 @@ exit 0：沒有 FAIL（SKIP、需人工不算失敗）；1：有 FAIL；2：沒�
 | 13 | 實機更新 | 不自動：列為「需人工」（4.7.6 → 新版的 app 內更新，開舊會議看標記、靜音、條列頁） |
 | C | 收尾 | 每次都跑（不能用 `--only` 選）：結束自己的 DEBUG 版、確認沒有留下測試版的程序、清掉測試網域（後置條件見下）、刪掉這次的暫存資料夾（`--keep` 時留著）。任何一步失敗就 FAIL，整體 exit 1 |
 
-另外四項也標 Q：`check-test.py`（T，check.sh 自己的負對照，見下）、`isolation-check.py`（I1）、`isolation-check-test.py`（I2，§F0.3）、`l10n.py check`（L；跑之前存一份翻譯表，跑完翻譯表有變就算 FAIL 並放回原本的內容：檢查不該改到 repo）。摘要列在 #3 之後。#4 的子項（例如 CI 的更新網址）讀不到時整項照樣 PASS，說明欄寫哪一個子項 SKIP。
+另外五項也標 Q：`upstream-watch-test.py`（W，上游監看的測試，§F0.5）、`check-test.py`（T，check.sh 自己的負對照，見下）、`isolation-check.py`（I1）、`isolation-check-test.py`（I2，§F0.3）、`l10n.py check`（L；跑之前存一份翻譯表，跑完翻譯表有變就算 FAIL 並放回原本的內容：檢查不該改到 repo）。摘要列在 #3 之後。#4 的子項（例如 CI 的更新網址）讀不到時整項照樣 PASS，說明欄寫哪一個子項 SKIP。
 
 **安全規則**（CLAUDE.md「驗證時要注意」）
 
@@ -142,6 +142,44 @@ exit 0：沒有 FAIL（SKIP、需人工不算失敗）；1：有 FAIL；2：沒�
 **品牌比對的基準**：`--base-app` 沒給時，用 `git describe --tags --abbrev=0 --match 'v[0-9]*' HEAD^` 找到的 fork tag（現在是 v5.0.1），`git archive` 那個 tag 到暫存資料夾、用它自己的 `build-app.sh`（同樣的複本規則）建 release，放在 `~/Library/Caches/ShiyinBuild/check/base/<tag>/`，之後直接用。用同一台電腦、同一版 Xcode 建，`xcstringstool` 的版本差異不會變成假的差異（F7.5 跟 GitHub 上的 4.7.6 比時就多了 3 條）。
 
 **怎麼確定檢查會抓到問題**（PLAN 階段 3a 的驗收）：在暫存 worktree 故意弄壞、不 commit，跑對應的項目要 FAIL、整體 exit 1，例如拿掉一個 `MA-FORK` 接點（I1）、原始碼加一句不查表的品牌字（#3）、讓「只改這句」不在同一筆交易或標記不套用（#5）。結果寫在 commit 訊息。
+
+### F0.5 上游監看（`scripts/fork/upstream-watch.py`、`.github/workflows/upstream-watch.yml`，PLAN-fork-5.0 §8.2、階段 3b）
+
+每天機械式比對上游有沒有新東西、會不會跟 fork 衝突或撞名、有沒有做了跟 fork 相似的功能。只篩選、不判斷：有 🔴 或新 tag 時由統一入口派 Claude 讀報告做語意判斷（upstream-sync §5）。
+
+**報告只放 GitHub Actions 的 artifact**（使用者決定，DECISIONS-fork-5.0 第 6 項）：不建立 Issue、不留言、不推送；job summary 只寫一行；報告內容只有兩個公開 repo 的程式碼和文件，不放使用者的路徑、帳號。workflow 的權限只有 `contents: read`，不用任何 secret。
+
+**範圍**：比對的三個點是
+- `fork`：fork 的 main（Actions 上是 checkout 的 commit；本機預設 `main`）；
+- `head`：上游要看的那一點（預設 `upstream/main`）；
+- `base`：上次看過的上游（狀態檔裡的 `upstreamMain`）；沒有狀態檔時用 `git merge-base fork head`（fork 已經合進來的上游）。`--base`、`--head`、`--fork`、`--merge-base` 可以指定，用來重播一段歷史（例如 `--fork v4.7.6 --merge-base 78ceab8 --base 78ceab8 --head refs/upstream-tags/v5.0.0`：當時上游重寫過歷史，merge-base 要自己給）。
+
+**比對方法**（只用 Python 標準函式庫和 git）：
+1. **新東西**：`refs/upstream-tags/*`（不看 `win-v*`，fork 只做 Mac）和 `head` 跟狀態檔比。列新 tag（附 tag 的說明文字）、`base..head` 的 commit 標題。上次看過的 `upstreamMain` 不再是 `head` 的祖先 → 🔴「上游改寫了歷史」；已經看過的 tag 指到別的 commit → 🔴。
+2. **試合併**：`git merge-tree --write-tree --name-only [--merge-base=…] fork head`。列衝突檔、每個檔的衝突處數（合併結果裡 `<<<<<<<` 的數量）；每一處看前後 20 行的 `MA-FORK(F#)` 標記歸到功能，沒有標記的歸「品牌／其他」。
+3. **改到 fork 接點但沒衝突**：fork 的接點在上游檔裡是加上的行，所以先用 `git diff -U0 <merge-base> fork -- <檔>` 找出含 `MA-FORK` 的 hunk 在合併基準版上的位置（錨點），再看上游 `git diff -U0 <merge-base> head` 的 hunk 有沒有落在錨點前後 3 行內；有衝突的檔不重複列。檔案清單來自 manifest 的 `markers`。
+4. **名稱碰撞**（上游新增的行，精確比對 manifest 和 fork 的命名規則）：UserDefaults 鍵（`forKey: "…"`、`…Key = "…"`、`@AppStorage("…")`）、DebugControl 的 `case "…"`、`registerMigration("…")`、`CREATE TABLE …`、翻譯表的鍵（上游新增的鍵 ∩ fork 自己加的鍵）、型別和函式名（`class|struct|enum|actor|protocol|func <名>` 對 manifest 的 `symbols`）、改到 `Sources/Shiyin/Fork/` 底下的檔、Info.plist 的新鍵（對 `infoPlistKeys` 和 `MA` 開頭的）。fork 的名稱來源：manifest 各功能的 `settingsKeys`、`debugCommands`、`migrations`、`tables`、`symbols`、`infoPlistKeys`，`rules.legacyNames`，以及 `ma` 開頭的命名規則（`rules` 的前綴）。
+5. **搬動會議資料的 SQL**：上游新增的行符合 `UPDATE (segments|bookmarks|speakers|meetings) SET … (start|end|time|meeting_id)`、`INSERT INTO … SELECT`，或新增名稱含 snapshot／restore 的函式 → 🟡，列成「fork 的表要不要跟著處理」（§F-DB）。
+6. **相似功能**：manifest 每個功能有 `watchKeywords`（`zh`、`en`），掃上游新增的行（程式、翻譯表、docs），每個功能列命中的關鍵字和幾行例子；上游 `docs/requirements.md` 新的章節（`## `、`### ` 開頭、標題在 base 沒有的）跟 `docs/fork/requirements.md` 每個 F 段落算相似度：中文用 CJK 字的雙字組、英文用小寫單字（3 個字母以上），兩組合起來算 Jaccard。分數 ≥ 門檻、或那一節命中同一個功能的關鍵字 ≥ 2 個 → 列為「可能相似」，附兩邊的標題、摘要、分數、命中的關鍵字。門檻用 78ceab8..v5.0.0 校正（結果寫在 `upstream-watch.py` 的 `SIMILARITY_THRESHOLD` 旁）。
+7. **品牌**：上游新增或改過的 Swift 檔，用 `brand.py` 同一個掃描器找新增行上含「拾音」「Shiyin」的字串常值：不經過翻譯表又不在白名單的（建置時換不到）→ ⚪ 列出來（報告的格式表把品牌放在 ⚪，但這一類在摘要裡標 🔴 計數）；經過翻譯表的只計數。
+
+**報告**（markdown 一份，標題「上游監看 YYYY-MM-DD：上游 x.y.z（N 個新 commit）」，x.y.z 是 head 能走到的最新 `v*` tag）：
+1. 摘要：新 tag 和說明、改寫歷史；建議（直接跟／先看／先等／不用動）：有改寫歷史、衝突、名稱碰撞、換不到的品牌字 → 先看；新 tag 是大版本（x.0.0）→ 先等它的第一個修正版（upstream-sync §2.2）；只有 patch 而且沒有 🔴 → 直接跟；沒有新東西 → 不用動。
+2. 🔴 衝突表：檔、處數、歸屬功能。
+3. 🔴 名稱碰撞。
+4. 🟡 改到 fork 接點但沒衝突。
+5. 🟡 搬動會議資料的新 SQL。
+6. 🟡 可能相似的功能。
+7. ⚪ 品牌：建置時換不到的新字串（另外計數經過翻譯表的）。
+8. ⚪ 新的 migration、設定鍵、DEBUG 指令、`scripts/dev` 工具（給 CLAUDE.md 補注意事項用）。
+
+另外輸出同樣內容的 JSON（`--out-json`）給機器讀。
+
+**exit code**：0 沒有新東西（沒有新 commit、新 tag、改寫）；1 有新東西；2 工具錯誤（git 失敗、manifest 讀不到、merge-tree 不是 0／1 等）。失敗一律 2，不能被當成「沒有變化」。
+
+**狀態檔**（`--state`，JSON：`upstreamMain`、`tags`〔名稱 → commit〕、`checkedAt`）：有 `--update-state` 才寫；本機預設不寫。Actions 用 `actions/cache` 存（每次用新的 key `upstream-watch-state-<run_id>`、`restore-keys` 取最近一份）：比從前一次的 artifact 取簡單，不用第三方 action、不用 `actions: read` 權限；cache 7 天沒用會被清掉，清掉時退回「跟 merge-base 比」，只是多報一次、不會漏。
+
+**測試**：`python3 scripts/fork/upstream-watch-test.py` 在暫存 git repo 造上游、fork 的合成情境，測每一節（新 tag、改寫歷史、衝突歸屬、改到接點、各種名稱碰撞、搬資料的 SQL、相似功能、品牌）和 exit code（沒有變化 0、有新東西 1、工具錯誤 2）。列進 check.sh 的 quick（W，§F0.4）。
 
 ## F1. 名稱（F1）
 
