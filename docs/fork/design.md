@@ -67,7 +67,7 @@ exit 0：沒有 FAIL（SKIP、需人工不算失敗）；1：有 FAIL；2：沒�
 | 1 | 編譯 | `swift build -c debug`；release、DEBUG 版用 `build-app.sh` 的複本建到這次的暫存資料夾（只換 `SCRATCH`、`APP` 兩行，其他照 repo 的腳本） |
 | 2 | migration | `scripts/dev/check-fork-migrations.py --scratch-path <check 的建置快取>` |
 | 3 | 品牌 | Q：`brand.py check-sources`、`brand-test.py`；完整：`brand.py check` release 和 DEBUG 版、`brand.py compare <基準> <release>`（有差異是「需人工」，差異清單在證據；新版本本來就可能多字串） |
-| 4 | F1 | Q：repo 的 `Resources/AppIcon.icns` sha256 等於 manifest `F1.iconSha256`、`Info.plist` 的 `ShiyinIssuesURL` 等於 manifest、`BrandAboutCommand()   // MA-FORK(F7)` 和 ReleaseNotes 的 F7 接點在、`brand-hooks-test`（更新說明選段落）；完整：建好的 app 的 icns、`ShiyinIssuesURL` 也一樣；更新網址（CI 的 `vars.SHIYIN_UPDATE_URL`）用 `gh variable get` 讀得到時要指到 fork（`EdenQ/Shiyin`），讀不到是 SKIP |
+| 4 | F1 | Q：repo 的 `Resources/AppIcon.icns` sha256 等於 manifest `F1.iconSha256`、`Info.plist` 的 `ShiyinIssuesURL` 等於 manifest、`BrandAboutCommand()   // MA-FORK(F7)` 和 ReleaseNotes 的 F7 接點在、`brand-hooks-test`（更新說明選段落）；完整：建好的 app 的 icns、`ShiyinIssuesURL` 也一樣；更新網址（CI 的 `vars.SHIYIN_UPDATE_URL`）用 `gh variable get` 讀得到時要指到 fork（`EdenQ/Shiyin`），讀不到是 SKIP：這是唯一定義成可選的子項，摘要另外列一行 `4u`、狀態 SKIP |
 | 5 | F2 標記 | `record-sim` 中 `tagspeaker now 甲`、停止：`speaker_tags` 有這一筆、時間在送出指令時的 elapsed 附近；`f2-atomic-check.py`（套用：說話者 1 變「甲」、說話者 2 有乙又有丙不套用；「只改這句」的交易、復原） |
 | 6 | F2 加上 5.0 | 兩場示範會議加標記：`editmeeting` 裁頭尾、刪中間、分割、合併，標記跟著平移、分到新會議、合併後加上偏移；每次 `restoreedit` 都回到原本；`.shiyin` 封包帶標記、匯入回來一樣，舊封包沒有標記也能匯入 |
 | 7 | F3 靜音 | `f3-mute-check.py`（狀態、⌃⌥⌘M、錄音檔兩聲道、靜音那段麥克風是 0、電腦聲音照常） |
@@ -76,8 +76,9 @@ exit 0：沒有 FAIL（SKIP、需人工不算失敗）；1：有 FAIL；2：沒�
 | 10 | F4 加上 5.0 | **只自動驗證刪除**：`noteitem delete actionItems 0` 之後 `copysection` 的待辦少一條、其他條和別的段落照舊（示範會議的決議只有 1 條，刪了整段變空）；刪除後的 windowshot 放進截圖。`noteitem edit` 之後的樣式、「人物」頁不套 F4 樣式沒有自動驗證，摘要的說明欄寫明，留給 S 和使用者 |
 | S | 截圖 | 繁中、英文各開一次 DEBUG 版：示範會議的紀錄、逐字稿分頁（`windowshot`）、設定「錄音」頁（`preview settings recording` 加 `mawindowshot`），加上 #8、#10 的圖，放在輸出資料夾的 `shots/`；狀態一律「需人工」（看條數、色條、「加到提醒事項」、靜音開關、提示列；還沒有基準圖，不做像素比對） |
 | 11 | DF5 | Q：`scripts/fork/tsan-lockedvalue/run.sh` |
-| 12 | 設定殘留 | Q：開始、結束各 `defaults export com.weiwei.shiyin`（正式 app 的網域），要逐位元組相同；不同時列出哪幾個鍵、FAIL，**保留現值、不改寫也不刪**（分不出是檢查還是使用者同時改的，例如使用者自己移動了主視窗）。DEBUG 版用測試專用的 bundle id（見安全規則），本來就不寫正式網域，所以這一項不靠任何還原。完整模式另外核對 `shiyin://` 和 `.shiyin`（`com.weiwei.shiyin.meeting`）的預設處理程式在檢查前後相同 |
+| 12 | 設定殘留 | Q：開始、結束各 `defaults export com.weiwei.shiyin`（正式 app 的網域），要逐位元組相同；不同時列出哪幾個鍵、FAIL，**保留現值、不改寫也不刪**（分不出是檢查還是使用者同時改的，例如使用者自己移動了主視窗）。DEBUG 版用測試專用的 bundle id（見安全規則），本來就不寫正式網域，所以這一項不靠任何還原。有選 DEBUG 版的項目（5～10、S）時另外核對 `shiyin://` 和 `.shiyin`（`com.weiwei.shiyin.meeting`）的預設處理程式在檢查前後相同：這時處理程式的快照是**必要的**，開始時沒拿到、結束時讀不到都算 FAIL，不會因為缺檔就跳過 |
 | 13 | 實機更新 | 不自動：列為「需人工」（4.7.6 → 新版的 app 內更新，開舊會議看標記、靜音、條列頁） |
+| C | 收尾 | 每次都跑（不能用 `--only` 選）：結束自己的 DEBUG 版、確認沒有留下測試版的程序、清掉測試網域（後置條件見下）、刪掉這次的暫存資料夾（`--keep` 時留著）。任何一步失敗就 FAIL，整體 exit 1 |
 
 另外四項也標 Q：`check-test.py`（T，check.sh 自己的負對照，見下）、`isolation-check.py`（I1）、`isolation-check-test.py`（I2，§F0.3）、`l10n.py check`（L；跑之前存一份翻譯表，跑完翻譯表有變就算 FAIL 並放回原本的內容：檢查不該改到 repo）。摘要列在 #3 之後。#4 的子項（例如 CI 的更新網址）讀不到時整項照樣 PASS，說明欄寫哪一個子項 SKIP。
 
@@ -96,7 +97,20 @@ exit 0：沒有 FAIL（SKIP、需人工不算失敗）；1：有 FAIL；2：沒�
 - 資料庫：DEBUG 版啟動後用 `lsof -p <pid> -Fn`（每個路徑一行、保留空白）列出開著的檔，`lsof` 失敗或沒有輸出就算失敗；所有 `shiyin.sqlite`、`-wal`、`-shm` 都要在這次的暫存 home 底下，而且一定要看得到暫存 home 的 `shiyin.sqlite`；開了任何正式資料夾（`~/Library/Application Support/Shiyin/`）底下的檔也算失敗。失敗時結束那個 DEBUG 版，DEBUG 版的項目全部 FAIL。
 - 品牌比對：`brand.py compare` 的 exit code 分三種：0 相同、1 比完有差異（需人工）、2 工具或輸入錯誤（基準或新版不是有效的 app：沒有 `Contents/Info.plist`、讀不了、沒有任何 `.lproj` 的 `Localizable.strings`；或比對中丟例外）。check.sh 只把 1 當「需人工」，其他非 0 一律 FAIL；呼叫前也先確認基準 bundle 有這些檔。
 - 結束 DEBUG 版：送訊號前核對那個 pid 的執行檔還是這次暫存資料夾裡的 app（`ps -o comm=`），不是就不送（pid 可能被別的程序重用）。
-- `--only`：照上面的白名單驗證。
+- `--only`：照上面的白名單驗證；`--only`、`--base-app`、`--base-ref`、`--out` 後面少了值也是 exit 2（不是 shell 的錯誤）。單選 DEBUG 版的項目（`--only 5`、`--only 5,12`、`--quick --only 5`）要能正常跑：每一項的說明、證據欄在用到前就有初始值。
+- DEBUG 版的**必要條件**（依序；任一步失敗，5～10、S 全部 FAIL，說明欄寫哪一步，不會「沒核對就照跑」）：
+  1. 清掉上次中斷留下的測試網域（後置條件要成立）；
+  2. 建置（#1）；
+  3. 編譯 `check-handlers.swift`；
+  4. 拿到開始時的處理程式快照，而且內容有效（有 `scheme-default`、`type-default` 兩行）；
+  5. 做出測試 id 的複本（`isolate_debug_app`）；
+  6. 啟動、`lsof` 核對資料庫；
+  7. 測試版開著時再讀一次處理程式（要讀得到、候選裡沒有測試版）。
+- 測試網域的清理（`cleanup_test_domain`）：`lsregister -u`、`defaults delete`、刪檔每一步的失敗都算；做完核對後置條件：`defaults read <測試 id>` 要明確說網域不存在（其他錯誤不算「已確認不存在」），Preferences、HTTPStorages、Caches、Saved Application State、WebKit 底下那個 id 的檔都不在。不成立就 return 1：開 DEBUG 版前的清理失敗 → DEBUG 項目 FAIL；結束時的清理失敗 → C FAIL。對正式 id 照樣拒絕、什麼都不做。
+- 結束 DEBUG 版：TERM 10 秒、再 KILL，之後那個 pid 還是這次的 app 就算失敗（C FAIL）；收尾時再用 `debug_apps` 確認沒有留下這次測試版的程序。
+- 開始前：`audio/recording/` 存在卻列不出來（權限）、`ps` 列不出程序，都 exit 2（判斷不了使用者是不是在錄音、有沒有別的 DEBUG 版）。
+- 其他前置步驟：`git archive <基準 tag> | tar` 任何一邊失敗都算基準建不出來（#3 FAIL）；`l10n.py check` 前備份翻譯表、讀 `git status` 失敗就 L FAIL；`seedfixtures` 失敗就那一項 FAIL；`check-debug.py` 的 `restoreedit` 後編輯紀錄沒清掉也算不符。
+- 每個外部指令、helper、前置步驟失敗會走到哪裡，列在 IMPL／FIX 的報告（FIX-3a3 的自查表）；新增步驟時照同樣原則：必要的失敗 → 依賴的項目 FAIL；只有明確定義成可選、摘要標 SKIP 的才可以跳過（目前只有 `4u`）。
 
 **check.sh 自己的測試**（`python3 scripts/fork/check-test.py`，也是 quick 的 T）：check.sh 的判斷寫在 `scripts/fork/check-lib.sh`（`check.sh` source 它），測試在暫存資料夾放假的 `defaults`、`lsof`、`ps`、`plutil` 指令（PATH 最前面），只呼叫 lib 的函式，不讀寫真的設定、不碰任何資料庫。負對照都要失敗或 exit 2：
 
@@ -110,6 +124,10 @@ exit 0：沒有 FAIL（SKIP、需人工不算失敗）；1：有 FAIL；2：沒�
 | `isolate_debug_app` | 複製出來的 DEBUG 版 | `CFBundleIdentifier` 是測試 id、沒有 URL scheme、文件類型、匯出的 UTType；簽章驗得過；id 給成正式的就拒絕 |
 | `cleanup_test_domain` | 測試網域、它的 Preferences／HTTPStorages／Caches 檔 | 只刪測試 id 的；給正式 id 就拒絕、什麼都不刪 |
 | `snapshot_diff` 和結束流程 | 檢查中使用者把正式網域的既有值改了（移動主視窗）、建立了原本沒有的鍵（`settingsPage`） | #12 FAIL、列出那些鍵；正式網域一次 `write`、`delete` 都沒有，使用者的值原樣留著 |
+| `cleanup_test_domain`（失敗） | `lsregister -u` 失敗、`defaults delete` 失敗而網域還在、刪檔失敗而檔還在、`defaults read` 回的不是「不存在」 | 都 return 1、印出哪一步 |
+| `prepare_handlers` | `check-handlers.swift` 編譯失敗、helper 執行失敗、輸出缺 `scheme-default` 或 `type-default` | 都 return 1（DEBUG 項目不開始） |
+| `check.sh`（CLI，假的 `swift`、`defaults`、HOME 在暫存資料夾） | `--only 5`、`--only 5,12`、`--quick --only 5`，建置失敗 | 不會因為 `NOTE` 沒有值而中止；5 FAIL（說明是建置失敗）、12 FAIL（缺處理程式快照）、exit 1 |
+| `check.sh`（CLI） | `--only`、`--out` 後面沒有值 | exit 2 |
 
 另外 `brand-test.py` 加 `brand.py compare` 的測試：相同 0、有差異 1、基準缺 `Info.plist` 或沒有翻譯 2。
 
