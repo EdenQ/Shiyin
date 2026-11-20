@@ -54,7 +54,3 @@
   - 待使用者：錄音中按「正在說話」的名字、＋ 的「加入」「取消」，一行的選單（名單、認識的人、其他名字…的「標記」、清除標記、右鍵的「拷貝」）；錄完按提示列的「查看」、逐字稿的「套用到…」「刪除標記」；標記帶入的名字（F2.9）：會議頁名字的選單（是別人、不是 X）、逐字稿改名視窗的「不是他」
 - [~] **S4 多人真人錄音的端到端**（§F2.6）：模擬錄音只有一個人的聲音（FluidAudio 附的 3 段測試音檔是同一個人），驗證了時間對得上、矛盾時不套用、只標一個名字時套用
   - 待使用者：實際開會時標記幾個人，錄完看名字有沒有套到對的說話者；或同意下載 AMI 會議語料來測
-
-## 上游監看（PLAN-fork-5.0 階段 3b，fork design §F0.5）
-
-- [~] **W1 推送後手動觸發一次**：`upstream-watch.yml` 要在 GitHub 上才會跑。推送到 EdenQ/Shiyin 的 main 後，在 Actions 分頁手動執行 upstream-watch（或 `gh workflow run upstream-watch.yml -R EdenQ/Shiyin`），確認：exit 不是工具錯誤、artifact 有 `upstream-watch.md`／`.json`、job summary 只有一行、沒有建立 Issue；第二次執行時 cache 有取回上次的狀態（報告的「比對起點」是上次的 upstream/main）。
