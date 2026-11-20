@@ -13,8 +13,7 @@
 # 同時只開一個；不送按鍵、不用 System Events；結束時結束自己的 DEBUG 版、刪掉暫存資料夾。
 set -u
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-CACHE="${MA_CHECK_CACHE:-$HOME/Library/Caches/ShiyinBuild/check}"   # MA_CHECK_CACHE：測沒有基準快取的路徑（fork design §F0.4）
-SCRATCH="$CACHE/scratch"
+CACHE_RAW="${MA_CHECK_CACHE:-}"   # MA_CHECK_CACHE：測沒有基準快取的路徑；參數驗證完先核對（resolve_cache，fork design §F0.4）
 REAL="$HOME/Library/Application Support/Shiyin"
 # shellcheck source=check-lib.sh
 . "$ROOT/scripts/fork/check-lib.sh" || exit 2
@@ -35,6 +34,9 @@ while [ $# -gt 0 ]; do
   shift
 done
 if [ -n "$ONLY" ]; then validate_only "$ONLY" || exit 2; fi
+# 任何建立、建置、清理之前：解析快取的真實路徑、拒絕受保護的位置和別人的資料夾（不通過就什麼都不建、不刪）
+CACHE="$(resolve_cache "$CACHE_RAW" "$ROOT")" || { echo "停止：快取位置不能用（MA_CHECK_CACHE=${CACHE_RAW:-（預設）}）"; exit 2; }
+SCRATCH="$CACHE/scratch"
 TS="$(date +%Y%m%d-%H%M%S)"
 RUN="$CACHE/run-$TS"
 if [ -z "$OUT" ]; then OUT="${TMPDIR:-/tmp}"; OUT="${OUT%/}/shiyin-check-$TS"; fi
@@ -50,6 +52,9 @@ if [ -e "$REAL/audio/recording" ]; then
 fi
 others="$(debug_apps)" || { echo "停止：列不出程序，判斷不了有沒有別的 DEBUG 版"; exit 2; }
 if [ -n "$others" ]; then echo "停止：已經有 DEBUG 版在跑（shiyinctl 是廣播，同時只能一個）：$others"; exit 2; fi
+if [ -n "$CACHE_RAW" ]; then   # 自訂的快取：建立並寫入所有權標記，--clean-cache 才認得它
+  mkdir -p "$CACHE" && touch "$CACHE/$MA_CACHE_MARK" || { echo "停止：建立不了快取 $CACHE"; exit 2; }
+fi
 mkdir -p "$RUN" || exit 2
 # 開始時拿不到有效的設定快照就不跑：沒有快照，#12 證明不了什麼（fork design §F0.4）
 if ! defaults_snapshot "$OUT/defaults-before.plist"; then echo "停止：拿不到開始時的設定快照"; rm -rf "$RUN"; exit 2; fi
@@ -381,7 +386,10 @@ finish() {
     fi
     if [ "$KEEP" = 1 ]; then echo "留下暫存資料夾：$RUN"
     else rm -rf "$RUN"; [ -e "$RUN" ] && { echo "刪不掉暫存資料夾 $RUN"; bad=1; } || echo "暫存資料夾刪了"; fi
-    if [ "$CLEAN" = 1 ]; then rm -rf "$SCRATCH" "$CACHE/scratch-base" "$CACHE/base" || bad=1; fi
+    if [ "$CLEAN" = 1 ]; then   # 只刪 check.sh 認領的快取（預設位置或有標記）底下自己的三個子資料夾
+      if [ -z "$CACHE_RAW" ] || [ -f "$CACHE/$MA_CACHE_MARK" ]; then rm -rf "$SCRATCH" "$CACHE/scratch-base" "$CACHE/base" || bad=1
+      else echo "快取 $CACHE 沒有 ${MA_CACHE_MARK}，--clean-cache 不刪"; bad=1; fi
+    fi
   } >> "$OUT/logs/C.log" 2>&1
   if [ $bad = 0 ]; then add_row C "收尾（DEBUG 版、測試網域、暫存資料夾）" PASS $(( $(date +%s) - t0 )) logs/C.log ""
   else add_row C "收尾（DEBUG 版、測試網域、暫存資料夾）" FAIL $(( $(date +%s) - t0 )) logs/C.log "$(grep -E '失敗|不了|還在|刪不掉|列不出|結束不了' "$OUT/logs/C.log" | head -1 | cut -c1-100)"; fi

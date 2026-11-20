@@ -139,6 +139,46 @@ extract_tag() {
   echo "git archive $2 | tar 失敗（git exit ${st[0]}、tar exit ${st[1]:-?}）" >&2; return 1
 }
 
+# resolve_cache <MA_CHECK_CACHE 的值，空字串＝預設> <repo>：快取的真實絕對路徑（fork design §F0.4「快取位置」；REVIEW-3a5 P2-9）。
+# 快取會被建立、--clean-cache 會刪裡面的東西，所以在任何建立、建置、清理之前核對；不通過 return 2（印出原因），通過就印出路徑。
+MA_CACHE_MARK=".ma-check-cache"
+resolve_cache() {
+  python3 - "$1" "$2" "$HOME" "${SHIYIN_HOME:-}" "$MA_CACHE_MARK" <<'PY'
+import os, sys
+raw, repo, home, shome, mark = sys.argv[1:6]
+def fail(msg):
+    print(f'快取位置不能用：{msg}', file=sys.stderr); sys.exit(2)
+custom = raw != ''
+cand = raw if custom else os.path.join(home, 'Library/Caches/ShiyinBuild/check')
+if not os.path.isabs(cand):
+    fail(f'要是絕對路徑：{cand}')
+real = os.path.realpath   # 解開符號連結；不存在的部分照字面接上
+c = real(cand)
+def inside(a, b):   # a 等於 b 或在 b 底下
+    return a == b or a.startswith(b.rstrip('/') + '/')
+protected = {'~/Library/Caches/ShiyinBuild/app': os.path.join(home, 'Library/Caches/ShiyinBuild/app'),
+             '~/Library/Application Support/Shiyin': os.path.join(home, 'Library/Application Support/Shiyin'),
+             'repo': repo}
+if shome:
+    protected['SHIYIN_HOME'] = shome
+for name, path in protected.items():
+    p = real(path)
+    if inside(c, p) or inside(p, c):
+        fail(f'{cand}（解析後 {c}）跟受保護的 {name}（{p}）重疊')
+for name, path in (('$HOME', home), ('/', '/')):
+    p = real(path)
+    if inside(p, c):
+        fail(f'{cand}（解析後 {c}）是 {name} 本身或它的上層')
+if custom and os.path.lexists(c):
+    if not os.path.isdir(c):
+        fail(f'{c} 不是資料夾')
+    entries = os.listdir(c)
+    if entries and not os.path.isfile(os.path.join(c, mark)):
+        fail(f'{c} 是已經有東西、不是 check.sh 建的資料夾（沒有 {mark}）')
+print(c)
+PY
+}
+
 # valid_handlers <快照檔>：check-handlers 的輸出要有 scheme-default、type-default 兩行
 valid_handlers() {
   [ -s "$1" ] && grep -q $'^scheme-default\t' "$1" && grep -q $'^type-default\t' "$1"

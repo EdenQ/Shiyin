@@ -567,5 +567,120 @@ class CheckScript(unittest.TestCase):
             shutil.rmtree(tmp)
 
 
+
+class CacheLocation(unittest.TestCase):
+    """REVIEW-3a5 P2-9：MA_CHECK_CACHE（和預設快取被換成符號連結）指到受保護或別人的資料夾 → exit 2、什麼都不建不刪。
+    合成的 HOME（假的正式 app、正式資料夾）、假的 defaults；不碰真的 app 和設定"""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix='check-cache '))
+        self.home = self.tmp / 'home'
+        self.app = self.home / 'Library/Caches/ShiyinBuild/app/Meeting Assistant.app'
+        for d in (self.app / 'Contents', self.app / 'base', self.home / 'Library/Application Support/Shiyin/base'):
+            d.mkdir(parents=True)
+            (d / 'sentinel.txt').write_text('keep me')
+        (self.app / 'sentinel.txt').write_text('keep me')
+        sbin, store = self.tmp / 'bin', self.tmp / 'store'
+        sbin.mkdir(); store.mkdir()
+        (sbin / 'defaults').write_text(STUBS['sdefaults']); (sbin / 'defaults').chmod(0o755)
+        (store / 'com.weiwei.shiyin.json').write_text(json.dumps({'llmProvider': 'claude'}))
+        self.env = {'PATH': f'{sbin}:/usr/bin:/bin', 'HOME': str(self.home), 'STUB_STORE': str(store),
+                    'STUB_LOG': str(self.tmp / 'calls.log'), 'TMPDIR': str(self.tmp), 'PYTHONDONTWRITEBYTECODE': '1'}
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp)
+
+    def snapshot(self):
+        # 不算：這次的輸出資料夾、假 defaults 的呼叫紀錄、Xcode 的 python 放在 HOME 的位元組碼快取
+        skip = ('out-', 'calls.log', 'com.apple.python')
+        return sorted(str(p.relative_to(self.tmp)) for p in self.tmp.rglob('*') if not any(k in str(p) for k in skip))
+
+    def run_check(self, cache, *extra):
+        env = dict(self.env)
+        if cache is not None:
+            env['MA_CHECK_CACHE'] = str(cache)
+        out = Path(tempfile.mkdtemp(prefix='out-', dir=self.tmp))
+        p = subprocess.run(['/bin/bash', str(ROOT / 'scripts/fork/check.sh'), '--quick', '--only', '12', *extra, '--out', str(out)],
+                           capture_output=True, text=True, timeout=120, env=env)
+        return p.returncode, p.stdout + p.stderr
+
+    def assert_refused(self, cache, *extra, label=''):
+        before = self.snapshot()
+        code, msg = self.run_check(cache, *extra)
+        self.assertEqual(code, 2, f'{label}：{msg}')
+        self.assertIn('快取位置不能用', msg, label)
+        self.assertNotIn('回歸檢查（', msg, f'{label}：不能開始跑')
+        self.assertEqual(self.snapshot(), before, f'{label}：不能建立或刪除任何東西')
+        for f in (self.app / 'sentinel.txt', self.app / 'base/sentinel.txt', self.app / 'Contents/sentinel.txt'):
+            self.assertTrue(f.exists(), f'{label}：{f} 要留著')
+
+    def test_refuse_fake_formal_app(self):
+        self.assert_refused(self.app, '--clean-cache', label='直接指向正式 app')
+
+    def test_refuse_symlink_alias(self):
+        alias = self.tmp / 'alias'
+        alias.symlink_to(self.app)
+        self.assert_refused(alias, '--clean-cache', label='符號連結別名')
+
+    def test_refuse_existing_foreign_dir(self):
+        other = self.tmp / 'not-a-cache'
+        (other / 'base').mkdir(parents=True)
+        (other / 'sentinel.txt').write_text('keep me'); (other / 'base/sentinel.txt').write_text('keep me')
+        self.assert_refused(other, '--clean-cache', label='非快取的既有資料夾')
+        self.assertTrue((other / 'base/sentinel.txt').exists())
+
+    def test_refuse_home_repo_parents_and_protected(self):
+        self.assert_refused(self.home, label='$HOME')
+        self.assert_refused(ROOT, label='repo')
+        self.assert_refused(ROOT / 'scripts/fork-cache', label='repo 底下')
+        self.assert_refused(self.home / 'Library/Caches/ShiyinBuild', label='正式 app 的上層')
+        self.assert_refused(self.home / 'Library/Application Support/Shiyin', '--clean-cache', label='正式資料夾')
+        self.assert_refused(self.home / 'Library/Application Support/Shiyin/cache', label='正式資料夾底下')
+        self.assert_refused(Path('/'), label='/')
+        self.assert_refused(self.home.parent, label='$HOME 的上層')
+        self.assert_refused('relative-cache', label='相對路徑')
+        f = self.tmp / 'a-file'
+        f.write_text('x')
+        self.assert_refused(f, label='不是資料夾')
+
+    def test_refuse_shiyin_home(self):
+        sh = self.tmp / 'demo-home'
+        (sh / 'base').mkdir(parents=True)
+        self.env['SHIYIN_HOME'] = str(sh)
+        self.assert_refused(sh / 'cache', label='SHIYIN_HOME 底下')
+
+    def test_refuse_default_symlinked_to_app(self):
+        default = self.home / 'Library/Caches/ShiyinBuild/check'
+        default.symlink_to(self.app)
+        self.assert_refused(None, '--clean-cache', label='預設快取被換成指到正式 app 的符號連結')
+
+    def test_accept_new_empty_and_marked(self):
+        new = self.tmp / 'new-cache'
+        code, msg = self.run_check(new)
+        self.assertEqual(code, 0, msg)
+        self.assertTrue((new / '.ma-check-cache').is_file(), '新建的快取要有標記')
+        empty = self.tmp / 'empty-cache'
+        empty.mkdir()
+        code, msg = self.run_check(empty)
+        self.assertEqual(code, 0, msg)
+        self.assertTrue((empty / '.ma-check-cache').is_file())
+        # 有標記的：--clean-cache 只刪 scratch、scratch-base、base，別的留著
+        marked = self.tmp / 'marked-cache'
+        for d in ('base/v1', 'scratch', 'scratch-base', 'other'):
+            (marked / d).mkdir(parents=True)
+        (marked / '.ma-check-cache').write_text('')
+        (marked / 'other/keep.txt').write_text('keep')
+        code, msg = self.run_check(marked, '--clean-cache')
+        self.assertEqual(code, 0, msg)
+        for d in ('base', 'scratch', 'scratch-base'):
+            self.assertFalse((marked / d).exists(), d)
+        self.assertTrue((marked / 'other/keep.txt').exists())
+        self.assertTrue((marked / '.ma-check-cache').exists())
+
+    def test_default_still_works(self):
+        code, msg = self.run_check(None)
+        self.assertEqual(code, 0, msg)
+        self.assertTrue((self.home / 'Library/Caches/ShiyinBuild/check').is_dir())
+
 if __name__ == '__main__':
     unittest.main(verbosity=2 if '-v' in sys.argv else 1, argv=[sys.argv[0]])
