@@ -298,10 +298,12 @@ exit 0：沒有 FAIL（SKIP、需人工不算失敗）；1：有 FAIL；2：沒�
      - 跟上游 `DebugControl` 的指令名稱的交集只有 `ForkDebug.shadowed`。
    - 指令名稱怎麼收集（上游、fork 同一套規則，`command_names`；HK-fix，REV-HK P2-1）：
      - 用 Swift 的詞彙切分，不是逐行比對：跳過 `//`、`/* */`（可巢狀）註解；字串整個當一個 token，有插值或跳脫字元的不算單純的字面值。
-     - 主旨是 `name`、`args[0]`、`args.first` 的 `switch`，大括號第一層的每個 `case` 從 `case` 收到同一層的冒號：逗號分隔，有沒有空白、跨不跨行、中間有沒有註解都一樣。帶 `where` 的照樣算那個字面值（寧可多算）。
+     - 主旨是 `name`、`args[0]`、`args.first` 的 `switch`，大括號第一層的每個 `case` 從 `case` 收到同一層的冒號：逗號分隔，有沒有空白、跨不跨行、中間有沒有註解都一樣。小括號、中括號、大括號（`where` 裡的閉包）裡的冒號、逗號不算。帶 `where` 的照樣算那個字面值（寧可多算）。
+     - 不完整解析 Swift，改成保守（HK-fix2，REV-HK-2 P2-2）：`where` 條件裡有 `{`、`}` 或 `?`（閉包、三元運算、optional chaining）時，冒號可能屬於條件本身，一律報錯、要人工核對，不繼續猜。條件裡只有比較、`&&`、呼叫、下標、字典字面值的照常收；`case` 本體裡的閉包、三元運算不受影響（本體的大括號照常算深度）。
+     - 掃描提早結束的保險：switch 結尾的 `}` 要自己在一行的開頭、縮排跟 `switch` 那一行一樣；不是的話（裡面的結構讓深度提早歸零，或一行寫完的 switch），報錯、要人工核對。case 找不到結尾的冒號、switch 找不到結尾的大括號也一樣。
      - 同一個主旨跟字串比對（`name == "x"`、`"x" == args[0]`），檔裡任何地方都算。
      - 最外層的 pattern 不是字串字面值（`let x where …`、運算式、有插值的字串），或上游找不到這樣的 `switch`：報錯、要人工核對，不默默少算。現在的上游、fork 程式都沒有這種寫法，不需要白名單。
-     - 回歸測試在 `isolation-check-test.py` 的 `DEBUG_CASES`：上游寫成有空白、沒空白、跨行、中間有註解、帶 `where`、`if name ==` 的撞名，fork 端沒空白、跨行的未列名稱，兩邊看不懂的 pattern 都要失敗；只出現在註解裡、正常的要通過。
+     - 回歸測試在 `isolation-check-test.py` 的 `DEBUG_CASES`：上游寫成有空白、沒空白、跨行、中間有註解、帶 `where`、`if name ==` 的撞名，fork 端沒空白、跨行的未列名稱，兩邊看不懂的 pattern 都要失敗；`where` 裡的閉包加三元運算（REV-HK-2 的兩個反例）、巢狀閉包、字串插值、沒有括號的三元運算、optional chaining，case 本體裡的閉包之後的撞名，switch 結尾不在行首，也都要失敗；只出現在註解裡、本體裡的三元運算和閉包、`where` 裡的字典字面值、正常的要通過。
    - 上游新增同名指令時，`upstream-watch` 本來就會列出名稱碰撞（§F0.5）。
 2. DebugControl `case "hotkey":` 那一行（F3 加了 `mute` 的分支）→ 還原成上游原樣。`hotkey mute` 改在 `intercept` 裡先接（`args[0] == "hotkey" && args[1] == "mute"` 才接，其他的 `hotkey`、`hotkey bookmark` 照樣交給上游）。
 3. AppModel `recordingFinished` 裡的 `GlobalHotKey.shared.setMuteEnabled(false)   // MA-FORK(F3)` → 拿掉。改由 `ForkMute.install` 包住 `recorder.onFinished`（跟既有包 `onStarted` 的做法相同）：先 `setMuteEnabled(false)`，再呼叫上游原本的回呼。
