@@ -10136,7 +10136,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "建立暂保存失败"
+            "value": "创建临时备份文件失败"
           }
         },
         "en": {
@@ -14244,7 +14244,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "暂保存在写入时被换掉了"
+            "value": "临时备份文件在写入时被替换了"
           }
         },
         "en": {
@@ -14261,7 +14261,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "暂保存的位置已经有别的东西"
+            "value": "临时备份文件的位置已有其他内容"
           }
         },
         "en": {

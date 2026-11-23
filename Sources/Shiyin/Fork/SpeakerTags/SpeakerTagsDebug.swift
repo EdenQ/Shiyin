@@ -1,5 +1,5 @@
 #if DEBUG
-import Foundation
+import AppKit
 
 /// F2 的 DEBUG 指令（fork design §F2.5）：4.x 就有的名字照舊（tagspeaker、tagui、addparticipant、applytags、speakertags），不改成 ma 開頭
 @MainActor
@@ -20,9 +20,14 @@ extension ForkDebug {
                 model.perform(.detail([.speakerTags])) {
                     try model.db.addSpeakerTag(Int64(args[2]) ?? 0, start: Double(args[3]) ?? 0, end: Double(args[4]) ?? 0, name: args[5])
                 }
-            case "only":   // 沒套用的標記按「只改這句」（F2.12）
+            case "only":   // 沒套用的標記按「只改這句」（F2.12）；only <會議 id> <標記 id> [<錯誤輸出.json>]
                 model.selection = Int64(args[2])
+                // 故障注入用（fork design §F2.5）：DEBUG＋quiet、給了輸出檔時，這次新出現的錯誤寫進檔、errorMessage 還原，
+                // 不讓上游 MainWindow 的「出了一點問題」對話框在使用者畫面上跳出來。受測的函式、交易照常走
+                let capture = args.count > 4 && ForkDebugPrompts.quiet ? args[4] : nil
+                let previous = model.errorMessage
                 if let tag = model.detail?.speakerTags.first(where: { $0.id == Int64(args[3]) }) { model.reassignTaggedSegments(tag) }
+                if let capture { captureError(since: previous, model: model, to: capture) }
             default: model.deleteSpeakerTag(Int64(args[2]) ?? 0)
             }
         case "tagui":   // tagui add | tagui name <第幾行>：等於按 ＋、一行選單裡的「其他名字…」，打開輸入名字的彈出視窗
@@ -37,6 +42,24 @@ extension ForkDebug {
         default: return false
         }
         return true
+    }
+
+    /// 同步呼叫返回後馬上做（同一個 main actor 的回合，SwiftUI 還沒重畫）：新錯誤寫進檔、errorMessage 還原成呼叫前的值。
+    /// 約 1 秒後補上那時的 errorMessage、有沒有視窗掛著 sheet 或對話框，給 f2-atomic-check 確認畫面上沒有跳出來
+    private static func captureError(since previous: String?, model: AppModel, to path: String) {
+        let current = model.errorMessage
+        let new = current != previous ? current : nil
+        if current != previous { model.errorMessage = previous }
+        var out: [String: Any] = ["error": new ?? NSNull(), "restored": model.errorMessage == previous]
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+            MainActor.assumeIsolated {
+                let visible = NSApp.windows.filter(\.isVisible)
+                out["errorMessageAfter"] = model.errorMessage ?? NSNull()
+                out["sheetVisible"] = visible.contains { $0.attachedSheet != nil || $0.isSheet || $0.className.contains("Alert") }
+                out["mainWindowVisible"] = visible.contains { $0.identifier?.rawValue == "main" }
+                write(out, to: path)
+            }
+        }
     }
 
     /// state：即時逐字稿每一行的名字、「正在說話」的名單（錄音中的會議）、沒套用的標記
