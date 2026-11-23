@@ -244,7 +244,7 @@ class Lib(unittest.TestCase):
     # ---------- P3-1 --only ----------
     def test_only_validation(self):
         for value, want in (('999', 2), ('', 2), (',', 2), ('3,999', 2), ('3 5', 2), ('3,I1,S', 0),
-                            (',3,5,', 0), ('T', 0), ('13', 0), ('14', 0), ('15', 2)):
+                            (',3,5,', 0), ('T', 0), ('13', 0), ('14', 0), ('15', 0), ('16', 2)):
             code, msg = self.call('validate_only', value)
             self.assertEqual(code, want, f'--only {value!r}：{msg}')
 

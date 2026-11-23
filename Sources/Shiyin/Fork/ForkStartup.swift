@@ -7,6 +7,7 @@ enum ForkStartup {
     static func install(_ model: AppModel) {
         ForkMute.install(model)     // F3：⌃⌥⌘M、靜音的提醒
         ForkBackup.install(model)   // F10：定期備份資料庫
+        ForkIsland.install(model)   // F11：記下主視窗所在的螢幕（錄音島放在哪個螢幕）
     }
 }
 
@@ -24,6 +25,7 @@ struct ForkAppMenuCommands: Commands {
 /// 原本是 F3 的 `ForkMuteSettingsRow()`；fork design §F0.7）。以後這一段的 fork 設定加在這裡、不再加接點
 struct ForkRecordingSettingsRows: View {
     var body: some View {
+        ForkIslandScreenRow()   // F11：錄音島放在哪個螢幕
         ForkMuteSettingsRow()   // F3：錄音中按 ⌃⌥⌘M 靜音
     }
 }
