@@ -145,6 +145,251 @@ def all_sources():
     return files
 
 
+def swift_tokens(text):
+    """Swift 的詞彙切分（夠 check_debug_commands 用）：跳過 // 和可巢狀的 /* */ 註解；字串（一般、\"\"\"、#\"…\"#）
+    整個當一個 token，值是 None 表示有插值或跳脫字元（不是單純的字面值）。回傳 [(種類, 值, 行號)]，種類是 str、id、p（符號）"""
+    toks, i, n, line = [], 0, len(text), 1
+    while i < n:
+        c = text[i]
+        if c == '\n':
+            line += 1
+            i += 1
+        elif c.isspace():
+            i += 1
+        elif text.startswith('//', i):
+            j = text.find('\n', i)
+            i = n if j < 0 else j
+        elif text.startswith('/*', i):
+            depth, j = 1, i + 2
+            while j < n and depth:
+                if text.startswith('/*', j):
+                    depth, j = depth + 1, j + 2
+                elif text.startswith('*/', j):
+                    depth, j = depth - 1, j + 2
+                else:
+                    j += 1
+            line += text.count('\n', i, j)
+            i = j
+        elif c == '"' or (c == '#' and re.match(r'#+"', text[i:])):
+            start = i
+            hashes = len(re.match(r'#*', text[i:]).group(0))
+            i += hashes
+            multi = text.startswith('"""', i)
+            quote = '"""' if multi else '"'
+            i += len(quote)
+            close = quote + '#' * hashes
+            esc = '\\' + '#' * hashes
+            plain, body = True, []
+            while i < n and not text.startswith(close, i):
+                if text.startswith(esc, i):
+                    plain = False
+                    i += len(esc)
+                    if i < n and text[i] == '(':   # 插值：跳過對應的括號（裡面可能有字串）
+                        depth, i = 1, i + 1
+                        while i < n and depth:
+                            if text[i] == '"':
+                                j = i + 1
+                                while j < n and text[j] != '"':
+                                    j += 2 if text[j] == '\\' else 1
+                                i = j + 1
+                                continue
+                            depth += {'(': 1, ')': -1}.get(text[i], 0)
+                            i += 1
+                    else:
+                        i += 1
+                elif text[i] == '\n' and not multi:
+                    break   # 沒有收尾的字串：當成不是字面值
+                else:
+                    body.append(text[i])
+                    i += 1
+            i += len(close)
+            line_at = line
+            line += text.count('\n', start, i)
+            toks.append(('str', ''.join(body) if plain and not multi else None, line_at))
+        elif c.isalpha() or c == '_':
+            m = re.match(r'[A-Za-z_][A-Za-z0-9_]*', text[i:])
+            toks.append(('id', m.group(0), line))
+            i += len(m.group(0))
+        elif c.isdigit():
+            m = re.match(r'[0-9][0-9A-Za-z_.]*', text[i:])
+            toks.append(('num', m.group(0), line))
+            i += len(m.group(0))
+        elif text.startswith('==', i):
+            toks.append(('p', '==', line))
+            i += 2
+        else:
+            toks.append(('p', c, line))
+            i += 1
+    return toks
+
+
+# 指令名稱所在的運算式：`switch name {`、`switch args[0] {`、`switch args.first {`、`name == "x"`、`args[0] == "x"`
+SUBJECTS = [[('id', 'name')], [('id', 'args'), ('p', '['), ('num', '0'), ('p', ']')], [('id', 'args'), ('p', '.'), ('id', 'first')]]
+# `case` 前面是這些時，是條件裡的 `if case`、`guard case`、`for case`，不是 switch 的標籤
+NOT_LABEL = {'if', 'guard', 'while', 'for', ',', '&&', '||'}
+
+
+def command_names(path, text):
+    """fork design §F0.7：從一個 Swift 檔找出當成 DEBUG 指令名稱比對的字面值。
+    - 主旨是 SUBJECTS 的 switch，最外層每個 case 的 pattern（逗號分隔、可跨行、有沒有空白都一樣）
+    - SUBJECTS == "字面值"、"字面值" == SUBJECTS（檔裡任何地方）
+    最外層的 pattern 只接受字串字面值（可以帶 where，字面值照樣算，寧可多算）；其他寫法（let、運算式、有插值的字串）
+    回報成問題要人工核對，不默默少算。回傳 (名稱集合, 問題清單)"""
+    toks = swift_tokens(text)
+    names, problems = set(), []
+    rel = os.path.relpath(path, ROOT)
+
+    def at(i, seq):
+        return [(k, v) for k, v, _ in toks[i:i + len(seq)]] == seq
+
+    def subject_len(i):
+        for seq in SUBJECTS:
+            if at(i, seq):
+                return len(seq)
+        return 0
+
+    for i, (kind, val, ln) in enumerate(toks):
+        if kind == 'p' and val == '==':
+            left = next((len(s) for s in SUBJECTS if i >= len(s) and at(i - len(s), s)), 0)
+            if left and i + 1 < len(toks) and toks[i + 1][0] == 'str':
+                if toks[i + 1][1] is None:
+                    problems.append(f'{rel}:{ln}：指令名稱跟不是單純字面值的字串比對，要人工核對（fork design §F0.7）')
+                else:
+                    names.add(toks[i + 1][1])
+            elif i > 0 and toks[i - 1][0] == 'str' and subject_len(i + 1):
+                if toks[i - 1][1] is None:
+                    problems.append(f'{rel}:{ln}：指令名稱跟不是單純字面值的字串比對，要人工核對（fork design §F0.7）')
+                else:
+                    names.add(toks[i - 1][1])
+        if not (kind == 'id' and val == 'switch'):
+            continue
+        k = subject_len(i + 1)
+        if not k or not at(i + 1 + k, [('p', '{')]):
+            continue
+        # switch 的本體：大括號深度 1 的 case 是最外層的標籤
+        src_lines = text.split('\n')
+
+        def indent(line_no):
+            raw = src_lines[line_no - 1] if 0 < line_no <= len(src_lines) else ''
+            return len(raw) - len(raw.lstrip(' \t'))
+
+        j, depth = i + 2 + k, 1
+        while j < len(toks) and depth:
+            kind2, val2, ln2 = toks[j]
+            if kind2 == 'p' and val2 in '{}':
+                depth += 1 if val2 == '{' else -1
+                if depth == 0:
+                    # 結尾的合理性：switch 的 } 要自己在一行的開頭、縮排跟 switch 那一行一樣。
+                    # 不是的話，可能是裡面的結構讓掃描提早結束，後面的 case 會漏掉
+                    first_on_line = toks[j - 1][2] < ln2
+                    if not (first_on_line and src_lines[ln2 - 1].lstrip().startswith('}') and indent(ln2) == indent(ln)):
+                        problems.append(f'{rel}:{ln}：DEBUG 指令 switch 的結尾（第 {ln2} 行）看起來不對，可能提早結束、漏掉後面的 case，要人工核對（fork design §F0.7）')
+                j += 1
+                continue
+            if depth == 1 and kind2 == 'id' and val2 == 'case' and not (j > 0 and toks[j - 1][1] in NOT_LABEL):
+                # 收到同一層的冒號為止：小括號、中括號、大括號（where 裡的閉包）裡的冒號、逗號都不算
+                items, cur, nest, closed, j = [], [], 0, False, j + 1
+                while j < len(toks):
+                    t = toks[j]
+                    if t[0] == 'p' and t[1] in '([{':
+                        nest += 1
+                    elif t[0] == 'p' and t[1] in ')]}':
+                        nest -= 1
+                        if nest < 0:
+                            break
+                    elif t[0] == 'p' and t[1] in ':,' and nest == 0:
+                        items.append(cur)
+                        cur = []
+                        if t[1] == ':':
+                            closed = True
+                            break
+                        j += 1
+                        continue
+                    cur.append(t)
+                    j += 1
+                if not closed:
+                    problems.append(f'{rel}:{ln2}：DEBUG 指令 switch 的 case 找不到結尾的冒號，要人工核對（fork design §F0.7）')
+                    if cur:
+                        items.append(cur)
+                for item in items:
+                    ok = item and item[0][0] == 'str' and item[0][1] is not None and (len(item) == 1 or item[1][1] == 'where')
+                    # where 條件裡有閉包（{）或 ?（三元運算、optional chaining）時，冒號可能屬於條件本身，
+                    # 這裡不完整解析 Swift：一律要人工核對，不繼續猜
+                    tricky = ok and len(item) > 1 and any(t[0] == 'p' and t[1] in '{}?' for t in item[2:])
+                    if ok and not tricky:
+                        names.add(item[0][1])
+                    else:
+                        if ok:
+                            names.add(item[0][1])
+                        shown = ' '.join('"…"' if t[0] == 'str' else t[1] for t in item)[:60]
+                        why = 'where 條件裡有閉包或 ?，冒號可能屬於條件本身' if tricky else '不是字串字面值'
+                        problems.append(f'{rel}:{ln2}：DEBUG 指令 switch 最外層的 case {why}（{shown}），看不出會不會撞名，要人工核對（fork design §F0.7）')
+                j += 1 if closed else 0   # 沒收到冒號就停在原地，讓外層照常算大括號
+                continue
+            j += 1
+        if depth:
+            problems.append(f'{rel}:{ln}：DEBUG 指令 switch 找不到結尾的大括號，要人工核對（fork design §F0.7）')
+    return names, problems
+
+
+def check_debug_commands(manifest):
+    """fork design §F0.7：ForkDebug.intercept 在上游 switch 之前接 fork 的指令，名稱不能跟上游撞（shadowed 除外）。
+    上游 DebugControl、fork 的 *Debug.swift 用同一套規則（command_names）收集指令名稱。
+    沒有 ForkDebug.swift 的 repo（isolation-check-test 的小 repo）不檢查"""
+    fork_debug = os.path.join(ROOT, 'Sources', 'Shiyin', 'Fork', 'Debug', 'ForkDebug.swift')
+    upstream = os.path.join(ROOT, 'Sources', 'Shiyin', 'Debug', 'DebugControl.swift')
+    if not (os.path.isfile(fork_debug) and os.path.isfile(upstream)):
+        return []
+    problems = []
+    src = open(fork_debug, encoding='utf-8').read()
+
+    def literal(name):
+        m = re.search(r'static let ' + name + r': Set<String> = \[(.*?)\]', src, re.S)
+        if not m:
+            return None
+        toks = swift_tokens(m.group(1))
+        if any(t[0] == 'str' and t[1] is None for t in toks) or any(t[0] not in ('str',) and t[1] != ',' for t in toks):
+            return None
+        return {t[1] for t in toks if t[0] == 'str'}
+
+    commands, shadowed = literal('commands'), literal('shadowed')
+    if commands is None or shadowed is None:
+        return ['ForkDebug.swift 找不到 commands 或 shadowed 的清單，或清單裡不是單純的字串字面值（fork design §F0.7）']
+    # manifest 的 debugCommands：單字的才是 fork 自己的頂層指令；多字的（「hotkey mute」）是上游指令的子指令，
+    # 第一個字（hotkey）是 intercept 會比對、但交給上游的名稱
+    all_listed = [c for f in manifest['features'].values() for c in (f.get('debugCommands') or [])]
+    listed = {c for c in all_listed if ' ' not in c}
+    sub_parents = {c.split()[0] for c in all_listed if ' ' in c}
+    if listed != commands:
+        problems.append(f'ForkDebug.commands 跟 manifest 的 debugCommands 不同：只在程式 {sorted(commands - listed)}、只在 manifest {sorted(listed - commands)}')
+    found = set()
+    for dirpath, _, files in os.walk(os.path.join(ROOT, 'Sources', 'Shiyin', 'Fork')):
+        for name in sorted(files):
+            if name.endswith('Debug.swift'):
+                path = os.path.join(dirpath, name)
+                got, bad = command_names(path, open(path, encoding='utf-8').read())
+                found |= got
+                problems += bad
+    if found - sub_parents != commands:
+        problems.append(f'ForkDebug.commands 跟 Fork/*Debug.swift 比對的指令不同：只在清單 {sorted(commands - found)}、只在程式 {sorted(found - sub_parents - commands)}')
+    # fork 的接點行（intercept）不算上游的指令；換成空行，行號照舊
+    up_lines = ['' if 'MA-FORK' in l else l for l in open(upstream, encoding='utf-8').read().splitlines()]
+    up_cases, bad = command_names(upstream, '\n'.join(up_lines))
+    problems += bad
+    if not up_cases:
+        problems.append('上游 DebugControl 找不到 DEBUG 指令的 switch（switch name／args[0]／args.first），看不出會不會撞名（fork design §F0.7）')
+    clash = (commands & up_cases) - shadowed
+    if clash:
+        problems.append(f'fork 的 DEBUG 指令跟上游 DebugControl 同名（會被 ForkDebug.intercept 先接走）：{sorted(clash)}')
+    missing = shadowed - up_cases
+    if missing:
+        problems.append(f'ForkDebug.shadowed 列的指令上游已經沒有了：{sorted(missing)}（拿掉或改回一般指令）')
+    lost = sub_parents - up_cases
+    if lost:
+        problems.append(f'manifest 的子指令（例如 hotkey mute）所屬的上游指令已經沒有了：{sorted(lost)}')
+    return problems
+
+
 def check_manifest(manifest, markers):
     problems, warnings = [], []
     feats = manifest['features']
@@ -212,6 +457,7 @@ def main():
         manifest = json.load(open(MANIFEST, encoding='utf-8'))
     mproblems, warnings = check_manifest(manifest, markers)
     problems += mproblems
+    problems += check_debug_commands(manifest)
 
     print(f'基準：{base}')
     print(f'{"上游檔":<48} {"種類":<6} {"加":>4} {"減":>4}  接點（依功能）')

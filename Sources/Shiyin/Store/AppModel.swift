@@ -880,7 +880,6 @@ final class AppModel {
     private func recordingFinished(_ result: Recorder.Result) {
         MeetingPromptPanel.shared.close()   // 還開著的「要停止錄音嗎？」不用了
         GlobalHotKey.shared.setBookmarkEnabled(false)   // 不錄音時不佔用 ⌃⌥⌘B
-        GlobalHotKey.shared.setMuteEnabled(false)   // MA-FORK(F3)
         do {
             if let error = result.error {
                 errorMessage = error

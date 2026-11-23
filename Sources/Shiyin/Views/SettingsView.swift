@@ -1271,7 +1271,7 @@ struct RecordingSettings: View {
                 .onChange(of: bookmarkHotKey) { _, enabled in
                     GlobalHotKey.shared.setBookmarkEnabled(enabled && model.recorder.isRecording)
                 }
-            ForkMuteSettingsRow()   // MA-FORK(F3)
+            ForkRecordingSettingsRows()   // MA-FORK(F0)：fork 的設定列（F3 的 ⌃⌥⌘M；fork design §F0.7）
         }
     }
 

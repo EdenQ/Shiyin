@@ -27,7 +27,7 @@ enum DebugControl {
     private static func handle(_ args: [String]) {
         let model = AppModel.shared
         guard let name = args.first else { return }
-        if ForkDebug.shadows(args, model: model) { return }   // MA-FORK(F0)：fork 的 windowshot 蓋過上游同名的指令（5.0.1 的行為）
+        if ForkDebug.intercept(args, model: model) { return }   // MA-FORK(F0)：fork 的 DEBUG 指令、蓋過上游的 windowshot、hotkey mute（fork design §F0.7）
         let id = args.count > 1 ? Int64(args[1]) : nil
         switch name {
         case "select": model.showTrash = false; model.selection = id
@@ -946,7 +946,7 @@ enum DebugControl {
         case "usagesend": Task { await UsageStats.shared.sendPending() }
         // 全域快捷鍵（R11.3）：不能送按鍵，用這個模擬按下
         case "hotkey":   // hotkey [bookmark]：模擬按下 ⌃⌥⌘R（或 ⌃⌥⌘B）
-            if args.count > 1 && args[1] == "mute" { GlobalHotKey.shared.fireMute() } else if args.count > 1 && args[1] == "bookmark" { GlobalHotKey.shared.fireBookmark() } else { GlobalHotKey.shared.fire() }   // MA-FORK(F3)：hotkey mute
+            if args.count > 1 && args[1] == "bookmark" { GlobalHotKey.shared.fireBookmark() } else { GlobalHotKey.shared.fire() }
         case "hotkeyenable": GlobalHotKey.shared.setEnabled(args[1] == "1")
         // 點通知後的動作（系統的點擊沒辦法模擬，直接呼叫同一個處理函式）
         case "opennotification": if let id { model.notifier.onOpen?(id) }
@@ -1085,7 +1085,7 @@ enum DebugControl {
                 let settings = await UNUserNotificationCenter.current().notificationSettings()
                 write(["authorization": settings.authorizationStatus.rawValue], to: args[1])
             }
-        default: if !ForkDebug.handle(args, model: model) { log.error("unknown debug command \(name)") }   // MA-FORK(F0)：fork 的 DEBUG 指令
+        default: log.error("unknown debug command \(name)")
         }
     }
 

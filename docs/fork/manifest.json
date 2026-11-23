@@ -276,27 +276,27 @@
         },
         {
           "file": "Sources/Shiyin/Store/AppModel.swift",
-          "line": 1198,
+          "line": 1197,
           "hook": "func speakerEditProblem(_ id: Int64, transcript: Bool = false) -> String? {"
         },
         {
           "file": "Sources/Shiyin/Store/AppModel.swift",
-          "line": 1244,
+          "line": 1243,
           "hook": "if AppSettings.voiceprints, source == \"manual\" || source == \"suggestion\" || source == \"tag\" {"
         },
         {
           "file": "Sources/Shiyin/Store/AppModel.swift",
-          "line": 1936,
+          "line": 1935,
           "hook": "let b = ForkSpeakerTags.attach(b, db: db, meetingId: meetingId)"
         },
         {
           "file": "Sources/Shiyin/Store/AppModel.swift",
-          "line": 2088,
+          "line": 2087,
           "hook": "if parts.contains(.speakerTags) { updated.speakerTags = (try? db.speakerTags(id)) ?? [] }"
         },
         {
           "file": "Sources/Shiyin/Store/AppModel.swift",
-          "line": 2096,
+          "line": 2095,
           "hook": "if !parts.isDisjoint(with: [.segments, .corrections, .speakerTags]) || !segmentIds.isEmpty { updated.buildIndexes() }"
         },
         {
@@ -433,13 +433,11 @@
         "Sources/Shiyin/App/ShiyinApp.swift",
         "Sources/Shiyin/Capture/Recorder.swift",
         "Sources/Shiyin/Capture/RecordingWriter.swift",
-        "Sources/Shiyin/Debug/DebugControl.swift",
         "Sources/Shiyin/Services/GlobalHotKey.swift",
         "Sources/Shiyin/Store/AppModel.swift",
         "Sources/Shiyin/Views/IslandView.swift",
         "Sources/Shiyin/Views/MenuBar.swift",
-        "Sources/Shiyin/Views/RecordingView.swift",
-        "Sources/Shiyin/Views/SettingsView.swift"
+        "Sources/Shiyin/Views/RecordingView.swift"
       ],
       "symbols": [
         "ForkMute",
@@ -554,11 +552,6 @@
           "hook": "} else if mutedNow[0] != mutedNow[1] { onMix?(frames[mutedNow[0] ? 1 : 0])"
         },
         {
-          "file": "Sources/Shiyin/Debug/DebugControl.swift",
-          "line": 949,
-          "hook": "if args.count > 1 && args[1] == \"mute\" { GlobalHotKey.shared.fireMute() } else if args.count > 1 && args[1] == \"bookmark\" { GlobalHotKey.shared.fireBookmark() } else { GlobalHotKey.shared.fire() }"
-        },
-        {
           "file": "Sources/Shiyin/Services/GlobalHotKey.swift",
           "line": 44,
           "hook": "func register(_ id: UInt32, key: Int) -> OSStatus {"
@@ -582,11 +575,6 @@
           "file": "Sources/Shiyin/Store/AppModel.swift",
           "line": 730,
           "hook": "var mainWindowInFront: Bool {"
-        },
-        {
-          "file": "Sources/Shiyin/Store/AppModel.swift",
-          "line": 883,
-          "hook": "GlobalHotKey.shared.setMuteEnabled(false)"
         },
         {
           "file": "Sources/Shiyin/Views/IslandView.swift",
@@ -632,11 +620,6 @@
           "file": "Sources/Shiyin/Views/RecordingView.swift",
           "line": 117,
           "hook": ".forkHidden(recorder.canMuteMic)"
-        },
-        {
-          "file": "Sources/Shiyin/Views/SettingsView.swift",
-          "line": 1274,
-          "hook": "ForkMuteSettingsRow()"
         }
       ],
       "watchKeywords": {
@@ -1028,7 +1011,10 @@
         "ForkAppState",
         "ForkStartup",
         "ForkStartup.install",
-        "ForkAppMenuCommands"
+        "ForkAppMenuCommands",
+        "ForkDebug.intercept",
+        "ForkDebug.commands",
+        "ForkRecordingSettingsRows"
       ],
       "settingsKeys": [],
       "debugCommands": [
@@ -1054,12 +1040,7 @@
         {
           "file": "Sources/Shiyin/Debug/DebugControl.swift",
           "line": 30,
-          "hook": "if ForkDebug.shadows(args, model: model) { return }"
-        },
-        {
-          "file": "Sources/Shiyin/Debug/DebugControl.swift",
-          "line": 1088,
-          "hook": "default: if !ForkDebug.handle(args, model: model) { log.error(\"unknown debug command \\(name)\") }"
+          "hook": "if ForkDebug.intercept(args, model: model) { return }"
         },
         {
           "file": "Sources/Shiyin/Debug/DebugControl.swift",
@@ -1080,13 +1061,19 @@
           "file": "Sources/Shiyin/Store/AppModel.swift",
           "line": 468,
           "hook": "ForkStartup.install(self)"
+        },
+        {
+          "file": "Sources/Shiyin/Views/SettingsView.swift",
+          "line": 1274,
+          "hook": "ForkRecordingSettingsRows()"
         }
       ],
       "upstreamFiles": [
         "Sources/Shiyin/App/ShiyinApp.swift",
         "Sources/Shiyin/Debug/DebugControl.swift",
         "Sources/Shiyin/Services/Notifier.swift",
-        "Sources/Shiyin/Store/AppModel.swift"
+        "Sources/Shiyin/Store/AppModel.swift",
+        "Sources/Shiyin/Views/SettingsView.swift"
       ]
     },
     "F10": {
