@@ -750,7 +750,8 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
   - 每種情況 `maisland mode`／`simulate` 之後等 1 秒（大於 0.5 秒的 Timer），用 `maisland screens` 和 `state` 的 `island` 核對：島的 `frame` 整個在 `expected` 螢幕的 `frame` 裡（水平置中在那個螢幕或瀏海的中間）；`notch` 等於那個螢幕的 `notch`。
   - 情況：`builtin`（有內建螢幕時在內建螢幕）、`follow`（`pick` 是 null、在 `upstream` 螢幕，跟上游算的一樣）、`mainWindow` 模擬主視窗在每一個螢幕、模擬主視窗關著（用記下的）、記下的清掉（退到上游）、`builtin` 加模擬沒有內建螢幕（退到主視窗的螢幕；主視窗關著又沒記下時退到上游）。
   - 只接一個螢幕的電腦：「每一個螢幕」只有一個，照樣核對退路；這台的螢幕數寫進證據。
-  - 停止錄音；`maisland simulate` 全部 off。
+  - 最後 `maisland simulate off`；不停止錄音（停止後的轉錄會在暫存的 `SHIYIN_HOME` 下載、編譯說話者辨識的模型，跟 F11 無關，2026-11-23 在 CoreML 編譯時當掉過一次），錄音中的 DEBUG 版由 check.sh 結束。
+  - fork 還沒帶入上游 4c3a8d3（錄音島的面板存在時，DEBUG 的 `state` 會讓 app 當掉），所以一律用 `maisland screens`，不呼叫 `state`。
 - 截圖：`mawindowshot <輸出> island` 拍內建螢幕（瀏海）、外接螢幕（膠囊）的樣子各一張，放進證據（需要時看）。
 - 使用者在電腦前（acceptance-mac 場次 7）：真的切換操作螢幕、闔上筆電、全螢幕的會議 app。
 - 測完 `defaults read` 正式網域前後比對：完全相同（check.sh #12）。
