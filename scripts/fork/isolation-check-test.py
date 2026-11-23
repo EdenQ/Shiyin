@@ -115,6 +115,79 @@ def scenario_script_rename(repo):
     git(repo, 'commit', '-q', '-m', 'move script')
 
 
+UPSTREAM_DEBUG = '''enum DebugControl {
+    static func handle(_ args: [String]) {
+        guard let name = args.first else { return }
+        switch name {
+%s
+        default: break
+        }
+    }
+}
+'''
+FORK_DEBUG = '''enum ForkDebug {
+    static let commands: Set<String> = [%s]
+    static let shadowed: Set<String> = [%s]
+    static func intercept(_ args: [String]) -> Bool { commands.contains(args[0]) }
+}
+'''
+FORK_HANDLER = '''enum MuteDebug {
+    static func handle(_ args: [String]) -> Bool {
+        switch args[0] {
+%s
+        default: return false
+        }
+        return true
+    }
+}
+'''
+
+
+def debug_repo(root, name, upstream, handler='        case "micmute": break', commands=('micmute',), shadowed=()):
+    """上游 DebugControl 的 switch 本體是 upstream；fork 加接點、ForkDebug（commands、shadowed）、MuteDebug（handler）"""
+    repo = os.path.join(root, name)
+    os.makedirs(repo)
+    git(repo, 'init', '-q', '-b', 'main')
+    write(repo, 'Sources/Shiyin/Debug/DebugControl.swift', UPSTREAM_DEBUG % upstream)
+    manifest = {'upstream': {'base': {'tag': 'base'}}, 'rules': {'upstreamLineBudget': 100},
+                'features': {'F0': {'forkFiles': [], 'symbols': [], 'upstreamFiles': [], 'markers': [],
+                                    'debugCommands': list(commands)}}}
+    write(repo, 'docs/fork/manifest.json', json.dumps(manifest, indent=2) + '\n')
+    git(repo, 'add', '-A')
+    git(repo, 'commit', '-q', '-m', 'base')
+    git(repo, 'tag', 'base')
+    path = os.path.join(repo, 'Sources/Shiyin/Debug/DebugControl.swift')
+    text = open(path, encoding='utf-8').read().replace('else { return }\n', 'else { return }\n        if ForkDebug.intercept(args) { return }   // MA-FORK(F0)\n', 1)
+    write(repo, 'Sources/Shiyin/Debug/DebugControl.swift', text)
+    quote = lambda xs: ', '.join(f'"{x}"' for x in xs)
+    write(repo, 'Sources/Shiyin/Fork/Debug/ForkDebug.swift', FORK_DEBUG % (quote(commands), quote(shadowed)))
+    write(repo, 'Sources/Shiyin/Fork/Mute/MuteDebug.swift', FORK_HANDLER % handler)
+    run(repo, '--write')
+    return repo
+
+
+# (名稱, 上游 switch 的本體, 其他參數, 預期 exit)
+DEBUG_CASES = [
+    ('debug-ok', '        case "state": break', {}, 0),
+    ('debug-shadowed-ok', '        case "state", "windowshot": break',
+     {'handler': '        case "micmute", "windowshot": break', 'commands': ('micmute', 'windowshot'), 'shadowed': ('windowshot',)}, 0),
+    ('debug-comment-only', '        // case "micmute": 以前的寫法\n        case "state": break /* "micmute" */', {}, 0),
+    ('debug-where-ok', '        case "model" where args.count > 2: break', {}, 0),
+    ('clash-spaced', '        case "state", "micmute": break', {}, 1),
+    ('clash-compact', '        case "state","micmute": break', {}, 1),
+    ('clash-multiline', '        case "state",\n             "micmute": break', {}, 1),
+    ('clash-comment-between', '        case "state", /* 舊的 */ "micmute": break', {}, 1),
+    ('clash-where', '        case "state", "micmute" where args.count > 1: break', {}, 1),
+    ('clash-if-compare', '        case "state":\n            if name == "micmute" { break }', {}, 1),
+    ('clash-unknown-pattern', '        case let x where x.hasPrefix("mic"): break', {}, 1),
+    ('fork-compact-ok', '        case "state": break',
+     {'handler': '        case "micmute","tagui": break', 'commands': ('micmute', 'tagui')}, 0),
+    ('fork-spaced-unlisted', '        case "state": break', {'handler': '        case "micmute", "state": break'}, 1),
+    ('fork-compact-unlisted', '        case "state": break', {'handler': '        case "micmute","state": break'}, 1),
+    ('fork-multiline-unlisted', '        case "state": break', {'handler': '        case "micmute",\n             "state": break'}, 1),
+    ('fork-unknown-pattern', '        case "state": break', {'handler': '        case "micmute": break\n        case let x where x.hasPrefix("ma"): break'}, 1),
+]
+
 CASES = [
     ('clean', scenario_clean, 0),
     ('new-fork-file', scenario_new_fork_file, 0),
@@ -146,7 +219,18 @@ def main():
                 problems = [l for l in out.splitlines() if l.startswith('  - ')]
                 for line in problems or out.splitlines()[-3:]:
                     print('       ' + line)
-    print(f'\n{len(CASES) - failures}/{len(CASES)} 通過')
+        for name, upstream, extra, expected in DEBUG_CASES:
+            repo = debug_repo(root, name, upstream, **extra)
+            code, out = run(repo)
+            ok = code == expected
+            failures += not ok
+            print(f'{"ok  " if ok else "FAIL"} {name:<22} exit {code}（預期 {expected}）')
+            if VERBOSE or not ok:
+                problems = [l for l in out.splitlines() if l.startswith('  - ')]
+                for line in problems or out.splitlines()[-3:]:
+                    print('       ' + line)
+    total = len(CASES) + len(DEBUG_CASES)
+    print(f'\n{total - failures}/{total} 通過')
     sys.exit(1 if failures else 0)
 
 
