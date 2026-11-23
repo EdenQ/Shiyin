@@ -1126,6 +1126,51 @@
         "python3 scripts/fork/f10-backup-check.py <SHIYIN_HOME> <shiyinctl> --out <資料夾>",
         "scripts/fork/check.sh --only 14"
       ]
+    },
+    "F11": {
+      "title": "錄音島放在哪個螢幕",
+      "design": "docs/fork/design.md §F11",
+      "forkFiles": [
+        "Sources/Shiyin/Fork/Island/ForkIsland.swift",
+        "Sources/Shiyin/Fork/Island/IslandScreenViews.swift",
+        "Sources/Shiyin/Fork/Island/IslandDebug.swift",
+        "scripts/fork/f11-island-check.py"
+      ],
+      "upstreamFiles": [
+        "Sources/Shiyin/App/RecordingIsland.swift"
+      ],
+      "symbols": [
+        "ForkIsland",
+        "ForkIsland.screen",
+        "ForkIsland.pick",
+        "ForkIsland.install",
+        "ForkIslandScreenRow"
+      ],
+      "keywords": [
+        "錄音島放在",
+        "內建螢幕",
+        "主視窗所在的螢幕",
+        "maIslandScreen"
+      ],
+      "settingsKeys": [
+        "maIslandScreen"
+      ],
+      "debugCommands": [
+        "maisland"
+      ],
+      "migrations": [],
+      "tables": [],
+      "markers": [
+        {
+          "file": "Sources/Shiyin/App/RecordingIsland.swift",
+          "line": 110,
+          "hook": "guard let panel, let screen = ForkIsland.screen() ?? NSScreen.main ?? NSScreen.screens.first else { return }"
+        }
+      ],
+      "checks": [
+        "python3 scripts/fork/f11-island-check.py <SHIYIN_HOME> <shiyinctl> --out <資料夾>",
+        "scripts/fork/check.sh --only 15"
+      ]
     }
   },
   "highRisk": [

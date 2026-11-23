@@ -3360,6 +3360,23 @@
         }
       }
     },
+    "主視窗所在的螢幕": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "主窗口所在的屏幕"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Screen with the main window"
+          }
+        }
+      }
+    },
     "之前選的麥克風（沒有接上，會用系統預設）": {
       "extractionState": "manual",
       "localizations": {
@@ -4689,6 +4706,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "内建模板不能修改，可以按“复制”做一份自己的。"
+          }
+        }
+      }
+    },
+    "內建螢幕": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "内建屏幕"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Built-in display"
           }
         }
       }
@@ -21748,6 +21782,23 @@
         }
       }
     },
+    "跟著目前在用的螢幕": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跟着目前在用的屏幕"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Screen you're using"
+          }
+        }
+      }
+    },
     "跳到第一處": {
       "extractionState": "manual",
       "localizations": {
@@ -23497,6 +23548,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "选一场会议来还原或永久删除。"
+          }
+        }
+      }
+    },
+    "選內建螢幕時，筆電闔上或沒有內建螢幕就放在主視窗所在的螢幕。偵測到線上會議的提醒也在同一個螢幕。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选内建屏幕时，笔电阖上或没有内建屏幕就放在主窗口所在的屏幕。检测到线上会议的提醒也在同一个屏幕。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "With Built-in display, the island moves to the screen with the main window when the laptop lid is closed or there is no built-in display. Online meeting alerts appear on the same screen."
           }
         }
       }
@@ -25357,6 +25425,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "录音写不进磁盘（可能是空间不足），已经停止录音。停止前录到的部分有保留，会照常转录。"
+          }
+        }
+      }
+    },
+    "錄音島放在": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录音岛放在"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show recording island on"
           }
         }
       }

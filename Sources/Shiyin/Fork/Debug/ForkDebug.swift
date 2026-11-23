@@ -13,6 +13,7 @@ enum ForkDebug {
         "micmute",                                                             // F3
         "copysection", "topicsegments", "topicscroll", "topiccollapse",       // F4
         "mabackup",                                                            // F10
+        "maisland",                                                            // F11
     ]
 
     /// 跟上游同名、fork 要蓋過的指令：
@@ -34,7 +35,7 @@ enum ForkDebug {
 
     static func handle(_ args: [String], model: AppModel) -> Bool {
         guard !args.isEmpty else { return false }
-        return general(args, model: model) || speakerTags(args, model: model) || mute(args, model: model) || notes(args, model: model) || backup(args, model: model)
+        return general(args, model: model) || speakerTags(args, model: model) || mute(args, model: model) || notes(args, model: model) || backup(args, model: model) || island(args, model: model)
     }
 
     static func augmentState(_ out: inout [String: Any], model: AppModel) {
@@ -73,7 +74,9 @@ enum ForkDebug {
 
     /// 同上游 DebugControl 的 write（那份是 private）
     static func write(_ object: [String: Any], to path: String) {
-        guard let data = try? JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys]) else { return }
+        // 寫不進 JSON 的值（無限大、NaN）JSONSerialization 會丟 Objective-C 例外、整個 app 當掉：先檢查，寫不進去就不寫
+        guard JSONSerialization.isValidJSONObject(object),
+              let data = try? JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys]) else { return }
         try? data.write(to: URL(fileURLWithPath: path))
     }
 }

@@ -107,7 +107,7 @@ final class RecordingIsland {
     }
 
     func place(animated: Bool) {
-        guard let panel, let screen = NSScreen.main ?? NSScreen.screens.first else { return }
+        guard let panel, let screen = ForkIsland.screen() ?? NSScreen.main ?? NSScreen.screens.first else { return }   // MA-FORK(F11)：錄音島放在哪個螢幕（fork design §F11.1）
         let notch = IslandNotch(screen: screen)
         if state.notch != notch { state.notch = notch }
         let width = max(contentSize.width, 1), height = max(contentSize.height, 1)

@@ -26,6 +26,7 @@
 | F3 靜音 | `Mute/`：`MicMute`（`ForkMute`、`extension Recorder/GlobalHotKey/AppSettings/AppModel`）、`MuteViews`、`MuteDebug`、`ForkMuteSettingsRow`、`ForkIslandMute` | Recorder、RecordingWriter（`muted`、`setMuted`、混音，跟寫檔的鎖綁在一起，留在原檔）、GlobalHotKey、AppModel、RecordingView、MenuBar、ShiyinApp、IslandView、RecordingIsland（設定列、`hotkey mute`、停止時關 ⌃⌥⌘M 改走 F0 的共用入口，§F0.7） |
 | F4 條列頁 | `Notes/`：`NotesListViews`（`ForkNotesList` 整個條列模式、`ForkNotesSection`、`NoteRow`、`TopicBlock`、`TopicChips`、`ForkActionItemsTable`、`FlowLayout`）、`NotesModel`（`NotesSectionScope`、`plainSection`、`topicSegments`、顏色、`AppModel` 的議題狀態、播放條的 `forkTrackTopic`）、`NotesDebug` | NotesTabs（條列模式換成 `ForkNotesList`；`ItemList` 的符號、`NoteRow`）、PlayerBar、AppModel、MindMap（`clean`、`shownTopics` 改 internal） |
 | F7 品牌 | `Brand.swift`（「關於 MA」的 `BrandAboutCommand` 由 F0 的 `ForkAppMenuCommands` 放進選單） | ReleaseNotes、Reminders、IslandView、`build-app.sh`、`make-dmg.sh`、`make-update-fixtures.sh` |
+| F11 錄音島的螢幕 | `Island/`：`ForkIsland`（選螢幕、記下主視窗的螢幕、設定鍵）、`IslandScreenViews`（設定的「錄音島放在」）、`IslandDebug`（`maisland`） | RecordingIsland 的 `place`：`ForkIsland.screen() ?? NSScreen.main ?? NSScreen.screens.first`（§F11.1）；設定列走 F0 的 `ForkRecordingSettingsRows` |
 | DF5 | `DF5/LockedValue.swift` | AudioSources 的 `MicrophoneSource`、`FileSource`（`deviceUID`、`current` 用 `LockedValue` 存，7 行） |
 
 - 跟上游元件長得一樣的 fork 複本（上游改了原本的，複本不會跟著變；manifest 的 `highRisk` 有列，監看要比對）：`ForkTaggedSpeakerName`（上游 `AutoSpeakerName`，多了「標記」）、`ForkSubduedTimeButton`（`TimeButton`，平常淡色）、`ForkNotesSection`（`NotesSection`，條數、色條、複製鈕）、`ForkActionItemsTable`（`ActionItemsTable`，fork 的欄位順序）。上游的原元件不動，人物頁照用上游的 `NotesSection`。
@@ -50,7 +51,7 @@ scripts/fork/check.sh                 # 完整：建置、DEBUG 版實際操作�
 scripts/fork/check.sh --quick         # 只跑靜態的（不建 app、不開 DEBUG 版，約 1～2 分鐘）
 scripts/fork/check.sh --base-app <舊版.app>   # 品牌逐鍵比對的基準（預設：HEAD 之前最近的 fork tag 的 release 建置，見下）
 scripts/fork/check.sh --base-ref v5.0.1        # 基準改用這個 tag 建
-scripts/fork/check.sh --only 3,5,7    # 只跑這幾項（1～14、I1、I2、L、T、W、S；要用到的建置、DEBUG 版自己會建、會開）
+scripts/fork/check.sh --only 3,5,7    # 只跑這幾項（1～15、I1、I2、L、T、W、S；要用到的建置、DEBUG 版自己會建、會開）
 scripts/fork/check.sh --out <資料夾>  # 摘要、log、截圖放這裡（預設 $TMPDIR/shiyin-check-<時間>）
 scripts/fork/check.sh --keep          # 留下這次的 app、暫存 SHIYIN_HOME（除錯用）
 scripts/fork/check.sh --clean-cache   # 結束時連建置快取、基準版也刪掉
@@ -58,7 +59,7 @@ scripts/fork/check.sh --clean-cache   # 結束時連建置快取、基準版也�
 
 exit 0：沒有 FAIL（SKIP、需人工不算失敗）；1：有 FAIL；2：沒開始（使用者正在錄音、有別的 DEBUG 版在跑、拿不到開始時的設定快照、參數錯，含 `--only` 有不認得的項目或一項都沒選到）。
 
-`--only` 只收 `1`～`14`、`I1`、`I2`、`L`、`T`、`W`、`S`（逗號分隔），有一個不認得就 exit 2。跟 `--quick` 合用時：`--only` 決定跑哪幾項，`--quick` 只讓 3、4 停在靜態的部分（不建 app）；`--only` 選到的非 Q 項目（1、2、5～10、14、S）照常建置、開 DEBUG 版，所以 `--quick --only 5` 還是會建 app。摘要是輸出資料夾的 `summary.md`，最後也印在終端機。每一項一列：狀態（PASS／FAIL／SKIP／需人工）、耗時、證據路徑（log、JSON、截圖），細項寫在下面。
+`--only` 只收 `1`～`15`、`I1`、`I2`、`L`、`T`、`W`、`S`（逗號分隔），有一個不認得就 exit 2。跟 `--quick` 合用時：`--only` 決定跑哪幾項，`--quick` 只讓 3、4 停在靜態的部分（不建 app）；`--only` 選到的非 Q 項目（1、2、5～10、14、15、S）照常建置、開 DEBUG 版，所以 `--quick --only 5` 還是會建 app。摘要是輸出資料夾的 `summary.md`，最後也印在終端機。每一項一列：狀態（PASS／FAIL／SKIP／需人工）、耗時、證據路徑（log、JSON、截圖），細項寫在下面。
 
 **項目**（編號照 PLAN §8.1；`--quick` 只跑標 Q 的）
 
@@ -75,6 +76,7 @@ exit 0：沒有 FAIL（SKIP、需人工不算失敗）；1：有 FAIL；2：沒�
 | 9 | F4 | `scripts/dev/f4-check.py`（議題切段、中英日的分段複製） |
 | 10 | F4 加上 5.0 | **只自動驗證刪除**：`noteitem delete actionItems 0` 之後 `copysection` 的待辦少一條、其他條和別的段落照舊（示範會議的決議只有 1 條，刪了整段變空）；刪除後的 windowshot 放進截圖。`noteitem edit` 之後的樣式、「人物」頁不套 F4 樣式沒有自動驗證，摘要的說明欄寫明，留給 S 和使用者 |
 | 14 | F10 備份 | `scripts/fork/f10-backup-check.py`（§F10.8 的自動化：清理只動自己的一般檔、舊暫存檔在成功時清掉、排程和立即備份重疊時第二個回 `running`、錄完後到期的檢查會做） |
+| 15 | F11 錄音島的螢幕 | `scripts/fork/f11-island-check.py`（§F11.6 的自動化）。這一項要錄音島開著、放在桌面層：先結束這次的 DEBUG 版，用同一個測試複本、新的暫存 `SHIYIN_HOME` 加 `-recordingIsland YES -debugIslandBehind YES` 重開（其他參數照舊，`-debugQuietPrompts YES`），跑完結束；排在 S 後面 |
 | S | 截圖 | 繁中、英文各開一次 DEBUG 版：示範會議的紀錄、逐字稿分頁（`windowshot`）、設定「錄音」頁（`preview settings recording` 加 `mawindowshot`），加上 #8、#10 的圖，放在輸出資料夾的 `shots/`；狀態一律「需人工」（看條數、色條、「加到提醒事項」、靜音開關、提示列；還沒有基準圖，不做像素比對） |
 | 11 | DF5 | Q：`scripts/fork/tsan-lockedvalue/run.sh` |
 | 12 | 設定殘留 | Q：開始、結束各 `defaults export com.weiwei.shiyin`（正式 app 的網域），要逐位元組相同；不同時列出哪幾個鍵、FAIL，**保留現值、不改寫也不刪**（分不出是檢查還是使用者同時改的，例如使用者自己移動了主視窗）。DEBUG 版用測試專用的 bundle id（見安全規則），本來就不寫正式網域，所以這一項不靠任何還原。有選 DEBUG 版的項目（5～10、S）時另外核對 `shiyin://` 和 `.shiyin`（`com.weiwei.shiyin.meeting`）的預設處理程式在檢查前後相同：這時處理程式的快照是**必要的**，開始時沒拿到、結束時讀不到都算 FAIL，不會因為缺檔就跳過 |
@@ -284,7 +286,8 @@ exit 0：沒有 FAIL（SKIP、需人工不算失敗）；1：有 FAIL；2：沒�
 | `ForkAppMenuCommands(model:)` | ShiyinApp：`ForkAppMenuCommands(model: model)   // MA-FORK(F0)` | F7 關於 MA、F10 立即備份 |
 | `ForkDebug.intercept(args, model:)` | DebugControl `handle` 的 switch 之前：`if ForkDebug.intercept(args, model: model) { return }   // MA-FORK(F0)` | fork 全部的 DEBUG 指令、蓋過上游的 `windowshot`、上游 `hotkey` 的子指令 `hotkey mute` |
 | `ForkDebug.augmentState` | DebugControl `state` 的 `return out` 前 | 各功能 `state` 的欄位 |
-| `ForkRecordingSettingsRows()` | SettingsView「錄音與轉錄 → 提醒與快捷鍵」最後：`ForkRecordingSettingsRows()   // MA-FORK(F0)` | F3 的 ⌃⌥⌘M 開關；F11（錄音島放哪個螢幕）之後也放這裡 |
+| `ForkRecordingSettingsRows()` | SettingsView「錄音與轉錄 → 提醒與快捷鍵」最後：`ForkRecordingSettingsRows()   // MA-FORK(F0)` | F11 的「錄音島放在」、F3 的 ⌃⌥⌘M 開關 |
+| `ForkIsland.screen()` | RecordingIsland `place` 選螢幕的那一行：`ForkIsland.screen() ?? NSScreen.main ?? NSScreen.screens.first`（`// MA-FORK(F11)`） | F11 錄音島放在哪個螢幕；以後錄音島位置相關的 fork 功能也走這裡 |
 | `ForkBackupSettingsSection()` | SettingsView 一般頁 | F10（一般頁的 fork 設定以後也可以改成共用列） |
 
 **這次合併的 3 行**（99 → 96；HK-consolidate）：
@@ -697,6 +700,62 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
   - 改名後寫進磁碟（BK2a，§F10.1a 第 8a 步）：一般的 `now` 之後 `status` 的 `dirSync` 是 `full`（APFS）；`simulate dirsync nofull` 後 `now` 回 `done`、`dirSync` 是 `fsync`；`simulate dirsync fail` 後 `now` 照樣回 `done`、`dirSync` 是 `failed`、`lastError` 是空的、多一份 `integrity_check` ok 的備份、沒有殘檔。真的斷電、硬碟快取有沒有清，自動化測不到，只能照 §F10.1a 的說明。
   - 最後份數還是 7，反例的東西都還在。
 
+## F11. 錄音島放在哪個螢幕（F11，DF11）
+
+需求在 requirements F11。程式在 `Sources/Shiyin/Fork/Island/`：`ForkIsland.swift`（選螢幕、記下主視窗的螢幕、設定鍵、DEBUG 的模擬）、`IslandScreenViews.swift`（設定的「錄音島放在」）、`IslandDebug.swift`（`maisland`）。
+
+### F11.1 接點：`ForkIsland.screen()`
+
+- 上游 `RecordingIsland.place(animated:)` 的 `guard let panel, let screen = NSScreen.main ?? NSScreen.screens.first else { return }` 改成 `… let screen = ForkIsland.screen() ?? NSScreen.main ?? NSScreen.screens.first …   // MA-FORK(F11)`。改既有的一行，算 1 行接點（96 → 97）。
+- `ForkIsland.screen()` 回傳 nil 時就是上游原樣。`place` 後面的算法（`IslandNotch(screen:)` 的瀏海、位置、要不要 `setFrame`、動畫）不變，用的是選到的螢幕，所以瀏海的樣子自動跟著選到的螢幕。
+- 上游呼叫 `place` 的時機都不變：每 0.5 秒（要顯示時）、換 app、換桌面、螢幕設定變了、內容大小變了。選螢幕只看 `NSScreen.screens`（2～3 個）、`CGDisplayIsBuiltin`、主視窗，很便宜。
+- 偵測會議的提醒（R81.3）也是島顯示的，走同一個 `place`，所以一起固定（F11.5）。島關掉時才出現的 `MeetingDetector` 浮動視窗不經過這裡，照上游。
+
+### F11.2 選螢幕（`ForkIsland.pick()`）
+
+- 設定 `maIslandScreen`（`UserDefaults.standard` 的字串）：`follow`、`builtin`、`mainWindow`；沒有值、不認得時是 `builtin`（預設）。
+- `follow`：回傳 nil（上游）。
+- `builtin`：`NSScreen.screens` 裡第一個 `CGDisplayIsBuiltin(<NSScreenNumber>) != 0` 的螢幕；沒有時改用 `mainWindow` 的結果；再沒有回傳 nil。
+- `mainWindow`：
+  1. 主視窗（`identifier == "main"`）看得到、沒有縮到 Dock 時，它的 `window.screen`（視窗跟哪個螢幕重疊最多）；同時記下這個螢幕的 display ID。
+  2. 否則用最後一次記下的 display ID，在現在的 `NSScreen.screens` 裡找；找不到（拔掉了）就算沒有。
+  3. 都沒有：回傳 nil（上游）。
+- 記下主視窗的螢幕：`ForkIsland.install`（由 `ForkStartup.install` 呼叫）監聽 `NSWindow` 的 `didMove`、`didChangeScreen`、`didBecomeKey`、`willClose`、`willMiniaturize`，視窗是主視窗時記下它的螢幕；`pick()` 看到主視窗時也記。只記在記憶體（重開 app 後主視窗一開就會再記）。
+- 結果帶理由（DEBUG 用）：`follow`、`builtin`、`mainWindow`、`mainWindowRemembered`、`upstream`（退到上游）。
+
+### F11.3 設定列（`ForkIslandScreenRow`）
+
+- 放進 F0 的共用列 `ForkRecordingSettingsRows`（§F0.7），在 F3 的 ⌃⌥⌘M 開關前面，不加接點。
+- `Picker("錄音島放在", selection:)`，`@AppStorage("maIslandScreen")`（預設 `builtin`）：「跟著目前在用的螢幕」（`follow`）、「內建螢幕」（`builtin`）、「主視窗所在的螢幕」（`mainWindow`）。下面一行說明：「選內建螢幕時，筆電闔上或沒有內建螢幕就放在主視窗所在的螢幕。偵測到線上會議的提醒也在同一個螢幕。」
+- 錄音島關掉時（`@AppStorage(AppSettings.recordingIslandKey)` 是 false）`.disabled`。改了之後呼叫 `RecordingIsland.shared.place(animated: true)`，不用等下一個 0.5 秒。
+- 介面文字照 §F0.1 第 7 點：寫中文，`l10n.py check` 後用 `apply` 寫英文，簡中照 `zh-Hans-overrides`。
+
+### F11.4 DEBUG 的模擬（只在 DEBUG 版）
+
+- 啟動參數：`-maIslandNoBuiltin YES`（當成沒有內建螢幕）、`-maIslandMainScreen <N>`（當成主視窗在 `NSScreen.screens[N]`；`-1` 當成主視窗關著）。啟動時讀一次，`maisland simulate` 可以再改。
+- 模擬的主視窗也會記下螢幕，跟真的一樣；`maisland simulate remembered <N|none>` 直接設記下的螢幕。
+- 不真的移動視窗、不闔上筆電：真的移動主視窗會出現在使用者的畫面上。
+
+### F11.5 DEBUG 指令（`maisland`，`IslandDebug.swift`）
+
+- `maisland screens <輸出.json>`：每個螢幕的 `index`、`displayID`、`frame`、`builtin`（真的）、`notch`（`IslandNotch(screen:).hasNotch`）；`main`（`NSScreen.main` 的 index）、`placement`（設定值）、`pick`（`ForkIsland.screen()` 的 index，nil 是 null）、`reason`、`expected`（`place` 最後用的螢幕：`pick ?? main ?? 0`）、`upstream`（上游會用的：`main ?? 0`）、`mainWindow`（主視窗現在所在的螢幕 index）、`remembered`、`simulate`（模擬的值）、`island`（同 `state` 的 `island`）。
+- `maisland mode follow|builtin|mainWindow`：寫 `maIslandScreen`（測試版的設定網域），馬上 `place`。
+- `maisland simulate nobuiltin on|off`、`maisland simulate mainscreen <N|closed|off>`、`maisland simulate remembered <N|none>`：改模擬，馬上 `place`。
+
+### F11.6 驗證
+
+- 用測試 bundle id 的 DEBUG 版複本和暫存的 `SHIYIN_HOME`，錄音島開著、放在桌面層（`-recordingIsland YES -debugIslandBehind YES`，不出現在使用者的畫面上），`-debugQuietPrompts YES`。
+- 自動化：`scripts/fork/f11-island-check.py <SHIYIN_HOME> <shiyinctl> --out <資料夾>`（`check.sh` 的 #15）：
+  - `record-sim` 開始錄音，等 `state` 的 `island.visible`。
+  - 每種情況 `maisland mode`／`simulate` 之後等 1 秒（大於 0.5 秒的 Timer），用 `maisland screens` 和 `state` 的 `island` 核對：島的 `frame` 整個在 `expected` 螢幕的 `frame` 裡（水平置中在那個螢幕或瀏海的中間）；`notch` 等於那個螢幕的 `notch`。
+  - 情況：`builtin`（有內建螢幕時在內建螢幕）、`follow`（`pick` 是 null、在 `upstream` 螢幕，跟上游算的一樣）、`mainWindow` 模擬主視窗在每一個螢幕、模擬主視窗關著（用記下的）、記下的清掉（退到上游）、`builtin` 加模擬沒有內建螢幕（退到主視窗的螢幕；主視窗關著又沒記下時退到上游）。
+  - 只接一個螢幕的電腦：「每一個螢幕」只有一個，照樣核對退路；這台的螢幕數寫進證據。
+  - 最後 `maisland simulate off`；不停止錄音（停止後的轉錄會在暫存的 `SHIYIN_HOME` 下載、編譯說話者辨識的模型，跟 F11 無關，2026-11-23 在 CoreML 編譯時當掉過一次），錄音中的 DEBUG 版由 check.sh 結束。
+  - fork 還沒帶入上游 4c3a8d3（錄音島的面板存在時，DEBUG 的 `state` 會讓 app 當掉），所以一律用 `maisland screens`，不呼叫 `state`。
+- 截圖：`mawindowshot <輸出> island` 拍內建螢幕（瀏海）、外接螢幕（膠囊）的樣子各一張，放進證據（需要時看）。
+- 使用者在電腦前（acceptance-mac 場次 7）：真的切換操作螢幕、闔上筆電、全螢幕的會議 app。
+- 測完 `defaults read` 正式網域前後比對：完全相同（check.sh #12）。
+
 ## F-DB. 資料庫規則（PLAN-fork-5.0 §6）
 
 ### F-DB.1 規則
@@ -755,6 +814,7 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 | §49、§50（R73、R74） | 4.7.6 帶入上游 4.8.1 的寫法（F6）。§49.2、R73.6、R74.6 的 Windows 部分 fork 不做 |
 | §50.2 重新連接在背景 | fork 補的同步規則（DF5）：音源上會被兩個執行緒碰到的值都用 `LockedValue`（`NSLock`，每次讀寫只短暫拿鎖）存。`MicrophoneInput.deviceUID`：換麥克風時主執行緒寫、`deviceQueue` 上的 `start()` 讀；`current`（正在收音的裝置）：`start()` 在背景寫、主執行緒更新畫面時讀。`MicrophoneSource`、`FileSource` 一樣。不用 `deviceQueue.sync` 包住換麥克風：那會等整個重新連接做完，畫面又卡住（R74.4）。`start()` 一開始讀一次 UID 當這次的快照，中途換了就由 `restartAgain` 再做一次。`LockedValue` 的類別在 `Fork/DF5/LockedValue.swift`，用到的地方留在上游的 AudioSources、標 `MA-FORK(DF5)`。驗證：`LockedValue` 原樣放進不碰硬體的 ThreadSanitizer 小程式（`scripts/fork/tsan-lockedvalue/run.sh`），背景一直 `start()`、主執行緒一直換 UID、讀 current，沒有資料競態；改回普通屬性時 TSan 報告競態。上游的同一段沒有加鎖（上游仍有這個競態），上游哪天自己加鎖時刪掉 fork 的 |
 | 上游 5.0 的錄音島（R81、§57） | 靜音中（F3.7）：收起時紅點換成劃掉的麥克風（有提醒時琥珀色）；滑過去在音量下面寫「麥克風靜音中」加「打開麥克風」；靜音中好像有人說話的提醒（F3.4）跟錄音畫面的提示列一樣出現在島上，順序同提示列（沒人說話 → 靜音中好像有人說話 → 藍牙 → 收音）。`Fork/Mute/ForkIslandMute.swift` |
+| 上游 5.0 的錄音島放在哪個螢幕（R81.1、§57.1） | 上游用 `NSScreen.main`（目前在用的螢幕）；fork 預設固定在內建螢幕，設定可以改回上游的行為或選主視窗所在的螢幕（F11、§F11、DF11）。上游 `place` 其他的算法（瀏海、位置、動畫）不變，只換「哪個螢幕」 |
 | 上游 5.0 的收音檢查（R75、§51.1） | 靜音中不做麥克風的提醒（F3.5），但上游新的「錄不到電腦聲音」（系統音訊權限被拒）照樣提示：`checkLevels` 在 `checkSystemPermission` 和 `guard hasMic` 之後 1 行接點 |
 | 上游 5.0 的選單列圖示（`hint.symbol`） | 上游的收音提醒圖示優先，再來是 F3 的「忘了打開」提醒（`mic.badge.xmark`）、靜音中（`mic.slash.circle.fill`） |
 | 上游 5.0 的設定十一頁（R108） | F3 的「錄音中按 ⌃⌥⌘M 靜音」開關放在「錄音」頁的「提醒與快捷鍵」最後（`Fork/Mute/ForkMuteSettingsRow`，經 F0 的共用列 `ForkRecordingSettingsRows`，§F0.7） |
@@ -778,3 +838,4 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 | DF8 | fork 功能隔離到 `Sources/Shiyin/Fork/`，上游檔只留標了 `MA-FORK` 的單行接點（PLAN-fork-5.0 階段 2，2026-11-19）：狀態放 fork 自己的物件（`ForkAppState`、`MeetingDetail.forkTags`、`ForkMute.State`），要用的上游 `private` 成員改 internal 並標成接點，條列模式整頁、`AutoSpeakerName` 這種整塊改過的畫面用 fork 的複本；「只改這句」在 fork 的函式裡用一筆交易重用上游的 `saveSpeakerUndo`、`addSpeaker`、`removeEmptySpeakers`（兩個 private 的由 SpeakerEdits 裡各 1 行轉呼叫的接點 `forkSaveSpeakerUndo`、`forkAddSpeaker` 開出來），改句子說話者的那幾行是 fork 的複本（跟上游 `reassignSegments` 的迴圈相同）；不改成先呼叫上游的 `reassignSegments` 再另開一筆改名：第二筆失敗時第一筆已經存了（多出一位預設名稱的說話者、句子已改、留下復原快照），跟 5.0.1 的整筆回復不同（REVIEW-2 P2-1，`scripts/fork/f2-atomic-check.py` 用 SQLite trigger 讓改名失敗來檢查）；標記的名字存不存聲紋改由 `learnVoiceprint` 裡 1 行接點問 `ForkSpeakerTags.remembersVoice`；`LockedValue` 類別搬到 `Fork/DF5`；用 `isolation-check.py` 檢查（§F0.3） | 照舊在上游的函式加參數（`reassignSegments(name:)`、`learnVoiceprint(remember:)`）：改了上游函式的簽章，上游改同一個函式就衝突（§F0.1 第 4 點）。在上游元件加參數（`NotesSection` 的 count、accent、copy，`TimeButton` 的 subdued）：上游 5.0 就地編輯時已經衝突過一次，複本的代價是上游改原元件時要人工比對（manifest `highRisk`）。把上游的條列模式留著、fork 的另開一頁：同一份內容兩份程式，使用者看到的仍是 fork 的，上游的那份只是佔位。「只改這句」第二筆失敗時再補做復原：補做本身也可能失敗，中間別的寫入看得到改了一半的資料，不是原子性。接點的範圍用「開始、結束」兩個記號包住一段：可以包很長一段，失去「上游檔只留接點」的意思，行數也看不出來 |
 | DF9 | 定期備份用 sqlite3_backup（來源是 GRDB 讀取交易裡的快照；目的地自己用 `O_EXCL | O_NOFOLLOW` 建、`SQLITE_OPEN_NOFOLLOW` 開，§F10.1a），寫完跑 `integrity_check` 才改名；上一次成功的時間看 `backups/daily/` 裡最新的檔，不存在設定；設定（一般頁）的一段用 1 行接點（98 → 99），啟動、「MA」選單改走 F0 的共用入口 `ForkStartup`、`ForkAppMenuCommands`，換掉既有的 2 行（F10，2026-11-20 使用者確認） | `VACUUM INTO`：不能在交易裡跑，GRDB 的讀取一律包交易，要另開連線，又會重排整個檔，沒有多的好處。存 `maBackupLastSuccess`（需求草稿的寫法）：設定跟著 bundle id、不跟著 `SHIYIN_HOME`，換了資料夾（測試、示範資料夾）時會拿別的資料夾的時間判斷，所以改成看檔案、另存 `maBackupFailingSince` 算 7 天。各功能各加接點：會用掉剩下的 2 行；提高接點上限：使用者選共用入口 |
 | DF10 | 接點上限 100 不提高；行數快滿時把既有接點收進 F0 的共用入口（§F0.7）。這次收掉 3 行（99 → 96）：DebugControl 的 `default:` 和 `hotkey` 那兩行改由 switch 前的 `ForkDebug.intercept` 處理（fork 指令名稱跟上游不重疊，由 isolation-check 守住），AppModel 停止錄音時關 ⌃⌥⌘M 改由 `ForkMute.install` 包住 `recorder.onFinished`；設定的 F3 列改名成共用列 `ForkRecordingSettingsRows`（行數不變，給 F11 用）（HK-consolidate，2026-11-23 使用者決定先合併再做 F11） | 提高上限：使用者不要。把相鄰的兩行 fork 程式擠成一行（SpeakerEdits 的 `forkSaveSpeakerUndo`、`forkAddSpeaker`）：數字變小，但跟上游衝突的面積一樣，不算真的減少。GlobalHotKey 的 3 行（`register`、`unregister` 改 internal、事件處理裡分派 fork 的 id）改成 fork 自己裝 Carbon 的事件處理：按真的快捷鍵的路徑沒辦法自動測（不能送按鍵），處理的順序、吞不吞事件一錯就是兩個快捷鍵都壞。Recorder 的 `resetForStart`、`resetForStop` 改用回呼：`onStarted`、`onFinished` 被呼叫的時間點跟現在的位置（開始流程中、`cleanup` 裡）不同，要另外證明每條開始、停止、失敗的路徑都一樣，風險比省下的一行大。RecordingView、MenuBar 的麥克風音量條兩行（加 fork 的圖示、藏起或淡化上游的那條）：要藏上游的元件只能改它那一行。ReleaseNotes、AudioSources（DF5）、TranscriptTab 等改上游既有行的：一行就是一處邏輯，合併要改上游的寫法，合併上游時更容易衝突 |
+| DF11 | 錄音島預設固定在內建螢幕，設定可以選「跟著目前在用的螢幕」（上游 R81.1）、「內建螢幕」、「主視窗所在的螢幕」；沒有內建螢幕時退到主視窗所在的螢幕，再不行照上游；內建螢幕用 `CGDisplayIsBuiltin` 判斷；偵測會議的提醒跟島一起固定（F11，2026-11-23 使用者決定）。偏離上游 R81.1 的理由：上游每 0.5 秒、換 app 時把島搬到 `NSScreen.main`，多螢幕時使用者在哪個螢幕操作島就跟到哪，來回切換時一直跑；固定在一個螢幕位置可以預期，有瀏海的 MacBook 接在瀏海兩側最自然。上游的行為保留成一個選項。接點 1 行（96 → 97），寫成通用入口 `ForkIsland.screen()` | 一律固定在內建螢幕、不做設定：想要上游行為的人只能把島關掉。固定在「開始錄音時主視窗所在的螢幕」：用快捷鍵、會議提醒開始錄音時主視窗常常沒開，規則也難懂（這次在左邊、上次在右邊）。沒有內建螢幕時固定在主要螢幕（有選單列的那個）：使用者要的是主視窗所在的螢幕。用螢幕名稱（`localizedName`）認內建螢幕：名稱跟著系統語言變、可以改名。不加接點、fork 在外面另外搬視窗：上游下一個 0.5 秒又搬回去，島在兩個螢幕之間閃。覆寫 `IslandPanel.setFrame`、在執行期換掉 `NSScreen.main`：要動上游的 `final class` 或用 Objective-C runtime，太脆弱。提醒維持跟著目前在用的螢幕：要多一套判斷，使用者決定一起固定 |
