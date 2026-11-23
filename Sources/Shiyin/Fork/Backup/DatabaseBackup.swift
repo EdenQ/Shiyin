@@ -40,7 +40,11 @@ final class ForkBackup {
     @ObservationIgnored var simulateFail = false
     /// mabackup simulate slow <秒數>：下一次備份在複製完、驗證前多等（讓排程和立即備份真的重疊，design §F10.7）
     @ObservationIgnored var simulateDelay: Double = 0
+    /// mabackup simulate dirsync nofull|fail：下一次備份改名後寫進磁碟那一步（design §F10.1a 第 8a 步、§F10.7）
+    @ObservationIgnored var simulateDirSync: BackupWriter.DirSyncSimulation = .none
     #endif
+    /// 這個 app 上一次成功備份的第 8a 步結果（full／fsync／failed；DEBUG status 的 dirSync）
+    @ObservationIgnored private(set) var lastDirSync: String?
 
     static var enabled: Bool {
         UserDefaults.standard.object(forKey: enabledKey) == nil ? true : UserDefaults.standard.bool(forKey: enabledKey)
@@ -98,18 +102,32 @@ final class ForkBackup {
         let folder = Self.folder
         var fail = false
         var delay: Double = 0
+        var dirSync = BackupWriter.DirSyncSimulation.none
         #if DEBUG
         fail = simulateFail
         simulateFail = false
         delay = simulateDelay
         simulateDelay = 0
+        dirSync = simulateDirSync
+        simulateDirSync = .none
         #endif
         let started = Date()
         let result = await Task.detached(priority: .utility) {
-            ForkBackup.write(db: db, folder: folder, simulateFail: fail, simulateDelay: delay)
+            ForkBackup.write(db: db, folder: folder, simulateFail: fail, simulateDelay: delay, simulateDirSync: dirSync)
         }.value
         switch result {
-        case .success(let url):
+        case .success(let written):
+            let url = written.url
+            // 第 8a 步沒寫進磁碟：備份已經用正式檔名完整存在，不算失敗，只記 log（design §F10.1a）
+            switch written.dirSync {
+            case .full:
+                break
+            case .fsyncOnly(let full):
+                Self.blog.notice("backup dir sync: fsync only (F_FULLFSYNC errno \(full, privacy: .public))")
+            case .failed(let full, let plain):
+                Self.blog.warning("backup dir sync failed: F_FULLFSYNC errno \(full, privacy: .public), fsync errno \(plain, privacy: .public)")
+            }
+            lastDirSync = written.dirSync.name
             let bytes = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
             Self.blog.info("backup done: \(bytes, privacy: .public) bytes in \(Date().timeIntervalSince(started), format: .fixed(precision: 1), privacy: .public) s")
             UserDefaults.standard.removeObject(forKey: Self.lastErrorKey)
@@ -144,9 +162,10 @@ final class ForkBackup {
     }
 
     /// 背景執行：寫入目的地的步驟在 BackupWriter（fork design §F10.1a：只寫進這次 O_EXCL | O_NOFOLLOW 新建的一般檔）
-    nonisolated static func write(db: AppDatabase, folder: URL, simulateFail: Bool, simulateDelay: Double = 0) -> Result<URL, Failure> {
+    nonisolated static func write(db: AppDatabase, folder: URL, simulateFail: Bool, simulateDelay: Double = 0,
+                                  simulateDirSync: BackupWriter.DirSyncSimulation = .none) -> Result<BackupWriter.Written, Failure> {
         BackupWriter.write(db: db, folder: folder, stamp: stampFormatter().string(from: Date()),
-                           simulateFail: simulateFail, simulateDelay: simulateDelay)
+                           simulateFail: simulateFail, simulateDelay: simulateDelay, simulateDirSync: simulateDirSync)
     }
 
     /// SQLite 在暫存檔旁開的檔（殘檔的判斷用，design §F10.3）

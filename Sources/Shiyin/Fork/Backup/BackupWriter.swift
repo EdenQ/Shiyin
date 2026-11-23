@@ -10,8 +10,34 @@ enum BackupWriter {
 
     static let sidecars = ["-wal", "-shm", "-journal"]
 
-    /// 背景執行。成功時回傳正式備份的位置
-    static func write(db: AppDatabase, folder: URL, stamp: String, simulateFail: Bool, simulateDelay: Double) -> Result<URL, Failure> {
+    /// 第 8a 步（改名後把 daily 寫進磁碟）的結果。失敗不算備份失敗（design §F10.1a）
+    enum DirSync {
+        case full
+        /// F_FULLFSYNC 不支援，退回 fsync 成功（errno 是 F_FULLFSYNC 的）
+        case fsyncOnly(Int32)
+        /// 兩個都失敗（F_FULLFSYNC、fsync 的 errno）
+        case failed(Int32, Int32)
+
+        var name: String {
+            switch self {
+            case .full: return "full"
+            case .fsyncOnly: return "fsync"
+            case .failed: return "failed"
+            }
+        }
+    }
+
+    /// DEBUG `mabackup simulate dirsync nofull|fail`（design §F10.7）
+    enum DirSyncSimulation: Sendable { case none, noFull, fail }
+
+    struct Written {
+        let url: URL
+        let dirSync: DirSync
+    }
+
+    /// 背景執行。成功時回傳正式備份的位置和第 8a 步的結果
+    static func write(db: AppDatabase, folder: URL, stamp: String, simulateFail: Bool, simulateDelay: Double,
+                      simulateDirSync: DirSyncSimulation = .none) -> Result<Written, Failure> {
         let partialName = "ma-daily-\(stamp).partial"
         let finalName = "ma-daily-\(stamp).sqlite"
         let partialPath = folder.appendingPathComponent(partialName).path
@@ -128,7 +154,8 @@ enum BackupWriter {
                     ? Failure(reason: String(localized: "同名的備份已經存在"), log: "file exists")
                     : Failure(reason: String(localized: "寫入備份失敗"), log: "rename: errno \(code)")
             }
-            return .success(folder.appendingPathComponent(finalName))
+            // 8a. 改名寫進磁碟：F_FULLFSYNC（要求硬碟清快取），不支援時退回 fsync；失敗只回報，不算備份失敗
+            return .success(Written(url: folder.appendingPathComponent(finalName), dirSync: syncDirectory(dirfd, simulate: simulateDirSync)))
         } catch {
             // 9. 只刪還是同一個 inode 的暫存檔；旁檔只刪一般檔
             unlinkIfSame(dirfd, partialName, created)
@@ -149,6 +176,22 @@ enum BackupWriter {
         var st = stat()
         if fstatat(dirfd, name, &st, AT_SYMLINK_NOFOLLOW) == 0 { return isRegular(st) ? .regular : .other }
         return errno == ENOENT ? .absent : .other
+    }
+
+    /// design §F10.1a 第 8a 步
+    static func syncDirectory(_ dirfd: Int32, simulate: DirSyncSimulation) -> DirSync {
+        let fullErrno: Int32
+        switch simulate {
+        case .fail:
+            return .failed(EIO, EIO)
+        case .noFull:
+            fullErrno = ENOTSUP
+        case .none:
+            if fcntl(dirfd, F_FULLFSYNC) == 0 { return .full }
+            fullErrno = errno
+        }
+        if fsync(dirfd) == 0 { return .fsyncOnly(fullErrno) }
+        return .failed(fullErrno, errno)
     }
 
     static func isRegular(_ st: stat) -> Bool { (st.st_mode & S_IFMT) == S_IFREG }
