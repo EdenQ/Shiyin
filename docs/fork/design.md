@@ -37,7 +37,7 @@
 - 上游的檔被搬走、改名、換類型（例如換成連結）都算拿掉上游的檔：比對時不偵測改名（`git diff --no-renames`，改名會變成刪掉舊的、加新的），舊路徑一定會被檢查到。
 - 檢查的範圍：上游 tag（manifest 的 `upstream.base.tag`，現在是 v5.0.0）裡就有的 `Sources/**/*.swift`、`Package.swift`（程式）和 `scripts/` 底下的 `.sh`、`.swift`（腳本）。程式加的行數合計不超過 `rules.upstreamLineBudget`（100）；腳本另外算。不檢查：文件、README、CLAUDE.md、翻譯表、Info.plist、圖示、`.github`（品牌由 `brand.py` 管，§F7.4；版本號照 DF6）。
 - manifest 要對得上：每個功能的 `forkFiles`、`upstreamFiles` 存在；`symbols` 找得到宣告；`markers`（`file`、`line`、`hook`＝那一行去掉接點註解）跟程式裡實際的接點一致，多的、少的都算錯，只有行號不同時提示用 `--write` 更新。
-- 跑法：`python3 scripts/fork/isolation-check.py`（exit 1 表示有問題，列出每一處）；新增、搬動接點後 `--write` 重寫 manifest 的 `markers`、`upstreamFiles`，再跑一次不加參數的。目前的檔數、行數看檢查的輸出（「上游程式 N 個檔、M 行」），這裡不寫固定的數字（會過期）。`python3 scripts/fork/isolation-check-test.py` 是檢查本身的回歸測試（未標記的修改、已 stage 和已 commit 的改名、刪檔、換類型都要失敗）。兩支都串在 `scripts/fork/check.sh`（§F0.4）。
+- 跑法：`python3 scripts/fork/isolation-check.py`（exit 1 表示有問題，列出每一處）；新增、搬動接點後 `--write` 重寫 manifest 的 `markers`、`upstreamFiles`，再跑一次不加參數的。目前的檔數、行數看檢查的輸出（「上游程式 N 個檔、M 行」），這裡不寫固定的數字（會過期）。`python3 scripts/fork/isolation-check-test.py` 是檢查本身的回歸測試（未標記的修改、已 stage 和已 commit 的改名、刪檔、換類型、DEBUG 指令撞名（§F0.7）都要失敗）。兩支都串在 `scripts/fork/check.sh`（§F0.4）。
 
 ### F0.4 回歸檢查（`scripts/fork/check.sh`，PLAN-fork-5.0 §8.1、階段 3a）
 
@@ -294,8 +294,14 @@ exit 0：沒有 FAIL（SKIP、需人工不算失敗）；1：有 FAIL；2：沒�
    - `intercept` 只認 `ForkDebug.commands`（明列的頂層名稱）。不認得的照樣交給上游，最後由上游記「unknown」。
    - 防止以後撞名：`isolation-check.py` 比對三件事，有一件不符就失敗：
      - `ForkDebug.commands` 等於 manifest 各功能 `debugCommands` 的單字名稱；
-     - 也等於 fork 各 `*Debug.swift` 頂層 `switch args[0]` 的名稱；
-     - 跟上游 `DebugControl` 的 `case` 名稱的交集只有 `ForkDebug.shadowed`。
+     - 也等於 fork 各 `*Debug.swift` 比對的指令名稱（多字的 `debugCommands` 例如 `hotkey mute`，第一個字是上游的指令，不算 fork 的頂層指令，但上游一定要還有）；
+     - 跟上游 `DebugControl` 的指令名稱的交集只有 `ForkDebug.shadowed`。
+   - 指令名稱怎麼收集（上游、fork 同一套規則，`command_names`；HK-fix，REV-HK P2-1）：
+     - 用 Swift 的詞彙切分，不是逐行比對：跳過 `//`、`/* */`（可巢狀）註解；字串整個當一個 token，有插值或跳脫字元的不算單純的字面值。
+     - 主旨是 `name`、`args[0]`、`args.first` 的 `switch`，大括號第一層的每個 `case` 從 `case` 收到同一層的冒號：逗號分隔，有沒有空白、跨不跨行、中間有沒有註解都一樣。帶 `where` 的照樣算那個字面值（寧可多算）。
+     - 同一個主旨跟字串比對（`name == "x"`、`"x" == args[0]`），檔裡任何地方都算。
+     - 最外層的 pattern 不是字串字面值（`let x where …`、運算式、有插值的字串），或上游找不到這樣的 `switch`：報錯、要人工核對，不默默少算。現在的上游、fork 程式都沒有這種寫法，不需要白名單。
+     - 回歸測試在 `isolation-check-test.py` 的 `DEBUG_CASES`：上游寫成有空白、沒空白、跨行、中間有註解、帶 `where`、`if name ==` 的撞名，fork 端沒空白、跨行的未列名稱，兩邊看不懂的 pattern 都要失敗；只出現在註解裡、正常的要通過。
    - 上游新增同名指令時，`upstream-watch` 本來就會列出名稱碰撞（§F0.5）。
 2. DebugControl `case "hotkey":` 那一行（F3 加了 `mute` 的分支）→ 還原成上游原樣。`hotkey mute` 改在 `intercept` 裡先接（`args[0] == "hotkey" && args[1] == "mute"` 才接，其他的 `hotkey`、`hotkey bookmark` 照樣交給上游）。
 3. AppModel `recordingFinished` 裡的 `GlobalHotKey.shared.setMuteEnabled(false)   // MA-FORK(F3)` → 拿掉。改由 `ForkMute.install` 包住 `recorder.onFinished`（跟既有包 `onStarted` 的做法相同）：先 `setMuteEnabled(false)`，再呼叫上游原本的回呼。
