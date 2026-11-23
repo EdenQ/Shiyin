@@ -50,13 +50,18 @@ extension ForkDebug {
         let current = model.errorMessage
         let new = current != previous ? current : nil
         if current != previous { model.errorMessage = previous }
-        var out: [String: Any] = ["error": new ?? NSNull(), "restored": model.errorMessage == previous]
+        // 閉包裡不改外面的變數（@Sendable 閉包改外面的 var，各版編譯器的判斷不同；fork design §F0.6 的 Swift 版本差異）
+        let error = new
+        let restored = model.errorMessage == previous
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
             MainActor.assumeIsolated {
                 let visible = NSApp.windows.filter(\.isVisible)
-                out["errorMessageAfter"] = model.errorMessage ?? NSNull()
-                out["sheetVisible"] = visible.contains { $0.attachedSheet != nil || $0.isSheet || $0.className.contains("Alert") }
-                out["mainWindowVisible"] = visible.contains { $0.identifier?.rawValue == "main" }
+                let out: [String: Any] = [
+                    "error": error ?? NSNull(), "restored": restored,
+                    "errorMessageAfter": model.errorMessage ?? NSNull(),
+                    "sheetVisible": visible.contains { $0.attachedSheet != nil || $0.isSheet || $0.className.contains("Alert") },
+                    "mainWindowVisible": visible.contains { $0.identifier?.rawValue == "main" },
+                ]
                 write(out, to: path)
             }
         }

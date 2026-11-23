@@ -791,6 +791,25 @@ class ForkCheckWorkflow(unittest.TestCase):
         self.assertNotEqual(code, 0, out)
         self.assertEqual(calls, [])
 
+    def test_failure_diagnostics(self):
+        """L 失敗時重編一次、印出錯誤（fork design §F0.6；2026-11-23 第一次推送 L 失敗但 log 沒有診斷）"""
+        name = '編譯診斷（失敗時）'
+        self.assertIn(name, self.steps)
+        step = self.steps[name]
+        self.assertRegex(step, r'(?m)^        if: failure\(\)$', '只在失敗時跑')
+        order = list(self.steps)
+        self.assertLess(order.index('check.sh --quick'), order.index(name))
+        self.assertLess(order.index(name), order.index('Upload summary and logs'))
+        for flag in ('swift build -c debug --arch arm64 --disable-keychain', '--scratch-path "$HOME/Library/Caches/ShiyinBuild-l10n"',
+                     '--target Shiyin', '-emit-localized-strings', '-emit-localized-strings-path'):
+            self.assertIn(flag, step, f'要跟 l10n.py 同一條指令：{flag}')
+        self.assertIn("grep -n 'error:'", step)
+        self.assertIn('tail -n 300', step)
+        self.assertNotIn('GITHUB_STEP_SUMMARY', step, '診斷不寫進 job summary')
+        self.assertIn('swift-build.log', self.steps['Upload summary and logs'])
+        l10n = (ROOT / 'scripts/dev/l10n.py').read_text(encoding='utf-8')
+        self.assertIn('"--target", "Shiyin", "-Xswiftc", "-emit-localized-strings"', l10n, 'l10n.py 的指令變了：workflow 的診斷要跟著改')
+
     def test_artifact_and_summary(self):
         up = self.steps['Upload summary and logs']
         self.assertIn('if: always()', up)

@@ -244,6 +244,12 @@ exit 0：沒有 FAIL（SKIP、需人工不算失敗）；1：有 FAIL；2：沒�
   - runner 上的路徑是 runner 自己的（`/Users/runner/…`）。
 - check.sh 的 exit code 就是這一步的結果：1（有 FAIL）、2（沒開始）都讓 job 失敗。不加 `continue-on-error`、`|| true`。
 
+**失敗時的編譯診斷**
+
+- L（`l10n.py check`）的 `swift build` 輸出被上游的 `l10n.py` 丟掉（stdout 是 DEVNULL），編譯失敗時 log 只看得到 `CalledProcessError`。`l10n.py` 是上游的檔，不改。
+- 所以 workflow 在 `check.sh --quick` 後面加「編譯診斷（失敗時）」：`if: failure()`，只在 job 已經失敗、而且摘要裡 L 是 FAIL（或沒有摘要）時，用跟 `l10n.py` 完全一樣的指令（同樣的 scratch path、`--target Shiyin`、`-emit-localized-strings`）再編一次，輸出存成 `$RUNNER_TEMP/swift-build.log`，在 log 印出含 `error:` 的行（最多 200 行）和最後 300 行。這一步不會讓失敗的 job 變綠（job 早就失敗了），也不寫進 job summary；log 檔一起放進 artifact。
+- 本機和 runner 的 Swift 版本可能不同（2026-11-23 第一次推送：runner 是 Xcode 26.6／Swift 6.3.3／macOS 26.7.2，本機是 Xcode 27.2／Swift 6.4.2），本機編得過不代表 runner 編得過；有 FAIL 時先看這一步的錯誤。
+
 **測試**：`check-test.py` 的 `ForkCheckWorkflow` 做靜態檢查。
 
 - 觸發條件、`contents: read`、工作層級沒有權限。
@@ -253,6 +259,7 @@ exit 0：沒有 FAIL（SKIP、需人工不算失敗）；1：有 FAIL；2：沒�
 - 上游 tag 放 `refs/upstream-tags/`。
 - tag 步驟實際跑一次：從 workflow 抽出那一步的 shell，換上假的 `git`（記下有沒有被呼叫），用惡意或型別不對的 manifest 跑。跨 ref、`../`、換行、分號、命令替換、null、數字、空字串都要被拒絕（exit 非 0）而且 `git` 沒被呼叫；正常的 `v5.0.0` 要呼叫 `git fetch`，refspec 是 `+refs/tags/v5.0.0:refs/upstream-tags/v5.0.0`。拿掉格式檢查那一行時，這個測試要失敗。
 - artifact 保留 14 天、`if: always()`；job summary 只取表格行。
+- 編譯診斷只在 `if: failure()` 跑、在 `check.sh --quick` 之後和上傳之前，指令跟 `l10n.py` 一樣（`--target Shiyin`、`-emit-localized-strings`、同一個 scratch path），只印 log、不寫 job summary，`swift-build.log` 放進 artifact。
 
 **推送後第一次要確認**
 

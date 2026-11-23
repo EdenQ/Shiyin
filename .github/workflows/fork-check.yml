@@ -48,6 +48,25 @@ jobs:
       - name: check.sh --quick
         run: scripts/fork/check.sh --quick --out "$RUNNER_TEMP/fork-check"
 
+      - name: 編譯診斷（失敗時）
+        if: failure()
+        timeout-minutes: 15
+        run: |
+          # L 的 l10n.py（上游的檔）把 swift build 的輸出丟掉：失敗時用同一條指令再編一次，只印在 log、放進 artifact（fork design §F0.6）
+          set +e
+          summary="$RUNNER_TEMP/fork-check/summary.md"
+          if [ -s "$summary" ] && ! grep -q '^| L | .* | FAIL |' "$summary"; then
+            echo "L 沒有失敗，不用重編"; exit 0
+          fi
+          swift build -c debug --arch arm64 --disable-keychain --scratch-path "$HOME/Library/Caches/ShiyinBuild-l10n" \
+            --target Shiyin -Xswiftc -emit-localized-strings -Xswiftc -emit-localized-strings-path \
+            -Xswiftc "$HOME/Library/Caches/ShiyinBuild-l10n/stringsdata" > "$RUNNER_TEMP/swift-build.log" 2>&1
+          echo "swift build exit $?"
+          echo "---- error: 的行（最多 200 行）----"
+          grep -n 'error:' "$RUNNER_TEMP/swift-build.log" | head -n 200
+          echo "---- 最後 300 行 ----"
+          tail -n 300 "$RUNNER_TEMP/swift-build.log"
+
       - name: Job summary
         if: always()
         run: |
@@ -66,5 +85,6 @@ jobs:
             ${{ runner.temp }}/fork-check/summary.md
             ${{ runner.temp }}/fork-check/logs/
             ${{ runner.temp }}/fork-check/defaults-*.plist
+            ${{ runner.temp }}/swift-build.log
           retention-days: 14
           if-no-files-found: warn

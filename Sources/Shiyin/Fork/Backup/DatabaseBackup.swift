@@ -53,7 +53,7 @@ final class ForkBackup {
         shared.model = model
         guard shared.timer == nil else { return }
         let timer = Timer(timeInterval: checkInterval, repeats: true) { _ in
-            MainActor.assumeIsolated { Task { await ForkBackup.shared.check(manual: false) } }
+            MainActor.assumeIsolated { _ = Task { await ForkBackup.shared.check(manual: false) } }
         }
         timer.fireDate = Date().addingTimeInterval(firstCheckDelay)
         RunLoop.main.add(timer, forMode: .common)
@@ -106,7 +106,7 @@ final class ForkBackup {
         #endif
         let started = Date()
         let result = await Task.detached(priority: .utility) {
-            Self.write(db: db, folder: folder, simulateFail: fail, simulateDelay: delay)
+            ForkBackup.write(db: db, folder: folder, simulateFail: fail, simulateDelay: delay)
         }.value
         switch result {
         case .success(let url):
