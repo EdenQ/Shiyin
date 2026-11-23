@@ -141,8 +141,11 @@ def main():
     with sqlite3.connect(DB) as db:
         db.execute(f"CREATE TRIGGER ma_f2_atomic_fail BEFORE UPDATE OF name ON speakers WHEN NEW.meeting_id={int(mid)} "
                    "AND NEW.name='丙' BEGIN SELECT RAISE(ABORT, 'f2-atomic-check injected rename failure'); END")
+    captured = OUT / 'f2-fault-error.json'
+    captured.unlink(missing_ok=True)
     try:
-        ctl('tagspeaker', 'only', mid, target['id'])
+        # 第 3 個參數：DEBUG＋quiet 時錯誤寫進這個檔、errorMessage 還原，不在使用者畫面上跳出「出了一點問題」（fork design §F2.5）
+        ctl('tagspeaker', 'only', mid, target['id'], captured)
         time.sleep(2)
         after = snapshot(mid)
     finally:
@@ -153,6 +156,27 @@ def main():
                        'before': {k: v for k, v in before.items() if k != 'undo'} | {'undo': [r[:2] for r in before['undo']]},
                        'after': {k: v for k, v in after.items() if k != 'undo'} | {'undo': [r[:2] for r in after['undo']]}}
     print('故障時整筆回復：', 'PASS' if before == after else 'FAIL（留下改了一半的資料）', flush=True)
+    def captured_done():
+        try:
+            return 'errorMessageAfter' in json.loads(captured.read_text())
+        except (OSError, ValueError):
+            return False
+    wait(captured_done)
+    err = json.loads(captured.read_text())
+    ctl('state', OUT / 'f2-fault-state.json')
+    wait(lambda: (OUT / 'f2-fault-state.json').exists())
+    time.sleep(0.5)
+    state_error = json.loads((OUT / 'f2-fault-state.json').read_text()).get('errorMessage', None)
+    (OUT / 'f2-fault-state.json').unlink()
+    message = err.get('error') or ''
+    no_dialog = (err.get('restored') is True and err.get('errorMessageAfter') is None
+                 and err.get('sheetVisible') is False and state_error == '')
+    expected_error = 'SQLite error 19' in message and 'f2-atomic-check injected rename failure' in message
+    result['faultError'] = {'expectedSQLite19': expected_error, 'noDialog': no_dialog, 'stateErrorMessage': state_error,
+                            'captured': {k: v for k, v in err.items() if k != 'error'} | {'errorPrefix': message[:80]}}
+    print('故障的錯誤是預期的 SQLite 19：', 'PASS' if expected_error else f'FAIL（{message[:80]}）', flush=True)
+    print('沒有跳出錯誤對話框（errorMessage 還原、沒有 sheet、state 的 errorMessage 空的）：',
+          'PASS' if no_dialog else f'FAIL（{err} state={state_error!r}）', flush=True)
 
     # 3. 正常路徑、復原
     target = unapplied(mid, 'f2-before-only', '丙')
@@ -178,7 +202,7 @@ def main():
     assert query('PRAGMA integrity_check') == [('ok',)]
     (OUT / 'f2-fault.json').write_text(json.dumps(result, ensure_ascii=False, indent=1))
     print('正常路徑：', 'PASS' if normal_ok else 'FAIL', '；復原回到按之前：', 'PASS' if undo_ok else 'FAIL', flush=True)
-    sys.exit(0 if result['fault']['unchanged'] and normal_ok and undo_ok else 1)
+    sys.exit(0 if result['fault']['unchanged'] and expected_error and no_dialog and normal_ok and undo_ok else 1)
 
 
 if __name__ == '__main__':

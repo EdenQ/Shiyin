@@ -10,6 +10,7 @@
 
 只做 Mac。測試用另外的 `SHIYIN_HOME`、測試 bundle id 的 DEBUG 版複本，正式網域的設定不動。
 
+- [ ] **BK2 後續硬化（不急）**（design §F10.1a 安全前提）：rename 之後對 `daily` 的 fd 做 `fsync`，讓剛完成的備份在斷電後也確定存在；評估是否需要防同權限程式在 open／核對／rename 之間主動換掉資料夾內容（例如全程用 `dirfd` 的相對路徑開 SQLite，或把暫存檔放進每次新建、權限 0700 的子資料夾）。驗證：`f10-backup-check.py` 照樣全過；斷電情境只能用文件說明
 - [~] **BK1 真的畫面上按**（F10.7）：程式完成，DEBUG 版用 `mabackup menu`、`preview settings general` 看過中英文（自動驗證見 F10 的程式 commit）。還差：「MA」選單的兩項、設定「一般」頁的「資料庫備份」、錄音中「立即備份」是灰的、英文介面
 
 ## 5.0.1（合併上游 5.0.0）待使用者實測
