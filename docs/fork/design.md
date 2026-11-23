@@ -746,8 +746,8 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 
 - 用測試 bundle id 的 DEBUG 版複本和暫存的 `SHIYIN_HOME`，錄音島開著、放在桌面層（`-recordingIsland YES -debugIslandBehind YES`，不出現在使用者的畫面上），`-debugQuietPrompts YES`。
 - 自動化：`scripts/fork/f11-island-check.py <SHIYIN_HOME> <shiyinctl> --out <資料夾>`（`check.sh` 的 #15）：
-  - `record-sim` 開始錄音，等 `state` 的 `island.visible`。
-  - 每種情況 `maisland mode`／`simulate` 之後等 1 秒（大於 0.5 秒的 Timer），用 `maisland screens` 和 `state` 的 `island` 核對：島的 `frame` 整個在 `expected` 螢幕的 `frame` 裡（水平置中在那個螢幕或瀏海的中間）；`notch` 等於那個螢幕的 `notch`。
+  - `record-sim` 開始錄音，等 `maisland screens` 輸出的 `island.visible`。
+  - 每種情況 `maisland mode`／`simulate` 之後等 1 秒（大於 0.5 秒的 Timer），用 `maisland screens` 輸出的 `island` 核對：島的 `frame` 整個在 `expected` 螢幕的 `frame` 裡（水平置中在那個螢幕或瀏海的中間）；`notch` 等於那個螢幕的 `notch`。
   - 情況：`builtin`（有內建螢幕時在內建螢幕）、`follow`（`pick` 是 null、在 `upstream` 螢幕，跟上游算的一樣）、`mainWindow` 模擬主視窗在每一個螢幕、模擬主視窗關著（用記下的）、記下的清掉（退到上游）、`builtin` 加模擬沒有內建螢幕（退到主視窗的螢幕；主視窗關著又沒記下時退到上游）。
   - 只接一個螢幕的電腦：「每一個螢幕」只有一個，照樣核對退路；這台的螢幕數寫進證據。
   - 最後 `maisland simulate off`；不停止錄音（停止後的轉錄會在暫存的 `SHIYIN_HOME` 下載、編譯說話者辨識的模型，跟 F11 無關，2026-11-23 在 CoreML 編譯時當掉過一次），錄音中的 DEBUG 版由 check.sh 結束。

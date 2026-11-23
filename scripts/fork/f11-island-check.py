@@ -133,8 +133,7 @@ def main():
     ctl('record-sim', wav, 1, 1)
     s = wait_island(True)
     if not check('錄音中：島出現', s and s['island'].get('visible'), json.dumps(s and s['island'], ensure_ascii=False)):
-        ctl('record', 'stop')
-        return
+        return   # 記 FAIL 就結束；不停止錄音（同最後一步），錄音中的 DEBUG 版由 check.sh 結束
 
     def upstream(s):
         return s['upstream']
