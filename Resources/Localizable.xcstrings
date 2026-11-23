@@ -4461,7 +4461,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "备份文件夹不是一般的文件夹"
+            "value": "备份文件夹不是普通文件夹"
           }
         },
         "en": {
@@ -10119,7 +10119,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "建立备份文件夹失败"
+            "value": "创建备份文件夹失败"
           }
         },
         "en": {
