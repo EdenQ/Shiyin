@@ -24,14 +24,18 @@ extension ForkDebug {
             if let out { write(backupStatus(model), to: out) }
         case "prune":
             backup.prune()
-        case "simulate":   // mabackup simulate lowdisk|fail|off|slow <秒數>
+        case "simulate":   // mabackup simulate lowdisk|fail|off|slow <秒數>|dirsync nofull|fail
             let what = args.count > 2 ? args[2] : "off"
-            if what == "slow" {
+            if what == "dirsync" {
+                let mode = args.count > 3 ? args[3] : ""
+                backup.simulateDirSync = mode == "nofull" ? .noFull : mode == "fail" ? .fail : .none
+            } else if what == "slow" {
                 backup.simulateDelay = args.count > 3 ? Double(args[3]) ?? 0 : 0
             } else {
                 backup.simulateLowDisk = what == "lowdisk"
                 backup.simulateFail = what == "fail"
                 backup.simulateDelay = 0
+                backup.simulateDirSync = .none
             }
         case "schedule":   // mabackup schedule off|on
             backup.setSchedule(args.count > 2 && args[2] == "on")
@@ -66,6 +70,7 @@ extension ForkDebug {
             "failingSince": (UserDefaults.standard.object(forKey: ForkBackup.failingSinceKey) as? Date).map { iso.string(from: $0) } ?? NSNull(),
             "warning": backup.warning ?? NSNull(),
             "menuEnabled": backup.canBackupNow,
+            "dirSync": backup.lastDirSync ?? NSNull(),
             "partials": ForkBackup.stalePartials(in: ForkBackup.folder),
             "folder": ForkBackup.folder.path,
         ]

@@ -12,6 +12,9 @@
   4. 錄完後到期的檢查：age 成到期、record-sim 中 check 回 deferredRecording，record stop 後 check 回 done、多一份
   4b. 寫入目的地（REVIEW-F10b P2-3）：這次時間名稱的 .partial 是連結（到含 sentinel 的 SQLite、斷掉的）、資料夾，
      -wal／-shm／-journal 是連結，正式檔名是連結：每種 now 都回 failed、連結和目標不變、正常備份照留
+  4c. 改名後寫進磁碟（BK2a，design §F10.1a 第 8a 步）：一般的 now 之後 dirSync 是 full；simulate dirsync nofull → done、
+     dirSync fsync、log 有 notice；simulate dirsync fail → 照樣 done、dirSync failed、lastError 空的、log 有 warning、
+     多一份 integrity_check ok 的備份、沒有暫存檔（真的斷電、硬碟快取測不到）
   5. 最後一般檔備份還是 7 份，反例的東西都還在；schedule on、simulate off
 用法：python3 scripts/fork/f10-backup-check.py <SHIYIN_HOME> <shiyinctl> --out <資料夾>
 只讀寫 <SHIYIN_HOME>/backups 和 --out；同時只能開一個 DEBUG 版（shiyinctl 是廣播）。exit 0 通過、1 不符。
@@ -390,6 +393,45 @@ write_case('正式檔名是連結', plant_e,
 
 r = bk('now', 'write-after-cases', timeout=120)
 check('寫入目的地：反例清掉後 now 照常 done', r and r.get('outcome') == 'done', str(r and r.get('outcome')))
+
+# ---------- 4c. 改名後寫進磁碟（BK2a） ----------
+check('寫進磁碟：一般的備份 dirSync 是 full（APFS 上 F_FULLFSYNC 成功）', r and r.get('dirSync') == 'full',
+      str(r and r.get('dirSync')))
+
+
+def log_has(text, since, timeout=8):
+    # 只有這一版的 DEBUG 程式會寫這句（使用者的正式版沒有），用文字和時間範圍找
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        p = subprocess.run(['/usr/bin/log', 'show', '--style', 'compact', '--start', since,
+                            '--predicate', f'subsystem == "com.weiwei.shiyin" AND category == "backup" AND eventMessage CONTAINS "{text}"'],
+                           capture_output=True, text=True)
+        if text in p.stdout:
+            return True
+        time.sleep(1)
+    return False
+
+
+for mode, want, text in (('nofull', 'fsync', 'backup dir sync: fsync only (F_FULLFSYNC errno 45)'),
+                         ('fail', 'failed', 'backup dir sync failed: F_FULLFSYNC errno 5, fsync errno 5')):
+    time.sleep(1.1)   # 跟上一份不同秒（檔名到秒）
+    before = set(regular_backups())
+    since = time.strftime('%Y-%m-%d %H:%M:%S')
+    ctl('mabackup', 'simulate', 'dirsync', mode)
+    r = bk('now', f'dirsync-{mode}', timeout=120)
+    added = sorted(set(regular_backups()) - before)
+    check(f'寫進磁碟 {mode}：now 照樣回 done（不算備份失敗）', r and r.get('outcome') == 'done', str(r and r.get('outcome')))
+    check(f'寫進磁碟 {mode}：dirSync 是 {want}', r and r.get('dirSync') == want, str(r and r.get('dirSync')))
+    check(f'寫進磁碟 {mode}：lastError、reason 都是空的', r and r.get('lastError') is None and r.get('reason') is None,
+          json.dumps([r and r.get('lastError'), r and r.get('reason')], ensure_ascii=False))
+    check(f'寫進磁碟 {mode}：多一份 integrity_check ok 的備份、沒有暫存檔',
+          len(added) == 1 and integrity(DAILY / added[0]) == ['ok'] and not leftover_partials(), str(added))
+    check(f'寫進磁碟 {mode}：log 有那一行', log_has(text, since), text)
+
+time.sleep(1.1)
+r = bk('now', 'dirsync-after', timeout=120)
+check('寫進磁碟：模擬只影響一次，下一份又是 full', r and r.get('outcome') == 'done' and r.get('dirSync') == 'full',
+      str(r and [r.get('outcome'), r.get('dirSync')]))
 
 # ---------- 5. 最後 ----------
 final = regular_backups()
