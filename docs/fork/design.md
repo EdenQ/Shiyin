@@ -559,13 +559,22 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 6. 用第 3 步的 fd 把檔頭第 18、19 位元組（file format write／read version）從 2（WAL）改成 1（rollback journal），`fsync`：效果跟 `journal_mode=DELETE` 一樣，但不用經過 SQLite 開 WAL。
 7. 驗證：確認三個旁檔的名字都沒有東西後，`sqlite3_open_v2(<partial>, SQLITE_OPEN_READONLY | SQLITE_OPEN_NOFOLLOW)`，`PRAGMA integrity_check` 要剛好是 `ok`、`PRAGMA journal_mode` 要是 `delete`；關掉後再核對一次 inode。唯讀、rollback 模式不會建旁檔。
 8. 改名：`renameatx_np(dirfd, <partial>, dirfd, <正式檔名>, RENAME_EXCL)`：正式檔名有任何東西（含斷掉的連結）就失敗，不覆蓋；改名前核對 `<partial>` 還是同一個一般檔。
+8a. 改名成功後把 `daily` 寫進磁碟（BK2a）：對第 1 步的 `dirfd` 先做 `fcntl(F_FULLFSYNC)`；這個檔案系統不支援（回錯誤）時退回 `fsync(dirfd)`。
+   - 為什麼用 `F_FULLFSYNC`：macOS 的 `fsync` 只把資料交給硬碟，不要求硬碟清掉自己的寫入快取，硬碟快取裡的東西斷電時還是會掉；`F_FULLFSYNC` 會要求硬碟清快取。APFS 上對資料夾的 fd 可以用（本機量約 5～10 ms，每天一次）。快取清掉時，第 6 步已經 `fsync` 交給硬碟的檔案內容也一起寫進去。
+   - 退回 `fsync` 是為了不支援 `F_FULLFSYNC` 的檔案系統（例如部分網路磁碟、外接的非 APFS 格式）：照樣把改名交給硬碟，只是不保證硬碟快取。log 記一行 notice。
+   - 兩個都失敗：**不算備份失敗**。備份檔已經用正式檔名完整存在（內容驗證過、改名成功），之後讀得到、還原得了；這時回報失敗會讓設定記下錯誤、開始算 7 天，但資料夾裡明明有這份備份，下一次檢查也會因為它是最新的而不重做，錯誤說明就跟事實不符。所以只在 log 記一行 warning（`backup dir sync failed: …`），照樣當成功。
+   - 清理（§F10.3）在這一步之後才刪舊備份，所以斷電後不會出現「舊的刪了、新的還沒寫進去」。
 9. 失敗時只刪「還是同一個 inode 的一般檔」的暫存檔；旁檔照 §F10.3 只刪一般檔。成功、失敗都關掉 fd。
 
 **安全前提（能防什麼、不保證什麼）**：
 - 能防：開始備份前就已經在 `backups/daily` 裡的東西——這次檔名上的符號連結（含斷掉的）、資料夾、`-wal`／`-shm`／`-journal` 的連結、正式檔名上的連結，以及 `daily` 本身是連結。遇到這些一律不寫、不刪、回報失敗。
 - 不保證：跟會議助手同一個使用者權限、正在主動搶時間的程式，在 open、核對、rename 之間的極短空檔改掉資料夾的內容（例如把 `daily` 或暫存檔換掉）。inode 核對、`O_NOFOLLOW`、`RENAME_EXCL` 縮小了這個空檔，但沒有把它變成零；同權限的程式本來就能直接改使用者的資料，這不在這個功能的防護範圍內。
 - inode 核對的意義：這次建的暫存檔的 fd 一直開著，同一個檔案系統上 dev＋inode 相同就是同一個檔（開著的檔的 inode 不會被別的檔重用），所以「剛好撞到另一個同 inode 的檔」不是一般會發生的風險；核對真正防的是路徑被換成別的檔或連結。剩下的風險是上一點的主動競態，不是 inode 碰撞。
-- 不宣稱：任意時間斷電後目錄的 metadata 一定持久。檔案內容有 `fsync`，但 rename 之後沒有對 `dirfd` 做 `fsync`；斷電時剛改名的備份可能還是暫存檔名（下一次成功時當殘檔清掉）或不見，舊的備份不受影響。
+- 斷電時保證到哪裡：
+  - 第 8a 步的 `F_FULLFSYNC` 成功、而且硬碟照實執行清快取時，備份完成（log 記 `backup done`）後斷電，這份備份會用正式檔名、完整的內容留下來。
+  - 第 8a 步之前（複製、驗證、改名途中）斷電：剛做的這份可能不見，或還是暫存檔名（下一次成功時當殘檔清掉）；舊的備份不受影響。
+  - 退回 `fsync` 或兩個都失敗時，只保證到改名交給了作業系統（或硬碟），不保證斷電後還在；舊的備份照樣不受影響。
+  - 不宣稱能防硬碟或檔案系統本身不照規矩清快取。
 - 整個過程在背景執行（`Task.detached`），主執行緒只更新狀態。同一時間只有一個備份（`running`）。
 
 ### F10.2 排程（`ForkBackup.install`，由 `ForkStartup.install` 呼叫）
@@ -621,9 +630,10 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 
 - `mabackup now [<輸出.json>]`：等於「立即備份」，等做完；輸出 `ok`、`file`、`reason`（`deferredRecording`、`lowDisk`、`failed`…）。
 - `mabackup check [<輸出.json>]`：馬上做一次排程的檢查（不用等 1 小時），等做完，輸出這次的結果。
-- `mabackup status <輸出.json>`：`enabled`、`running`、`lastCheck`、`backups`（檔名）、`lastSuccess`、`lastError`、`failingSince`、`warning`（設定會顯示的那一行）、`menuEnabled`（「立即備份」能不能按）。
+- `mabackup status <輸出.json>`：`enabled`、`running`、`lastCheck`、`backups`（檔名）、`lastSuccess`、`lastError`、`failingSince`、`warning`（設定會顯示的那一行）、`menuEnabled`（「立即備份」能不能按）、`dirSync`（這個 app 上一次成功備份第 8a 步的結果：`full`、`fsync`、`failed`；還沒備份過是 null）。
 - `mabackup prune`：只做清理。
 - `mabackup simulate lowdisk|fail|off`、`mabackup age <天數>`：見 §F10.4、§F10.5。
+- `mabackup simulate dirsync nofull|fail`：下一次備份的第 8a 步，`nofull` 當成 `F_FULLFSYNC` 不支援（ENOTSUP）、真的做 `fsync`；`fail` 兩個都當成失敗（EIO）、不呼叫。用來看退回和失敗的路徑：備份照樣 `done`、log 有 notice／warning、`status` 的 `dirSync` 是 `fsync`／`failed`。`simulate off` 也清掉這一項。
 - `mabackup simulate slow <秒數>`：下一次備份在複製完、驗證前多等這麼久（背景執行緒），用來讓排程的檢查和「立即備份」真的重疊。
 - `mabackup schedule off|on`：停掉、重新開始排程的 Timer（自動化測試時，避免啟動後 2 分鐘的那次檢查插進來；`on` 從現在起算 2 分鐘）。
 - `mabackup menu <輸出.json>`：倒出「MA」選單每一項的標題、能不能按（沒有輔助使用權限也看得到選單）。
@@ -642,6 +652,7 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
   - 重疊：`simulate slow 6` 後 `now`，第一份還在寫時送 `check`（已 `age` 成到期）和 `now`，兩個都回 `running`；第一份 `done`，資料夾只多一份、沒有殘檔。
   - 錄完後到期的檢查：`age` 成到期、`record-sim` 中 `check` 回 `deferredRecording`，`record stop` 後 `check` 回 `done`、多一份。
   - 寫入目的地（REVIEW-F10b P2-3）：在接下來幾秒會用到的每個時間名稱上放同一種東西，每種各跑一次 `mabackup now`：`.partial` 連結到測試資料夾裡含 sentinel 的 SQLite、斷掉的 `.partial` 連結、`.partial` 資料夾、`-wal`／`-shm`／`-journal` 連結到測試資料夾裡的 sentinel 檔、正式檔名是連結。每次都要回 `failed`（不是 `done`）、連結本身和目標的內容（sha256、sentinel 表）不變、資料夾和裡面的檔還在、正常備份照留。
+  - 改名後寫進磁碟（BK2a，§F10.1a 第 8a 步）：一般的 `now` 之後 `status` 的 `dirSync` 是 `full`（APFS）；`simulate dirsync nofull` 後 `now` 回 `done`、`dirSync` 是 `fsync`；`simulate dirsync fail` 後 `now` 照樣回 `done`、`dirSync` 是 `failed`、`lastError` 是空的、多一份 `integrity_check` ok 的備份、沒有殘檔。真的斷電、硬碟快取有沒有清，自動化測不到，只能照 §F10.1a 的說明。
   - 最後份數還是 7，反例的東西都還在。
 
 ## F-DB. 資料庫規則（PLAN-fork-5.0 §6）
