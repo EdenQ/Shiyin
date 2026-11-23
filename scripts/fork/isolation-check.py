@@ -267,41 +267,68 @@ def command_names(path, text):
         if not k or not at(i + 1 + k, [('p', '{')]):
             continue
         # switch 的本體：大括號深度 1 的 case 是最外層的標籤
+        src_lines = text.split('\n')
+
+        def indent(line_no):
+            raw = src_lines[line_no - 1] if 0 < line_no <= len(src_lines) else ''
+            return len(raw) - len(raw.lstrip(' \t'))
+
         j, depth = i + 2 + k, 1
         while j < len(toks) and depth:
             kind2, val2, ln2 = toks[j]
             if kind2 == 'p' and val2 in '{}':
                 depth += 1 if val2 == '{' else -1
+                if depth == 0:
+                    # 結尾的合理性：switch 的 } 要自己在一行的開頭、縮排跟 switch 那一行一樣。
+                    # 不是的話，可能是裡面的結構讓掃描提早結束，後面的 case 會漏掉
+                    first_on_line = toks[j - 1][2] < ln2
+                    if not (first_on_line and src_lines[ln2 - 1].lstrip().startswith('}') and indent(ln2) == indent(ln)):
+                        problems.append(f'{rel}:{ln}：DEBUG 指令 switch 的結尾（第 {ln2} 行）看起來不對，可能提早結束、漏掉後面的 case，要人工核對（fork design §F0.7）')
                 j += 1
                 continue
             if depth == 1 and kind2 == 'id' and val2 == 'case' and not (j > 0 and toks[j - 1][1] in NOT_LABEL):
-                # 收到同一層的冒號為止（括號、中括號裡的冒號不算）
-                items, cur, paren, j = [], [], 0, j + 1
+                # 收到同一層的冒號為止：小括號、中括號、大括號（where 裡的閉包）裡的冒號、逗號都不算
+                items, cur, nest, closed, j = [], [], 0, False, j + 1
                 while j < len(toks):
                     t = toks[j]
-                    if t[0] == 'p' and t[1] in '([':
-                        paren += 1
-                    elif t[0] == 'p' and t[1] in ')]':
-                        paren -= 1
-                    elif t[0] == 'p' and t[1] in ':,' and paren == 0:
+                    if t[0] == 'p' and t[1] in '([{':
+                        nest += 1
+                    elif t[0] == 'p' and t[1] in ')]}':
+                        nest -= 1
+                        if nest < 0:
+                            break
+                    elif t[0] == 'p' and t[1] in ':,' and nest == 0:
                         items.append(cur)
                         cur = []
                         if t[1] == ':':
+                            closed = True
                             break
                         j += 1
                         continue
                     cur.append(t)
                     j += 1
+                if not closed:
+                    problems.append(f'{rel}:{ln2}：DEBUG 指令 switch 的 case 找不到結尾的冒號，要人工核對（fork design §F0.7）')
+                    if cur:
+                        items.append(cur)
                 for item in items:
                     ok = item and item[0][0] == 'str' and item[0][1] is not None and (len(item) == 1 or item[1][1] == 'where')
-                    if ok:
+                    # where 條件裡有閉包（{）或 ?（三元運算、optional chaining）時，冒號可能屬於條件本身，
+                    # 這裡不完整解析 Swift：一律要人工核對，不繼續猜
+                    tricky = ok and len(item) > 1 and any(t[0] == 'p' and t[1] in '{}?' for t in item[2:])
+                    if ok and not tricky:
                         names.add(item[0][1])
                     else:
+                        if ok:
+                            names.add(item[0][1])
                         shown = ' '.join('"…"' if t[0] == 'str' else t[1] for t in item)[:60]
-                        problems.append(f'{rel}:{ln2}：DEBUG 指令 switch 最外層的 case 不是字串字面值（{shown}），看不出會不會撞名，要人工核對（fork design §F0.7）')
-                j += 1
+                        why = 'where 條件裡有閉包或 ?，冒號可能屬於條件本身' if tricky else '不是字串字面值'
+                        problems.append(f'{rel}:{ln2}：DEBUG 指令 switch 最外層的 case {why}（{shown}），看不出會不會撞名，要人工核對（fork design §F0.7）')
+                j += 1 if closed else 0   # 沒收到冒號就停在原地，讓外層照常算大括號
                 continue
             j += 1
+        if depth:
+            problems.append(f'{rel}:{ln}：DEBUG 指令 switch 找不到結尾的大括號，要人工核對（fork design §F0.7）')
     return names, problems
 
 
