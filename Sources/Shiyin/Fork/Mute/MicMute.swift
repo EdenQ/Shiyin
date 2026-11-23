@@ -48,13 +48,19 @@ enum ForkMute {
 
     static func fireHotKey() { onMute?() }
 
-    /// 上游 AppModel 接好快捷鍵、Recorder 的回呼之後的接點（`ForkMute.install(self)`）
+    /// 由 F0 的 `ForkStartup.install` 呼叫，在上游 AppModel 接好快捷鍵、Recorder 的回呼之後
     static func install(_ model: AppModel) {
         onMute = { [weak model] in model?.toggleMicMuteFromHotKey() }
         let started = model.recorder.onStarted
         model.recorder.onStarted = { [weak model] in
             started?()
             GlobalHotKey.shared.setMuteEnabled(AppSettings.muteHotKey && model?.recorder.canMuteMic == true)
+        }
+        // 錄音結束時關掉 ⌃⌥⌘M：原本是上游 recordingFinished 裡的 1 行接點，改在上游的回呼之前做（fork design §F0.7）
+        let finished = model.recorder.onFinished
+        model.recorder.onFinished = { result in
+            GlobalHotKey.shared.setMuteEnabled(false)
+            finished?(result)
         }
         model.recorder.mute.onMuteHint = { [weak model] in model?.muteHintAppeared() }
     }

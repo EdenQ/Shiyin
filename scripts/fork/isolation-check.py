@@ -145,6 +145,60 @@ def all_sources():
     return files
 
 
+def check_debug_commands(manifest):
+    """fork design §F0.7：ForkDebug.intercept 在上游 switch 之前接 fork 的指令，名稱不能跟上游撞（shadowed 除外）。
+    沒有 ForkDebug.swift 的 repo（isolation-check-test 的小 repo）不檢查"""
+    fork_debug = os.path.join(ROOT, 'Sources', 'Shiyin', 'Fork', 'Debug', 'ForkDebug.swift')
+    upstream = os.path.join(ROOT, 'Sources', 'Shiyin', 'Debug', 'DebugControl.swift')
+    if not (os.path.isfile(fork_debug) and os.path.isfile(upstream)):
+        return []
+    problems = []
+    src = open(fork_debug, encoding='utf-8').read()
+
+    def literal(name):
+        m = re.search(r'static let ' + name + r': Set<String> = \[(.*?)\]', src, re.S)
+        return set(re.findall(r'"([^"]+)"', re.sub(r'//[^\n]*', '', m.group(1)))) if m else None
+
+    commands, shadowed = literal('commands'), literal('shadowed')
+    if commands is None or shadowed is None:
+        return ['ForkDebug.swift 找不到 commands 或 shadowed 的清單（fork design §F0.7）']
+    # manifest 的 debugCommands：單字的才是 fork 自己的頂層指令（「hotkey mute」是上游 hotkey 的子指令）
+    listed = {c for f in manifest['features'].values() for c in (f.get('debugCommands') or []) if ' ' not in c}
+    if listed != commands:
+        problems.append(f'ForkDebug.commands 跟 manifest 的 debugCommands 不同：只在程式 {sorted(commands - listed)}、只在 manifest {sorted(listed - commands)}')
+    # 各 *Debug.swift 頂層 switch args[0] 的 case
+    found = set()
+    for dirpath, _, files in os.walk(os.path.join(ROOT, 'Sources', 'Shiyin', 'Fork')):
+        for name in files:
+            if not name.endswith('Debug.swift'):
+                continue
+            text = open(os.path.join(dirpath, name), encoding='utf-8').read()
+            found |= set(re.findall(r'args\[0\] == "([^"]+)"', text))
+            for m in re.finditer(r'^( *)switch args\[0\] \{', text, re.M):
+                body = text[m.end():]
+                end = re.search(r'^ {%d}\}' % len(m.group(1)), body, re.M)
+                body = body[:end.start()] if end else body
+                for g in re.findall(r'^ {%d}case ((?:"[^"]+"(?:, )?)+)' % len(m.group(1)), body, re.M):
+                    found |= set(re.findall(r'"([^"]+)"', g))
+    if found != commands:
+        problems.append(f'ForkDebug.commands 跟 Fork/*Debug.swift 頂層的指令不同：只在清單 {sorted(commands - found)}、只在程式 {sorted(found - commands)}')
+    up = open(upstream, encoding='utf-8').read()
+    up_cases = set()
+    for line in up.splitlines():
+        if 'MA-FORK' in line:
+            continue
+        m = re.match(r'\s*case ((?:"[^"]+"(?:, )?)+)', line)
+        if m:
+            up_cases |= set(re.findall(r'"([^"]+)"', m.group(1)))
+    clash = (commands & up_cases) - shadowed
+    if clash:
+        problems.append(f'fork 的 DEBUG 指令跟上游 DebugControl 同名（會被 ForkDebug.intercept 先接走）：{sorted(clash)}')
+    missing = shadowed - up_cases
+    if missing:
+        problems.append(f'ForkDebug.shadowed 列的指令上游已經沒有了：{sorted(missing)}（拿掉或改回一般指令）')
+    return problems
+
+
 def check_manifest(manifest, markers):
     problems, warnings = [], []
     feats = manifest['features']
@@ -212,6 +266,7 @@ def main():
         manifest = json.load(open(MANIFEST, encoding='utf-8'))
     mproblems, warnings = check_manifest(manifest, markers)
     problems += mproblems
+    problems += check_debug_commands(manifest)
 
     print(f'基準：{base}')
     print(f'{"上游檔":<48} {"種類":<6} {"加":>4} {"減":>4}  接點（依功能）')

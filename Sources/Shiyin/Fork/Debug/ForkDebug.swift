@@ -1,23 +1,40 @@
 #if DEBUG
 import AppKit
 
-/// fork 的 DEBUG 指令（fork design §F0.1：新的一律 `ma` 開頭，4.x 就有的照舊）。上游 DebugControl 的 `default:` 先交給這裡，
-/// 不認得才記「unknown」（`// MA-FORK(F0)`）；`state` 的輸出在上游的 `return out` 前由 `augmentState` 補上 fork 的欄位
+/// fork 的 DEBUG 指令（fork design §F0.1：新的一律 `ma` 開頭，4.x 就有的照舊）。上游 DebugControl 的 switch 之前先交給 `intercept`
+/// （`// MA-FORK(F0)`，§F0.7）；`state` 的輸出在上游的 `return out` 前由 `augmentState` 補上 fork 的欄位
 @MainActor
 enum ForkDebug {
-    static func handle(_ args: [String], model: AppModel) -> Bool {
-        guard !args.isEmpty else { return false }
-        return general(args, model: model) || speakerTags(args, model: model) || mute(args, model: model) || notes(args, model: model) || backup(args, model: model)
-    }
+    /// fork 的頂層 DEBUG 指令（fork design §F0.7）。isolation-check 核對：等於 manifest 的 debugCommands（單字的）、
+    /// 等於各 *Debug.swift 頂層 switch 的名稱，跟上游 DebugControl 的 case 只在 `shadowed` 重疊
+    static let commands: Set<String> = [
+        "windowshot", "mawindowshot",                                          // F0
+        "tagspeaker", "tagui", "addparticipant", "applytags", "speakertags",  // F2
+        "micmute",                                                             // F3
+        "copysection", "topicsegments", "topicscroll", "topiccollapse",       // F4
+        "mabackup",                                                            // F10
+    ]
 
-    /// 跟上游同名、fork 要蓋過的指令（上游 DebugControl 的 switch 之前先問這裡，`// MA-FORK(F0)`）：
+    /// 跟上游同名、fork 要蓋過的指令：
     /// `windowshot <輸出.png> [main|popover]` 是 4.x 的 fork 寫法，上游 5.0 另有 `windowshot <視窗 id> <輸出.png>`；
     /// 5.0.1 的 fork 那一段排在上游的前面，所以一直是 fork 的寫法（測試腳本照這個用）。不改名（fork design §F0.1 第 6 點）
     static let shadowed: Set<String> = ["windowshot"]
 
-    static func shadows(_ args: [String], model: AppModel) -> Bool {
-        guard let name = args.first, shadowed.contains(name) else { return false }
-        return general(args, model: model)
+    /// 上游 DebugControl 的 switch 之前先問這裡（`// MA-FORK(F0)`，fork design §F0.7）：fork 的指令、上游 `hotkey` 的子指令
+    /// `hotkey mute` 在這裡做完、回 true；其他回 false，照上游原樣（不認得的由上游記「unknown」）
+    static func intercept(_ args: [String], model: AppModel) -> Bool {
+        guard let name = args.first else { return false }
+        if name == "hotkey", args.count > 1, args[1] == "mute" {   // F3：模擬按下 ⌃⌥⌘M
+            GlobalHotKey.shared.fireMute()
+            return true
+        }
+        guard commands.contains(name) else { return false }
+        return handle(args, model: model)
+    }
+
+    static func handle(_ args: [String], model: AppModel) -> Bool {
+        guard !args.isEmpty else { return false }
+        return general(args, model: model) || speakerTags(args, model: model) || mute(args, model: model) || notes(args, model: model) || backup(args, model: model)
     }
 
     static func augmentState(_ out: inout [String: Any], model: AppModel) {

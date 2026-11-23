@@ -19,3 +19,11 @@ struct ForkAppMenuCommands: Commands {
         ForkBackupMenuCommands(model: model)  // F10：立即備份、打開備份資料夾
     }
 }
+
+/// 設定「錄音與轉錄 → 提醒與快捷鍵」最後的 fork 列（SettingsView 的 `ForkRecordingSettingsRows()   // MA-FORK(F0)`，
+/// 原本是 F3 的 `ForkMuteSettingsRow()`；fork design §F0.7）。以後這一段的 fork 設定加在這裡、不再加接點
+struct ForkRecordingSettingsRows: View {
+    var body: some View {
+        ForkMuteSettingsRow()   // F3：錄音中按 ⌃⌥⌘M 靜音
+    }
+}
