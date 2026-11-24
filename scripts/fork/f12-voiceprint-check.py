@@ -11,7 +11,9 @@
   4. 全部套用：只有該擋的進同一個佇列，「只改名」一次套用到全部
   5. 來源紀錄：manual、suggestion、merge，舊資料「不明」；人物頁的資料（可疑標記、相似度）；刪單份聲紋
   6. §F-DB：分成兩場、合併人、永久刪除會議、刪人之後，沒有指不到聲紋的來源紀錄；foreign_key_check 沒有東西
-  7. windowshot：防呆視窗開著的會議頁、人物頁（看一眼）
+  7. REV-F12 的反例：聲紋庫快取暖著時分成兩場（只改 meeting_id），自身排除、防呆、人物頁的來源會議照新的；
+     改會議語言（en → zh、zh → ja、一般語言 ko → zh）後聲紋的建議照樣認得、用目前的語言顯示；時間空的 AI 建議不當成聲紋
+  8. windowshot：防呆視窗開著的會議頁、人物頁（看一眼）
 用法：python3 scripts/fork/f12-voiceprint-check.py <SHIYIN_HOME> <shiyinctl> --out <資料夾> [--fixtures <fixtures.json>]
 只讀寫 --out 和暫存 SHIYIN_HOME 的資料庫；同時只能開一個 DEBUG 版（shiyinctl 是廣播）。exit 0 通過、1 不符。
 """
@@ -350,6 +352,33 @@ def main():
     check('不需要提醒的照常改：Dan、存聲紋、沒有擋', not st['guard'] and speaker_row(B, 3)[0] == 'Dan' and len(p) == 1 and p[0][3] == 0,
           f'{speaker_row(B, 3)} {p}')
 
+    # 改會議語言（REV-F12 P2-2）：上游存的原因是當時的語言、改語言後不重寫；聲紋的建議仍要認得，用目前的語言重新產生
+    def stored_reason():
+        r = q('SELECT suggestion_reason FROM speakers WHERE meeting_id = ? AND idx = 2', (C,))
+        return r[0][0] if r else None
+
+    def relang(created, shown, want_stored):
+        ctl('language', C, created); settle()
+        setvoice(C, 2, C2)
+        ctl('mavoice', 'match', C); settle()
+        stored = stored_reason()
+        ctl('language', C, shown); settle()
+        st = state(f'lang-{created}-{shown}')
+        got = (speaker(st, 2) or {}).get('suggestion', {}).get('reason')
+        want = describe(rank(f32(C2), library(), (C, 2)), 'Ben', PHRASES['zh' if shown in ('zh', 'yue') else 'ja' if shown == 'ja' else 'en'])
+        check(f'改會議語言 {created} → {shown}：聲紋的建議照樣顯示依據（用 {shown} 重新產生）',
+              stored == want_stored and got == want, f'stored={stored} ／ got={got} ／ 預期 {want}')
+
+    relang('en', 'zh', 'Sounds like Ben from earlier meetings')
+    relang('zh', 'ja', '聲音跟之前的Ben很像')
+    relang('ko', 'zh', '이전 회의의 Ben 님과 목소리가 비슷합니다')
+    setvoice(C, 2, C2)
+    ctl('mavoice', 'suggest', C, 2, 'Zoe', '', '說了自己的名字'); settle()
+    st = state('lang-content-empty-time')
+    sg = (speaker(st, 2) or {}).get('suggestion', {})
+    check('時間空的 AI 建議不會被當成聲紋的', sg.get('reason') == PHRASES['zh']['content'] + '說了自己的名字', json.dumps(sg, ensure_ascii=False))
+    ctl('language', C, 'ja'); settle()
+
     # ---------- 4. 全部套用 ----------
     E1 = mix((0.95, 0), 9)
     E2 = mix((0.92, 1), 10)
@@ -430,6 +459,41 @@ def main():
     check('刪人：聲紋和來源紀錄一起刪、沒有孤兒', orphans() == 0 and not q('SELECT 1 FROM voiceprints WHERE person_id = ?', (amy,)))
     check('foreign_key_check 沒有東西', not q('PRAGMA foreign_key_check'), str(q('PRAGMA foreign_key_check')[:5]))
     check('integrity_check ok', q('PRAGMA integrity_check')[0][0] == 'ok')
+
+    # ---------- 7. 分成兩場後的聲紋庫（REV-F12 P2-1）：快取暖著時分割，只改 meeting_id ----------
+    meetings = q("SELECT m.id FROM meetings m WHERE m.deleted_at IS NULL AND (SELECT count(*) FROM segments s WHERE s.meeting_id = m.id) > 2 ORDER BY m.id")
+    others = q("SELECT id FROM meetings WHERE deleted_at IS NULL ORDER BY id")
+    if not check('分割的反例：找得到 3 句以上的會議', meetings and len(others) > 1, str(meetings)):
+        return
+    PB = meetings[0][0]
+    PC = next(m[0] for m in others if m[0] != PB)
+    segs = q('SELECT id, start FROM segments WHERE meeting_id = ? ORDER BY start', (PB,))
+    cut_id, cut_time = segs[1]
+    write_sql('UPDATE segments SET speaker = CASE WHEN start >= ? THEN 1 ELSE 2 END WHERE meeting_id = ?', (cut_time, PB))
+    setvoice(PB, 1, unit(40)); ctl('mavoice', 'rename', PB, 1, 'ProbeOwner'); settle()
+    setvoice(PC, 1, unit(41)); ctl('mavoice', 'rename', PC, 1, 'ProbeOther'); settle()
+    owner = person_id('ProbeOwner')
+    ctl('select', PB); settle()
+    pre = state('split-cache-before')
+    check('分割前（快取暖著）：不算自己那一份', not any(x['name'] == 'ProbeOwner' for x in (speaker(pre, 1) or {}).get('basis', [])),
+          json.dumps((speaker(pre, 1) or {}).get('basis'), ensure_ascii=False))
+    output('mavoice', 'prints', owner, name='split-prints-before')
+    sig_before = q('SELECT count(*), max(id), total(person_id) FROM voiceprints')
+    vp = q('SELECT id FROM voiceprints WHERE meeting_id = ? AND speaker_idx = 1', (PB,))[0][0]
+    ctl('splitmeeting', PB, cut_id); settle(); time.sleep(1)
+    moved = q('SELECT meeting_id FROM voiceprints WHERE id = ?', (vp,))[0][0]
+    sig_after = q('SELECT count(*), max(id), total(person_id) FROM voiceprints')
+    check('分割：聲紋搬到新的那場，count／max(id)／total(person_id) 都沒變', moved != PB and sig_before == sig_after,
+          str([PB, moved, sig_before, sig_after]))
+    ctl('select', moved); settle()
+    post = state('split-cache-after')
+    basis = (speaker(post, 1) or {}).get('basis', [])
+    check('分割後：自身排除照新的 meeting_id（不會自己跟自己 100%）', not any(x['name'] == 'ProbeOwner' for x in basis),
+          json.dumps(basis, ensure_ascii=False))
+    v = output('mavoice', 'check', moved, 1, 'Zed', name='split-guard')
+    check('分割後的防呆：自己的樣本不會被當成「另一位」', v['other'] != 'ProbeOwner' and not v['warn'], json.dumps(v))
+    rows = output('mavoice', 'prints', owner, name='split-prints-after')['rows']
+    check('分割後的人物頁：來源會議是新的那場', rows and rows[0]['meetingId'] == moved, json.dumps(rows, ensure_ascii=False)[:300])
 
 
 try:

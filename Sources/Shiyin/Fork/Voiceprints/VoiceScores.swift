@@ -41,8 +41,8 @@ enum ForkVoiceScores {
 
     /// 由 `ForkStartup.install` 設定：`MeetingDetail.loadSpeakers` 的接點沒有資料庫可用
     static let database = LockedValue<AppDatabase?>(nil)
-    /// 聲紋庫的快取：count、max(id)、total(person_id) 一樣就沿用（AUTOINCREMENT 的 id 不會重用；合併人會改 person_id）
-    private static let cache = LockedValue<(signature: [Double], prints: [Print])?>(nil)
+    /// 聲紋的向量（id → 向量）：不會變的才快取，中繼資料每次重讀（§F12.2）
+    private static let vectorCache = LockedValue<[Int64: [Float]]>([:])
 
     @MainActor
     static func install(_ model: AppModel) {
@@ -50,18 +50,28 @@ enum ForkVoiceScores {
         ForkVoiceSources.resolveIfNeeded(model.db)
     }
 
+    /// 聲紋庫：中繼資料每次重讀（分成兩場會改 meeting_id、合併人會改 person_id），只快取向量（以 id 為鍵；
+    /// 上游從不更新 embedding、AUTOINCREMENT 的 id 不會重用）。fork design §F12.2、REV-F12 P2-1
     static func library(_ db: Database) throws -> [Print] {
-        let row = try Row.fetchOne(db, sql: "SELECT count(*), coalesce(max(id), 0), total(person_id) FROM voiceprints")
-        let signature: [Double] = [Double(row?[0] as Int64? ?? 0), Double(row?[1] as Int64? ?? 0), row?[2] as Double? ?? 0]
-        if let cached = cache.value, cached.signature == signature { return cached.prints }
-        let prints = try Row.fetchAll(db, sql: """
-            SELECT id, person_id, meeting_id, speaker_idx, audio_source, created_at, embedding FROM voiceprints ORDER BY id
-            """).map { r in
-                Print(id: r["id"], personId: r["person_id"], meetingId: r["meeting_id"], speakerIdx: r["speaker_idx"],
-                      audioSource: r["audio_source"], createdAt: r["created_at"], vector: Voiceprint.vector(r["embedding"] as Data))
+        let rows = try Row.fetchAll(db, sql: """
+            SELECT id, person_id, meeting_id, speaker_idx, audio_source, created_at FROM voiceprints ORDER BY id
+            """)
+        var vectors = vectorCache.value
+        let ids = Set(rows.map { $0["id"] as Int64 })
+        let missing = ids.subtracting(vectors.keys)
+        if !missing.isEmpty {
+            for r in try Row.fetchAll(db, sql: "SELECT id, embedding FROM voiceprints WHERE id IN (\(missing.map(String.init).joined(separator: ",")))") {
+                vectors[r["id"]] = Voiceprint.vector(r["embedding"] as Data)
             }
-        cache.value = (signature, prints)
-        return prints
+        }
+        vectors = vectors.filter { ids.contains($0.key) }
+        vectorCache.value = vectors
+        return rows.compactMap { r in
+            let id: Int64 = r["id"]
+            guard let vector = vectors[id] else { return nil }
+            return Print(id: id, personId: r["person_id"], meetingId: r["meeting_id"], speakerIdx: r["speaker_idx"],
+                         audioSource: r["audio_source"], createdAt: r["created_at"], vector: vector)
+        }
     }
 
     static func names(_ db: Database) throws -> [Int64: String] {
@@ -105,10 +115,15 @@ enum ForkVoiceScores {
 
     // MARK: 文字
 
-    /// 上游 matchVoiceprints 寫的原因（會議語言）：一樣就是聲紋的建議。上游改了這句要跟著改（f12-voiceprint-check 會驗）
-    static func isVoiceprintSuggestion(_ suggestion: SpeakerNaming.Suggestion, language: MeetingLanguage) -> Bool {
-        suggestion.time.isEmpty && suggestion.reason == language.format(zh: "聲音跟之前的%@很像", en: "Sounds like %@ from earlier meetings",
-                                                                          ja: "以前の%@の声に似ています", suggestion.name)  // l10n-skip：上游的原因
+    /// 上游 matchVoiceprints 寫的原因：時間是空的，而且原因等於任何一種會議語言（精調、一般語言）用建議的名字寫的那一句，
+    /// 就是聲紋的建議。看所有語言：上游存的是當時的會議語言，使用者改會議語言後不重寫（REV-F12 P2-2）。
+    /// 上游改了這句要跟著改（f12-voiceprint-check 會驗）
+    static func isVoiceprintSuggestion(_ suggestion: SpeakerNaming.Suggestion) -> Bool {
+        guard suggestion.time.isEmpty else { return false }
+        return MeetingLanguage.allCases.contains { language in
+            suggestion.reason == language.format(zh: "聲音跟之前的%@很像", en: "Sounds like %@ from earlier meetings",
+                                                 ja: "以前の%@の声に似ています", suggestion.name)  // l10n-skip：上游的原因
+        }
     }
 
     /// 組依據的文字用的片語：建議的原因用會議語言（`meeting`），自動帶入的選單用介面語言（`interface`）
@@ -175,7 +190,7 @@ enum ForkVoiceScores {
 
     /// 建議的原因（會議語言）：聲紋的改寫成依據；AI 猜的前面加「依內容猜：」；算不出分數的聲紋建議照上游
     static func suggestionReason(_ suggestion: SpeakerNaming.Suggestion, basis: Basis?, language: MeetingLanguage) -> String {
-        if isVoiceprintSuggestion(suggestion, language: language) {
+        if isVoiceprintSuggestion(suggestion) {
             guard let basis else { return suggestion.reason }
             return describe(basis, name: suggestion.name, phrases: .meeting(language))
         }
