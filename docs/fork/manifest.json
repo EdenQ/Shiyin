@@ -1217,11 +1217,16 @@
         "mavoice"
       ],
       "migrations": [
-        "ma_voiceprint_source_v1"
+        "ma_voiceprint_source_v1",
+        "ma_retranscribe_v1",
+        "ma_retranscribe_v2"
       ],
       "tables": [
         "ma_voiceprint_source",
-        "ma_voiceprint_pending"
+        "ma_voiceprint_pending",
+        "ma_retranscribe_pending",
+        "ma_retranscribe_suggestion",
+        "ma_meeting_edit_retranscribe"
       ],
       "markers": [
         {
