@@ -266,37 +266,37 @@
         },
         {
           "file": "Sources/Shiyin/Store/AppModel.swift",
-          "line": 146,
+          "line": 147,
           "hook": "forkTags.rebuild(segments)"
         },
         {
           "file": "Sources/Shiyin/Store/AppModel.swift",
-          "line": 631,
+          "line": 632,
           "hook": "loaded.speakerTags = (try? db.speakerTags(id)) ?? []"
         },
         {
           "file": "Sources/Shiyin/Store/AppModel.swift",
-          "line": 1197,
+          "line": 1198,
           "hook": "func speakerEditProblem(_ id: Int64, transcript: Bool = false) -> String? {"
         },
         {
           "file": "Sources/Shiyin/Store/AppModel.swift",
-          "line": 1243,
+          "line": 1244,
           "hook": "if AppSettings.voiceprints, source == \"manual\" || source == \"suggestion\" || source == \"tag\" {"
         },
         {
           "file": "Sources/Shiyin/Store/AppModel.swift",
-          "line": 1935,
+          "line": 1937,
           "hook": "let b = ForkSpeakerTags.attach(b, db: db, meetingId: meetingId)"
         },
         {
           "file": "Sources/Shiyin/Store/AppModel.swift",
-          "line": 2087,
+          "line": 2089,
           "hook": "if parts.contains(.speakerTags) { updated.speakerTags = (try? db.speakerTags(id)) ?? [] }"
         },
         {
           "file": "Sources/Shiyin/Store/AppModel.swift",
-          "line": 2095,
+          "line": 2097,
           "hook": "if !parts.isDisjoint(with: [.segments, .corrections, .speakerTags]) || !segmentIds.isEmpty { updated.buildIndexes() }"
         },
         {
@@ -332,17 +332,12 @@
         {
           "file": "Sources/Shiyin/Store/Voiceprints.swift",
           "line": 142,
-          "hook": "guard try ForkSpeakerTags.remembersVoice(db, meetingId: meetingId, source: source), let speaker = try SpeakerName.filter(Column(\"meeting_id\") == meetingId && Column(\"idx\") == idx).fetchOne(db),"
+          "hook": "guard try ForkSpeakerTags.remembersVoice(db, meetingId: meetingId, idx: idx, source: source), let speaker = try SpeakerName.filter(Column(\"meeting_id\") == meetingId && Column(\"idx\") == idx).fetchOne(db),"
         },
         {
           "file": "Sources/Shiyin/Views/MeetingDetailView.swift",
           "line": 153,
-          "hook": "if detail.speakerSources[idx] == \"tag\" { ForkTaggedSpeakerName(idx: idx, name: name, others: detail.speakerCandidates[idx] ?? []) } else if detail.speakerSources[idx] == \"voiceprint\" {"
-        },
-        {
-          "file": "Sources/Shiyin/Views/MeetingDetailView.swift",
-          "line": 562,
-          "hook": "if !detail.unappliedTags.isEmpty && !isRecording && !trashed { UnappliedTagsBanner(detail: detail) }"
+          "hook": "if let chip = ForkSpeakerChip(idx: idx, name: name, detail: detail) { chip } else if detail.speakerSources[idx] == \"voiceprint\" {"
         },
         {
           "file": "Sources/Shiyin/Views/RecordingView.swift",
@@ -568,12 +563,12 @@
         },
         {
           "file": "Sources/Shiyin/Store/AppModel.swift",
-          "line": 709,
+          "line": 710,
           "hook": "if let symbol = ForkMute.menuBarSymbol(recorder) { return symbol }"
         },
         {
           "file": "Sources/Shiyin/Store/AppModel.swift",
-          "line": 730,
+          "line": 731,
           "hook": "var mainWindowInFront: Bool {"
         },
         {
@@ -703,7 +698,7 @@
         },
         {
           "file": "Sources/Shiyin/Store/AppModel.swift",
-          "line": 216,
+          "line": 217,
           "hook": "fork.selectionChanged()"
         },
         {
@@ -1054,13 +1049,18 @@
         },
         {
           "file": "Sources/Shiyin/Store/AppModel.swift",
-          "line": 273,
+          "line": 274,
           "hook": "let fork = ForkAppState()"
         },
         {
           "file": "Sources/Shiyin/Store/AppModel.swift",
-          "line": 468,
+          "line": 469,
           "hook": "ForkStartup.install(self)"
+        },
+        {
+          "file": "Sources/Shiyin/Views/MeetingDetailView.swift",
+          "line": 562,
+          "hook": "ForkDetailBanners(detail: detail, active: !isRecording && !trashed)"
         },
         {
           "file": "Sources/Shiyin/Views/SettingsView.swift",
@@ -1073,6 +1073,7 @@
         "Sources/Shiyin/Debug/DebugControl.swift",
         "Sources/Shiyin/Services/Notifier.swift",
         "Sources/Shiyin/Store/AppModel.swift",
+        "Sources/Shiyin/Views/MeetingDetailView.swift",
         "Sources/Shiyin/Views/SettingsView.swift"
       ]
     },
@@ -1220,7 +1221,23 @@
         "ma_voiceprint_source",
         "ma_voiceprint_pending"
       ],
-      "markers": [],
+      "markers": [
+        {
+          "file": "Sources/Shiyin/Store/AppModel.swift",
+          "line": 138,
+          "hook": "ForkVoiceScores.annotate(&self, rows)"
+        },
+        {
+          "file": "Sources/Shiyin/Store/AppModel.swift",
+          "line": 1539,
+          "hook": "if ForkVoiceGuard.holds(self, meetingId: id, idx: idx, name: name, source: source) { return }"
+        },
+        {
+          "file": "Sources/Shiyin/Views/PeopleViews.swift",
+          "line": 62,
+          "hook": "ForkPersonVoiceprints(personId: person.id)"
+        }
+      ],
       "checks": [
         "python3 scripts/fork/f12-voiceprint-check.py <SHIYIN_HOME> <shiyinctl> --out <資料夾>",
         "scripts/fork/check.sh --only 16"

@@ -139,7 +139,7 @@ extension AppDatabase {
             guard let personId = person?.id else { return }
             try db.execute(sql: "UPDATE speakers SET person_id = ?, name_source = ? WHERE meeting_id = ? AND idx = ?",
                            arguments: [personId, source, meetingId, idx])
-            guard try ForkSpeakerTags.remembersVoice(db, meetingId: meetingId, source: source), let speaker = try SpeakerName.filter(Column("meeting_id") == meetingId && Column("idx") == idx).fetchOne(db),   // MA-FORK(F2)：可能把人併在一起的標記不存聲紋（F2.9）
+            guard try ForkSpeakerTags.remembersVoice(db, meetingId: meetingId, idx: idx, source: source), let speaker = try SpeakerName.filter(Column("meeting_id") == meetingId && Column("idx") == idx).fetchOne(db),   // MA-FORK(F2)：可能把人併在一起的標記不存聲紋（F2.9）；F12 記來源、「只改名」不存
                   let embedding = speaker.embedding, speaker.speechSeconds >= Self.voiceprintMinimumSeconds else { return }
             let vector = Voiceprint.vector(embedding)
             let existing = try Row.fetchAll(db, sql: "SELECT embedding FROM voiceprints WHERE person_id = ?", arguments: [personId])

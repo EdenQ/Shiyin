@@ -2364,6 +2364,40 @@
         }
       }
     },
+    "「%@」→ %@：聲音很像 %@（%lld%%），%@ 還沒有聲音樣本。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@”→ %@：声音很像 %@（%lld%%），%@ 还没有声音样本。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%1$@” → %2$@: sounds very like %3$@ (%4$lld%%), and %5$@ has no voice samples yet."
+          }
+        }
+      }
+    },
+    "「%@」→ %@：聲音很像 %@（%lld%%），跟 %@ 之前的聲音只有 %lld%%。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@”→ %@：声音很像 %@（%lld%%），跟 %@ 之前的声音只有 %lld%%。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%1$@” → %2$@: sounds very like %3$@ (%4$lld%%), but only %6$lld%% like %5$@’s earlier voice."
+          }
+        }
+      }
+    },
     "「%@」→「%@」": {
       "extractionState": "manual",
       "localizations": {
@@ -2564,6 +2598,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "“一般”的“分享画面时藏起拾音的窗口”：打开后，用 Zoom、Teams、Google Meet 分享整个屏幕时别人看不到拾音，截图、屏幕录像也拍不到。"
+          }
+        }
+      }
+    },
+    "「仍要存」照樣取名、記住這個聲音；「只改名，不記住聲音」名字照改，但之後的會議不會用這個聲音比對。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“仍要存”照样取名、记住这个声音；“只改名，不记住声音”名字照改，但之后的会议不会用这个声音比对。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“Save Anyway” names the speaker and remembers this voice. “Rename Only” changes the name, but later meetings won’t compare against this voice."
           }
         }
       }
@@ -3037,6 +3088,23 @@
         }
       }
     },
+    "不像": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不像"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "unlikely"
+          }
+        }
+      }
+    },
     "不分組": {
       "extractionState": "manual",
       "localizations": {
@@ -3152,6 +3220,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "不整理，只要逐字稿"
+          }
+        }
+      }
+    },
+    "不明": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不明"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unknown"
           }
         }
       }
@@ -3611,6 +3696,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "People"
+          }
+        }
+      }
+    },
+    "仍要存": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仍要存"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save Anyway"
           }
         }
       }
@@ -4943,6 +5045,23 @@
         }
       }
     },
+    "兩人很像，請確認": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "两人很像，请确认"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "the two sound alike, please check"
+          }
+        }
+      }
+    },
     "兩場的會議語言不同，合併後照這場的語言整理": {
       "extractionState": "manual",
       "localizations": {
@@ -6086,6 +6205,40 @@
         }
       }
     },
+    "刪除這份…": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除这份…"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete This Sample…"
+          }
+        }
+      }
+    },
+    "刪除這份聲音特徵？": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除这份声音特征？"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete this voice sample?"
+          }
+        }
+      }
+    },
     "刪除這個人的重點": {
       "extractionState": "manual",
       "localizations": {
@@ -7125,6 +7278,23 @@
         }
       }
     },
+    "只改名，不記住聲音": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只改名，不记住声音"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rename Only"
+          }
+        }
+      }
+    },
     "只改這 %lld 句": {
       "extractionState": "manual",
       "localizations": {
@@ -7167,6 +7337,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "只改这句"
+          }
+        }
+      }
+    },
+    "只有這一份": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只有这一份"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only sample"
           }
         }
       }
@@ -8038,6 +8225,23 @@
         }
       }
     },
+    "在設定的「我的聲音」管理": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在设置的“我的声音”管理"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Managed in Settings under “My Voice”"
+          }
+        }
+      }
+    },
     "在逐字稿點「說話者 1」改成名字，或到設定錄一段你自己的聲音，拾音就會記住這個人。": {
       "extractionState": "manual",
       "localizations": {
@@ -8305,6 +8509,23 @@
         }
       }
     },
+    "套用建議": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "套用建议"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Applied suggestion"
+          }
+        }
+      }
+    },
     "套用後，逐字稿和會議紀錄都會換成名字。": {
       "extractionState": "manual",
       "localizations": {
@@ -8454,6 +8675,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "保存…"
+          }
+        }
+      }
+    },
+    "存的時候提醒過": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "存的时候提醒过"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saved after a warning"
           }
         }
       }
@@ -10380,6 +10618,23 @@
         }
       }
     },
+    "很像": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "很像"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "very close"
+          }
+        }
+      }
+    },
     "後半句是": {
       "extractionState": "manual",
       "localizations": {
@@ -10927,6 +11182,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "所有说话者"
+          }
+        }
+      }
+    },
+    "手動取名": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手动取名"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Named by hand"
           }
         }
       }
@@ -14765,6 +15037,23 @@
         }
       }
     },
+    "會議在垃圾桶": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会议在回收站"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meeting in Trash"
+          }
+        }
+      }
+    },
     "會議多了可以整理：列表上方那一行右邊的「顯示方式」（選單列的「顯示方式」也有）可以照日期、標題、長度排序，依月份或資料夾分組，只看有待確認、有你的待辦、某個人參加或某個範本的會議。資料夾按右鍵選「自動加入的條件…」，例如標題有「週會」、某幾個人都參加，新的會議整理完就自動放進去。": {
       "extractionState": "manual",
       "localizations": {
@@ -14841,6 +15130,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "会议好像结束了，要停止录音吗？"
+          }
+        }
+      }
+    },
+    "會議已刪除": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会议已删除"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meeting deleted"
           }
         }
       }
@@ -15134,6 +15440,23 @@
         }
       }
     },
+    "會議裡的名字不會變；之後的會議不再用這份比對。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会议里的名字不会变；之后的会议不再用这份比对。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Names in meetings won’t change. Later meetings won’t be compared against this sample."
+          }
+        }
+      }
+    },
     "會議語言": {
       "extractionState": "manual",
       "localizations": {
@@ -15181,6 +15504,35 @@
           "stringUnit": {
             "state": "translated",
             "value": "会议语言改成 %@，要重新转录或整理的话，从“更多 → 重新处理”选"
+          }
+        }
+      }
+    },
+    "有 %lld 位說話者的名字還沒改：聲音跟名字對不上": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有 %lld 位说话者的名字还没改：声音跟名字对不上"
+          }
+        },
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld speaker wasn’t renamed: the voice doesn’t match the name"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld speakers weren’t renamed: the voices don’t match the names"
+                }
+              }
+            }
           }
         }
       }
@@ -15380,6 +15732,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Attended By"
+          }
+        }
+      }
+    },
+    "有點像": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有点像"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "possible"
           }
         }
       }
@@ -17875,6 +18244,23 @@
         }
       }
     },
+    "現在最像的是 %@ %lld%%": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "现在最像的是 %@ %lld%%"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "closest now: %@ %lld%%"
+          }
+        }
+      }
+    },
     "琥珀色是辨識信心低的段落": {
       "extractionState": "manual",
       "localizations": {
@@ -18584,6 +18970,23 @@
         }
       }
     },
+    "確定是%@嗎？": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "确定是%@吗？"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Is this really %@?"
+          }
+        }
+      }
+    },
     "確認、略過待確認": {
       "extractionState": "manual",
       "localizations": {
@@ -18949,6 +19352,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "第一次录音时会询问；被拒绝的话到“系统设置 → 隐私与安全性 → 麦克风”打开拾音"
+          }
+        }
+      }
+    },
+    "第二像 %@ %lld%%": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第二像 %@ %lld%%"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "next %@ %lld%%"
           }
         }
       }
@@ -20024,6 +20444,23 @@
         }
       }
     },
+    "聲紋比對：%@ %lld%%（%@）": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "声纹比对：%@ %lld%%（%@）"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voice match: %@ %lld%% (%@)"
+          }
+        }
+      }
+    },
     "聲紋（說話者的聲音特徵，一組數字，不是錄音）只存在這台 Mac，不會放進匯出的 .shiyin 封包。": {
       "extractionState": "manual",
       "localizations": {
@@ -20054,6 +20491,35 @@
           "stringUnit": {
             "state": "translated",
             "value": "声音有点小：手机或笔电放近说话的人一点。"
+          }
+        }
+      }
+    },
+    "聲音特徵（%lld 份）": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "声音特征（%lld 份）"
+          }
+        },
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Voice Samples (%lld)"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Voice Samples (%lld)"
+                }
+              }
+            }
           }
         }
       }
@@ -21782,6 +22248,23 @@
         }
       }
     },
+    "跟其他樣本最像 %lld%%": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跟其他样本最像 %lld%%"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Best match with others: %lld%%"
+          }
+        }
+      }
+    },
     "跟著目前在用的螢幕": {
       "extractionState": "manual",
       "localizations": {
@@ -21795,6 +22278,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Screen you're using"
+          }
+        }
+      }
+    },
+    "跟這個人其他樣本不像，跟 %@ 很像（%lld%%）": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跟这个人其他样本不像，跟 %@ 很像（%lld%%）"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unlike this person’s other samples; very like %@ (%lld%%)"
           }
         }
       }
@@ -22418,6 +22918,35 @@
         }
       }
     },
+    "這 %lld 位說話者的聲音跟名字對不上": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这 %lld 位说话者的声音跟名字对不上"
+          }
+        },
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "This speaker’s voice doesn’t match the name"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "These %lld speakers’ voices don’t match the names"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "這一段已經改過，找不到建議要改的文字": {
       "extractionState": "manual",
       "localizations": {
@@ -22533,6 +23062,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "None of these meetings are in a folder"
+          }
+        }
+      }
+    },
+    "這個人還沒有聲音特徵。": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个人还没有声音特征。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No voice samples for this person yet."
           }
         }
       }
@@ -24885,6 +25431,23 @@
         }
       }
     },
+    "錄「我的聲音」": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录“我的声音”"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recorded “My Voice”"
+          }
+        }
+      }
+    },
     "錄一段你自己的聲音，第一場會議就認得你。": {
       "extractionState": "manual",
       "localizations": {
@@ -25493,6 +26056,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "录音按钮旁的箭头、录音画面也可以换麦克风。蓝牙耳机连着时，系统默认可能会自动变成耳机的麦克风，现场会议请选这台 Mac 的麦克风。"
+          }
+        }
+      }
+    },
+    "錄音時標記": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录音时标记"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tagged while recording"
           }
         }
       }

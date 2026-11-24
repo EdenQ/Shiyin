@@ -8,6 +8,7 @@ enum ForkStartup {
         ForkMute.install(model)     // F3：⌃⌥⌘M、靜音的提醒
         ForkBackup.install(model)   // F10：定期備份資料庫
         ForkIsland.install(model)   // F11：記下主視窗所在的螢幕（錄音島放在哪個螢幕）
+        ForkVoiceScores.install(model)   // F12：聲紋的分數、來源紀錄用的資料庫
     }
 }
 

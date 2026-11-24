@@ -14,6 +14,7 @@ enum ForkDebug {
         "copysection", "topicsegments", "topicscroll", "topiccollapse",       // F4
         "mabackup",                                                            // F10
         "maisland",                                                            // F11
+        "mavoice",                                                             // F12
     ]
 
     /// 跟上游同名、fork 要蓋過的指令：
@@ -35,7 +36,7 @@ enum ForkDebug {
 
     static func handle(_ args: [String], model: AppModel) -> Bool {
         guard !args.isEmpty else { return false }
-        return general(args, model: model) || speakerTags(args, model: model) || mute(args, model: model) || notes(args, model: model) || backup(args, model: model) || island(args, model: model)
+        return general(args, model: model) || speakerTags(args, model: model) || mute(args, model: model) || notes(args, model: model) || backup(args, model: model) || island(args, model: model) || voiceprints(args, model: model)
     }
 
     static func augmentState(_ out: inout [String: Any], model: AppModel) {

@@ -59,6 +59,7 @@ struct PersonPage: View {
                     }
                 }
             }
+            ForkPersonVoiceprints(personId: person.id)   // MA-FORK(F12)：聲音特徵（F12.10～F12.12）
         }
         .navigationTitle(person.name)
         // 改名、合併、刪除放在工具列右上角的「更多」，跟會議頁同一個位置
