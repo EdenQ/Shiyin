@@ -912,6 +912,7 @@ CREATE TABLE ma_voiceprint_pending (
   - B `pairUnlike`：這個人剛好 2 份、互相 < 0.50，兩份都標。
   - C `staleSpeaker`：`meeting_id` 不是 NULL、`speaker_idx` 不是 NULL，那一場那位說話者還在而且有 `embedding`，跟它的相似度 < 0.50。上游重新轉錄會重新分群、編號，但不刪這場舊的聲紋（AN-vpclean 從資料推得，另案），所以舊聲紋可能跟現在同編號的說話者對不上。
   - 錄的「我的聲音」（`enroll`）不比 A、B 以外的；C 不比（沒有來源說話者）。
+  - 只比有效的向量（REV-F12b P3-1）：非空、維度相同、數值有限、長度不是 0。無效的比較直接略過，不當成「不像」（例如 `speakers.embedding` 是空的 BLOB、維度不符、全是 0）；B 的「只有 2 份」也只數有效的聲紋。不另外顯示「無法比對」。
   - 畫面：每條一行橘色的說明（同 F12.11 的樣式），任何一條成立整列用警告色。
 - 刪除：「刪除這份…」→ 確認（「刪除這份聲音特徵？」「會議裡的名字不會變；之後的會議不再用這份比對。」）→ `DELETE FROM voiceprints WHERE id = ?`。
   - 來源紀錄由外鍵一起刪。不呼叫 `deleteOrphanPeople`：這個人留在人物頁（還連著會議裡的說話者）。
