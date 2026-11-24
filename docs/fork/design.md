@@ -786,14 +786,18 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 
 - 顯示時重算，不存分數：每位說話者的 `speakers.embedding`（說話 ≥ 8 秒）跟聲紋庫裡每個人的每一份比 cosine，每人取最高（同上游 `matchVoiceprints`）。
   - 不算這位說話者自己存進去的那一份（同一個 `meeting_id`、`speaker_idx`）：手動取名的說話者跟自己的聲紋一定是 1.0，沒有意義。
-- 聲紋庫的快取：`SELECT count(*), max(id), total(person_id) FROM voiceprints` 一樣就沿用上次讀的向量；名字每次重讀（`people` 很小）。
-  - 新增、刪除、合併人都會改到這三個值（`AUTOINCREMENT` 的 id 不會重用）。
-  - 一場會議幾位說話者 × 幾百份 256 維的向量，在主執行緒算也不到 1 毫秒等級。
+- 聲紋庫：每次都重讀每一份的中繼資料（`id`、`person_id`、`meeting_id`、`speaker_idx`、`audio_source`、`created_at`），名字也每次重讀（`people` 很小）；只快取向量，以 `id` 為鍵。
+  - 向量可以快取：上游只會新增、刪除聲紋，改的只有 `person_id`（合併人）、`meeting_id`（分成兩場），`embedding` 從不更新；`AUTOINCREMENT` 的 id 不會重用。
+  - 中繼資料不能快取（REV-F12 P2-1）：分成兩場只改 `meeting_id`，用 count／max(id)／total(person_id) 當快取的鍵時三個值都不變，排除自己的那一份會用到舊的會議，自己跟自己算出 100%。
+  - 每次讀到的 id 裡沒有快取的才讀 `embedding`；不在了的從快取拿掉。
+  - 成本：中繼資料一次查詢；比對 256 維、20 位說話者，300／3000／10000 份約 1.4／14.5／48 ms（REV-F12 的量測，-O）。聲紋庫一般是幾十到幾百份；很大時會佔主執行緒，屬於已知的取捨。
 - 等級（`Level`）：`≥ 0.88` 很像、`≥ 0.65` 有點像、其他不像（同上游的 `voiceprintAutoThreshold`、`voiceprintThreshold`，直接讀上游常數）；百分比是 `max(0, round(score × 100))`。
 - 兩人很像：`top − second < voiceprintAutoMargin`（0.15）。
 
 **建議的原因**（`annotate` 改 `speakerSuggestions` 的 `reason`，只改顯示，資料庫裡的不動）：
-- 怎麼分聲紋的建議和 AI 猜的：`suggestion_time` 是空的、而且原因等於上游 `matchVoiceprints` 用會議語言寫的「聲音跟之前的%@很像」，就是聲紋的；其他都算 AI 依內容猜的。
+- 怎麼分聲紋的建議和 AI 猜的：`suggestion_time` 是空的、而且原因等於上游 `matchVoiceprints` 的「聲音跟之前的%@很像」**在任何一種會議語言**（`MeetingLanguage.allCases`：languages.json 的精調和一般語言，一般語言查它的 `strings`）用建議的名字寫出來的那一句，就是聲紋的；其他都算 AI 依內容猜的（時間空的 AI 建議也一樣，只要原因不是那一句）。
+  - 要看所有語言（REV-F12 P2-2）：上游存的原因是當時的會議語言，使用者之後改會議語言時上游只改 `meetings.language`、不重寫原因。只比對目前的語言，聲紋建議會被誤標成「依內容猜」、分數不見。
+  - 顯示一律用**目前**的會議語言重新產生（聲紋的依據），AI 猜的原因照存的原文。
 - 聲紋的（會議語言，`language.format(zh:en:ja:)`）：
   - zh：`聲紋比對：Ben 80%（有點像）・第二像 Amy 70%・兩人很像，請確認・現在最像的是 Amy 96%`
   - en：`Voice match: Ben 80% (possible) · next Amy 70% · the two sound alike, please check · closest now: Amy 96%`
@@ -1043,6 +1047,6 @@ CREATE TABLE ma_voiceprint_pending (
 | DF9 | 定期備份用 sqlite3_backup（來源是 GRDB 讀取交易裡的快照；目的地自己用 `O_EXCL | O_NOFOLLOW` 建、`SQLITE_OPEN_NOFOLLOW` 開，§F10.1a），寫完跑 `integrity_check` 才改名；上一次成功的時間看 `backups/daily/` 裡最新的檔，不存在設定；設定（一般頁）的一段用 1 行接點（98 → 99），啟動、「MA」選單改走 F0 的共用入口 `ForkStartup`、`ForkAppMenuCommands`，換掉既有的 2 行（F10，2026-11-20 使用者確認） | `VACUUM INTO`：不能在交易裡跑，GRDB 的讀取一律包交易，要另開連線，又會重排整個檔，沒有多的好處。存 `maBackupLastSuccess`（需求草稿的寫法）：設定跟著 bundle id、不跟著 `SHIYIN_HOME`，換了資料夾（測試、示範資料夾）時會拿別的資料夾的時間判斷，所以改成看檔案、另存 `maBackupFailingSince` 算 7 天。各功能各加接點：會用掉剩下的 2 行；提高接點上限：使用者選共用入口 |
 | DF10 | 接點上限 100 不提高；行數快滿時把既有接點收進 F0 的共用入口（§F0.7）。這次收掉 3 行（99 → 96）：DebugControl 的 `default:` 和 `hotkey` 那兩行改由 switch 前的 `ForkDebug.intercept` 處理（fork 指令名稱跟上游不重疊，由 isolation-check 守住），AppModel 停止錄音時關 ⌃⌥⌘M 改由 `ForkMute.install` 包住 `recorder.onFinished`；設定的 F3 列改名成共用列 `ForkRecordingSettingsRows`（行數不變，給 F11 用）（HK-consolidate，2026-11-23 使用者決定先合併再做 F11） | 提高上限：使用者不要。把相鄰的兩行 fork 程式擠成一行（SpeakerEdits 的 `forkSaveSpeakerUndo`、`forkAddSpeaker`）：數字變小，但跟上游衝突的面積一樣，不算真的減少。GlobalHotKey 的 3 行（`register`、`unregister` 改 internal、事件處理裡分派 fork 的 id）改成 fork 自己裝 Carbon 的事件處理：按真的快捷鍵的路徑沒辦法自動測（不能送按鍵），處理的順序、吞不吞事件一錯就是兩個快捷鍵都壞。Recorder 的 `resetForStart`、`resetForStop` 改用回呼：`onStarted`、`onFinished` 被呼叫的時間點跟現在的位置（開始流程中、`cleanup` 裡）不同，要另外證明每條開始、停止、失敗的路徑都一樣，風險比省下的一行大。RecordingView、MenuBar 的麥克風音量條兩行（加 fork 的圖示、藏起或淡化上游的那條）：要藏上游的元件只能改它那一行。ReleaseNotes、AudioSources（DF5）、TranscriptTab 等改上游既有行的：一行就是一處邏輯，合併要改上游的寫法，合併上游時更容易衝突 |
 | DF11 | 錄音島預設固定在內建螢幕，設定可以選「跟著目前在用的螢幕」（上游 R81.1）、「內建螢幕」、「主視窗所在的螢幕」；沒有內建螢幕時退到主視窗所在的螢幕，再不行照上游；內建螢幕用 `CGDisplayIsBuiltin` 判斷；偵測會議的提醒跟島一起固定（F11，2026-11-23 使用者決定）。偏離上游 R81.1 的理由：上游每 0.5 秒、換 app 時把島搬到 `NSScreen.main`，多螢幕時使用者在哪個螢幕操作島就跟到哪，來回切換時一直跑；固定在一個螢幕位置可以預期，有瀏海的 MacBook 接在瀏海兩側最自然。上游的行為保留成一個選項。接點 1 行（96 → 97），寫成通用入口 `ForkIsland.screen()` | 一律固定在內建螢幕、不做設定：想要上游行為的人只能把島關掉。固定在「開始錄音時主視窗所在的螢幕」：用快捷鍵、會議提醒開始錄音時主視窗常常沒開，規則也難懂（這次在左邊、上次在右邊）。沒有內建螢幕時固定在主要螢幕（有選單列的那個）：使用者要的是主視窗所在的螢幕。用螢幕名稱（`localizedName`）認內建螢幕：名稱跟著系統語言變、可以改名。不加接點、fork 在外面另外搬視窗：上游下一個 0.5 秒又搬回去，島在兩個螢幕之間閃。覆寫 `IslandPanel.setFrame`、在執行期換掉 `NSScreen.main`：要動上游的 `final class` 或用 Objective-C runtime，太脆弱。提醒維持跟著目前在用的螢幕：要多一套判斷，使用者決定一起固定 |
-| DF12 | 聲紋的分數在顯示時重算（`MeetingDetail.loadSpeakers` 1 行接點），不存（F12，2026-11-24）。等級照上游的兩個門檻（≥ 0.88 很像、≥ 0.65 有點像），兩人很像用上游的差距 0.15；建議的原因只在顯示時改寫，資料庫裡上游的原因不動；現在最像的人跟存好的建議不同時加註，讓過時的建議看得出來 | 轉錄時把分數存進 fork 的表：要在上游 `matchVoiceprints` 之後多 1 行接點，而且聲紋庫一變（刪錯的聲紋、合併人）分數就過時，正好重演使用者遇到的「存好的建議不會更新」。直接改寫資料庫裡的 `suggestion_reason`：上游的待確認、匯出、MCP 都會讀到 fork 的文字，會議語言換了也不會跟著換。成本：一場會議幾位說話者 × 聲紋庫幾百份，聲紋庫用 count／max(id)／sum(person_id) 當快取的鍵，不用每次重讀 |
+| DF12 | 聲紋的分數在顯示時重算（`MeetingDetail.loadSpeakers` 1 行接點），不存（F12，2026-11-24）。等級照上游的兩個門檻（≥ 0.88 很像、≥ 0.65 有點像），兩人很像用上游的差距 0.15；建議的原因只在顯示時改寫，資料庫裡上游的原因不動；現在最像的人跟存好的建議不同時加註，讓過時的建議看得出來 | 轉錄時把分數存進 fork 的表：要在上游 `matchVoiceprints` 之後多 1 行接點，而且聲紋庫一變（刪錯的聲紋、合併人）分數就過時，正好重演使用者遇到的「存好的建議不會更新」。直接改寫資料庫裡的 `suggestion_reason`：上游的待確認、匯出、MCP 都會讀到 fork 的文字，會議語言換了也不會跟著換。成本：每次重讀聲紋的中繼資料、只快取不會變的向量（以 id 為鍵）；2026-11-24 REV-F12 改掉用 count／max(id)／sum(person_id) 當鍵快取整份聲紋庫：分成兩場只改 meeting_id，三個值都不變。辨識聲紋的建議時比對所有會議語言的上游原因（使用者改會議語言後上游不重寫原因） |
 | DF13 | 改名防呆擋在上游 `AppModel.renameSpeaker` 開頭（1 行接點），所有使用者取名的路徑都經過它；別人 ≥ 0.88、取的名字既有的 < 0.50（或沒有樣本）才擋；一次好幾位時擋下的集中在一個視窗、選項套用到全部；「只改名」沿用 F2.9 的「只連到人、不存聲紋」（F12，2026-11-24） | 改完才問（在 `remembersVoice` 先不存聲紋、事後再問要不要存）：取消時要把名字、會議紀錄、建議改回去，會多存一版會議紀錄，也清不回被上游清掉的復原。只看別人很像、不看取的名字：同一個人的聲紋本來就可能跟別人 0.88 以上（使用者的資料裡不同的人有 0.85），會常常誤擋。門檻用 0.65／0.88 的差距：沒有實際資料支撐。一位一個視窗：全部套用 5 位時要按 5 次，而且上游的迴圈是同步的，做不到一個接一個問。也擋合併說話者、重新辨識時的重新學習：那時名字是使用者早就確認過的，不是新的取名 |
 | DF14 | 聲紋的來源記在 fork 的表 `ma_voiceprint_source`（外鍵指到上游的 `voiceprints`、`ON DELETE CASCADE`），在既有的 `remembersVoice` 接點寫 pending、事後對到聲紋 id；取名的來源由防呆的接點記在記憶體，標記由 F2 的套用記，重新辨識看 `jobs`，其他算合併；待確認回答併進「套用建議」「手動取名」（F12，2026-11-24） | 在上游 `voiceprints` 加欄位：違反 §F-DB.1 第 2 點，降回舊版時 INSERT 沒填也沒關係，但上游以後的 migration 可能重建這張表。在 `INSERT` 之後多 1 行接點拿 id：接點已經用到 100。用觸發器（trigger）在上游的表上：上游重建表時會不見，也是改上游表的行為。以 `meeting_id`、`speaker_idx` 當鍵、不對到 id：分成兩場會改 `meeting_id`，紀錄會對錯。分出「待確認回答」：上游的待確認送出直接呼叫 `renameSpeaker`，要再 1 行接點才分得出來，對判斷聲紋可不可信沒有幫助 |
