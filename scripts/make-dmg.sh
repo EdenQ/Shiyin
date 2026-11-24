@@ -37,6 +37,7 @@ rm -rf "$STAGE"
 [ -L "$ROOT/dist" ] || { rm -rf "$ROOT/dist"; ln -s "$OUT_DIR" "$ROOT/dist"; }
 
 # 更新資訊（design §12、R10.6）：跟 DMG 放在同一個位置；更新內容可以用 SHIYIN_RELEASE_NOTES 帶入
+SHIYIN_RELEASE_NOTES="$(printf '%s' "${SHIYIN_RELEASE_NOTES:-}" | /usr/bin/python3 scripts/fork/release-notes.py app)"   # MA-FORK(F13)：「基於上游」只留在 GitHub Release
 SHA="$(shasum -a 256 "$DMG" | cut -d' ' -f1)"
 VERSION="$VERSION" DMG_NAME="$(basename "$DMG")" SHA="$SHA" NOTES="${SHIYIN_RELEASE_NOTES:-}" \
   /usr/bin/python3 -c 'import json, os; print(json.dumps({"version": os.environ["VERSION"], "url": os.environ["DMG_NAME"], "sha256": os.environ["SHA"], "notes": os.environ["NOTES"]}, ensure_ascii=False, indent=2))' \

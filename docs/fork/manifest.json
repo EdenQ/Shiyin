@@ -1259,7 +1259,9 @@
       "title": "拿掉原作者相關資訊",
       "requirements": "docs/fork/requirements.md F13",
       "design": "docs/fork/design.md §F13",
-      "forkFiles": [],
+      "forkFiles": [
+        "scripts/fork/release-notes.py"
+      ],
       "upstreamFiles": [
         "scripts/make-dmg.sh",
         ".github/workflows/site.yml",
@@ -1278,7 +1280,13 @@
       "debugCommands": [],
       "migrations": [],
       "tables": [],
-      "markers": [],
+      "markers": [
+        {
+          "file": "scripts/make-dmg.sh",
+          "line": 40,
+          "hook": "SHIYIN_RELEASE_NOTES=\"$(printf '%s' \"${SHIYIN_RELEASE_NOTES:-}\" | /usr/bin/python3 scripts/fork/release-notes.py app)\""
+        }
+      ],
       "checks": [
         "python3 scripts/fork/brand-test.py",
         "scripts/fork/check.sh --only 3"

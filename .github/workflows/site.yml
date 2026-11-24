@@ -34,7 +34,7 @@ concurrency:
 jobs:
   deploy:
     # 打包流程只有推 tag（發布）成功才部署；手動只建置 DMG 的不算
-    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    if: github.repository == 'juinwei7/Shiyin' && (github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'))   # MA-FORK(F13)：fork 沒有官網，不建置、不部署
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:

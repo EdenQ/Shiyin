@@ -2,7 +2,8 @@
 """brand.py 的回歸測試（fork design §F7.5）：python3 scripts/fork/brand-test.py [-v]
 
 - 原始碼掃描：只認包住字串的那個查表呼叫（REVIEW-0b-brand P2-1 的 ReviewBrandProbe），真正跨行的查表呼叫要放過
-- 整句特例：Credits、授權開場白、安裝說明的整句對不到時要失敗（P2-2 的標點漂移），對換過的產物重跑不變（冪等）
+- 整句特例：授權開場白、安裝說明的整句對不到時要失敗（P2-2 的標點漂移），對換過的產物重跑不變（冪等）
+- F13：Credits 的贊助拿掉、上游贊助句漂移要失敗；Credits 和授權檔有上游的 MIT 聲明，少了要失敗；更新說明拿掉「基於上游」
 - 漏換、格式碼不同要失敗
 
 只用標準函式庫；所有檔案放在暫存資料夾，不碰 repo 和使用者的 app。
@@ -300,9 +301,11 @@ class Phrases(unittest.TestCase):
         key = next(k for k in catalog if "「拾音」選單" in k)
         en = catalog[key]["localizations"]["en"]["stringUnit"]["value"]
         hans = catalog[key]["localizations"]["zh-Hans"]["stringUnit"]["value"]
-        (res / "zh-Hant.lproj/Localizable.strings").write_bytes(plistlib.dumps({key: key, "結束拾音": "結束拾音", "打開拾音": "打開拾音"}))
-        (res / "en.lproj/Localizable.strings").write_bytes(plistlib.dumps({key: en, "結束拾音": "Quit Shiyin", "打開拾音": "Open Shiyin"}))
-        (res / "zh-Hans.lproj/Localizable.strings").write_bytes(plistlib.dumps({key: hans, "結束拾音": "退出拾音", "打開拾音": "打开拾音"}))
+        more = "……還有 %lld 項，完整說明在官網。"   # F13.6：更新視窗沒列完時的說明（沒有品牌字，也要換）
+        more_l = {lang: catalog[more]["localizations"][lang]["stringUnit"]["value"] for lang in ("en", "zh-Hans")}
+        (res / "zh-Hant.lproj/Localizable.strings").write_bytes(plistlib.dumps({key: key, "結束拾音": "結束拾音", "打開拾音": "打開拾音", more: more}))
+        (res / "en.lproj/Localizable.strings").write_bytes(plistlib.dumps({key: en, "結束拾音": "Quit Shiyin", "打開拾音": "Open Shiyin", more: more_l["en"]}))
+        (res / "zh-Hans.lproj/Localizable.strings").write_bytes(plistlib.dumps({key: hans, "結束拾音": "退出拾音", "打開拾音": "打开拾音", more: more_l["zh-Hans"]}))
         self.res = res
 
     def tearDown(self):
@@ -318,8 +321,24 @@ class Phrases(unittest.TestCase):
         code, out = run("apply", self.app)
         self.assertEqual(code, 0, out)
         credits = (self.res / "en.lproj/Credits.html").read_text(encoding="utf-8")
-        self.assertIn("based on Shiyin, an open-source app by juinwei7", credits)
         self.assertIn("Meeting Assistant uses the following open-source software", credits)
+        license_text = (ROOT / "LICENSE").read_text(encoding="utf-8").strip("\n")
+        for lang in ("en", "zh-Hant", "zh-Hans"):
+            text = (self.res / f"{lang}.lproj/Credits.html").read_text(encoding="utf-8")
+            for gone in ("ko-fi", "咖啡", "coffee", "改自", "based on Shiyin", "<p></p>"):
+                self.assertNotIn(gone, text, lang)
+            plain = html.unescape(text)
+            self.assertIn(license_text, plain)
+            self.assertIn("- 拾音 Shiyin (MIT) https://github.com/juinwei7/Shiyin\n- whisper.cpp", plain)
+            self.assertLess(plain.index("拾音 Shiyin: LICENSE"), plain.index("whisper.cpp b5454: LICENSE"))
+        licenses = (self.res / "ThirdPartyLicenses.txt").read_text(encoding="utf-8")
+        self.assertIn("Copyright (c) 2026 juinwei7", licenses)
+        self.assertEqual(licenses.count("拾音 Shiyin: LICENSE"), 1)
+        more = {lang: plistlib.loads((self.res / f"{lang}.lproj/Localizable.strings").read_bytes())["……還有 %lld 項，完整說明在官網。"]
+                for lang in ("zh-Hant", "zh-Hans", "en")}
+        self.assertEqual(more, {"zh-Hant": "……還有 %lld 項，完整說明在 GitHub 的 Releases 頁面。",
+                                "zh-Hans": "……还有 %lld 项，完整说明在 GitHub 的 Releases 页面。",
+                                "en": "…and %lld more. The full notes are on the GitHub Releases page."})
         zh = plistlib.loads((self.res / "zh-Hant.lproj/Localizable.strings").read_bytes())
         self.assertIn("結束會議助手", zh.values())
         before = {p: p.read_bytes() for p in self.res.rglob("*") if p.is_file()}
@@ -333,13 +352,13 @@ class Phrases(unittest.TestCase):
         self.edit("en.lproj/Credits.html", "Buy me a coffee</a>.", "Buy me a coffee</a>!")
         code, out = run("apply", self.app)
         self.assertEqual(code, 1, out)
-        self.assertIn("en.lproj/Credits.html：缺少必要的整句", out)
+        self.assertIn("en.lproj/Credits.html：還有「ko-fi.com」（贊助或原作者署名", out)
 
     def test_zh_credits_drift_fails(self):
         self.edit("zh-Hant.lproj/Credits.html", "請我喝杯咖啡</a>。", "請我喝杯咖啡</a>！")
         code, out = run("apply", self.app)
         self.assertEqual(code, 1, out)
-        self.assertIn("zh-Hant.lproj/Credits.html：缺少必要的整句", out)
+        self.assertIn("zh-Hant.lproj/Credits.html：還有「ko-fi.com」（贊助或原作者署名", out)
 
     def test_island_short_name_only_at_runtime(self):
         """F7.7：錄音島的「打開 MA」在執行時由 Brand.short 換；翻譯表裡同一條鍵（選單列也在用）照舊是完整名稱，
@@ -357,7 +376,28 @@ class Phrases(unittest.TestCase):
         self.edit("zh-Hans.lproj/Credits.html", "请我喝杯咖啡</a>。", "请我喝杯咖啡</a>！")
         code, out = run("apply", self.app)
         self.assertEqual(code, 1, out)
-        self.assertIn("zh-Hans.lproj/Credits.html：缺少必要的整句", out)
+        self.assertIn("zh-Hans.lproj/Credits.html：還有「ko-fi.com」（贊助或原作者署名", out)
+
+    def test_missing_upstream_license_fails_check(self):
+        """F13.2：MIT 那一節被拿掉（或 brand.py 沒插入）時 check 要失敗"""
+        code, out = run("apply", self.app)
+        self.assertEqual(code, 0, out)
+        p = self.res / "ThirdPartyLicenses.txt"
+        p.write_text(p.read_text(encoding="utf-8").replace("Copyright (c) 2026 juinwei7", ""), encoding="utf-8")
+        p = self.res / "en.lproj/Credits.html"
+        p.write_text(p.read_text(encoding="utf-8").replace("拾音 Shiyin (MIT)", "Shiyin"), encoding="utf-8")
+        code, out = run("check", self.app)
+        self.assertEqual(code, 1, out)
+        self.assertIn("ThirdPartyLicenses.txt：缺少上游 LICENSE 全文", out)
+        self.assertIn("en.lproj/Credits.html：缺少上游 MIT 那一項", out)
+
+    def test_license_format_change_fails(self):
+        """F13.2：上游改了授權檔的格式、找不到插入的位置時要失敗，不能默默沒附"""
+        p = self.res / "ThirdPartyLicenses.txt"
+        p.write_text(p.read_text(encoding="utf-8").replace("=" * 80, "-" * 80), encoding="utf-8")
+        code, out = run("apply", self.app)
+        self.assertEqual(code, 1, out)
+        self.assertIn("找不到授權條款的分隔線", out)
 
     def test_license_header_drift_fails(self):
         self.edit("ThirdPartyLicenses.txt", "Shiyin uses the following open-source software", "Shiyin uses these open-source packages")
@@ -469,6 +509,27 @@ class Guides(unittest.TestCase):
         code, out, _, _ = self.guides(("install-guide.en.html", "/Applications/Shiyin.app", "/Applications/Shiyin*.app"))
         self.assertEqual(code, 1, out)
         self.assertIn("guide:install-guide.en.html：缺少必要的整句", out)
+
+
+
+class ReleaseNotesForApp(unittest.TestCase):
+    """F13.3：shiyin-update.json 的 notes 拿掉「基於上游」，其他行不變"""
+
+    def run_notes(self, notes):
+        p = subprocess.run([sys.executable, str(ROOT / "scripts/fork/release-notes.py"), "app"], input=notes,
+                           capture_output=True, text=True)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        return p.stdout
+
+    def test_drops_only_upstream_lines(self):
+        notes = ("會議助手 5.0.4：副標\n- 基於上游 拾音 5.0.0\n- 第一項\n- 基於上游的設計（不是那一行）\n\n"
+                 "Meeting Assistant 5.0.4: Sub\n- Based on upstream Shiyin 5.0.0\n- First\n")
+        self.assertEqual(self.run_notes(notes),
+                         "會議助手 5.0.4：副標\n- 第一項\n- 基於上游的設計（不是那一行）\n\nMeeting Assistant 5.0.4: Sub\n- First\n")
+
+    def test_empty_and_crlf(self):
+        self.assertEqual(self.run_notes(""), "")
+        self.assertEqual(self.run_notes("會議助手 5.0.5\r\n- 基於上游 拾音 5.0.0\r\n- 改了\r\n"), "會議助手 5.0.5\n- 改了\n")
 
 
 if __name__ == "__main__":
