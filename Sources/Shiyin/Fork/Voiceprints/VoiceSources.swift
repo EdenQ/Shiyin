@@ -131,8 +131,9 @@ enum ForkVoiceSources {
     /// 一份聲紋要確認的地方。mine：這個人所有的聲紋；current：來源那一場那位說話者現在的聲紋（沒有是 nil）
     static func flags(for print: ForkVoiceScores.Print, mine: [ForkVoiceScores.Print], current: [Float]?) -> Set<Flag> {
         var flags: Set<Flag> = []
-        // 只比有效的向量（REV-F12b P3-1）：無效的略過，不當成「不像」；B 的「只有 2 份」也只數有效的
-        let valid = mine.filter { isValid($0.vector) }
+        // 只比跟這份「可以比」的向量（REV-F12b P3-1、REV-F12c P3-1）：有效而且跟這份同維度；
+        // 無效、維度不同的略過，不當成「不像」，A 的一致群、B 的「只有 2 份」也只算可以比的
+        let valid = mine.filter { isValid($0.vector) && $0.vector.count == print.vector.count }
         if isValid(print.vector) {
             let rest = valid.filter { $0.id != print.id }
             let own = rest.compactMap { similarity(print.vector, $0.vector) }.max()

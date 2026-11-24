@@ -567,6 +567,24 @@ def main():
     f, rows = flags_of('Tor', tor)
     check('C：來源說話者不在了就不比', f == [], json.dumps(rows, ensure_ascii=False)[:300])
 
+    # 混合維度（REV-F12c P3-1）：Wes 的候選（256 維）跟另一份 256 維不像，另外兩份 128 維互相一致 → 候選不能跟那兩份比，不標 A
+    small = lambda k: [1.0 if i == k else 0.0 for i in range(128)]
+    seeded = q('SELECT coalesce(max(id), 0) FROM meetings')[0][0]
+    ctl('seedfixtures', args.fixtures, 'zh', 'en', 'ja', 'yue', 'ko')
+    time.sleep(3)
+    mixed = q("SELECT s.meeting_id, s.idx FROM speakers s JOIN meetings m ON m.id = s.meeting_id WHERE m.deleted_at IS NULL AND m.id > ? "
+              "ORDER BY s.meeting_id, s.idx", (seeded,))[:4]
+    if check('混合維度：有 4 位說話者可以用', len(mixed) == 4, f'{len(mixed)}'):
+        learn(mixed[0], 'Wes', unit(36))
+        learn(mixed[1], 'Wes', unit(37))
+        learn(mixed[2], 'Wes', small(5))
+        learn(mixed[3], 'Wes', [0.99 if i == 5 else (0.141 if i == 6 else 0.0) for i in range(128)])
+        f, rows = flags_of('Wes', mixed[0])
+        check('混合維度：候選跟另一份 256 維不像，但 128 維的一致群不算，不標 A；可以比的只有 2 份，標 B',
+              f == ['pairUnlike'], json.dumps(rows, ensure_ascii=False)[:400])
+        f2, _ = flags_of('Wes', mixed[2])
+        check('混合維度：128 維的兩份互相一致，不標', f2 == [], str(f2))
+
     uma = free[9]
     learn(uma, 'Uma', unit(35))
     write_sql("UPDATE speakers SET embedding = x'' WHERE meeting_id = ? AND idx = ?", uma)
