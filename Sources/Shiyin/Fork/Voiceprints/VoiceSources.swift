@@ -50,6 +50,8 @@ enum ForkVoiceSources {
     /// 回 false 不存聲紋（防呆選了「只改名」）；要存時記下來源（pending），事後對到 id
     static func willStore(_ db: Database, meetingId: Int64, idx: Int, source: String) throws -> Bool {
         let intent = takeIntent(meetingId, idx)
+        // F12.15：不是重新轉錄自己的重新學（使用者取名、只改名、合併後重學…）→ pending 裡這位的項目失效（REV3-F12c P2-1）
+        if intent?.expectName == nil { try ForkRetranscribe.supersede(db, meetingId: meetingId, idx: idx) }
         if intent?.noVoice == true { return false }
         // F12.15：重新轉錄後的重新學，說話者已經不是預期的樣子（使用者改過）→ 丟錯，讓上游整筆學習回滾（連人也不留）
         if let expected = intent?.expectName {

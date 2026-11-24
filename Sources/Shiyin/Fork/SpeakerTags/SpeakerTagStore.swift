@@ -125,6 +125,7 @@ extension ForkSpeakerTags {
     static func remembersVoice(_ db: Database, meetingId: Int64, idx: Int, source: String) throws -> Bool {
         if source == "tag", try Meeting.fetchOne(db, key: meetingId)?.mayHaveMergedSpeakers ?? false {
             ForkVoiceSources.skip(meetingId, idx)
+            try ForkRetranscribe.supersede(db, meetingId: meetingId, idx: idx)   // F12.15：標記也是使用者的決定（REV3-F12c P2-1）
             return false
         }
         return try ForkVoiceSources.willStore(db, meetingId: meetingId, idx: idx, source: source)

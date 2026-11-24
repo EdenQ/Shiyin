@@ -250,6 +250,17 @@ enum ForkRetranscribe {
         }
     }
 
+    /// 使用者在 pending 期間自己取名（不是重新轉錄自己的重新學）：在那筆學習交易裡，pending 裡這個編號的沿用項目失效，
+    /// 之後 after、retryAll 不再學這一位；同批其他項目照常（REV3-F12c P2-1：同名「只改名」也算）
+    static func supersede(_ db: Database, meetingId: Int64, idx: Int) throws {
+        guard let json = try String.fetchOne(db, sql: "SELECT payload FROM ma_retranscribe_pending WHERE meeting_id = ?", arguments: [meetingId]),
+              var payload = try? JSONDecoder().decode(Payload.self, from: Data(json.utf8)),
+              payload.mapped.contains(where: { $0.idx == idx }) else { return }
+        payload.mapped.removeAll { $0.idx == idx }
+        let updated = String(decoding: try JSONEncoder().encode(payload), as: UTF8.self)
+        try db.execute(sql: "UPDATE ma_retranscribe_pending SET payload = ? WHERE meeting_id = ?", arguments: [updated, meetingId])
+    }
+
     // MARK: 編輯會議（REV2-F12c P2-2；由 ForkSpeakerTags 的編輯入口呼叫，同一筆交易）
 
     struct EditSnapshot: Codable {

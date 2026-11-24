@@ -732,6 +732,24 @@ def main():
     edits()
 
 
+def nameonly_pending(meeting, lib, lib_idx, name_a, name_b, other, va, vb, label):
+    """對調說話者、學到一半失敗留下 pending，接著使用者把說話者 2（name_a）同名再存、選「只改名，不記住聲音」"""
+    setvoice(meeting, 1, unit(va)); ctl('mavoice', 'rename', meeting, 1, name_a); settle()
+    setvoice(meeting, 2, unit(vb)); ctl('mavoice', 'rename', meeting, 2, name_b); settle()
+    path = OUT / f'retranscribe-{label}.json'
+    path.write_text(json.dumps({'map': {'1': 2, '2': 1}, 'failLearn': True}))
+    ctl('mavoice', 'retranscribe', meeting, path); settle(); time.sleep(1)
+    check(f'{label}：學到一半失敗，pending 還在', bool(q('SELECT 1 FROM ma_retranscribe_pending WHERE meeting_id = ?', (meeting,))))
+    # 另一個人的聲音跟 name_a 一模一樣，同名再存時會跳提醒
+    setvoice(lib, lib_idx, unit(va)); ctl('mavoice', 'rename', lib, lib_idx, other); settle()
+    ctl('mavoice', 'rename', meeting, 2, name_a); settle()
+    st = state(f'{label}-held')
+    check(f'{label}：同名再存 {name_a} 跳出提醒', len(st['guard']) == 1 and st['guard'][0]['name'] == name_a, json.dumps(st['guard'], ensure_ascii=False)[:300])
+    ctl('mavoice', 'choose', 'nameonly'); settle()
+    r = speaker_row(meeting, 2)
+    check(f'{label}：只改名後名字是 {name_a}、這場沒有它的聲紋', r[0] == name_a and not q('SELECT 1 FROM voiceprints WHERE meeting_id = ? AND speaker_idx = 2', (meeting,)), str(r))
+
+
 def segments_of(meeting):
     return q("SELECT start, end, speaker FROM segments WHERE meeting_id = ? AND kind = 'final' ORDER BY start", (meeting,))
 
@@ -818,6 +836,29 @@ def edits():
           and q('SELECT count(*) FROM voiceprints WHERE meeting_id = ?', (PZ,))[0][0] == 2,
           f'{speaker_row(PZ, 1)} {speaker_row(PZ, 2)}')
 
+    # 使用者在 pending 期間同名再存（REV3-F12c P2-1）：選「只改名」→ 重試不能學回；選「仍要存」→ 重試不動使用者存的那份
+    NV, LIB2 = fresh['yue'], LIB
+    nameonly_pending(NV, LIB2, 2, 'NA', 'NB', 'QOther', 94, 95, 'nameonly')
+    ctl('mavoice', 'retranscribe-retry', NV); settle()
+    check('同名只改名後重試：這一位不學（這場沒有 NA 的聲紋），同批的 NB 照學，pending 消耗',
+          not q('SELECT 1 FROM voiceprints WHERE meeting_id = ? AND speaker_idx = 2', (NV,))
+          and q("SELECT 1 FROM voiceprints v JOIN people p ON p.id = v.person_id WHERE v.meeting_id = ? AND v.speaker_idx = 1 AND p.name = 'NB'", (NV,))
+          and not q('SELECT 1 FROM ma_retranscribe_pending WHERE meeting_id = ?', (NV,)),
+          str(q('SELECT speaker_idx, person_id FROM voiceprints WHERE meeting_id = ?', (NV,))))
+    # 再對調一次：學到一半失敗 → 使用者同名再存「NB」（沒有提醒，直接記住）→ 重試不換掉使用者存的那份
+    path = OUT / 'retranscribe-keep.json'
+    path.write_text(json.dumps({'map': {'1': 2, '2': 1}, 'failLearn': True}))
+    ctl('mavoice', 'retranscribe', NV, path); settle(); time.sleep(1)
+    who = speaker_row(NV, 2)
+    ctl('mavoice', 'rename', NV, 2, who[0]); settle()
+    user_print = q('SELECT v.id, s.source FROM voiceprints v LEFT JOIN ma_voiceprint_source s ON s.voiceprint_id = v.id WHERE v.meeting_id = ? AND v.speaker_idx = 2', (NV,))
+    ctl('mavoice', 'retranscribe-retry', NV); settle()
+    after_print = q('SELECT v.id, s.source FROM voiceprints v LEFT JOIN ma_voiceprint_source s ON s.voiceprint_id = v.id WHERE v.meeting_id = ? AND v.speaker_idx = 2', (NV,))
+    check(f'同名再存（記住聲音）後重試：使用者存的那份不被換掉（{who[0]}，來源 manual）',
+          user_print and user_print == after_print and after_print[0][1] == 'manual' and not q('SELECT 1 FROM ma_retranscribe_pending WHERE meeting_id = ?', (NV,)),
+          f'{user_print} → {after_print}')
+
+
 
 # ---------- 重啟（check.sh 真的結束、再開同一個 SHIYIN_HOME 的 DEBUG 版） ----------
 STATE = OUT / 'restart.json'
@@ -839,7 +880,10 @@ def restart_seed():
     row = speaker_row(M, 1)
     check('重啟前：聲紋比對把建議換成 Rfay（還沒打開這場）', row[1] == 'default' and row[3] == 'Rfay', str(row))
     check('重啟前：舊名字建議的紀錄在資料庫', bool(q("SELECT 1 FROM ma_retranscribe_suggestion WHERE meeting_id = ? AND name = 'Rold'", (M,))))
-    STATE.write_text(json.dumps({'meeting': M, 'other': other}))
+    # 同名只改名後，不在這次 app 裡重試，留給重啟時的 retryAll（REV3-F12c P2-1）
+    NV2 = fresh['yue']
+    nameonly_pending(NV2, fresh['ko'], 1, 'RA', 'RB', 'ROther', 96, 97, 'restart-nameonly')
+    STATE.write_text(json.dumps({'meeting': M, 'other': other, 'nameonly': NV2}))
 
 
 def restart_check():
@@ -851,6 +895,12 @@ def restart_check():
     sg = (speaker(st, 1) or {}).get('suggestion', {})
     check('重啟後打開這場：建議是重新轉錄前的名字 Rold（資料庫也寫回）', sg.get('name') == 'Rold' and speaker_row(M, 1)[3] == 'Rold',
           json.dumps(sg, ensure_ascii=False) + str(speaker_row(M, 1)))
+    NV2 = st0['nameonly']
+    check('重啟時 retryAll 做完：同名只改名的 RA 沒有學回，同批的 RB 照學，pending 消耗',
+          not q('SELECT 1 FROM voiceprints WHERE meeting_id = ? AND speaker_idx = 2', (NV2,))
+          and q("SELECT 1 FROM voiceprints v JOIN people p ON p.id = v.person_id WHERE v.meeting_id = ? AND v.speaker_idx = 1 AND p.name = 'RB'", (NV2,))
+          and not q('SELECT 1 FROM ma_retranscribe_pending WHERE meeting_id = ?', (NV2,)),
+          str(q('SELECT speaker_idx, person_id FROM voiceprints WHERE meeting_id = ?', (NV2,))))
     ctl('mavoice', 'dismiss', M, 1); settle()
     ctl('select', other); settle(); ctl('select', M); settle()
     st = state('restart-dismissed')
