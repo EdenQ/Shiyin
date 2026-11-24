@@ -1171,6 +1171,60 @@
         "python3 scripts/fork/f11-island-check.py <SHIYIN_HOME> <shiyinctl> --out <資料夾>",
         "scripts/fork/check.sh --only 15"
       ]
+    },
+    "F12": {
+      "title": "說話者聲紋：分數顯示、改名防呆、人物頁管理單份聲紋",
+      "design": "docs/fork/design.md §F12、§F-DB",
+      "forkFiles": [
+        "Sources/Shiyin/Fork/Voiceprints/VoiceScores.swift",
+        "Sources/Shiyin/Fork/Voiceprints/VoiceGuard.swift",
+        "Sources/Shiyin/Fork/Voiceprints/VoiceSources.swift",
+        "Sources/Shiyin/Fork/Voiceprints/VoiceViews.swift",
+        "Sources/Shiyin/Fork/Voiceprints/VoiceDebug.swift",
+        "scripts/fork/f12-voiceprint-check.py"
+      ],
+      "upstreamFiles": [
+        "Sources/Shiyin/Store/AppModel.swift",
+        "Sources/Shiyin/Views/PeopleViews.swift"
+      ],
+      "symbols": [
+        "ForkVoiceScores",
+        "ForkVoiceScores.annotate",
+        "ForkVoiceGuard",
+        "ForkVoiceGuard.holds",
+        "ForkVoiceSources",
+        "ForkVoiceSources.willStore",
+        "ForkVoiceSources.resolve",
+        "ForkAutoSpeakerName",
+        "ForkSpeakerChip",
+        "ForkDetailBanners",
+        "ForkPersonVoiceprints"
+      ],
+      "keywords": [
+        "聲紋比對",
+        "依內容猜",
+        "兩人很像，請確認",
+        "只改名，不記住聲音",
+        "仍要存",
+        "聲音特徵",
+        "ma_voiceprint_source"
+      ],
+      "settingsKeys": [],
+      "debugCommands": [
+        "mavoice"
+      ],
+      "migrations": [
+        "ma_voiceprint_source_v1"
+      ],
+      "tables": [
+        "ma_voiceprint_source",
+        "ma_voiceprint_pending"
+      ],
+      "markers": [],
+      "checks": [
+        "python3 scripts/fork/f12-voiceprint-check.py <SHIYIN_HOME> <shiyinctl> --out <資料夾>",
+        "scripts/fork/check.sh --only 16"
+      ]
     }
   },
   "highRisk": [
@@ -1213,6 +1267,11 @@
       "what": "IslandView 的接點（F3、F7）",
       "where": "Sources/Shiyin/Views/IslandView.swift",
       "why": "上游錄音島還在改，接點在它的版面中間"
+    },
+    {
+      "what": "上游 AutoSpeakerName 的複本、renameSpeaker／learnVoiceprint 的流程（F12）",
+      "where": "Sources/Shiyin/Fork/Voiceprints/VoiceViews.swift ForkAutoSpeakerName；AppModel.renameSpeaker 開頭、Voiceprints.learnVoiceprint 的 remembersVoice",
+      "why": "ForkAutoSpeakerName 是上游 AutoSpeakerName 的複本加依據；防呆「只改名」靠 learnVoiceprint 先刪舊聲紋、連到人、再問 remembersVoice 的順序；來源紀錄靠「存聲紋一定經過 remembersVoice」。上游改這三處時要比對，跑 scripts/fork/f12-voiceprint-check.py"
     }
   ],
   "brand": {

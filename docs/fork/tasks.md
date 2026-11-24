@@ -4,6 +4,23 @@
 > 上游任務在 fork 這邊的實測狀態寫在這裡。需求在 `docs/fork/requirements.md`，設計在 `docs/fork/design.md`。
 > 規則同 CLAUDE.md：每項都有驗證方式；`[~]` 是程式完成、還差要使用者的驗證。要使用者在電腦前測的，照場次排在 `docs/fork/acceptance-mac.md`。「design §F#」指 fork design，「design §數字」「D#」「R#」指上游文件。
 
+## 說話者聲紋：分數顯示、改名防呆、人物頁管理單份聲紋（F12，design §F12、DF12～DF14；2026-11-24 使用者決定範圍）
+
+在電腦前怎麼測：`docs/fork/acceptance-mac.md` 場次 8。
+
+只做 Mac。測試用另外的 `SHIYIN_HOME`、測試 bundle id 的 DEBUG 版複本、合成的聲紋向量，正式資料庫、正式網域的設定不動。
+
+- [ ] **VP0 程式和自動檢查**（F12.1～F12.14）：
+  - `Sources/Shiyin/Fork/Voiceprints/`、3 行新接點（97 → 100）、改寫 3 行既有的、migration `ma_voiceprint_source_v1`、`mavoice`；
+  - 驗證：`scripts/fork/f12-voiceprint-check.py`（check.sh #16）、check.sh 完整模式、`isolation-check`（100/100）。
+- [ ] **VP1 真的畫面**（要使用者在電腦前）：
+  - 真的會議上看「猜到 N 位說話者的名字」、待確認、「自動」選單的依據；
+  - 改名防呆的視窗（一位、全部套用好幾位），三個按鈕；
+  - 人物頁的「聲音特徵」（可疑的那一列、刪一份）；
+  - 英文介面看一次。
+
+後續（這一版不做，requirements F12「不做」）：對調兩位說話者的名字、「聽這句」、比對時降低可疑樣本的權重、改句子的說話者後重算聲紋、`notes_versions` 寫「A → B」。
+
 ## 錄音島放在哪個螢幕（F11，design §F11、DF11；2026-11-23 使用者確認）
 
 在電腦前怎麼測：`docs/fork/acceptance-mac.md` 場次 7。
