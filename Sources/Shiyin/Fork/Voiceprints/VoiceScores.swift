@@ -48,6 +48,7 @@ enum ForkVoiceScores {
     static func install(_ model: AppModel) {
         database.value = model.db
         ForkVoiceSources.resolveIfNeeded(model.db)
+        ForkRetranscribe.retryAll(model.db)   // F12.15：上次重新轉錄存檔後沒處理完的再做
     }
 
     /// 聲紋庫：中繼資料每次重讀（分成兩場會改 meeting_id、合併人會改 person_id），只快取向量（以 id 為鍵；
@@ -107,7 +108,7 @@ enum ForkVoiceScores {
             }
         }
         detail.forkTags.voice = bases
-        ForkRetranscribe.restoreSuggestions(&detail, rows, app: app)   // F12.15：被聲紋比對換掉的建議補回一次
+        ForkRetranscribe.present(&detail, rows, app: app)   // F12.15：重新轉錄前的名字建議（補回、清掉處理過的、自動帶名時照樣顯示）
         let language = detail.meeting.meetingLanguage
         for (idx, suggestion) in detail.speakerSuggestions {
             detail.speakerSuggestions[idx]?.reason = suggestionReason(suggestion, basis: bases[idx], language: language)

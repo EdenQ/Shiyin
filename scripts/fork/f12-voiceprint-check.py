@@ -37,6 +37,8 @@ ap.add_argument('home', type=Path)
 ap.add_argument('ctl', type=Path)
 ap.add_argument('--out', type=Path, required=True)
 ap.add_argument('--fixtures', type=Path, default=ROOT / 'shared/golden/fixtures.json')
+ap.add_argument('--phase', choices=('all', 'restart-seed', 'restart-check', 'restart-final'), default='all',
+                help='restart-*：check.sh 在中間真的結束、再開同一個 SHIYIN_HOME 的 DEBUG 版（F12.15 的建議不因重啟遺失或復活）')
 args = ap.parse_args()
 HOME, CTL, OUT = args.home.resolve(), args.ctl, args.out.resolve()
 if HOME == (Path.home() / 'Library/Application Support/Shiyin').resolve():
@@ -671,15 +673,101 @@ def main():
     r1 = speaker_row(EN, 1)
     st = state('retranscribe-applied')
     check('一鍵套用：說話者 1 改回 Dee、建議清掉', r1[0] == 'Dee' and r1[3] is None and not st['guard'], str(r1))
+    # 高信心自動帶名（REV-F12c P2-1）：舊名字對不上，新說話者的聲音跟 Other2 一模一樣 → 上游自動帶入 Other2，舊名字照樣當建議問
+    K, Y = fresh.get('ko'), fresh.get('yue')
+    setvoice(Y, 1, unit(71)); learn((Y, 1), 'Other2', unit(71))
+    setvoice(K, 1, unit(70)); learn((K, 1), 'Old2', unit(70))
+    st = retranscribe(K, {'map': {}, 'vectors': {'1': unit(71)}}, 'auto')
+    rk = speaker_row(K, 1)
+    sg = (speaker(st, 1) or {}).get('suggestion', {})
+    check('高信心自動帶名：名字是上游自動帶入的 Other2，舊名字 Old2 照樣在建議清單',
+          rk[0] == 'Other2' and rk[1] == 'voiceprint' and sg.get('name') == 'Old2' and rk[3] == 'Old2', f'db={rk} suggestion={sg}')
+    ctl('mavoice', 'dismiss', K, 1); settle()
+    ctl('select', Z); settle(); ctl('select', K); settle()
+    st = state('retranscribe-auto-dismissed')
+    check('略過之後重開這場，建議不再出現；紀錄刪了',
+          not (speaker(st, 1) or {}).get('suggestion') and not q('SELECT 1 FROM ma_retranscribe_suggestion WHERE meeting_id = ?', (K,)),
+          json.dumps(speaker(st, 1), ensure_ascii=False)[:300])
+
+    # 存檔回滾（REV-F12c P2-2）：named 寫完 pending 後丟錯，整筆回滾；之後的 afterTranscription 不做事
+    before_speakers = [speaker_row(Z, i) for i in (1, 2, 3)]
+    before_prints = q('SELECT id, person_id, speaker_idx FROM voiceprints WHERE meeting_id = ? ORDER BY id', (Z,))
+    retranscribe(Z, {'map': {'1': 2, '2': 1}, 'failSave': True}, 'rollback')
+    check('存檔回滾：說話者、聲紋都沒變，沒有留下待處理的紀錄',
+          [speaker_row(Z, i) for i in (1, 2, 3)] == before_speakers
+          and q('SELECT id, person_id, speaker_idx FROM voiceprints WHERE meeting_id = ? ORDER BY id', (Z,)) == before_prints
+          and not q('SELECT 1 FROM ma_retranscribe_pending WHERE meeting_id = ?', (Z,)), f'{before_speakers} {before_prints}')
+
+    # 學到一半失敗（REV-F12c P2-3）：pending 留著、舊聲紋沒先刪；重試後做完
+    retranscribe(Z, {'map': {'1': 2, '2': 1}, 'failLearn': True}, 'learnfail')
+    check('學到一半失敗：待處理的紀錄還在', bool(q('SELECT 1 FROM ma_retranscribe_pending WHERE meeting_id = ?', (Z,))))
+    ctl('mavoice', 'retranscribe-retry', Z); settle()
+    post = {i: speaker_row(Z, i) for i in (1, 2, 3)}
+    lib = library()
+    ok = not q('SELECT 1 FROM ma_retranscribe_pending WHERE meeting_id = ?', (Z,))
+    for idx, name in ((1, 'Ann2'), (2, 'Bob2')):
+        mine = [x for x in lib if x['meeting'] == Z and x['idx'] == idx]
+        cur = q('SELECT embedding FROM speakers WHERE meeting_id = ? AND idx = ?', (Z, idx))[0][0]
+        ok &= post[idx][0] == name and len(mine) == 1 and mine[0]['name'] == name and abs(cos(mine[0]['vec'], list(struct.unpack(f'<{DIM}f', cur))) - 1) < 1e-4
+    check('重試後做完：名字跟著聲音換回來、每位一份新聲音的聲紋、待處理的紀錄消耗掉', ok, f'{post} {[(x["name"], x["meeting"], x["idx"]) for x in lib if x["meeting"] == Z]}')
+
     check('重新轉錄後：來源表沒有孤兒、foreign_key_check 沒有東西',
           q('SELECT count(*) FROM ma_voiceprint_source WHERE voiceprint_id NOT IN (SELECT id FROM voiceprints)')[0][0] == 0
           and not q('PRAGMA foreign_key_check'))
 
 
+# ---------- 重啟（check.sh 真的結束、再開同一個 SHIYIN_HOME 的 DEBUG 版） ----------
+STATE = OUT / 'restart.json'
+
+
+def restart_seed():
+    """轉錄完、沒打開這場：聲紋比對把舊名字建議換成 Rfay（低信心），記下會議"""
+    before = q('SELECT coalesce(max(id), 0) FROM meetings')[0][0]
+    ctl('seedfixtures', args.fixtures, 'zh', 'en', 'ja', 'yue', 'ko')
+    time.sleep(3)
+    fresh = {lang: mid for mid, lang in q("SELECT id, language FROM meetings WHERE deleted_at IS NULL AND id > ? ORDER BY id", (before,))}
+    M, L, other = fresh['en'], fresh['ja'], fresh['zh']
+    setvoice(L, 1, mix((0.75, 81), 82)); ctl('mavoice', 'rename', L, 1, 'Rfay'); settle()
+    setvoice(M, 1, unit(80)); ctl('mavoice', 'rename', M, 1, 'Rold'); settle()
+    ctl('select', other); settle()
+    path = OUT / 'retranscribe-restart.json'
+    path.write_text(json.dumps({'map': {}, 'vectors': {'1': unit(81)}, 'noselect': True}))
+    ctl('mavoice', 'retranscribe', M, path); settle(); time.sleep(1)
+    row = speaker_row(M, 1)
+    check('重啟前：聲紋比對把建議換成 Rfay（還沒打開這場）', row[1] == 'default' and row[3] == 'Rfay', str(row))
+    check('重啟前：舊名字建議的紀錄在資料庫', bool(q("SELECT 1 FROM ma_retranscribe_suggestion WHERE meeting_id = ? AND name = 'Rold'", (M,))))
+    STATE.write_text(json.dumps({'meeting': M, 'other': other}))
+
+
+def restart_check():
+    """重啟後打開這場：建議補回 Rold；略過後重開不再出現"""
+    st0 = json.loads(STATE.read_text())
+    M, other = st0['meeting'], st0['other']
+    ctl('select', M); settle()
+    st = state('restart-open')
+    sg = (speaker(st, 1) or {}).get('suggestion', {})
+    check('重啟後打開這場：建議是重新轉錄前的名字 Rold（資料庫也寫回）', sg.get('name') == 'Rold' and speaker_row(M, 1)[3] == 'Rold',
+          json.dumps(sg, ensure_ascii=False) + str(speaker_row(M, 1)))
+    ctl('mavoice', 'dismiss', M, 1); settle()
+    ctl('select', other); settle(); ctl('select', M); settle()
+    st = state('restart-dismissed')
+    check('略過後重開這場：不再出現', not (speaker(st, 1) or {}).get('suggestion')
+          and not q('SELECT 1 FROM ma_retranscribe_suggestion WHERE meeting_id = ?', (M,)))
+
+
+def restart_final():
+    """略過之後再重啟一次：不復活"""
+    M = json.loads(STATE.read_text())['meeting']
+    ctl('select', M); settle()
+    st = state('restart-final')
+    check('略過之後再重啟：建議不復活', not (speaker(st, 1) or {}).get('suggestion') and speaker_row(M, 1)[3] is None,
+          json.dumps(speaker(st, 1), ensure_ascii=False)[:300])
+
+
 try:
-    main()
+    {'all': main, 'restart-seed': restart_seed, 'restart-check': restart_check, 'restart-final': restart_final}[args.phase]()
 finally:
-    (OUT / 'f12-results.json').write_text(json.dumps(results, ensure_ascii=False, indent=2))
+    (OUT / f'f12-results{"" if args.phase == "all" else "-" + args.phase}.json').write_text(json.dumps(results, ensure_ascii=False, indent=2))
 failed = [r for r in results if not r['ok']]
 print(f'\n{len(results) - len(failed)}/{len(results)} 通過')
 sys.exit(1 if failed or not results else 0)

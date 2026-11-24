@@ -53,5 +53,25 @@ enum ForkMigrations {
                 );
                 """)
         }
+        // F12.15 重新轉錄後名字跟著聲音（fork design §F12.9、DF15）：存檔後待處理的結果（跟 saveTranscript 同一筆交易寫入）、
+        // 對不上的舊名字建議；fingerprint 是說話者指紋，不合就表示說的不是現在這批說話者
+        migrator.registerMigration("ma_retranscribe_v1") { db in
+            try db.execute(sql: """
+                CREATE TABLE ma_retranscribe_pending (
+                  meeting_id  INTEGER PRIMARY KEY REFERENCES meetings(id) ON DELETE CASCADE,
+                  fingerprint TEXT NOT NULL,
+                  payload     TEXT NOT NULL,
+                  created_at  TEXT NOT NULL
+                );
+                CREATE TABLE ma_retranscribe_suggestion (
+                  meeting_id  INTEGER NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+                  speaker_idx INTEGER NOT NULL,
+                  name        TEXT NOT NULL,
+                  fingerprint TEXT NOT NULL,
+                  created_at  TEXT NOT NULL,
+                  PRIMARY KEY (meeting_id, speaker_idx)
+                );
+                """)
+        }
     }
 }

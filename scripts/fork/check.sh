@@ -234,7 +234,8 @@ start_debug() {   # start_debug <AppleLanguages 的語言：zh-Hant、en>（只�
     echo "DEBUG 版複本：${TEST_APP}（bundle id ${MA_TEST_DOMAIN}）"
   fi
   exe="$TEST_APP/Contents/MacOS/Shiyin"
-  rm -rf "$home"; mkdir -p "$home"
+  # KEEP_HOME=1：沿用上一次的暫存 SHIYIN_HOME（#16 測重啟），不清空
+  [ "${KEEP_HOME:-0}" = 1 ] && [ -d "$home" ] || { rm -rf "$home"; mkdir -p "$home"; }
   open -g -n --env SHIYIN_HOME="$home" "$TEST_APP" --args -ApplePersistenceIgnoreState YES -llmProvider none \
     -autoSummarize NO -correctTranscript NO -debugQuietPrompts YES -recordingIsland "$island" $behind -mcpEnabled NO \
     -autoCheckUpdates NO -muteHotKey YES -AppleLanguages "($lang)" || return 1
@@ -319,6 +320,15 @@ i_f12() {   # F12 聲紋（fork design §F12.8）：會刪會議、刪人，另�
   start_debug zh-Hant || { NOTE="DEBUG 版開不起來（必要條件見 log）"; return 1; }
   run python3 "$ROOT/scripts/fork/f12-voiceprint-check.py" "$HOME_DIR" "$CTL" --out "$OUT/f12"; local c=$?
   cp "$OUT/f12/"f12-*.png "$OUT/shots/" 2>/dev/null
+  # F12.15 的建議跨重啟（§F12.9）：轉錄完沒打開就重啟 → 打開補回、略過 → 再重啟不復活。真的結束、再開同一個暫存 SHIYIN_HOME
+  local phase
+  for phase in restart-seed restart-check restart-final; do
+    if [ "$phase" != restart-seed ]; then
+      stop_debug || { NOTE="重啟前 DEBUG 版結束不了"; return 1; }
+      KEEP_HOME=1 start_debug zh-Hant || { NOTE="重啟 DEBUG 版開不起來"; return 1; }
+    fi
+    run python3 "$ROOT/scripts/fork/f12-voiceprint-check.py" "$HOME_DIR" "$CTL" --out "$OUT/f12" --phase "$phase" || c=1
+  done
   stop_debug || { NOTE="DEBUG 版結束不了"; return 1; }
   EVID="logs/16.log、f12/"; return $c
 }

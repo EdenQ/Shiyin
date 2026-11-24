@@ -69,6 +69,13 @@ extension ForkDebug {
             guard let meeting, args.count > 3, let data = FileManager.default.contents(atPath: args[3]),
                   let spec = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return true }
             simulateRetranscribe(model, meeting, spec)
+        case "retranscribe-retry":   // mavoice retranscribe-retry <會議>：再呼叫一次存檔後的處理（同啟動時的重試）
+            if let meeting {
+                do { try ForkRetranscribe.after(model.db, meeting) } catch { log.error("mavoice retranscribe-retry failed: \(error.logSummary, privacy: .public)") }
+                if model.selection == meeting { model.reloadDetail() }
+            }
+        case "dismiss":   // mavoice dismiss <會議> <說話者>：等於按建議的「忽略」
+            if let meeting, let idx { select(meeting); model.dismissSpeakerSuggestion(idx) }
         case "person":   // mavoice person <person id>：切到人物頁、選這個人
             if let id = meeting { model.reloadPeopleOverview(); model.sidebarMode = .people; model.selectedPerson = id }
         default:
@@ -83,8 +90,10 @@ extension ForkDebug {
         let map = (spec["map"] as? [String: Int] ?? [:]).reduce(into: [Int: Int]()) { r, kv in if let k = Int(kv.key) { r[k] = kv.value } }
         let vectors = (spec["vectors"] as? [String: [Double]] ?? [:]).reduce(into: [Int: [Float]]()) { r, kv in if let k = Int(kv.key) { r[k] = kv.value.map(Float.init) } }
         let seconds = (spec["seconds"] as? [String: Double] ?? [:]).reduce(into: [Int: Double]()) { r, kv in if let k = Int(kv.key) { r[k] = kv.value } }
+        ForkRetranscribe.debugFailSave.value = spec["failSave"] as? Bool ?? false
+        ForkRetranscribe.debugFailLearn.value = spec["failLearn"] as? Bool ?? false
+        let db = model.db
         do {
-            let db = model.db
             let old = try db.speakers(meetingId)
             let segments = try db.segments(meetingId).enumerated().map { i, s -> Segment in
                 var copy = s
@@ -102,11 +111,16 @@ extension ForkDebug {
             for (n, v) in vectors where voices[n] == nil { voices[n] = SpeakerVoice(embedding: v, seconds: seconds[n] ?? 30, source: "mix") }
             let count = max(segments.compactMap(\.speaker).max() ?? 0, voices.keys.max() ?? 0)
             try db.saveTranscript(meetingId, segments: segments, duration: model.detail?.meeting.durationSeconds ?? 0, speakerCount: count, voices: voices)
-            ForkSpeakerTags.afterTranscription(db, meetingId)
-            if AppSettings.voiceprints { try db.matchVoiceprints(meetingId) }
         } catch {
-            log.error("mavoice retranscribe failed: \(error.logSummary, privacy: .public)")
+            // failSave：存檔回滾。照樣呼叫 afterTranscription（模擬之後別的流程，例如重新辨識說話者，也會呼叫），應該不做事
+            log.error("mavoice retranscribe save failed: \(error.logSummary, privacy: .public)")
         }
+        ForkSpeakerTags.afterTranscription(db, meetingId)
+        if AppSettings.voiceprints { _ = try? db.matchVoiceprints(meetingId) }
+        ForkRetranscribe.debugFailSave.value = false
+        ForkRetranscribe.debugFailLearn.value = false
+        // noselect：模擬轉錄完、還沒打開這場（不重讀畫面；目前選的是別場時也不切過去）
+        if spec["noselect"] as? Bool == true { return }
         if model.selection == meetingId { model.reloadDetail() } else { model.selection = meetingId }
     }
 

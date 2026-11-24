@@ -1227,7 +1227,7 @@
         {
           "file": "Sources/Shiyin/Store/AppDatabase.swift",
           "line": 695,
-          "hook": "let named = ForkRetranscribe.named(existing, voices: voices)"
+          "hook": "let named = try ForkRetranscribe.named(db, existing, voices: voices, count: speakerCount)"
         },
         {
           "file": "Sources/Shiyin/Store/AppModel.swift",
