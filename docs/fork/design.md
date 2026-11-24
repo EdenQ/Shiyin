@@ -77,7 +77,7 @@ exit 0：沒有 FAIL（SKIP、需人工不算失敗）；1：有 FAIL；2：沒�
 | 10 | F4 加上 5.0 | **只自動驗證刪除**：`noteitem delete actionItems 0` 之後 `copysection` 的待辦少一條、其他條和別的段落照舊（示範會議的決議只有 1 條，刪了整段變空）；刪除後的 windowshot 放進截圖。`noteitem edit` 之後的樣式、「人物」頁不套 F4 樣式沒有自動驗證，摘要的說明欄寫明，留給 S 和使用者 |
 | 14 | F10 備份 | `scripts/fork/f10-backup-check.py`（§F10.8 的自動化：清理只動自己的一般檔、舊暫存檔在成功時清掉、排程和立即備份重疊時第二個回 `running`、錄完後到期的檢查會做） |
 | 15 | F11 錄音島的螢幕 | `scripts/fork/f11-island-check.py`（§F11.6 的自動化）。這一項要錄音島開著、放在桌面層：先結束這次的 DEBUG 版，用同一個測試複本、新的暫存 `SHIYIN_HOME` 加 `-recordingIsland YES -debugIslandBehind YES` 重開（其他參數照舊，`-debugQuietPrompts YES`），跑完結束；排在 S 後面 |
-| 16 | F12 聲紋 | `scripts/fork/f12-voiceprint-check.py`（§F12.8 的自動化：分數的文字、防呆和三個選項、全部套用、來源紀錄、人物頁的資料和刪單份、§F-DB；`windowshot` 拍會議頁、防呆視窗、人物頁）。用 #5～#10 同一個 DEBUG 版（`-recordingIsland NO`），自己 `seedfixtures`；排在 #15 前面 |
+| 16 | F12 聲紋 | `scripts/fork/f12-voiceprint-check.py`（§F12.8 的自動化：分數的文字、防呆和三個選項、全部套用、來源紀錄、人物頁的資料和刪單份、§F-DB；`windowshot` 拍會議頁、防呆視窗、人物頁）。會刪會議、刪人，所以另外開一次 DEBUG 版（同一個測試複本、新的暫存 `SHIYIN_HOME`、`-recordingIsland NO`），自己 `seedfixtures`；排在 S 之後、#15 之前 |
 | S | 截圖 | 繁中、英文各開一次 DEBUG 版：示範會議的紀錄、逐字稿分頁（`windowshot`）、設定「錄音」頁（`preview settings recording` 加 `mawindowshot`），加上 #8、#10 的圖，放在輸出資料夾的 `shots/`；狀態一律「需人工」（看條數、色條、「加到提醒事項」、靜音開關、提示列；還沒有基準圖，不做像素比對） |
 | 11 | DF5 | Q：`scripts/fork/tsan-lockedvalue/run.sh` |
 | 12 | 設定殘留 | Q：開始、結束各 `defaults export com.weiwei.shiyin`（正式 app 的網域），要逐位元組相同；不同時列出哪幾個鍵、FAIL，**保留現值、不改寫也不刪**（分不出是檢查還是使用者同時改的，例如使用者自己移動了主視窗）。DEBUG 版用測試專用的 bundle id（見安全規則），本來就不寫正式網域，所以這一項不靠任何還原。有選 DEBUG 版的項目（5～10、S）時另外核對 `shiyin://` 和 `.shiyin`（`com.weiwei.shiyin.meeting`）的預設處理程式在檢查前後相同：這時處理程式的快照是**必要的**，開始時沒拿到、結束時讀不到都算 FAIL，不會因為缺檔就跳過 |
