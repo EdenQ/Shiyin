@@ -109,10 +109,64 @@ enum ForkVoiceSources {
         /// 別人裡最像的
         var other: ForkVoiceScores.Ranked?
 
+        /// 其他要確認的（F12.11a，§F12.5）
+        var flags: Set<Flag> = []
+        /// 任何一種要確認：整列用警告色
+        var needsCheck: Bool { suspicious || !flags.isEmpty }
+
         /// 跟這個人其他樣本不像（< 0.50 或只有這一份），而且跟別人很像（≥ 0.88）：同防呆的門檻（§F12.3）
         var suspicious: Bool {
             guard let other, other.score >= ForkVoiceGuard.otherThreshold else { return false }
             return (ownBest ?? -1) < ForkVoiceGuard.targetThreshold
+        }
+    }
+
+    /// F12.11a 的三種：A 跟本人其他聲音不像、B 兩份互相不像、C 跟來源說話者現在的聲音對不上
+    enum Flag: String, CaseIterable { case unlikeOthers, pairUnlike, staleSpeaker }
+    /// 「不像」：使用者的聲紋庫裡正常的跟本人最高最低 0.70、跟來源說話者 0.98 以上，可疑的 ≤ 0.30（DF12、AN-vpclean）
+    static let unlikeThreshold = 0.50
+    /// 「互相一致」：A 要求這個人其他樣本裡至少 2 份彼此 ≥ 這個值
+    static let agreeThreshold = 0.65
+
+    /// 一份聲紋要確認的地方。mine：這個人所有的聲紋；current：來源那一場那位說話者現在的聲紋（沒有是 nil）
+    static func flags(for print: ForkVoiceScores.Print, mine: [ForkVoiceScores.Print], current: [Float]?) -> Set<Flag> {
+        var flags: Set<Flag> = []
+        // 只比跟這份「可以比」的向量（REV-F12b P3-1、REV-F12c P3-1）：有效而且跟這份同維度；
+        // 無效、維度不同的略過，不當成「不像」，A 的一致群、B 的「只有 2 份」也只算可以比的
+        let valid = mine.filter { isValid($0.vector) && $0.vector.count == print.vector.count }
+        if isValid(print.vector) {
+            let rest = valid.filter { $0.id != print.id }
+            let own = rest.compactMap { similarity(print.vector, $0.vector) }.max()
+            if let own, own < unlikeThreshold {
+                let agreeing = rest.filter { a in rest.contains { b in b.id != a.id && (similarity(a.vector, b.vector) ?? -1) >= agreeThreshold } }
+                if agreeing.count >= 2 { flags.insert(.unlikeOthers) }
+                if valid.count == 2 { flags.insert(.pairUnlike) }
+            }
+        }
+        if print.audioSource != "enroll", let current, let score = similarity(print.vector, current), score < unlikeThreshold {
+            flags.insert(.staleSpeaker)
+        }
+        return flags
+    }
+
+    /// 有效的聲紋向量：非空、數值有限、長度不是 0
+    static func isValid(_ v: [Float]) -> Bool {
+        guard !v.isEmpty, v.allSatisfy(\.isFinite) else { return false }
+        return v.contains { $0 != 0 }
+    }
+
+    /// 兩個有效、維度相同的向量的 cosine；不能比時是 nil（不當成「不像」）
+    static func similarity(_ a: [Float], _ b: [Float]) -> Double? {
+        guard a.count == b.count, isValid(a), isValid(b) else { return nil }
+        return Voiceprint.similarity(a, b)
+    }
+
+    /// 說明的文字（介面語言）
+    static func flagText(_ flag: Flag) -> String {
+        switch flag {
+        case .unlikeOthers: String(localized: "跟本人其他聲音不像，請確認")
+        case .pairUnlike: String(localized: "這兩份互相不像，請確認")
+        case .staleSpeaker: String(localized: "跟這位說話者現在的聲音對不上（可能是重新轉錄前存的），請確認")
         }
     }
 
@@ -139,6 +193,13 @@ enum ForkVoiceSources {
                 }
                 row.ownBest = mine.filter { $0.id != print.id }.map { Voiceprint.similarity(print.vector, $0.vector) }.max()
                 row.other = ForkVoiceScores.rank(print.vector, prints: others, names: names, excluding: nil).first
+                // C 用來源那一場那位說話者現在的聲紋；會議已刪（meeting_id NULL）、說話者不在或沒有聲紋就不比
+                var current: [Float]?
+                if let meetingId = print.meetingId, let idx = print.speakerIdx,
+                   let data = try Data.fetchOne(db, sql: "SELECT embedding FROM speakers WHERE meeting_id = ? AND idx = ?", arguments: [meetingId, idx]) {
+                    current = Voiceprint.vector(data)
+                }
+                row.flags = flags(for: print, mine: mine, current: current)
                 return row
             }
         }

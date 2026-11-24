@@ -60,7 +60,8 @@ extension ForkDebug {
                 ["id": r.id, "createdAt": r.createdAt, "meetingId": r.meetingId ?? NSNull(), "meetingTitle": r.meetingTitle ?? NSNull(),
                  "trashed": r.meetingTrashed, "enrolled": r.enrolled, "source": r.source ?? NSNull(), "label": ForkVoiceSources.label(r),
                  "warned": r.warned, "ownBest": r.ownBest ?? NSNull(), "other": r.other?.name ?? NSNull(),
-                 "otherScore": r.other?.score ?? NSNull(), "suspicious": r.suspicious]
+                 "otherScore": r.other?.score ?? NSNull(), "suspicious": r.suspicious,
+                 "flags": ForkVoiceSources.Flag.allCases.filter { r.flags.contains($0) }.map(\.rawValue)]
             }], to: args[3])
         case "delete":   // mavoice delete <聲紋 id>：同人物頁的刪除（不經過確認）
             if let id = meeting { _ = try? ForkVoiceSources.delete(model.db, voiceprintId: id); ForkVoiceprintsUI.afterDelete(model) }

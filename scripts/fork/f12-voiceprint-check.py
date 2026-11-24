@@ -13,7 +13,9 @@
   6. §F-DB：分成兩場、合併人、永久刪除會議、刪人之後，沒有指不到聲紋的來源紀錄；foreign_key_check 沒有東西
   7. REV-F12 的反例：聲紋庫快取暖著時分成兩場（只改 meeting_id），自身排除、防呆、人物頁的來源會議照新的；
      改會議語言（en → zh、zh → ja、一般語言 ko → zh）後聲紋的建議照樣認得、用目前的語言顯示；時間空的 AI 建議不當成聲紋
-  8. windowshot：防呆視窗開著的會議頁、人物頁（看一眼）
+  8. 其他要確認的樣本（F12.11a）：A 跟本人其他不像、B 兩份互相不像、C 跟來源說話者現在的聲音對不上；
+     來源說話者不在、會議永久刪除後不比；互相一致的正常樣本不標
+  9. windowshot：防呆視窗開著的會議頁、人物頁（看一眼）
 用法：python3 scripts/fork/f12-voiceprint-check.py <SHIYIN_HOME> <shiyinctl> --out <資料夾> [--fixtures <fixtures.json>]
 只讀寫 --out 和暫存 SHIYIN_HOME 的資料庫；同時只能開一個 DEBUG 版（shiyinctl 是廣播）。exit 0 通過、1 不符。
 """
@@ -494,6 +496,110 @@ def main():
     check('分割後的防呆：自己的樣本不會被當成「另一位」', v['other'] != 'ProbeOwner' and not v['warn'], json.dumps(v))
     rows = output('mavoice', 'prints', owner, name='split-prints-after')['rows']
     check('分割後的人物頁：來源會議是新的那場', rows and rows[0]['meetingId'] == moved, json.dumps(rows, ensure_ascii=False)[:300])
+
+    # ---------- 8. 其他要確認的樣本（F12.11a）：A 跟本人其他不像、B 兩份互相不像、C 跟來源說話者現在的聲音對不上 ----------
+    # 前面刪過、分割過會議，再放一次示範會議，只用新的這幾場
+    before = q('SELECT coalesce(max(id), 0) FROM meetings')[0][0]
+    ctl('seedfixtures', args.fixtures, 'zh', 'en', 'ja', 'yue', 'ko')
+    time.sleep(3)
+    slots = q("SELECT s.meeting_id, s.idx FROM speakers s JOIN meetings m ON m.id = s.meeting_id WHERE m.deleted_at IS NULL AND m.id > ? "
+              "ORDER BY s.meeting_id, s.idx", (before,))
+    by_meeting = {}
+    for m, i in slots: by_meeting.setdefault(m, []).append(i)
+    # 「會議已刪」要一整場只給這一項用：挑最後一場，其他項目從別場挑
+    purge_meeting = max(by_meeting)
+    free = [(m, i) for m, i in slots if m != purge_meeting]
+    if not check('其他要確認的樣本：有足夠的說話者可以用', len(free) >= 10, f'{len(free)} 位'):
+        return
+
+    def learn(slot, name, vec):
+        setvoice(slot[0], slot[1], vec)
+        ctl('mavoice', 'rename', slot[0], slot[1], name); settle()
+        st = state(f'flags-{name}-{slot[0]}-{slot[1]}')
+        check(f'取名 {name}（{slot[0]}／{slot[1]}）沒有被防呆擋', not st['guard'], json.dumps(st['guard'], ensure_ascii=False))
+
+    def flags_of(person, vp_slot):
+        rows = output('mavoice', 'prints', person_id(person), name=f'flags-prints-{person}')['rows']
+        vid = q('SELECT id FROM voiceprints WHERE meeting_id IS ? AND speaker_idx IS ? AND person_id = ?',
+                (vp_slot[0], vp_slot[1], person_id(person)))
+        if not vid: return None, rows
+        row = next((r for r in rows if r['id'] == vid[0][0]), None)
+        return (row or {}).get('flags'), rows
+
+    pat = free[0:4]
+    for k, slot in enumerate(pat[:3]):
+        learn(slot, 'Pat', mix((0.95, 20), 26 + k))
+    learn(pat[3], 'Pat', unit(21))
+    f_odd, rows = flags_of('Pat', pat[3])
+    check('A：跟本人其他 3 份（互相一致）都不像的那份標 unlikeOthers', f_odd == ['unlikeOthers'], json.dumps(rows, ensure_ascii=False)[:400])
+    normal = [r for r in rows if r['id'] != q('SELECT id FROM voiceprints WHERE meeting_id = ? AND speaker_idx = ?', pat[3])[0][0]]
+    check('A：互相一致的 3 份不標', len(normal) == 3 and all(not r['flags'] and not r['suspicious'] for r in normal), json.dumps(normal, ensure_ascii=False)[:400])
+
+    quinn = free[4:6]
+    learn(quinn[0], 'Quinn', unit(22))
+    learn(quinn[1], 'Quinn', unit(23))
+    _, rows = flags_of('Quinn', quinn[0])
+    check('B：只有 2 份、互相不像，兩份都標 pairUnlike', len(rows) == 2 and all(r['flags'] == ['pairUnlike'] for r in rows), json.dumps(rows, ensure_ascii=False)[:400])
+
+    # 無效的向量不比（REV-F12b P3-1）：全 0 的聲紋不算一份、不標；Quinn 有效的 2 份照樣互相不像
+    zero = free[8]
+    learn(zero, 'Quinn', [0.0] * DIM)
+    zid = q('SELECT id FROM voiceprints WHERE meeting_id = ? AND speaker_idx = ?', zero)
+    _, rows = flags_of('Quinn', quinn[0])
+    zrow = next((r for r in rows if zid and r['id'] == zid[0][0]), None)
+    valid = [r for r in rows if not zid or r['id'] != zid[0][0]]
+    check('無效向量：全 0 的聲紋不標（不當成不像、也不比來源說話者）', zrow is not None and zrow['flags'] == [], json.dumps(zrow, ensure_ascii=False)[:300])
+    check('無效向量：B 只數有效的聲紋，Quinn 有效的 2 份照樣標 pairUnlike',
+          len(valid) == 2 and all(r['flags'] == ['pairUnlike'] for r in valid), json.dumps(valid, ensure_ascii=False)[:300])
+
+    rae = free[6]
+    learn(rae, 'Rae', unit(29))
+    f, rows = flags_of('Rae', rae)
+    check('C：剛存的聲紋跟來源說話者一致，不標', f == [], json.dumps(rows, ensure_ascii=False)[:300])
+    write_sql('UPDATE speakers SET embedding = ? WHERE meeting_id = ? AND idx = ?', (struct.pack(f'<{DIM}f', *unit(30)), rae[0], rae[1]))
+    f, rows = flags_of('Rae', rae)
+    check('C：來源說話者的聲紋變了（像重新轉錄後），標 staleSpeaker', f == ['staleSpeaker'], json.dumps(rows, ensure_ascii=False)[:300])
+
+    tor = free[7]
+    learn(tor, 'Tor', unit(33))
+    write_sql('UPDATE speakers SET embedding = ? WHERE meeting_id = ? AND idx = ?', (struct.pack(f'<{DIM}f', *unit(34)), tor[0], tor[1]))
+    write_sql('DELETE FROM speakers WHERE meeting_id = ? AND idx = ?', tor)
+    f, rows = flags_of('Tor', tor)
+    check('C：來源說話者不在了就不比', f == [], json.dumps(rows, ensure_ascii=False)[:300])
+
+    # 混合維度（REV-F12c P3-1）：Wes 的候選（256 維）跟另一份 256 維不像，另外兩份 128 維互相一致 → 候選不能跟那兩份比，不標 A
+    small = lambda k: [1.0 if i == k else 0.0 for i in range(128)]
+    seeded = q('SELECT coalesce(max(id), 0) FROM meetings')[0][0]
+    ctl('seedfixtures', args.fixtures, 'zh', 'en', 'ja', 'yue', 'ko')
+    time.sleep(3)
+    mixed = q("SELECT s.meeting_id, s.idx FROM speakers s JOIN meetings m ON m.id = s.meeting_id WHERE m.deleted_at IS NULL AND m.id > ? "
+              "ORDER BY s.meeting_id, s.idx", (seeded,))[:4]
+    if check('混合維度：有 4 位說話者可以用', len(mixed) == 4, f'{len(mixed)}'):
+        learn(mixed[0], 'Wes', unit(36))
+        learn(mixed[1], 'Wes', unit(37))
+        learn(mixed[2], 'Wes', small(5))
+        learn(mixed[3], 'Wes', [0.99 if i == 5 else (0.141 if i == 6 else 0.0) for i in range(128)])
+        f, rows = flags_of('Wes', mixed[0])
+        check('混合維度：候選跟另一份 256 維不像，但 128 維的一致群不算，不標 A；可以比的只有 2 份，標 B',
+              f == ['pairUnlike'], json.dumps(rows, ensure_ascii=False)[:400])
+        f2, _ = flags_of('Wes', mixed[2])
+        check('混合維度：128 維的兩份互相一致，不標', f2 == [], str(f2))
+
+    uma = free[9]
+    learn(uma, 'Uma', unit(35))
+    write_sql("UPDATE speakers SET embedding = x'' WHERE meeting_id = ? AND idx = ?", uma)
+    f, rows = flags_of('Uma', uma)
+    check('無效向量：來源說話者的聲紋是空的 BLOB 時不比 C', f == [], json.dumps(rows, ensure_ascii=False)[:300])
+
+    sky = (purge_meeting, by_meeting[purge_meeting][0])
+    learn(sky, 'Sky', unit(31))
+    write_sql('UPDATE speakers SET embedding = ? WHERE meeting_id = ? AND idx = ?', (struct.pack(f'<{DIM}f', *unit(32)), sky[0], sky[1]))
+    ctl('purge', purge_meeting); settle(); time.sleep(1)
+    f, rows = flags_of('Sky', (None, sky[1]))
+    check('C：會議永久刪除後（meeting_id 是 NULL）不比', rows and all(not r['flags'] for r in rows) and rows[0]['meetingId'] is None,
+          json.dumps(rows, ensure_ascii=False)[:300])
+    ctl('mavoice', 'person', person_id('Pat')); settle()
+    check('截圖：人物頁（要確認的樣本）', shot('f12-person-flags'))
 
 
 try:
