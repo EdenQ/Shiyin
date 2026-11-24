@@ -150,7 +150,7 @@ struct MeetingHeader: View {
         let name = detail.speakers[idx] ?? ""
         HStack(spacing: 5) {
             PersonAvatar(name: name, color: Color.speaker(idx), size: 20, isMe: idx == detail.selfIdx, scales: false)
-            if detail.speakerSources[idx] == "tag" { ForkTaggedSpeakerName(idx: idx, name: name, others: detail.speakerCandidates[idx] ?? []) } else if detail.speakerSources[idx] == "voiceprint" {   // MA-FORK(F2)：標記帶入的名字（F2.9）
+            if let chip = ForkSpeakerChip(idx: idx, name: name, detail: detail) { chip } else if detail.speakerSources[idx] == "voiceprint" {   // MA-FORK(F2)：標記帶入的名字（F2.9）、自動帶入的名字加依據（F12.4）
                 AutoSpeakerName(idx: idx, name: name, others: detail.speakerCandidates[idx] ?? [])
             } else {
                 Button { startRenaming(idx) } label: { Text(name).foregroundStyle(Color.speaker(idx)) }
@@ -559,7 +559,7 @@ struct MeetingTop: View {
             if !detail.speakerSuggestions.isEmpty && !isRecording && !trashed {
                 SpeakerSuggestionsBanner(detail: detail)
             }
-            if !detail.unappliedTags.isEmpty && !isRecording && !trashed { UnappliedTagsBanner(detail: detail) }   // MA-FORK(F2)：沒套用的標記（F2.4）
+            ForkDetailBanners(detail: detail, active: !isRecording && !trashed)   // MA-FORK(F0)：fork 的提示列（F2 沒套用的標記、F12 改名防呆）
         }
         .padding(.horizontal, 32)
         .padding(.top, 22)

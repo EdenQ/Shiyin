@@ -51,7 +51,7 @@ scripts/fork/check.sh                 # 完整：建置、DEBUG 版實際操作�
 scripts/fork/check.sh --quick         # 只跑靜態的（不建 app、不開 DEBUG 版，約 1～2 分鐘）
 scripts/fork/check.sh --base-app <舊版.app>   # 品牌逐鍵比對的基準（預設：HEAD 之前最近的 fork tag 的 release 建置，見下）
 scripts/fork/check.sh --base-ref v5.0.1        # 基準改用這個 tag 建
-scripts/fork/check.sh --only 3,5,7    # 只跑這幾項（1～15、I1、I2、L、T、W、S；要用到的建置、DEBUG 版自己會建、會開）
+scripts/fork/check.sh --only 3,5,7    # 只跑這幾項（1～16、I1、I2、L、T、W、S；要用到的建置、DEBUG 版自己會建、會開）
 scripts/fork/check.sh --out <資料夾>  # 摘要、log、截圖放這裡（預設 $TMPDIR/shiyin-check-<時間>）
 scripts/fork/check.sh --keep          # 留下這次的 app、暫存 SHIYIN_HOME（除錯用）
 scripts/fork/check.sh --clean-cache   # 結束時連建置快取、基準版也刪掉
@@ -59,7 +59,7 @@ scripts/fork/check.sh --clean-cache   # 結束時連建置快取、基準版也�
 
 exit 0：沒有 FAIL（SKIP、需人工不算失敗）；1：有 FAIL；2：沒開始（使用者正在錄音、有別的 DEBUG 版在跑、拿不到開始時的設定快照、參數錯，含 `--only` 有不認得的項目或一項都沒選到）。
 
-`--only` 只收 `1`～`15`、`I1`、`I2`、`L`、`T`、`W`、`S`（逗號分隔），有一個不認得就 exit 2。跟 `--quick` 合用時：`--only` 決定跑哪幾項，`--quick` 只讓 3、4 停在靜態的部分（不建 app）；`--only` 選到的非 Q 項目（1、2、5～10、14、15、S）照常建置、開 DEBUG 版，所以 `--quick --only 5` 還是會建 app。摘要是輸出資料夾的 `summary.md`，最後也印在終端機。每一項一列：狀態（PASS／FAIL／SKIP／需人工）、耗時、證據路徑（log、JSON、截圖），細項寫在下面。
+`--only` 只收 `1`～`16`、`I1`、`I2`、`L`、`T`、`W`、`S`（逗號分隔），有一個不認得就 exit 2。跟 `--quick` 合用時：`--only` 決定跑哪幾項，`--quick` 只讓 3、4 停在靜態的部分（不建 app）；`--only` 選到的非 Q 項目（1、2、5～10、14～16、S）照常建置、開 DEBUG 版，所以 `--quick --only 5` 還是會建 app。摘要是輸出資料夾的 `summary.md`，最後也印在終端機。每一項一列：狀態（PASS／FAIL／SKIP／需人工）、耗時、證據路徑（log、JSON、截圖），細項寫在下面。
 
 **項目**（編號照 PLAN §8.1；`--quick` 只跑標 Q 的）
 
@@ -77,6 +77,7 @@ exit 0：沒有 FAIL（SKIP、需人工不算失敗）；1：有 FAIL；2：沒�
 | 10 | F4 加上 5.0 | **只自動驗證刪除**：`noteitem delete actionItems 0` 之後 `copysection` 的待辦少一條、其他條和別的段落照舊（示範會議的決議只有 1 條，刪了整段變空）；刪除後的 windowshot 放進截圖。`noteitem edit` 之後的樣式、「人物」頁不套 F4 樣式沒有自動驗證，摘要的說明欄寫明，留給 S 和使用者 |
 | 14 | F10 備份 | `scripts/fork/f10-backup-check.py`（§F10.8 的自動化：清理只動自己的一般檔、舊暫存檔在成功時清掉、排程和立即備份重疊時第二個回 `running`、錄完後到期的檢查會做） |
 | 15 | F11 錄音島的螢幕 | `scripts/fork/f11-island-check.py`（§F11.6 的自動化）。這一項要錄音島開著、放在桌面層：先結束這次的 DEBUG 版，用同一個測試複本、新的暫存 `SHIYIN_HOME` 加 `-recordingIsland YES -debugIslandBehind YES` 重開（其他參數照舊，`-debugQuietPrompts YES`），跑完結束；排在 S 後面 |
+| 16 | F12 聲紋 | `scripts/fork/f12-voiceprint-check.py`（§F12.8 的自動化：分數的文字、防呆和三個選項、全部套用、來源紀錄、人物頁的資料和刪單份、§F-DB；`windowshot` 拍會議頁、防呆視窗、人物頁）。會刪會議、刪人，所以另外開一次 DEBUG 版（同一個測試複本、新的暫存 `SHIYIN_HOME`、`-recordingIsland NO`），自己 `seedfixtures`；排在 S 之後、#15 之前 |
 | S | 截圖 | 繁中、英文各開一次 DEBUG 版：示範會議的紀錄、逐字稿分頁（`windowshot`）、設定「錄音」頁（`preview settings recording` 加 `mawindowshot`），加上 #8、#10 的圖，放在輸出資料夾的 `shots/`；狀態一律「需人工」（看條數、色條、「加到提醒事項」、靜音開關、提示列；還沒有基準圖，不做像素比對） |
 | 11 | DF5 | Q：`scripts/fork/tsan-lockedvalue/run.sh` |
 | 12 | 設定殘留 | Q：開始、結束各 `defaults export com.weiwei.shiyin`（正式 app 的網域），要逐位元組相同；不同時列出哪幾個鍵、FAIL，**保留現值、不改寫也不刪**（分不出是檢查還是使用者同時改的，例如使用者自己移動了主視窗）。DEBUG 版用測試專用的 bundle id（見安全規則），本來就不寫正式網域，所以這一項不靠任何還原。有選 DEBUG 版的項目（5～10、S）時另外核對 `shiyin://` 和 `.shiyin`（`com.weiwei.shiyin.meeting`）的預設處理程式在檢查前後相同：這時處理程式的快照是**必要的**，開始時沒拿到、結束時讀不到都算 FAIL，不會因為缺檔就跳過 |
@@ -289,6 +290,8 @@ exit 0：沒有 FAIL（SKIP、需人工不算失敗）；1：有 FAIL；2：沒�
 | `ForkRecordingSettingsRows()` | SettingsView「錄音與轉錄 → 提醒與快捷鍵」最後：`ForkRecordingSettingsRows()   // MA-FORK(F0)` | F11 的「錄音島放在」、F3 的 ⌃⌥⌘M 開關 |
 | `ForkIsland.screen()` | RecordingIsland `place` 選螢幕的那一行：`ForkIsland.screen() ?? NSScreen.main ?? NSScreen.screens.first`（`// MA-FORK(F11)`） | F11 錄音島放在哪個螢幕；以後錄音島位置相關的 fork 功能也走這裡 |
 | `ForkBackupSettingsSection()` | SettingsView 一般頁 | F10（一般頁的 fork 設定以後也可以改成共用列） |
+| `ForkDetailBanners(detail:active:)` | MeetingDetailView 會議頁上方的提示列（原本是 F2 的 `UnappliedTagsBanner` 那一行，F12 改寫，行數不變） | F2 沒套用的標記、F12 改名防呆的提示列和視窗 |
+| `ForkSpeakerChip(idx:name:detail:)` | MeetingDetailView `speakerChip` 選名字畫法的那一行（原本是 F2 的 `if …"tag"`，F12 改寫） | F2 標記帶入的名字、F12 自動帶入的名字加依據；回 nil 照上游 |
 
 **這次合併的 3 行**（99 → 96；HK-consolidate）：
 
@@ -756,6 +759,210 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 - 使用者在電腦前（acceptance-mac 場次 7）：真的切換操作螢幕、闔上筆電、全螢幕的會議 app。
 - 測完 `defaults read` 正式網域前後比對：完全相同（check.sh #12）。
 
+## F12. 說話者聲紋：分數顯示、改名防呆、人物頁管理單份聲紋（F12，DF12、DF13、DF14）
+
+需求在 requirements F12。程式在 `Sources/Shiyin/Fork/Voiceprints/`：
+- `VoiceScores.swift`：等級、排名、依據的文字、聲紋庫的快取。
+- `VoiceGuard.swift`：防呆的判斷、待回答的佇列、三個選項。
+- `VoiceSources.swift`：來源紀錄、人物頁的資料、刪單份聲紋。
+- `VoiceViews.swift`：自動帶入的名字選單、防呆的提示列和視窗、人物頁的「聲音特徵」。
+- `VoiceDebug.swift`：`mavoice`。
+
+### F12.1 接點（97 → 100，另外改寫 3 行既有的）
+
+| 上游的那一行 | 做什麼 |
+|---|---|
+| 新：`AppModel.renameSpeaker` 的 `guard let id = selection` 之後：`if ForkVoiceGuard.holds(self, meetingId: id, idx: idx, name: name, source: source) { return }   // MA-FORK(F12)` | 防呆（§F12.3）；不擋時記下這次取名的來源（§F12.4） |
+| 新：`MeetingDetail.loadSpeakers` 最後：`ForkVoiceScores.annotate(&self, rows)   // MA-FORK(F12)` | 建議的原因改寫成依據、算自動帶入的分數（§F12.2）。`loadSpeakers` 是整場讀取和只重讀說話者共用的，一行就涵蓋 |
+| 新：`PersonPage` 的「會議」那一段之後：`ForkPersonVoiceprints(personId: person.id)   // MA-FORK(F12)` | 人物頁的「聲音特徵」（§F12.5） |
+| 改寫：`learnVoiceprint` 的 `ForkSpeakerTags.remembersVoice(db, meetingId:, source:)` 多傳 `idx:`（`// MA-FORK(F2)`） | 照舊判斷 F2.9；另外交給 `ForkVoiceSources.willStore`：「只改名」時回 false（不存），要存時記下來源（§F12.4） |
+| 改寫：會議頁上方 `speakerChip` 的 `if detail.speakerSources[idx] == "tag" { ForkTaggedSpeakerName(…) } else if …voiceprint {` 改成 `if let chip = ForkSpeakerChip(idx:name:detail:) { chip } else if …voiceprint {`（`// MA-FORK(F2)`） | 標記帶入的照舊用 `ForkTaggedSpeakerName`；自動帶入、而且算得出依據時用 fork 的 `ForkAutoSpeakerName`（上游 `AutoSpeakerName` 的複本，選單最上面多一行依據，同 DF8 的做法）；算不出依據時回 nil，照上游 |
+| 改寫：會議頁上方提示列 `if !detail.unappliedTags.isEmpty … { UnappliedTagsBanner(detail:) }` 改成 `ForkDetailBanners(detail: detail, active: !isRecording && !trashed)`（`// MA-FORK(F0)`） | fork 的共用提示列（§F0.7）：F2 沒套用的標記（條件照舊）、F12 防呆的提示列和視窗 |
+
+- 換會議時清掉還沒回答的防呆：放進既有的 `ForkAppState.selectionChanged()`（上游那一行不變）。
+- 資料庫只用 fork 自己的表（§F12.4），不改上游的表、不改上游函式的簽章。
+
+### F12.2 分數（`ForkVoiceScores`，DF12）
+
+- 顯示時重算，不存分數：每位說話者的 `speakers.embedding`（說話 ≥ 8 秒）跟聲紋庫裡每個人的每一份比 cosine，每人取最高（同上游 `matchVoiceprints`）。
+  - 不算這位說話者自己存進去的那一份（同一個 `meeting_id`、`speaker_idx`）：手動取名的說話者跟自己的聲紋一定是 1.0，沒有意義。
+- 聲紋庫：每次都重讀每一份的中繼資料（`id`、`person_id`、`meeting_id`、`speaker_idx`、`audio_source`、`created_at`），名字也每次重讀（`people` 很小）；只快取向量，以 `id` 為鍵。
+  - 向量可以快取：上游只會新增、刪除聲紋，改的只有 `person_id`（合併人）、`meeting_id`（分成兩場），`embedding` 從不更新；`AUTOINCREMENT` 的 id 不會重用。
+  - 中繼資料不能快取（REV-F12 P2-1）：分成兩場只改 `meeting_id`，用 count／max(id)／total(person_id) 當快取的鍵時三個值都不變，排除自己的那一份會用到舊的會議，自己跟自己算出 100%。
+  - 每次讀到的 id 裡沒有快取的才讀 `embedding`；不在了的從快取拿掉。
+  - 成本：中繼資料一次查詢；比對 256 維、20 位說話者，300／3000／10000 份約 1.4／14.5／48 ms（REV-F12 的量測，-O）。聲紋庫一般是幾十到幾百份；很大時會佔主執行緒，屬於已知的取捨。
+- 等級（`Level`）：`≥ 0.88` 很像、`≥ 0.65` 有點像、其他不像（同上游的 `voiceprintAutoThreshold`、`voiceprintThreshold`，直接讀上游常數）；百分比是 `max(0, round(score × 100))`。
+- 兩人很像：`top − second < voiceprintAutoMargin`（0.15）。
+
+**建議的原因**（`annotate` 改 `speakerSuggestions` 的 `reason`，只改顯示，資料庫裡的不動）：
+- 怎麼分聲紋的建議和 AI 猜的：`suggestion_time` 是空的、而且原因等於上游 `matchVoiceprints` 的「聲音跟之前的%@很像」**在任何一種會議語言**（`MeetingLanguage.allCases`：languages.json 的精調和一般語言，一般語言查它的 `strings`）用建議的名字寫出來的那一句，就是聲紋的；其他都算 AI 依內容猜的（時間空的 AI 建議也一樣，只要原因不是那一句）。
+  - 要看所有語言（REV-F12 P2-2）：上游存的原因是當時的會議語言，使用者之後改會議語言時上游只改 `meetings.language`、不重寫原因。只比對目前的語言，聲紋建議會被誤標成「依內容猜」、分數不見。
+  - 顯示一律用**目前**的會議語言重新產生（聲紋的依據），AI 猜的原因照存的原文。
+- 聲紋的（會議語言，`language.format(zh:en:ja:)`）：
+  - zh：`聲紋比對：Ben 80%（有點像）・第二像 Amy 70%・兩人很像，請確認・現在最像的是 Amy 96%`
+  - en：`Voice match: Ben 80% (possible) · next Amy 70% · the two sound alike, please check · closest now: Amy 96%`
+  - ja：`声の照合：Ben 80%（似ている）・次点 Amy 70%・二人の声が近いので確認してください・今いちばん近いのは Amy 96%`
+  - 等級的字：很像／有點像／不像，`very close`／`possible`／`unlikely`，`よく似ている`／`似ている`／`似ていない`。
+  - 「現在最像的是」：現在最高分的人不是建議的名字時才加。
+  - 建議的名字已經不在聲紋庫（人被刪了）：只寫第一像、第二像，不寫建議名字的分數。
+  - 這位說話者算不出分數（沒有向量、聲紋庫空了）：原因照上游。
+- AI 猜的：前面加 `依內容猜：`（en `Guessed from what was said: `、ja `内容から推測：`），時間點照上游的 `TimeButton`。
+- 「猜到 N 位說話者的名字」清單、待確認的說話者題目都讀 `speakerSuggestions`，不用改畫面。
+
+**自動帶入的依據**（`annotate` 存進 `forkTags.voice`，`[idx: Basis]`；`MeetingDetail` 不能另外加存起來的屬性，放進既有的 fork 狀態）：
+- `name_source == "voiceprint"` 的說話者：第一像、第二像（名字、分數）。
+- `ForkAutoSpeakerName` 的選單最上面一行（介面語言，`String(localized:)`）：`聲紋比對：Ben 97%（很像）・第二像 Amy 61%`；兩人很像時加 `・兩人很像，請確認`；第一像不是現在的名字時加 `・現在最像的是 Amy 96%`。
+
+### F12.3 改名防呆（`ForkVoiceGuard`，DF13）
+
+`holds(model, meetingId:, idx:, name:, source:)` 在上游 `renameSpeaker` 一開始被呼叫，回 true 就是先擋下、等使用者回答：
+
+1. 這位說話者有「已經回答過、要照做」的放行（§F12.3 的選項）：拿掉放行、記下來源（含「提醒過」、「不存」），回 false。
+2. 記下這次取名的來源（`manual` 或 `suggestion`，§F12.4），以下任一條成立就回 false（照上游）：
+   - 設定沒開「記住說話者的聲音」（`AppSettings.voiceprints`）；
+   - 名字清空或是預設名稱；
+   - 說話者沒有向量或說話不到 8 秒。
+3. 算：
+   - 取的名字的人（`people.name` 不分大小寫）既有的聲紋裡最高的分數 `target`（沒有聲紋或沒有這個人是 nil）；
+   - 別人（不是取的名字的人）裡最高的 `other`。
+   - 兩邊都不算這位說話者自己的那一份（上游 `learnVoiceprint` 會先刪掉它）。
+4. `other ≥ 0.88` 而且（`target` 是 nil 或 `< 0.50`）：放進 `model.fork.voiceGuard` 的佇列（會議、說話者、現在的名字、取的名字、來源、別人的名字和分數、`target`），回 true。
+5. 其他回 false。
+
+- 門檻：0.88 是上游自動帶入的門檻（拾音「很有把握」的程度）；0.50 在上游 AMI 評估裡同一個人最低 0.81、不同的人最高 0.42 之間，低於它幾乎可以確定不是同一個人（design §21.4.1）。
+- requirements F12 的例子（0.950／0.261）會提醒。
+
+**一次取好幾位**：
+- 上游的「全部套用」、待確認送出都是在主執行緒的迴圈裡逐位呼叫 `renameSpeaker`；擋下的進同一個佇列，沒擋的照常改。
+- 迴圈結束後畫面才更新，所以使用者看到的是同一個視窗裡的全部。
+
+**畫面**（`ForkDetailBanners` 裡的 `ForkVoiceGuardBanner`，佇列裡有這場會議的項目才出現）：
+- 提示列：「有 N 位說話者的名字還沒改：聲音跟名字對不上」＋「查看」。
+- 視窗（`.sheet`）在佇列從空變成有東西時自動打開。標題：一位時「確定是 Ben 嗎？」，好幾位時「這 N 位說話者的聲音跟名字對不上」。
+- 每位一列：「『說話者 6』→ Ben：聲音很像 Amy（95%），跟 Ben 之前的聲音只有 26%。」；還沒有樣本時寫「Ben 還沒有聲音樣本」。
+- 下面一行說明兩個存法的差別。按鈕：「取消」（Esc）、「只改名，不記住聲音」（預設）、「仍要存」。
+
+**三個選項**（套用到佇列裡這場會議的全部）：
+- 仍要存：每位設放行（`warned`），再呼叫 `model.renameSpeaker(idx, to: name, source: source)`，走上游原本的流程（改名、記聲紋、清建議、換會議紀錄）。
+- 只改名：放行加「不存」，一樣呼叫 `renameSpeaker`。上游 `learnVoiceprint` 照常刪掉這位舊的那份、連到這個人；到 `remembersVoice` 時回 false，不存新的。
+- 取消：清掉佇列，不呼叫任何東西：名字、建議、會議紀錄都沒動，待確認的題目還在。
+- 回答時目前的會議已經不是那一場：不做（換會議時本來就清掉佇列）。
+- 放行只認同一場會議、同一位說話者、同一個名字，60 秒內有效，用一次就拿掉。
+
+### F12.4 來源紀錄（`ForkVoiceSources`，DF14）
+
+**migration `ma_voiceprint_source_v1`**：
+
+```sql
+CREATE TABLE ma_voiceprint_source (
+  voiceprint_id INTEGER PRIMARY KEY REFERENCES voiceprints(id) ON DELETE CASCADE,
+  source        TEXT NOT NULL,             -- manual / suggestion / tag / merge / rediarize
+  warned        INTEGER NOT NULL DEFAULT 0, -- 存的時候提醒過（仍要存）
+  recorded_at   TEXT NOT NULL
+);
+CREATE TABLE ma_voiceprint_pending (
+  meeting_id  INTEGER NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+  speaker_idx INTEGER NOT NULL,
+  source      TEXT NOT NULL,
+  warned      INTEGER NOT NULL DEFAULT 0,
+  recorded_at TEXT NOT NULL,
+  PRIMARY KEY (meeting_id, speaker_idx)
+);
+```
+
+**為什麼要兩張表**：
+- 唯一的接點 `remembersVoice` 在上游 `INSERT INTO voiceprints` 之前，拿不到新聲紋的 id。
+- 所以在那裡寫 `ma_voiceprint_pending`（這場、這位說話者、來源），之後再對到聲紋的 id（`resolve`）。
+- 對的規則：同一場、同一位說話者、`created_at >= recorded_at`、還沒有來源紀錄的非 `enroll` 聲紋。對到的寫進 `ma_voiceprint_source`，刪掉那筆 pending。
+
+**什麼時候對**：
+- 每次 `willStore` 開始時（對前一次的）；
+- `annotate` 時（改名、合併後重讀說話者，馬上就對到）；
+- 人物頁讀資料前；
+- app 啟動時（`ForkStartup.install`）。
+
+**對得上的理由**：
+- 上游 `learnVoiceprint` 一開始就刪掉這位說話者的舊聲紋，存新的一定經過 `remembersVoice`，而 `remembersVoice` 每次都覆寫這位的 pending。
+- 所以某位說話者的聲紋如果存在，就是最近一次經過 `remembersVoice` 存的。
+- 存的條件沒過（太短、跟既有的 > 0.95）時，pending 留著，沒有聲紋可對，也不會對錯：下次存一定先覆寫它。
+
+**來源怎麼判斷**（`willStore(db, meetingId:, idx:, source:)`，依序）：
+1. `holds` 記下的取名（這場、這位、60 秒內）：它的 `manual`／`suggestion`、`warned`；有「不存」就回 false（不寫 pending）。
+2. F2 套用標記（`ForkSpeakerTags.applyTags` 在呼叫 `learnVoiceprint` 前記下）：`tag`。
+3. 這場有正在跑的重新辨識說話者（`jobs` 的 `kind = 'rediarize' AND status = 'running'`）：`rediarize`。
+4. 其他（上游 `mergeSpeaker` 合併後重新學）：`merge`。
+- `enroll`（錄的「我的聲音」）不寫紀錄，看 `voiceprints.audio_source = 'enroll'`。
+- 沒有紀錄的舊聲紋顯示「不明」。
+
+**記取名的地方**：
+- 記憶體裡，`LockedValue`（`holds` 在主執行緒寫，`remembersVoice` 在資料庫的寫入佇列讀）。
+- 鍵是會議、說話者，60 秒內有效，用一次就拿掉。
+
+### F12.5 人物頁的「聲音特徵」（`ForkPersonVoiceprints`）
+
+- 放在人物頁「會議」那一段之後，同上游的 `NotesSection`。標題「聲音特徵」，後面寫幾份。
+- 每份一列：
+  - 日期（`created_at` 的本地日期）；
+  - 來源會議的標題（按了 `model.openFromPersonPage(meetingId)`）；`meeting_id` 是 NULL 時寫「會議已刪除」，`enroll` 寫「我的聲音」；
+  - 怎麼來的、「存的時候提醒過」；
+  - 跟這個人其他樣本最像的百分比，或「只有這一份」。
+- 可疑（§F12.3 同一組門檻：自己其他樣本最高 < 0.50 或只有這一份，而且別人 ≥ 0.88）：整列用警告色，加一行「跟這個人其他樣本不像，跟 Amy 很像（95%）」。
+- 刪除：「刪除這份…」→ 確認（「刪除這份聲音特徵？」「會議裡的名字不會變；之後的會議不再用這份比對。」）→ `DELETE FROM voiceprints WHERE id = ?`。
+  - 來源紀錄由外鍵一起刪。不呼叫 `deleteOrphanPeople`：這個人留在人物頁（還連著會議裡的說話者）。
+  - 刪完 `model.reloadPeopleOverview()`、重讀目前會議的說話者。
+  - `enroll` 那一列不給刪，寫「在設定的『我的聲音』管理」。
+
+### F12.6 §F-DB
+
+| 上游 | 對 fork 表的影響 |
+|---|---|
+| 刪聲紋（取名前、不是他、合併說話者、重新辨識、刪人、刪我的聲音、超過 30 份） | `ma_voiceprint_source` 的外鍵 `ON DELETE CASCADE` 一起刪 |
+| 合併人（`renamePerson` 改 `person_id`）、分成兩場（`splitMeeting` 改 `meeting_id`） | 聲紋的 id 不變，來源跟著 |
+| 移到垃圾桶、永久刪除會議 | 上游把 `voiceprints.meeting_id` 設成 NULL、聲紋留著，來源也留著（人物頁寫「會議已刪除」）；`ma_voiceprint_pending` 跟著會議刪（CASCADE） |
+| 編輯會議（R107）、合併兩場 | 上游不動 `voiceprints`（2026-11-24 grep 確認）；pending 留在原本那場，下次存聲紋時覆寫 |
+| `.shiyin` 封包 | 上游不帶聲紋，fork 也不帶來源 |
+
+### F12.7 DEBUG（`mavoice`，`VoiceDebug.swift`）
+
+- `mavoice setvoice <會議> <說話者> <秒數> <向量.json>`：
+  - 設這位說話者的 `embedding`、`speech_seconds`；
+  - 名字回預設、`name_source = default`、`person_id = NULL`、清建議；
+  - 刪這位說話者的聲紋。
+  - 只有測試用：合成的向量讓相似度可以算準。
+- 觸發上游的流程：
+  - `mavoice match <會議>`：上游 `matchVoiceprints`。
+  - `mavoice suggest <會議> <說話者> <名字> <時間> <原因>`：上游 `saveSpeakerSuggestions`（AI 猜的建議）。
+  - `mavoice rename <會議> <說話者> <名字>`：選這場、上游 `model.renameSpeaker`（經過防呆）。
+  - `mavoice apply <會議> <說話者>`、`mavoice applyall <會議>`：套用建議、全部套用。
+- 防呆：
+  - `mavoice choose keep|nameonly|cancel`：等於按防呆視窗的按鈕。
+  - `mavoice check <會議> <說話者> <名字> <輸出.json>`：只算防呆，不改任何東西。
+- 輸出：
+  - `mavoice state <輸出.json>`：目前會議每位說話者的名字、來源、`person_id`、顯示的建議（名字、原因、時間）、自動帶入的依據，和防呆的佇列、視窗開著沒有。
+  - `mavoice prints <person id> <輸出.json>`：人物頁的資料。
+- 人物頁：
+  - `mavoice delete <聲紋 id>`：同人物頁的刪除（不經過確認）。
+  - `mavoice person <person id>`：切到人物頁、選這個人（截圖用）。
+
+### F12.8 驗證
+
+- 用測試 bundle id 的 DEBUG 版複本和暫存的 `SHIYIN_HOME`，`seedfixtures` 的示範會議，合成的 256 維向量（正交的基底，相似度照設計好的值）。不用使用者的真實資料。
+- 自動化：`scripts/fork/f12-voiceprint-check.py <SHIYIN_HOME> <shiyinctl> --out <資料夾>`（`check.sh` 的 #16）。
+  - 分數：建議、自動帶入、AI 猜的顯示文字和數字跟 Python 算的一樣；「兩人很像」「現在最像的是」會出現。
+  - 防呆：
+    - 0.95／0.26 會擋、`check` 的數字對；
+    - 取消後名字、建議、聲紋都沒變；
+    - 只改名：名字改了、連到人、沒有這位的聲紋；
+    - 仍要存：有聲紋、來源 `manual`、`warned = 1`；
+    - 沒有樣本的新名字會擋；不需要提醒的不擋；
+    - 全部套用時只有該擋的進佇列（一個視窗），選一次全部套用。
+  - 來源：`manual`、`suggestion`、`merge`；沒有紀錄的顯示「不明」。
+  - 人物頁的資料：可疑標記、相似度；刪一份後名字、其他聲紋不變，來源紀錄沒了。
+  - §F-DB：分成兩場、合併人、刪會議、刪人之後，沒有指不到聲紋的來源紀錄；`foreign_key_check` 沒有東西。
+  - 截圖：`windowshot` 拍會議頁、防呆的視窗、人物頁，放進證據（看一眼）。
+- 使用者在電腦前（acceptance-mac 場次 8）：真的會議上的分數、防呆的視窗、人物頁，中英文。
+- 測完 `defaults read` 正式網域前後比對：完全相同（check.sh #12）。
+
 ## F-DB. 資料庫規則（PLAN-fork-5.0 §6）
 
 ### F-DB.1 規則
@@ -819,6 +1026,7 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 | 上游 5.0 的選單列圖示（`hint.symbol`） | 上游的收音提醒圖示優先，再來是 F3 的「忘了打開」提醒（`mic.badge.xmark`）、靜音中（`mic.slash.circle.fill`） |
 | 上游 5.0 的設定十一頁（R108） | F3 的「錄音中按 ⌃⌥⌘M 靜音」開關放在「錄音」頁的「提醒與快捷鍵」最後（`Fork/Mute/ForkMuteSettingsRow`，經 F0 的共用列 `ForkRecordingSettingsRows`，§F0.7） |
 | 上游 5.0 的會議頁上方（R84）、彈窗（R106） | `speakerChip` 的來源是 `tag` 時用 fork 的 `ForkTaggedSpeakerName`（上游 `AutoSpeakerName` 的複本，後面標「標記」，§F0.2）；說話者名字彈窗的「從錄音時的標記帶入」說明和「不是他」照舊（F2.9） |
+| §21.4 聲紋、§21.5 猜說話者、R33 待確認的說話者題目 | 建議的原因在顯示時改寫成依據（分數、第二像、兩人很像、建議過時），AI 猜的標「依內容猜」；自動帶入的名字用 fork 的 `ForkAutoSpeakerName`（上游 `AutoSpeakerName` 的複本，選單最上面多一行依據）；上游 `renameSpeaker` 取名前先檢查聲音（防呆）；人物頁多「聲音特徵」可以刪單份（F12、§F12、DF12～DF14）。上游存的建議、`matchVoiceprints`、`learnVoiceprint` 的規則不變 |
 | 上游 5.0 的就地編輯（R100）、加到提醒事項（R76） | 條列模式整頁是 fork 的 `ForkNotesList`（§F0.2）；段落用 `ForkNotesSection`：fork 的條數、色條、複製鈕加上上游的 `accessory`（「待辦」的「加到提醒事項」放在複製鈕後面）；條目在編輯中用上游的 `NoteItemEditor`，其他時候用 fork 的 `NoteRow`，接上 `noteItemActions`（右鍵、⋯），可以就地編輯的條目不設成可選取；待辦表（`ForkActionItemsTable`）保留 fork 的欄位順序（負責人、期限、事項、時間點），負責人加上游的頭像，事項接上就地編輯和提醒事項的勾。上游的 `NotesSection`、`ActionItemsTable` 不動 |
 | 上游 R70 拆句、`addSpeaker()` | F2.12「只改這句」在 fork 的 `AppDatabase.reassignSegments(…naming:…)` 用一筆 `pool.write` 照 5.0.1 的順序做完：上游的 `saveSpeakerUndo`（復原快照）、`addSpeaker()`（新增說話者）、`ForkSpeakerTags.nameNewSpeaker`（標記的名字）、改句子的說話者、上游的 `removeEmptySpeakers`；任何一步失敗整筆回復（DF8）。上游 private 的 `saveSpeakerUndo`、`addSpeaker` 由 SpeakerEdits 裡各 1 行接點 `forkSaveSpeakerUndo`、`forkAddSpeaker` 轉呼叫（`saveSpeakerUndo` 的參數用到 private 的 `SpeakerSnapshot`，不能直接改 internal；只加行、不改上游的行）；上游的函式不改簽章 |
 | 上游 5.0 的 DEBUG `state` | 錄音中錄音島出現時，視窗清單裡島的面板 `maxSize` 是無限大，`state` 寫 JSON 時丟例外、DEBUG 版結束（上游原樣也一樣；正式版不受影響）。fork 不改上游的檔：測錄音中的狀態時用 `-recordingIsland NO` 啟動。島的畫面用 fork 的 DEBUG 指令 `mawindowshot <輸出.png> island` 拍 |
@@ -839,3 +1047,6 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 | DF9 | 定期備份用 sqlite3_backup（來源是 GRDB 讀取交易裡的快照；目的地自己用 `O_EXCL | O_NOFOLLOW` 建、`SQLITE_OPEN_NOFOLLOW` 開，§F10.1a），寫完跑 `integrity_check` 才改名；上一次成功的時間看 `backups/daily/` 裡最新的檔，不存在設定；設定（一般頁）的一段用 1 行接點（98 → 99），啟動、「MA」選單改走 F0 的共用入口 `ForkStartup`、`ForkAppMenuCommands`，換掉既有的 2 行（F10，2026-11-20 使用者確認） | `VACUUM INTO`：不能在交易裡跑，GRDB 的讀取一律包交易，要另開連線，又會重排整個檔，沒有多的好處。存 `maBackupLastSuccess`（需求草稿的寫法）：設定跟著 bundle id、不跟著 `SHIYIN_HOME`，換了資料夾（測試、示範資料夾）時會拿別的資料夾的時間判斷，所以改成看檔案、另存 `maBackupFailingSince` 算 7 天。各功能各加接點：會用掉剩下的 2 行；提高接點上限：使用者選共用入口 |
 | DF10 | 接點上限 100 不提高；行數快滿時把既有接點收進 F0 的共用入口（§F0.7）。這次收掉 3 行（99 → 96）：DebugControl 的 `default:` 和 `hotkey` 那兩行改由 switch 前的 `ForkDebug.intercept` 處理（fork 指令名稱跟上游不重疊，由 isolation-check 守住），AppModel 停止錄音時關 ⌃⌥⌘M 改由 `ForkMute.install` 包住 `recorder.onFinished`；設定的 F3 列改名成共用列 `ForkRecordingSettingsRows`（行數不變，給 F11 用）（HK-consolidate，2026-11-23 使用者決定先合併再做 F11） | 提高上限：使用者不要。把相鄰的兩行 fork 程式擠成一行（SpeakerEdits 的 `forkSaveSpeakerUndo`、`forkAddSpeaker`）：數字變小，但跟上游衝突的面積一樣，不算真的減少。GlobalHotKey 的 3 行（`register`、`unregister` 改 internal、事件處理裡分派 fork 的 id）改成 fork 自己裝 Carbon 的事件處理：按真的快捷鍵的路徑沒辦法自動測（不能送按鍵），處理的順序、吞不吞事件一錯就是兩個快捷鍵都壞。Recorder 的 `resetForStart`、`resetForStop` 改用回呼：`onStarted`、`onFinished` 被呼叫的時間點跟現在的位置（開始流程中、`cleanup` 裡）不同，要另外證明每條開始、停止、失敗的路徑都一樣，風險比省下的一行大。RecordingView、MenuBar 的麥克風音量條兩行（加 fork 的圖示、藏起或淡化上游的那條）：要藏上游的元件只能改它那一行。ReleaseNotes、AudioSources（DF5）、TranscriptTab 等改上游既有行的：一行就是一處邏輯，合併要改上游的寫法，合併上游時更容易衝突 |
 | DF11 | 錄音島預設固定在內建螢幕，設定可以選「跟著目前在用的螢幕」（上游 R81.1）、「內建螢幕」、「主視窗所在的螢幕」；沒有內建螢幕時退到主視窗所在的螢幕，再不行照上游；內建螢幕用 `CGDisplayIsBuiltin` 判斷；偵測會議的提醒跟島一起固定（F11，2026-11-23 使用者決定）。偏離上游 R81.1 的理由：上游每 0.5 秒、換 app 時把島搬到 `NSScreen.main`，多螢幕時使用者在哪個螢幕操作島就跟到哪，來回切換時一直跑；固定在一個螢幕位置可以預期，有瀏海的 MacBook 接在瀏海兩側最自然。上游的行為保留成一個選項。接點 1 行（96 → 97），寫成通用入口 `ForkIsland.screen()` | 一律固定在內建螢幕、不做設定：想要上游行為的人只能把島關掉。固定在「開始錄音時主視窗所在的螢幕」：用快捷鍵、會議提醒開始錄音時主視窗常常沒開，規則也難懂（這次在左邊、上次在右邊）。沒有內建螢幕時固定在主要螢幕（有選單列的那個）：使用者要的是主視窗所在的螢幕。用螢幕名稱（`localizedName`）認內建螢幕：名稱跟著系統語言變、可以改名。不加接點、fork 在外面另外搬視窗：上游下一個 0.5 秒又搬回去，島在兩個螢幕之間閃。覆寫 `IslandPanel.setFrame`、在執行期換掉 `NSScreen.main`：要動上游的 `final class` 或用 Objective-C runtime，太脆弱。提醒維持跟著目前在用的螢幕：要多一套判斷，使用者決定一起固定 |
+| DF12 | 聲紋的分數在顯示時重算（`MeetingDetail.loadSpeakers` 1 行接點），不存（F12，2026-11-24）。等級照上游的兩個門檻（≥ 0.88 很像、≥ 0.65 有點像），兩人很像用上游的差距 0.15；建議的原因只在顯示時改寫，資料庫裡上游的原因不動；現在最像的人跟存好的建議不同時加註，讓過時的建議看得出來 | 轉錄時把分數存進 fork 的表：要在上游 `matchVoiceprints` 之後多 1 行接點，而且聲紋庫一變（刪錯的聲紋、合併人）分數就過時，正好重演使用者遇到的「存好的建議不會更新」。直接改寫資料庫裡的 `suggestion_reason`：上游的待確認、匯出、MCP 都會讀到 fork 的文字，會議語言換了也不會跟著換。成本：每次重讀聲紋的中繼資料、只快取不會變的向量（以 id 為鍵）；2026-11-24 REV-F12 改掉用 count／max(id)／sum(person_id) 當鍵快取整份聲紋庫：分成兩場只改 meeting_id，三個值都不變。辨識聲紋的建議時比對所有會議語言的上游原因（使用者改會議語言後上游不重寫原因） |
+| DF13 | 改名防呆擋在上游 `AppModel.renameSpeaker` 開頭（1 行接點），所有使用者取名的路徑都經過它；別人 ≥ 0.88、取的名字既有的 < 0.50（或沒有樣本）才擋；一次好幾位時擋下的集中在一個視窗、選項套用到全部；「只改名」沿用 F2.9 的「只連到人、不存聲紋」（F12，2026-11-24） | 改完才問（在 `remembersVoice` 先不存聲紋、事後再問要不要存）：取消時要把名字、會議紀錄、建議改回去，會多存一版會議紀錄，也清不回被上游清掉的復原。只看別人很像、不看取的名字：同一個人的聲紋本來就可能跟別人 0.88 以上（使用者的資料裡不同的人有 0.85），會常常誤擋。門檻用 0.65／0.88 的差距：沒有實際資料支撐。一位一個視窗：全部套用 5 位時要按 5 次，而且上游的迴圈是同步的，做不到一個接一個問。也擋合併說話者、重新辨識時的重新學習：那時名字是使用者早就確認過的，不是新的取名 |
+| DF14 | 聲紋的來源記在 fork 的表 `ma_voiceprint_source`（外鍵指到上游的 `voiceprints`、`ON DELETE CASCADE`），在既有的 `remembersVoice` 接點寫 pending、事後對到聲紋 id；取名的來源由防呆的接點記在記憶體，標記由 F2 的套用記，重新辨識看 `jobs`，其他算合併；待確認回答併進「套用建議」「手動取名」（F12，2026-11-24） | 在上游 `voiceprints` 加欄位：違反 §F-DB.1 第 2 點，降回舊版時 INSERT 沒填也沒關係，但上游以後的 migration 可能重建這張表。在 `INSERT` 之後多 1 行接點拿 id：接點已經用到 100。用觸發器（trigger）在上游的表上：上游重建表時會不見，也是改上游表的行為。以 `meeting_id`、`speaker_idx` 當鍵、不對到 id：分成兩場會改 `meeting_id`，紀錄會對錯。分出「待確認回答」：上游的待確認送出直接呼叫 `renameSpeaker`，要再 1 行接點才分得出來，對判斷聲紋可不可信沒有幫助 |

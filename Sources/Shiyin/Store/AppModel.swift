@@ -135,6 +135,7 @@ struct MeetingDetail: Equatable {
             return (row.idx, SpeakerNaming.Suggestion(speaker: row.idx, name: name, reason: row.suggestionReason ?? "",
                                                       time: row.suggestionTime ?? ""))
         })
+        ForkVoiceScores.annotate(&self, rows)   // MA-FORK(F12)：建議的依據、自動帶入的分數（F12.1～F12.5）
     }
 
     mutating func buildIndexes() {
@@ -1535,6 +1536,7 @@ final class AppModel {
     /// source：manual（使用者改名）或 suggestion（套用 AI 猜的名字，design §21.5）
     func renameSpeaker(_ idx: Int, to name: String, source: String = "manual") {
         guard let id = selection else { return }
+        if ForkVoiceGuard.holds(self, meetingId: id, idx: idx, name: name, source: source) { return }   // MA-FORK(F12)：取名前檢查聲音（F12.6～F12.9）
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         // 清空就回到預設名稱，用會議語言（會帶進會議紀錄和匯出），不是介面語言
         let language = detail?.meeting.meetingLanguage ?? .zh

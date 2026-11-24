@@ -24,10 +24,17 @@ final class ForkAppState {
     /// 議題帶切段的快取（fork design §F4.3）：會議紀錄或長度變了才重算；播放條每 0.1 秒重畫時只查表
     @ObservationIgnored var topicSegmentsCache: (notes: MeetingNotes, duration: Double, segments: [MindMap.TopicRange])?
 
-    /// 上游換選取的會議時（AppModel 的 selection）：清掉議題的狀態
+    // F12 改名防呆（fork design §F12.3）
+    /// 擋下、等使用者回答的說話者（同一場會議可以好幾位：全部套用、待確認一次送出）
+    var voiceGuard: [ForkVoiceGuard.Item] = []
+    /// 防呆的視窗開著
+    var voiceGuardShowing = false
+
+    /// 上游換選取的會議時（AppModel 的 selection）：清掉議題的狀態；還沒回答的防呆當成取消（F12）
     func selectionChanged() {
         currentTopicBranch = nil
         topicScrollRequest = nil
         notesCollapsedTopics = nil
+        ForkVoiceGuard.clear(self)
     }
 }

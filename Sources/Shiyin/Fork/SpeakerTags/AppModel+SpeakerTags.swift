@@ -6,6 +6,9 @@ extension ForkSpeakerTags {
     struct DetailState: Equatable {
         var tags: [SpeakerTag] = []
         var matches: [Int64: SpeakerTagging.Match] = [:]
+        /// F12：每位說話者跟認識的人比的結果（`ForkVoiceScores.annotate`，上游 `loadSpeakers` 的接點）；
+        /// `MeetingDetail` 不能另外加存起來的屬性，放在既有的 fork 狀態裡（fork design §F12.2）
+        var voice: [Int: ForkVoiceScores.Basis] = [:]
 
         /// 上游 `MeetingDetail.buildIndexes` 的接點：段落、標記變了重算
         mutating func rebuild(_ segments: [Segment]) {

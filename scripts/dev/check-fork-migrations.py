@@ -151,7 +151,8 @@ for scenario in ["fresh", "v7", "fork-v8", "upstream-v8", "upstream-v9", "upstre
         require(try db.tableExists("speaker_undo"), "Missing upstream undo")
         require(try db.tableExists("documents"), "Missing upstream documents")
         require(try db.tableExists("ma_meeting_edit_tags"), "Missing fork edit snapshot table")
-        require(migrator.migrations.suffix(2) == ["ma_speaker_tags_v1", "ma_meeting_edit_tags_v1"], "Fork migrations are not last")
+        require(try db.tableExists("ma_voiceprint_source") && db.tableExists("ma_voiceprint_pending"), "Missing fork voiceprint source tables")
+        require(migrator.migrations.suffix(3) == ["ma_speaker_tags_v1", "ma_meeting_edit_tags_v1", "ma_voiceprint_source_v1"], "Fork migrations are not last")
         require(try String.fetchOne(db, sql: "PRAGMA integrity_check") == "ok", "Integrity check failed")
         require(try Row.fetchAll(db, sql: "PRAGMA foreign_key_check").isEmpty, "Foreign key check failed")
         let count = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM speaker_tags")
@@ -189,6 +190,23 @@ for scenario in ["fresh", "v7", "fork-v8", "upstream-v8", "upstream-v9", "upstre
             require(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM ma_meeting_edit_tags") == 0, "Edit tag snapshot not cascaded")
             require(try Row.fetchAll(db, sql: "PRAGMA foreign_key_check").isEmpty, "Foreign key check failed after edit snapshot")
         }
+    }
+    // F12 聲紋的來源（§F12.4、§F12.6）：聲紋刪了來源跟著刪；會議刪了 pending 跟著刪
+    try queue.write { db in
+        try db.execute(sql: "INSERT INTO people (name, created_at) VALUES ('F12 fixture', 'x')")
+        let person = db.lastInsertedRowID
+        try db.execute(sql: "INSERT INTO voiceprints (person_id, embedding, audio_source, meeting_id, speaker_idx, created_at) VALUES (?, x'00000000', 'mix', NULL, NULL, 'x')", arguments: [person])
+        try db.execute(sql: "INSERT INTO ma_voiceprint_source (voiceprint_id, source, warned, recorded_at) VALUES (?, 'manual', 0, 'x')", arguments: [db.lastInsertedRowID])
+        try db.execute(sql: "INSERT INTO meetings (title, meeting_date, source_filename, audio_file, created_at, updated_at) VALUES ('F12', '2026-11-24', 'f.wav', 'f.wav', 'x', 'x')")
+        let meeting = db.lastInsertedRowID
+        try db.execute(sql: "INSERT INTO ma_voiceprint_pending (meeting_id, speaker_idx, source, warned, recorded_at) VALUES (?, 1, 'manual', 0, 'x')", arguments: [meeting])
+        try db.execute(sql: "DELETE FROM people WHERE id = ?", arguments: [person])
+        try db.execute(sql: "DELETE FROM meetings WHERE id = ?", arguments: [meeting])
+    }
+    try queue.read { db in
+        require(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM ma_voiceprint_source") == 0, "Voiceprint source not cascaded")
+        require(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM ma_voiceprint_pending") == 0, "Voiceprint pending not cascaded")
+        require(try Row.fetchAll(db, sql: "PRAGMA foreign_key_check").isEmpty, "Foreign key check failed after voiceprint source")
     }
     print("PASS migration: \(scenario) + reopen; data retained")
     if scenario == "fork-476" || scenario == "fresh" {

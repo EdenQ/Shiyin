@@ -2,7 +2,7 @@
 # fork 的回歸檢查（fork design §F0.4；PLAN-fork-5.0 §8.1、階段 3a）：一個指令跑完能自動化的 1～12 項，輸出 markdown 摘要。
 # 用法：scripts/fork/check.sh [--quick] [--only 3,5,I1] [--base-app <舊版.app> | --base-ref <tag>] [--out <資料夾>] [--keep] [--clean-cache]
 #   --quick        只跑靜態的（不建 app、不開 DEBUG 版）：3（原始碼）、4（repo）、T、W、I1、I2、L、11、12
-#   --only         只跑這幾項（逗號分隔，只收 1～15、I1、I2、L、T、W、S；不認得或一項都沒有就 exit 2）；
+#   --only         只跑這幾項（逗號分隔，只收 1～16、I1、I2、L、T、W、S；不認得或一項都沒有就 exit 2）；
 #                  需要的建置、DEBUG 版會自己做（加 --quick 時 3、4 只做靜態的部分，選到的其他項目照常建置）
 #   --base-app     品牌逐鍵比對的基準；預設用 HEAD^ 之前最近的 fork tag 在本機建（快取在 ~/Library/Caches/ShiyinBuild/check/base/<tag>）
 #   --out          摘要、log、截圖放這裡（預設 $TMPDIR/shiyin-check-<時間>）
@@ -314,6 +314,14 @@ i_f10() {   # F10 備份（fork design §F10.8）：清理的反例、重疊、�
   run python3 "$ROOT/scripts/fork/f10-backup-check.py" "$HOME_DIR" "$CTL" --out "$OUT/f10"; local c=$?
   EVID="logs/14.log、f10/"; return $c
 }
+i_f12() {   # F12 聲紋（fork design §F12.8）：會刪會議、刪人，另外開一次 DEBUG 版（新的暫存 SHIYIN_HOME），排在 S 之後
+  stop_debug || { NOTE="前一個 DEBUG 版結束不了"; return 1; }
+  start_debug zh-Hant || { NOTE="DEBUG 版開不起來（必要條件見 log）"; return 1; }
+  run python3 "$ROOT/scripts/fork/f12-voiceprint-check.py" "$HOME_DIR" "$CTL" --out "$OUT/f12"; local c=$?
+  cp "$OUT/f12/"f12-*.png "$OUT/shots/" 2>/dev/null
+  stop_debug || { NOTE="DEBUG 版結束不了"; return 1; }
+  EVID="logs/16.log、f12/"; return $c
+}
 i_f11() {   # F11 錄音島的螢幕（fork design §F11.6）：錄音島開著、放在桌面層，另外開一次 DEBUG 版
   stop_debug || { NOTE="前一個 DEBUG 版結束不了"; return 1; }
   DBG_ISLAND=YES start_debug zh-Hant || { NOTE="錄音島開著的 DEBUG 版開不起來（必要條件見 log）"; return 1; }
@@ -361,7 +369,7 @@ if want 4 && grep -q '^SKIP' "$OUT/logs/4.log" 2>/dev/null; then   # 唯一定�
   add_row 4u "CI 的更新網址（vars.SHIYIN_UPDATE_URL）" SKIP 0 logs/4.log "$(grep '^SKIP' "$OUT/logs/4.log" | head -1 | cut -c6-90)"
 fi
 SESSION_REASON=""
-if want 5 || want 6 || want 7 || want 8 || want 9 || want 10 || want 14 || want 15 || want S; then
+if want 5 || want 6 || want 7 || want 8 || want 9 || want 10 || want 14 || want 15 || want 16 || want S; then
   DEBUG_WANTED=1; HANDLERS_REQUIRED=1
   # 必要條件（fork design §F0.4）：任一步不成立，5～10、14、15、S 全部 FAIL，不會沒核對就照跑
   {
@@ -380,10 +388,11 @@ if want 5 || want 6 || want 7 || want 8 || want 9 || want 10 || want 14 || want 
     item 10 "F4 加上 5.0（noteitem 刪除後）" i_f4items
     item 14 "F10 備份（清理只動自己的一般檔、重疊、錄完後到期）" i_f10
     item S "截圖（#7～#10 要看一眼的畫面，zh、en）" i_shots
+    item 16 "F12 聲紋（分數、改名防呆、來源紀錄、人物頁、§F-DB）" i_f12
     item 15 "F11 錄音島的螢幕（三種選項、沒有內建螢幕和主視窗的退路）" i_f11
   else
     cat "$OUT/logs/debug-start.log"
-    for id in 5 6 7 8 9 10 14 15 S; do item "$id" "DEBUG 版的項目" i_session_fail; done
+    for id in 5 6 7 8 9 10 14 S 16 15; do item "$id" "DEBUG 版的項目" i_session_fail; done
   fi
 fi
 item 11 "DF5（TSan LockedValue）" i_tsan

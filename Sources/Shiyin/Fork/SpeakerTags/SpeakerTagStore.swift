@@ -120,10 +120,14 @@ extension AppDatabase {
 
 extension ForkSpeakerTags {
     /// 上游 Voiceprints.learnVoiceprint 的接點：標記帶入的名字（source = tag），說話者辨識可能把人併在一起時
-    /// 只連到那個人、不存聲紋（F2.9、DF2）；其他來源照上游
-    static func remembersVoice(_ db: Database, meetingId: Int64, source: String) throws -> Bool {
-        guard source == "tag" else { return true }
-        return !(try Meeting.fetchOne(db, key: meetingId)?.mayHaveMergedSpeakers ?? false)
+    /// 只連到那個人、不存聲紋（F2.9、DF2）；其他來源照上游。
+    /// F12：要存時交給 `ForkVoiceSources.willStore`（記來源；防呆選了「只改名」回 false，fork design §F12.3、§F12.4）
+    static func remembersVoice(_ db: Database, meetingId: Int64, idx: Int, source: String) throws -> Bool {
+        if source == "tag", try Meeting.fetchOne(db, key: meetingId)?.mayHaveMergedSpeakers ?? false {
+            ForkVoiceSources.skip(meetingId, idx)
+            return false
+        }
+        return ForkVoiceSources.willStore(db, meetingId: meetingId, idx: idx, source: source)
     }
 
     /// 上游 JobRunner 轉錄存檔、重新辨識說話者之後的接點（F2.3、F2.10）：在聲紋比對之前套用，使用者自己標的優先；
@@ -134,7 +138,10 @@ extension ForkSpeakerTags {
         let remember = try db.rememberTaggedVoices(meetingId)
         log.info("speaker tags applied to \(tagged.count) speakers, voiceprints \(remember ? "kept" : "skipped", privacy: .public)")
         if AppSettings.voiceprints {
-            for (idx, name) in tagged { try db.learnVoiceprint(meetingId, idx: idx, name: name, source: "tag") }
+            for (idx, name) in tagged {
+                ForkVoiceSources.noteTagging(meetingId, idx)   // F12：來源記成「錄音時標記」
+                try db.learnVoiceprint(meetingId, idx: idx, name: name, source: "tag")
+            }
         }
     }
 

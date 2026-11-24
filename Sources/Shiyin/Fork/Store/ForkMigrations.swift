@@ -33,5 +33,25 @@ enum ForkMigrations {
                 );
                 """)
         }
+        // F12 聲紋的來源（fork design §F12.4、DF14）：外鍵指到上游的 voiceprints，聲紋刪了紀錄跟著刪；
+        // pending 是上游存聲紋之前記下的，事後對到聲紋的 id
+        migrator.registerMigration("ma_voiceprint_source_v1") { db in
+            try db.execute(sql: """
+                CREATE TABLE ma_voiceprint_source (
+                  voiceprint_id INTEGER PRIMARY KEY REFERENCES voiceprints(id) ON DELETE CASCADE,
+                  source        TEXT NOT NULL,
+                  warned        INTEGER NOT NULL DEFAULT 0,
+                  recorded_at   TEXT NOT NULL
+                );
+                CREATE TABLE ma_voiceprint_pending (
+                  meeting_id  INTEGER NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+                  speaker_idx INTEGER NOT NULL,
+                  source      TEXT NOT NULL,
+                  warned      INTEGER NOT NULL DEFAULT 0,
+                  recorded_at TEXT NOT NULL,
+                  PRIMARY KEY (meeting_id, speaker_idx)
+                );
+                """)
+        }
     }
 }
