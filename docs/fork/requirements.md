@@ -21,6 +21,7 @@
 | F10 | 定期備份資料庫 | 5.0.2（build 32）；BK2a（改名後寫進磁碟）在 5.0.3；BK1、BK2 見 tasks |
 | F11 | 錄音島放在哪個螢幕 | 5.0.3（build 33）；使用者實測見 tasks IS1 |
 | F12 | 說話者聲紋：分數顯示、改名防呆、人物頁管理單份聲紋 | 5.0.3（build 33）；F12.11a（要確認的樣本）、F12.15（重新轉錄後名字跟著聲音）在 5.0.4（build 34）；使用者實測見 tasks VP1 |
+| F13 | 拿掉 app 裡原作者的署名與贊助、附上上游的 MIT 聲明；app 內更新說明不寫「基於上游」；停用官網；README 改成 fork 自己的 | 程式完成（分支 feature/f13-debrand），還沒發布 |
 
 - 新功能從 **F10** 開始編號，先寫進這份文件，再寫 design、加任務（同 CLAUDE.md 的 SDD 流程）。
 - fork 對上游需求的修改或補充（例如「上游 R107 也要平移標記」）寫在這裡或 design，引用上游的編號，**不改上游文件**。
@@ -154,11 +155,11 @@
 ## F7. 品牌集中在建置時替換（2026-11-18，PLAN-fork-5.0 階段 0b，使用者已確認做法）
 
 - F7.1 原始碼、翻譯表、`Info.plist`、`InfoPlist.strings`、安裝說明、第三方授權照上游寫「拾音」「Shiyin」；建置時（`build-app.sh`，含 `--debug`；`make-dmg.sh`）換成 F1 的名稱。使用者看到的介面、Finder、「關於 MA」、DMG 跟 4.7.6 相同（F1.1～F1.4）。目的是合併上游時，品牌不再造成衝突。
-- F7.2 名稱、整句的特例、不換的片段集中在 `fork/brand.json`。不換：原作者署名（「改自…拾音 Shiyin」、juinwei7、Ko-fi）、`.shiyin` 副檔名、`shiyin://`、資料夾 `Application Support/Shiyin`、鑰匙圈項目名「拾音 API key」、bundle id、User-Agent、Info.plist 的 `Shiyin…URL` 鍵名、DMG 和 `shiyin-update.json` 的檔名。
+- F7.2 名稱、整句的特例、不換的片段集中在 `fork/brand.json`。不換：上游的 MIT 著作權與許可聲明（F13.2）、`.shiyin` 副檔名、`shiyin://`、資料夾 `Application Support/Shiyin`、鑰匙圈項目名「拾音 API key」、bundle id、User-Agent、Info.plist 的 `Shiyin…URL` 鍵名、DMG 和 `shiyin-update.json` 的檔名。
 - F7.3 MCP 給 AI 工具的英文訊息、`serverInfo` 不換（使用者看不到，2026-11-18 使用者決定），列在原始碼掃描的白名單。
 - F7.4 建置時檢查：建好的 app 裡扣掉不換的片段後還有「拾音」「Shiyin」、換完格式碼數量不同、原始碼在不經過翻譯表的地方寫了品牌字（不在白名單），建置失敗。
 - F7.5 上游 5.0 的提醒事項列表（R101）在 fork 叫「會議助手」（英文介面 Meeting Assistant）；已經有舊名「拾音」「Shiyin」的列表時沿用，不重複建立（2026-11-18 使用者決定；接點在合併 5.0 時接上）。
-- F7.6 fork 沒有部署官網：`site/` 不換品牌，合併 5.0 時回到上游原樣（2026-11-18 使用者決定）。Windows 版不在範圍內。
+- F7.6 fork 沒有部署官網：`site/` 不換品牌，合併 5.0 時回到上游原樣（2026-11-18 使用者決定）；官網的 workflow 在 fork 停用（F13.4）。Windows 版不在範圍內。
 - F7.7 上游 5.0 的錄音島（R81）寬度固定，「打開會議助手」放不下、被截成「打開會…」：**只在錄音島上**把品牌名寫成簡稱「MA」——繁中「打開 MA」、簡中「打开 MA」（中文和英文之間空一格，照專案的慣例）、英文「Open MA」。其他地方（選單列的「打開會議助手」等）照舊是會議助手／Meeting Assistant；不加寬錄音島、不改上游的版面（2026-11-19 使用者決定，DECISIONS 第 10 項）。
 
 ## F10. 定期備份資料庫（2026-11-20，使用者已確認做法）
@@ -362,3 +363,38 @@
   - 人物頁的資料：來源、相似度、可疑樣本；刪一份後名字不變、其他聲紋不變、來源紀錄一起刪掉。
   - §F-DB：刪會議、刪人、合併人、分成兩場之後，來源紀錄跟著聲紋（不留沒有聲紋的紀錄）。
 - 使用者在電腦前（`docs/fork/acceptance-mac.md` 場次 8）：真的會議上看分數、改名防呆的視窗、人物頁刪一份聲紋，中英文都看過。
+
+## F13. 拿掉原作者相關資訊（2026-11-25，使用者決定）
+
+### 為什麼
+
+- 會議助手是使用者自己的 app：「關於 MA」不放原作者的署名和贊助連結，README 不指向上游的官網、Ko-fi、Windows 版。
+- 上游拾音是 MIT 授權，散布時要附上著作權與許可聲明（`LICENSE`）。目前 app 和 DMG 的授權檔只有第三方套件的授權，沒有拾音本身的；原作者只出現在 Credits 那一句「改自 juinwei7 的開源專案拾音」。拿掉那一句時要把 MIT 聲明補上。
+- 評估見 2026-11-24 的 AN-debrand-locale（授權判斷不構成法律意見，使用者自行確認）。
+
+### F13 原作者資訊（P1，只做 Mac）
+
+- F13.1 「關於 MA」（Credits）不放原作者的署名和贊助：拿掉「會議助手改自 juinwei7 的開源專案拾音 Shiyin」和 Ko-fi「請原作者喝杯咖啡」（繁中、簡中、英文三份）。上游改了贊助句、對不到時建置失敗，不能默默留下贊助連結。
+- F13.2 app 的授權內容（「關於 MA」的 Credits、`ThirdPartyLicenses.txt`）和 DMG 的 `Third-Party Licenses.txt` 附上上游拾音 Shiyin 的 MIT 著作權與許可聲明全文（repo 的 `LICENSE`）：清單第一項寫上游的專案名稱、MIT、網址，授權條款第一節是 `LICENSE` 原文。這段是授權必要的內容，品牌替換不改裡面的著作權人和專案名；缺了建置失敗。
+- F13.3 tag 說明的「- 基於上游 拾音 X.Y.Z」「- Based on upstream Shiyin X.Y.Z」不進 app 內更新說明（`shiyin-update.json` 的 `notes`）；GitHub Release 的說明照 DF6 保留這行當紀錄。
+- F13.4 fork 不跑官網的 workflow（`site/` 是上游的官網、讀上游的 Release；fork 沒有官網）。
+- F13.5 README（繁中、英文）改寫成會議助手自己的：功能、安裝、從原始碼建置、資料與隱私、授權；寫明是 MIT 授權的拾音 fork，附上游 repo 的連結當授權來源。不寫上游官網、`git clone` 上游、Ko-fi、上游的更新網址、Windows 版、匿名使用統計（fork 沒設）。
+
+### 接點（上限 100，維持不變）
+
+- 不加 Swift 接點。Credits、授權檔在 `brand.py apply`（建置時）處理；更新說明在 `make-dmg.sh` 加 1 行腳本接點（腳本不算行數）；官網、README 是 `.github`、說明文件，不在接點檢查範圍（design §F0.3）。
+
+### 不做（這一版）
+
+- bundle id `com.weiwei.shiyin`、鑰匙圈名稱、`Application Support/Shiyin`、`shiyin://`、`.shiyin`、DMG 和 `shiyin-update.json` 的檔名、自簽憑證名稱：改了現有使用者的設定、API key、權限、更新會斷（F7.2）。
+- 程式裡備用的回報網址（`ProblemReport.defaultIssuesURL`，Info.plist 有設就用不到）、User-Agent（只用在已停用的統計）、企業伺服器的程式：使用者看不到，改要加 Swift 接點。
+- 程式碼註解、上游的文件（`docs/*.md`）、`site/` 的內容。
+- 語系（介面已經是繁中、簡中、英文；會議語言維持現狀，使用者 2026-11-25 決定）。
+
+### 驗收
+
+- 建好的 app：三份 Credits 沒有 Ko-fi、「喝杯咖啡」、「改自」、「based on Shiyin」；Credits 和 `ThirdPartyLicenses.txt` 有上游 `LICENSE` 全文（含 `Copyright (c) 2026 juinwei7`）和「拾音 Shiyin (MIT)」那一項；上游的贊助句變了要建置失敗；拿掉 MIT 那一段要失敗（`brand-test.py`）。
+- DMG 的 `Third-Party Licenses.txt` 跟 app 裡的一樣，有 MIT 聲明。
+- `shiyin-update.json` 的 `notes` 沒有「基於上游」「Based on upstream」那兩行，其他行不變；app 的更新視窗列出的第一項是這版真正的改變。
+- GitHub 上官網的 workflow 不再執行（跑了也是略過）。
+- README 中英文沒有 `weibuilds`、`ko-fi`、`juinwei7/Shiyin.git`；授權一節有上游 repo 的連結。

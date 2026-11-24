@@ -4,6 +4,15 @@
 > 上游任務在 fork 這邊的實測狀態寫在這裡。需求在 `docs/fork/requirements.md`，設計在 `docs/fork/design.md`。
 > 規則同 CLAUDE.md：每項都有驗證方式；`[~]` 是程式完成、還差要使用者的驗證。要使用者在電腦前測的，照場次排在 `docs/fork/acceptance-mac.md`。「design §F#」指 fork design，「design §數字」「D#」「R#」指上游文件。
 
+## 拿掉原作者相關資訊（F13，design §F13、DF16；2026-11-25 使用者決定）
+
+只做 Mac。不加 Swift 接點；建置結果的檢查用暫存資料夾的建置（check.sh 的方式），不動使用者的 app。
+
+- [ ] **DB1 Credits 與授權**（F13.1、F13.2）：`brand.json`、`brand.py` 拿掉贊助、插入上游 MIT 聲明，`check_app` 擋贊助殘留和缺 MIT。驗證：`brand-test.py`；`check.sh --only 3`；暫存 DMG 裡的 `Third-Party Licenses.txt` 有 MIT 聲明。
+- [ ] **DB2 更新說明**（F13.3）：`scripts/fork/release-notes.py`、`make-dmg.sh` 1 行接點。驗證：v5.0.3、v5.0.4 的 tag 說明跑過，`ReleaseNotes.brief` 列出的第一項是這版的改變；isolation-check。
+- [ ] **DB3 官網 workflow**（F13.4）：`site.yml` 的 `if`。驗證：YAML 解析、條件在 fork 為假（推上 GitHub 後看 Actions 是略過，要合併後才看得到）。
+- [ ] **DB4 README**（F13.5）：中英文改寫。驗證：沒有 `weibuilds`、`ko-fi`、`juinwei7/Shiyin.git`，連結的檔案存在。
+
 ## 說話者聲紋：分數顯示、改名防呆、人物頁管理單份聲紋（F12，design §F12、DF12～DF14；2026-11-24 使用者決定範圍）
 
 在電腦前怎麼測：`docs/fork/acceptance-mac.md` 場次 8。
