@@ -10,10 +10,7 @@
 
 只做 Mac。測試用另外的 `SHIYIN_HOME`、測試 bundle id 的 DEBUG 版複本、合成的聲紋向量，正式資料庫、正式網域的設定不動。
 
-- [ ] **VP0 程式和自動檢查**（F12.1～F12.14）：
-  - `Sources/Shiyin/Fork/Voiceprints/`、3 行新接點（97 → 100）、改寫 3 行既有的、migration `ma_voiceprint_source_v1`、`mavoice`；
-  - 驗證：`scripts/fork/f12-voiceprint-check.py`（check.sh #16）、check.sh 完整模式、`isolation-check`（100/100）。
-- [ ] **VP1 真的畫面**（要使用者在電腦前）：
+- [~] **VP1 真的畫面**（F12.1～F12.14）：程式完成，DEBUG 版用合成聲紋和 `scripts/fork/f12-voiceprint-check.py`（check.sh #16）驗過分數文字、防呆三個選項、全部套用、來源紀錄、人物頁、刪單份、§F-DB（見 F12 的程式 commit）。還差（要使用者在電腦前）：
   - 真的會議上看「猜到 N 位說話者的名字」、待確認、「自動」選單的依據；
   - 改名防呆的視窗（一位、全部套用好幾位），三個按鈕；
   - 人物頁的「聲音特徵」（可疑的那一列、刪一份）；
