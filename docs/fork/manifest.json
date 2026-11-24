@@ -255,11 +255,6 @@
           "hook": "try ForkSpeakerTags.split(db, from: id, to: newId, at: cut)"
         },
         {
-          "file": "Sources/Shiyin/Store/AppDatabase.swift",
-          "line": 695,
-          "hook": "let named = Dictionary(uniqueKeysWithValues: existing.filter { !Self.isDefaultSpeakerName($0.name) && $0.nameSource != \"tag\" }.map { ($0.idx, $0) })"
-        },
-        {
           "file": "Sources/Shiyin/Store/AppModel.swift",
           "line": 91,
           "hook": "var forkTags = ForkSpeakerTags.DetailState()"
@@ -1182,9 +1177,11 @@
         "Sources/Shiyin/Fork/Voiceprints/VoiceSources.swift",
         "Sources/Shiyin/Fork/Voiceprints/VoiceViews.swift",
         "Sources/Shiyin/Fork/Voiceprints/VoiceDebug.swift",
+        "Sources/Shiyin/Fork/Voiceprints/Retranscribe.swift",
         "scripts/fork/f12-voiceprint-check.py"
       ],
       "upstreamFiles": [
+        "Sources/Shiyin/Store/AppDatabase.swift",
         "Sources/Shiyin/Store/AppModel.swift",
         "Sources/Shiyin/Views/PeopleViews.swift"
       ],
@@ -1199,7 +1196,10 @@
         "ForkAutoSpeakerName",
         "ForkSpeakerChip",
         "ForkDetailBanners",
-        "ForkPersonVoiceprints"
+        "ForkPersonVoiceprints",
+        "ForkRetranscribe",
+        "ForkRetranscribe.named",
+        "ForkRetranscribe.after"
       ],
       "keywords": [
         "聲紋比對",
@@ -1208,20 +1208,32 @@
         "只改名，不記住聲音",
         "仍要存",
         "聲音特徵",
-        "ma_voiceprint_source"
+        "ma_voiceprint_source",
+        "重新轉錄前的名字",
+        "重新轉錄後重新學"
       ],
       "settingsKeys": [],
       "debugCommands": [
         "mavoice"
       ],
       "migrations": [
-        "ma_voiceprint_source_v1"
+        "ma_voiceprint_source_v1",
+        "ma_retranscribe_v1",
+        "ma_retranscribe_v2"
       ],
       "tables": [
         "ma_voiceprint_source",
-        "ma_voiceprint_pending"
+        "ma_voiceprint_pending",
+        "ma_retranscribe_pending",
+        "ma_retranscribe_suggestion",
+        "ma_meeting_edit_retranscribe"
       ],
       "markers": [
+        {
+          "file": "Sources/Shiyin/Store/AppDatabase.swift",
+          "line": 695,
+          "hook": "let named = try ForkRetranscribe.named(db, existing, voices: voices, count: speakerCount)"
+        },
         {
           "file": "Sources/Shiyin/Store/AppModel.swift",
           "line": 138,

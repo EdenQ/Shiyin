@@ -77,7 +77,7 @@ exit 0：沒有 FAIL（SKIP、需人工不算失敗）；1：有 FAIL；2：沒�
 | 10 | F4 加上 5.0 | **只自動驗證刪除**：`noteitem delete actionItems 0` 之後 `copysection` 的待辦少一條、其他條和別的段落照舊（示範會議的決議只有 1 條，刪了整段變空）；刪除後的 windowshot 放進截圖。`noteitem edit` 之後的樣式、「人物」頁不套 F4 樣式沒有自動驗證，摘要的說明欄寫明，留給 S 和使用者 |
 | 14 | F10 備份 | `scripts/fork/f10-backup-check.py`（§F10.8 的自動化：清理只動自己的一般檔、舊暫存檔在成功時清掉、排程和立即備份重疊時第二個回 `running`、錄完後到期的檢查會做） |
 | 15 | F11 錄音島的螢幕 | `scripts/fork/f11-island-check.py`（§F11.6 的自動化）。這一項要錄音島開著、放在桌面層：先結束這次的 DEBUG 版，用同一個測試複本、新的暫存 `SHIYIN_HOME` 加 `-recordingIsland YES -debugIslandBehind YES` 重開（其他參數照舊，`-debugQuietPrompts YES`），跑完結束；排在 S 後面 |
-| 16 | F12 聲紋 | `scripts/fork/f12-voiceprint-check.py`（§F12.8 的自動化：分數的文字、防呆和三個選項、全部套用、來源紀錄、人物頁的資料和刪單份、§F-DB；`windowshot` 拍會議頁、防呆視窗、人物頁）。會刪會議、刪人，所以另外開一次 DEBUG 版（同一個測試複本、新的暫存 `SHIYIN_HOME`、`-recordingIsland NO`），自己 `seedfixtures`；排在 S 之後、#15 之前 |
+| 16 | F12 聲紋 | `scripts/fork/f12-voiceprint-check.py`（§F12.8 的自動化：分數的文字、防呆和三個選項、全部套用、來源紀錄、人物頁的資料和刪單份、§F-DB；`windowshot` 拍會議頁、防呆視窗、人物頁）。會刪會議、刪人，所以另外開一次 DEBUG 版（同一個測試複本、新的暫存 `SHIYIN_HOME`、`-recordingIsland NO`），自己 `seedfixtures`；跑完再真的結束、重開同一個 `SHIYIN_HOME` 兩次，測 F12.15 的建議不因重啟遺失或復活（`--phase restart-*`，`start_debug` 加 `KEEP_HOME=1`）；排在 S 之後、#15 之前 |
 | S | 截圖 | 繁中、英文各開一次 DEBUG 版：示範會議的紀錄、逐字稿分頁（`windowshot`）、設定「錄音」頁（`preview settings recording` 加 `mawindowshot`），加上 #8、#10 的圖，放在輸出資料夾的 `shots/`；狀態一律「需人工」（看條數、色條、「加到提醒事項」、靜音開關、提示列；還沒有基準圖，不做像素比對） |
 | 11 | DF5 | Q：`scripts/fork/tsan-lockedvalue/run.sh` |
 | 12 | 設定殘留 | Q：開始、結束各 `defaults export com.weiwei.shiyin`（正式 app 的網域），要逐位元組相同；不同時列出哪幾個鍵、FAIL，**保留現值、不改寫也不刪**（分不出是檢查還是使用者同時改的，例如使用者自己移動了主視窗）。DEBUG 版用測試專用的 bundle id（見安全規則），本來就不寫正式網域，所以這一項不靠任何還原。有選 DEBUG 版的項目（5～10、S）時另外核對 `shiyin://` 和 `.shiyin`（`com.weiwei.shiyin.meeting`）的預設處理程式在檢查前後相同：這時處理程式的快照是**必要的**，開始時沒拿到、結束時讀不到都算 FAIL，不會因為缺檔就跳過 |
@@ -970,6 +970,156 @@ CREATE TABLE ma_voiceprint_pending (
 - 使用者在電腦前（acceptance-mac 場次 8）：真的會議上的分數、防呆的視窗、人物頁，中英文。
 - 測完 `defaults read` 正式網域前後比對：完全相同（check.sh #12）。
 
+### F12.9 重新轉錄後名字跟著聲音（F12.15，DF15）
+
+程式在 `Fork/Voiceprints/Retranscribe.swift`（`ForkRetranscribe`）。
+
+**接點（不新增，維持 100/100）**：
+- 上游 `AppDatabase.saveTranscript` 的 `let named = Dictionary(… existing.filter { !isDefault && nameSource != "tag" } …)` 那一行（原本就是 F2 的接點，`AppDatabase.swift:695`）換成 `let named = try ForkRetranscribe.named(db, existing, voices: voices, count: speakerCount)   // MA-FORK(F12)`。
+  - 回傳一樣的 `[新編號: 舊說話者]`，上游後面 `if let old = named[idx]` 照常沿用名字、`name_source`、`person_id`。
+  - `db` 是 `saveTranscript` 自己那一筆寫入交易：fork 的待處理紀錄跟著這筆交易一起提交或回滾。
+- 存檔後的處理放進既有的 fork 鉤子 `ForkSpeakerTags.afterTranscription`（JobRunner 轉錄存檔後、`matchVoiceprints` 之前，F2 套用標記之後）。
+- 建議的顯示和清理放在既有的 `ForkVoiceScores.annotate`（`loadSpeakers` 的接點）。
+- 失敗後的重試放在 `ForkStartup.install`。
+- 資料表用 fork 的 migration（`ForkMigrations.register`，既有接點）。
+
+**資料表（migration `ma_retranscribe_v1`，只新增；REV-F12c P2-1、P2-2）**：
+
+```sql
+CREATE TABLE ma_retranscribe_pending (      -- 這場重新轉錄存檔後還沒處理完的（每場最多一筆，再轉錄一次就換掉）
+  meeting_id  INTEGER PRIMARY KEY REFERENCES meetings(id) ON DELETE CASCADE,
+  fingerprint TEXT NOT NULL,                -- 存檔後的說話者指紋（各編號＋聲紋的 SHA-256）
+  payload     TEXT NOT NULL,                -- 跟著聲音沿用的編號、對不上的舊名字（JSON）
+  created_at  TEXT NOT NULL
+);
+CREATE TABLE ma_retranscribe_suggestion (   -- 對不上的舊名字建議，等使用者套用或略過
+  meeting_id  INTEGER NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+  speaker_idx INTEGER NOT NULL,
+  name        TEXT NOT NULL,
+  fingerprint TEXT NOT NULL,                -- 建立時的說話者指紋
+  created_at  TEXT NOT NULL,
+  PRIMARY KEY (meeting_id, speaker_idx)
+);
+```
+
+**說話者指紋與聲音雜湊**：
+- 整場指紋：這場所有說話者照編號排，「編號:聲紋的 base64（沒有就 -）」接起來的 SHA-256。
+- 聲音雜湊：一位說話者的聲紋的 SHA-256（`voiceHash`）。
+- 改名、套用建議都不會變；重新轉錄、重新辨識說話者、合併說話者會變。
+- **編輯會議不一定會變**（REV2-F12c P2-2，修正前一版的錯誤前提）：
+  - 裁切只更新留下的說話者的秒數；
+  - 分割照原樣複製說話者；
+  - 兩邊說話者相同時，整場指紋完全一樣。
+  - 所以兩張表在編輯會議時另外處理（見「編輯會議」），不靠指紋會變。
+- pending 用整場指紋確認「存檔後還沒有別的流程換過說話者」，每一項另外核對（見 `after`）。
+- 建議用那位說話者自己的聲音雜湊確認「還是同一個人」。
+
+**對應（`named`）**：
+1. 要沿用的舊說話者：名字不是預設名稱、不是 F2 的標記（同原本那一行的條件）。
+2. 可以比的：舊說話者有有效的聲紋、說話 ≥ 8 秒；新說話者 `voices` 裡有效、≥ 8 秒（有效同 §F12.5：非空、維度相同、有限、不是 0）。
+3. 有聲紋的舊說話者：
+   - 找最像的新說話者 n；
+   - 再看 n 最像的舊說話者（所有有聲紋的舊說話者，包括預設名稱的）是不是它；
+   - 雙向最像而且 ≥ `voiceThreshold`（0.80）→ 名字跟到 n；
+   - 否則算「對不上」。
+4. 沒有聲紋可比的舊說話者（舊的或新的沒有有效聲紋，例如說話 < 8 秒、匯入的逐字稿、`voices` 是空的）：照編號沿用（上游）。那個編號已經被聲音對應用掉時不沿用。
+5. 有舊說話者（重新轉錄）時，在同一筆交易：
+   - 寫 `ma_retranscribe_pending`：照 `voices`、`count` 算出存檔後的指紋，加上這次的結果。每個沿用項目記下存檔後預期的名字、來源、`person_id`、聲音雜湊（REV2-F12c P2-1）。
+   - 刪掉這場舊的 `ma_retranscribe_suggestion`（舊編號已經不算數）。
+   - `saveTranscript` 後面任何一步失敗回滾，這些也一起回滾（不會留下記憶體裡的結果）。
+   - 沒有舊說話者時（匯入封包、匯入逐字稿、GoldenDump、第一次轉錄）不寫，行為跟上游一樣。
+
+**存檔後（`after`）**：
+- 讀這場的 `ma_retranscribe_pending`；沒有，或指紋跟現在的說話者不合，就刪掉紀錄、不做任何事。
+  - 重新辨識說話者也會呼叫 `afterTranscription`：它不寫 pending，而且會改掉說話者的聲紋，所以就算之前留下沒處理完的紀錄，指紋也不合。
+- 步驟（各自一筆交易，不巢狀包在另一個 `pool.write` 裡；pending 到最後才消耗）：
+  1. 刪舊聲紋：這場每份 `voiceprints` 跟同編號的新說話者比，有效而且 < 0.50 就刪（來源紀錄由外鍵一起刪）。
+     - 要先刪：上游 `learnVoiceprint` 跟同一人既有的某份 > 0.95 就不存，舊編號那份還在時，會擋掉同一個聲音在新編號的學習。
+  2. 重新學：跟著聲音沿用的、來源是 `manual` 或 `suggestion` 的，用新聲音 `learnVoiceprint`（同 rediarize 的 `JobRunner.swift:542`；設定關掉記住聲音時不學）。
+     - 學之前記下來源 `retranscribe`（`ForkVoiceSources.noteNaming`），連同預期的名字、聲音雜湊。
+     - 每一筆都可以重做：上游先刪這場這位說話者的聲紋再存。
+     - **尊重使用者後來的決定**（REV2-F12c P2-1）：存檔後到重試之間，使用者可能已經改名、說「不是他」或「只改名」。
+       - 學之前先比：現在的名字、來源、`person_id`、聲音雜湊跟預期不同，就跳過這一項。
+       - 上游 `learnVoiceprint` 在自己的交易裡，連人之後、存聲紋之前會呼叫 `remembersVoice`（fork 的接點）。`ForkVoiceSources.willStore` 在這裡再比一次名字和聲音雜湊，不合就丟錯，讓這筆學習整個回滾（連人也不留）。`after` 接到這個錯誤就跳過這一項，其他錯誤照樣往上丟。
+       - **使用者在 pending 期間自己取名，就讓 pending 裡這位的項目失效**（REV3-F12c P2-1）。四個欄位相同不代表使用者沒有新的決定，例如同一個名字再存一次、但選「只改名，不記住聲音」。
+         - 任何不是重新轉錄自己的重新學、經過 `remembersVoice` 的取名都算：改名小視窗、套用建議、仍要存、只改名、F2 標記、合併說話者後的重新學。
+         - `willStore` 在同一筆學習交易裡，先把 `ma_retranscribe_pending` 的 `payload` 裡這個編號的沿用項目拿掉（`ForkRetranscribe.supersede`），再判斷要不要存聲紋（「只改名」照樣回 false 不存）。F2 標記說話者可能併在一起而不存的路徑，也一樣先拿掉。
+         - 交易回滾的話，失效也一起回滾。同批其他沒被使用者動過的項目照常重試；之後 `after`、啟動時 `retryAll` 都不會再學這一位。
+  3. 一筆交易：存對不上的舊名字建議（見下），刪掉 `ma_retranscribe_pending`。
+- 任何一步失敗，pending 還在，下次整個重做：
+  - 第 1 步已經刪掉的是對不上的舊聲紋，本來就要刪；
+  - 第 2 步重學會把沿用的名字學回來（REV-F12c P2-3：不會「刪了、學失敗、又不能重試」）。
+- 失敗時往上丟。`afterTranscription` 記 log，pending 留著；下次同一場的 `after`、或下次 app 啟動再做。成功後才消耗。
+  - 啟動時（`ForkStartup.install`）從最舊的開始，一次最多重試 20 場，其他的下次啟動再做，避免拖慢啟動。
+
+**對不上的舊名字建議**：
+- 給哪一位說話者：
+  - 舊聲音最像的新說話者（≥ 0.65）；
+  - 否則同一個編號的說話者。
+  - 都要求還沒被使用者取名（`name_source` 是 `default` 或 `voiceprint`），而且不是這次已經給過的；都不行就不存。
+- 存法：
+  - 寫進上游的 `suggested_name`、`suggestion_reason`（會議語言的「重新轉錄前的名字：%@（聲音對不上，請確認）」）、`suggestion_time = NULL`；
+  - 另外寫一筆 `ma_retranscribe_suggestion`，含那位說話者的聲音雜湊（`speaker_hash`，migration `ma_retranscribe_v2`）。
+- 顯示和保護（`annotate`，每次讀說話者都檢查這場的紀錄）：
+  - 那個編號的說話者不在，或聲音雜湊不同（換人了：重新轉錄、重新辨識、合併說話者）：刪紀錄。
+    - 編輯會議之後要回復，靠編輯的快照（見下），不靠這裡留著。
+  - 使用者處理過：
+    - 套用或自己改名：`name_source` 變成 `manual`、`suggestion` 或 `tag`；
+    - 略過：上游 `clearSpeakerSuggestion` 把 `suggested_name` 清成 NULL。
+    - 這兩種都刪紀錄，不再出現（重開、重啟都一樣）。
+  - 上游 `matchVoiceprints` 低信心時把建議換成別人（`suggested_name` 不是這個名字）：寫回資料庫。
+    - 紀錄在資料庫，app 在打開這場之前重啟也照樣補回。
+  - **高信心自動帶名**（≥ 0.88 而且領先 0.15，上游把這位說話者改成別人、`name_source = voiceprint`）：
+    - **保留上游的自動帶名**，舊名字的建議照樣顯示在待確認、「猜到 N 位說話者的名字」裡，問「『Other』是 Old 嗎？」，可以一鍵套用（**使用者 2026-11-24 決定**，DF15）。
+    - 上游 `loadSpeakers` 只把預設名稱的建議放進清單，`annotate` 把這種也放進 `speakerSuggestions`。
+    - 上游 `matchVoiceprints` 自動帶名不清 `suggested_name`，略過時 `clearSpeakerSuggestion` 照常清掉。
+  - AI 猜名字只寫在沒有建議的說話者，不會蓋掉。
+
+**編輯會議（REV2-F12c P2-2，走既有的 F2 編輯入口，不加接點）**：
+- 上游 `MeetingEdits` 第一次編輯時呼叫 `ForkSpeakerTags.snapshot`（既有接點）。這時另外呼叫 `ForkRetranscribe.snapshot`，把這場的 `ma_retranscribe_suggestion`、`ma_retranscribe_pending` 存進 `ma_meeting_edit_retranscribe`（migration `ma_retranscribe_v2`）。
+  - 外鍵指到上游的 `meeting_edits`，`ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED`，同 F2 的 `ma_meeting_edit_tags`。
+- 裁切、刪中間一段（`ForkSpeakerTags.remap`）：
+  - pending 失效（刪掉）：說話者可能被移除、存檔後的狀態已經不成立；
+  - 建議照留，由 `present` 用聲音雜湊判斷，說話者被移除的那筆就刪掉。
+- 合併兩場（`ForkSpeakerTags.copyForMerge`）：
+  - 這場的 pending 失效；這場原有說話者的建議照留（說話者沒變）。
+  - 另一場的建議不帶過來（明確失效）：上游合併說話者時重新編號，fork 的入口拿不到對照。
+  - 另一場移到垃圾桶，它自己的紀錄留著，還原時用得到。
+- 分割（`ForkSpeakerTags.split`，上游已經把說話者照原編號複製到新的那場）：
+  - 建議照編號複製到新的那場，只複製新的那場有這位說話者、而且聲音雜湊相同的；
+  - 兩場的 pending 都失效。
+- 還原（`ForkSpeakerTags.restore`）：從 `ma_meeting_edit_retranscribe` 放回這場的建議和 pending，換掉編輯後的。
+  - 上游的快照會放回說話者（含 `suggested_name`），所以自動帶名下的舊名字建議會一起回來。
+  - 編輯期間使用者略過或套用的，也回到編輯前的樣子，同上游還原的語意。
+
+**顯示**：`annotate` 認得這種原因（任何會議語言），用目前的會議語言重新產生，不加「依內容猜」、不換成聲紋分數。
+
+**來源的文字**：人物頁「聲音特徵」的來源多一種「重新轉錄後重新學」。
+
+**DEBUG**：
+- `mavoice retranscribe <會議> <設定.json>` 模擬重新轉錄：
+  - 用目前的段落，照 `{"map": {"舊編號": 新編號}, "vectors": {"新編號": [向量]}, "seconds": {"新編號": 秒數}}` 換說話者編號和聲紋；
+  - 沒給向量的新編號，用對應的舊說話者的聲紋；
+  - 呼叫上游 `saveTranscript`，再呼叫 `ForkSpeakerTags.afterTranscription`、`matchVoiceprints`（同 JobRunner 的順序）。
+  - 加 `"noselect": true` 時不重讀畫面（模擬轉錄完、還沒打開這場）。
+  - 加 `"failSave": true` 時在 `named` 寫完 pending 後丟錯（模擬存檔回滾）。
+  - 加 `"failLearn": true` 時在 `after` 學完第一位後丟錯（模擬學到一半失敗）。
+- `mavoice retranscribe-retry <會議>`：再呼叫一次 `after`（同啟動時的重試）。
+- `mavoice dismiss <會議> <說話者>`：等於按建議的「忽略」。
+
+**驗證**：`f12-voiceprint-check.py` 第 9 段（check.sh #16）：
+- 名字跟著聲音換編號；沒聲紋的照編號；F2 標記的名字不沿用；
+- 對不上的變預設名稱加建議：
+  - 低信心被聲紋比對蓋掉後補回；
+  - 高信心自動帶名時，名字是自動的、建議照樣在；
+  - 一鍵套用、略過後重開不再出現；
+- 舊聲紋刪了、沿用的使用者取名用新聲音學（來源 `retranscribe`）；
+- 存檔回滾後 `after` 不做事；學到一半失敗後重試會做完；來源表沒有孤兒。
+- check.sh #16 另外結束、重開同一個暫存 SHIYIN_HOME 的 DEBUG 版：
+  - 轉錄完、沒打開這場就重啟，打開後建議是舊名字；
+  - 略過之後再重啟，不復活。
+- 匯入封包不變靠 #6（F2 加上 5.0 的封包）。
+
 ## F-DB. 資料庫規則（PLAN-fork-5.0 §6）
 
 ### F-DB.1 規則
@@ -1004,6 +1154,13 @@ CREATE TABLE ma_voiceprint_pending (
 - `editmeeting 1 split=1800`：戊切成這場的 1790–1800 和新會議的 0–10；丙、丁移到新會議的 200–210、1200–1220。`restoreedit 1`：這場回到原本的 5 個，新會議移到垃圾桶。
 - `editmeeting 2 merge=1:0-100`：會議 1 的甲接在會議 2（125 秒）後面變成 135–145，會議 1 移到垃圾桶、它的標記不變；`restoreedit 2`：會議 2 只剩它自己的標記，會議 1 拿出垃圾桶。
 
+- **F12.15 的 `ma_retranscribe_suggestion`、`ma_retranscribe_pending`**（§F12.9，REV2-F12c P2-2）也走上面同一組 fork 入口：
+  - 快照存進 `ma_meeting_edit_retranscribe`、還原時放回；
+  - 裁切、合併時 pending 失效；
+  - 分割時建議照編號複製到新的那場；
+  - 刪會議由外鍵 CASCADE。
+  - 前一版以為「編輯會議一定改變說話者的聲紋雜湊」，所以不處理；實際上裁切、分割可能完全不變，已修正。
+
 ### F-DB.3 封包帶標記（F2.8，2026-11-18 使用者決定）
 
 - 匯出：封包裡多一個 fork 自己的檔 `ma-speaker-tags.json`：`[{start, end, name, kind}]`（時間是錄音檔的秒數，同 `speaker_tags`）；沒有標記時不寫這個檔，封包跟上游的一樣。封包的格式版本（`manifest.json`）、`meeting.json` 都不變：上游的拾音匯入時只讀它認得的檔，會略過這個檔、照常匯入。
@@ -1036,6 +1193,7 @@ CREATE TABLE ma_voiceprint_pending (
 | §21.4 聲紋、§21.5 猜說話者、R33 待確認的說話者題目 | 建議的原因在顯示時改寫成依據（分數、第二像、兩人很像、建議過時），AI 猜的標「依內容猜」；自動帶入的名字用 fork 的 `ForkAutoSpeakerName`（上游 `AutoSpeakerName` 的複本，選單最上面多一行依據）；上游 `renameSpeaker` 取名前先檢查聲音（防呆）；人物頁多「聲音特徵」可以刪單份（F12、§F12、DF12～DF14）。上游存的建議、`matchVoiceprints`、`learnVoiceprint` 的規則不變 |
 | 上游 5.0 的就地編輯（R100）、加到提醒事項（R76） | 條列模式整頁是 fork 的 `ForkNotesList`（§F0.2）；段落用 `ForkNotesSection`：fork 的條數、色條、複製鈕加上上游的 `accessory`（「待辦」的「加到提醒事項」放在複製鈕後面）；條目在編輯中用上游的 `NoteItemEditor`，其他時候用 fork 的 `NoteRow`，接上 `noteItemActions`（右鍵、⋯），可以就地編輯的條目不設成可選取；待辦表（`ForkActionItemsTable`）保留 fork 的欄位順序（負責人、期限、事項、時間點），負責人加上游的頭像，事項接上就地編輯和提醒事項的勾。上游的 `NotesSection`、`ActionItemsTable` 不動 |
 | 上游 R70 拆句、`addSpeaker()` | F2.12「只改這句」在 fork 的 `AppDatabase.reassignSegments(…naming:…)` 用一筆 `pool.write` 照 5.0.1 的順序做完：上游的 `saveSpeakerUndo`（復原快照）、`addSpeaker()`（新增說話者）、`ForkSpeakerTags.nameNewSpeaker`（標記的名字）、改句子的說話者、上游的 `removeEmptySpeakers`；任何一步失敗整筆回復（DF8）。上游 private 的 `saveSpeakerUndo`、`addSpeaker` 由 SpeakerEdits 裡各 1 行接點 `forkSaveSpeakerUndo`、`forkAddSpeaker` 轉呼叫（`saveSpeakerUndo` 的參數用到 private 的 `SpeakerSnapshot`，不能直接改 internal；只加行、不改上游的行）；上游的函式不改簽章 |
+| 上游 `AppDatabase.saveTranscript`（重新轉錄存檔，§5.3、§21.4） | 名字改成照聲音沿用、對不上的存成建議、存檔後刪對不上的舊聲紋並重新學（F12.15、§F12.9、DF15）。上游照編號沿用、不動聲紋；沒有舊說話者時（匯入、第一次轉錄）跟上游一樣 |
 | 上游 5.0 的 DEBUG `state` | 錄音中錄音島出現時，視窗清單裡島的面板 `maxSize` 是無限大，`state` 寫 JSON 時丟例外、DEBUG 版結束（上游原樣也一樣；正式版不受影響）。fork 不改上游的檔：測錄音中的狀態時用 `-recordingIsland NO` 啟動。島的畫面用 fork 的 DEBUG 指令 `mawindowshot <輸出.png> island` 拍 |
 | 上游 5.0 的提醒事項（R101） | 列表名稱「會議助手」、舊名「拾音」列表沿用（F7.5、§F7.3 的接點） |
 
@@ -1057,3 +1215,4 @@ CREATE TABLE ma_voiceprint_pending (
 | DF12 | 聲紋的分數在顯示時重算（`MeetingDetail.loadSpeakers` 1 行接點），不存（F12，2026-11-24）。等級照上游的兩個門檻（≥ 0.88 很像、≥ 0.65 有點像），兩人很像用上游的差距 0.15；建議的原因只在顯示時改寫，資料庫裡上游的原因不動；現在最像的人跟存好的建議不同時加註，讓過時的建議看得出來 | 轉錄時把分數存進 fork 的表：要在上游 `matchVoiceprints` 之後多 1 行接點，而且聲紋庫一變（刪錯的聲紋、合併人）分數就過時，正好重演使用者遇到的「存好的建議不會更新」。直接改寫資料庫裡的 `suggestion_reason`：上游的待確認、匯出、MCP 都會讀到 fork 的文字，會議語言換了也不會跟著換。成本：每次重讀聲紋的中繼資料、只快取不會變的向量（以 id 為鍵）；2026-11-24 REV-F12 改掉用 count／max(id)／sum(person_id) 當鍵快取整份聲紋庫：分成兩場只改 meeting_id，三個值都不變。辨識聲紋的建議時比對所有會議語言的上游原因（使用者改會議語言後上游不重寫原因）。人物頁另外標三種要確認的樣本（F12.11a：跟本人其他不像、兩份互相不像、跟來源說話者現在的聲音對不上），門檻 0.50／0.65：使用者的聲紋庫 36 份（2026-11-24 AN-vpclean）正常的跟本人最高最低 0.70、跟來源說話者 0.98～1.00，可疑的 ≤ 0.30，0.50 兩邊都有很大的空間；只標「請確認」不自動刪，因為樣本少（7 人有 2 份以上）。「跟別人比跟本人像就標」不做：會被一份錯的樣本拖累，誤標同一人正常的那份 |
 | DF13 | 改名防呆擋在上游 `AppModel.renameSpeaker` 開頭（1 行接點），所有使用者取名的路徑都經過它；別人 ≥ 0.88、取的名字既有的 < 0.50（或沒有樣本）才擋；一次好幾位時擋下的集中在一個視窗、選項套用到全部；「只改名」沿用 F2.9 的「只連到人、不存聲紋」（F12，2026-11-24） | 改完才問（在 `remembersVoice` 先不存聲紋、事後再問要不要存）：取消時要把名字、會議紀錄、建議改回去，會多存一版會議紀錄，也清不回被上游清掉的復原。只看別人很像、不看取的名字：同一個人的聲紋本來就可能跟別人 0.88 以上（使用者的資料裡不同的人有 0.85），會常常誤擋。門檻用 0.65／0.88 的差距：沒有實際資料支撐。一位一個視窗：全部套用 5 位時要按 5 次，而且上游的迴圈是同步的，做不到一個接一個問。也擋合併說話者、重新辨識時的重新學習：那時名字是使用者早就確認過的，不是新的取名 |
 | DF14 | 聲紋的來源記在 fork 的表 `ma_voiceprint_source`（外鍵指到上游的 `voiceprints`、`ON DELETE CASCADE`），在既有的 `remembersVoice` 接點寫 pending、事後對到聲紋 id；取名的來源由防呆的接點記在記憶體，標記由 F2 的套用記，重新辨識看 `jobs`，其他算合併；待確認回答併進「套用建議」「手動取名」（F12，2026-11-24） | 在上游 `voiceprints` 加欄位：違反 §F-DB.1 第 2 點，降回舊版時 INSERT 沒填也沒關係，但上游以後的 migration 可能重建這張表。在 `INSERT` 之後多 1 行接點拿 id：接點已經用到 100。用觸發器（trigger）在上游的表上：上游重建表時會不見，也是改上游表的行為。以 `meeting_id`、`speaker_idx` 當鍵、不對到 id：分成兩場會改 `meeting_id`，紀錄會對錯。分出「待確認回答」：上游的待確認送出直接呼叫 `renameSpeaker`，要再 1 行接點才分得出來，對判斷聲紋可不可信沒有幫助 |
+| DF15 | 重新轉錄時用聲紋對應舊、新說話者（雙向最像、≥ 0.80）沿用名字，對不上的存成建議；存檔後刪掉跟同編號新說話者對不上（< 0.50）的舊聲紋，沿用的使用者取名用新聲音重新學（F12.15，2026-11-24 使用者決定）。偏離上游 `saveTranscript`「照編號沿用、不動聲紋」：重新分群會照出現順序重新編號，同一個編號可能是別人（使用者的 #11：重新轉錄後 Kiki 的編號變成別人，舊聲紋跟新說話者只像 0.20，名字也掛錯）。0.80 的依據：同一場重新轉錄前後同一個聲音 0.88～0.98（#11），使用者的資料裡不同人最高 0.56～0.60（EV-voiceprint、AN-vpclean）；再加雙向最像，避免兩位聲音接近時對錯。只改既有的接點行，不新增接點。對不上的建議、存檔後待處理的結果存在 fork 的表（`ma_retranscribe_suggestion`、`ma_retranscribe_pending`，跟 `saveTranscript` 同一筆交易寫入），用說話者指紋判斷是不是同一批說話者；刪、學、存建議各自一筆交易，pending 到最後才消耗，失敗留著重試（REV-F12c P2-1～P2-3）。重試前每一項核對存檔後預期的名字、來源、人物、聲音雜湊，使用者改過就跳過；編輯會議時兩張表用快照保存、還原，分割照編號複製建議，不再以「聲紋雜湊一定會變」當前提（REV2-F12c）；使用者在 pending 期間自己取名（包括同名「只改名」）就在那筆學習交易裡讓這位的項目失效，不只比四個欄位（REV3-F12c）。高信心自動帶名時保留上游的自動名字、舊名字照樣當建議問（「『Other』是 Old 嗎？」，2026-11-24 使用者決定）：改成預設名稱要動上游 `matchVoiceprints` 的自動帶名，而且聲紋 ≥ 0.88、領先 0.15 本身就是很強的證據，讓使用者在待確認一鍵選擇即可 | 照時間重疊對應（rediarize 的做法）：`saveTranscript` 先刪舊段落才算名字，要在刪之前留一份得多 1 行接點，而且重新轉錄時段落邊界也會變。只刪舊聲紋、名字照編號：名字掛錯時會把錯的人的新聲音學進去，更糟。對不上的名字直接丟掉：使用者自己取的名字會消失，所以存成建議讓使用者一鍵套回。結果放記憶體（第一版）：存檔回滾後殘留、重啟後遺失、刪了舊聲紋卻學失敗就無法重試（REV-F12c） |

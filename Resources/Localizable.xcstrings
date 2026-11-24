@@ -25312,6 +25312,23 @@
         }
       }
     },
+    "重新轉錄後重新學": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新转录后重新学"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Relearned after re-transcribing"
+          }
+        }
+      }
+    },
     "重新轉錄（含說話者辨識）": {
       "extractionState": "manual",
       "localizations": {

@@ -692,7 +692,7 @@ final class AppDatabase: @unchecked Sendable {
             let language = try Meeting.fetchOne(db, key: meetingId)?.meetingLanguage ?? .zh
             let existing = try SpeakerName.filter(Column("meeting_id") == meetingId).fetchAll(db)
             // 預設名稱（任何語言的「說話者 1」）不算改過，換了會議語言後要用新語言的預設名稱
-            let named = Dictionary(uniqueKeysWithValues: existing.filter { !Self.isDefaultSpeakerName($0.name) && $0.nameSource != "tag" }.map { ($0.idx, $0) })   // MA-FORK(F2)：標記帶入的名字存完用標記重新對（F2.3）
+            let named = try ForkRetranscribe.named(db, existing, voices: voices, count: speakerCount)   // MA-FORK(F12)：名字跟著聲音（F12.15）；標記帶入的名字存完用標記重新對（F2.3）
             try SpeakerName.filter(Column("meeting_id") == meetingId).deleteAll(db)
             for idx in stride(from: 1, through: speakerCount, by: 1) {
                 var speaker = SpeakerName(meetingId: meetingId, idx: idx,

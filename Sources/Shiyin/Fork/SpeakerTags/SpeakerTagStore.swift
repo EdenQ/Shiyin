@@ -125,9 +125,10 @@ extension ForkSpeakerTags {
     static func remembersVoice(_ db: Database, meetingId: Int64, idx: Int, source: String) throws -> Bool {
         if source == "tag", try Meeting.fetchOne(db, key: meetingId)?.mayHaveMergedSpeakers ?? false {
             ForkVoiceSources.skip(meetingId, idx)
+            try ForkRetranscribe.supersede(db, meetingId: meetingId, idx: idx)   // F12.15：標記也是使用者的決定（REV3-F12c P2-1）
             return false
         }
-        return ForkVoiceSources.willStore(db, meetingId: meetingId, idx: idx, source: source)
+        return try ForkVoiceSources.willStore(db, meetingId: meetingId, idx: idx, source: source)
     }
 
     /// 上游 JobRunner 轉錄存檔、重新辨識說話者之後的接點（F2.3、F2.10）：在聲紋比對之前套用，使用者自己標的優先；
@@ -148,5 +149,7 @@ extension ForkSpeakerTags {
     /// 套用失敗不影響逐字稿和之後的整理，只記 log
     static func afterTranscription(_ db: AppDatabase, _ meetingId: Int64) {
         do { try applyTags(db, meetingId) } catch { log.error("apply speaker tags failed: \(error.logSummary, privacy: .public)") }
+        // F12.15：重新轉錄後刪對不上的舊聲紋、沿用的名字重新學、對不上的名字存成建議（只處理 saveTranscript 記下結果的會議）
+        do { try ForkRetranscribe.after(db, meetingId) } catch { log.error("retranscribe names failed: \(error.logSummary, privacy: .public)") }
     }
 }

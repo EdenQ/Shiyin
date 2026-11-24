@@ -26,10 +26,12 @@ enum ForkSpeakerTags {
             .map { Saved(start: $0.start, end: $0.end, name: $0.name, kind: $0.kind, createdAt: $0.createdAt) }
         let json = String(decoding: try JSONEncoder().encode(saved), as: UTF8.self)
         try db.execute(sql: "INSERT OR REPLACE INTO ma_meeting_edit_tags (meeting_id, tags_json) VALUES (?, ?)", arguments: [meetingId, json])
+        try ForkRetranscribe.snapshot(db, meetingId: meetingId)   // F12.15：重新轉錄前的名字建議、pending 也存（§F12.9）
     }
 
     /// 這場的標記照編輯的時間對照搬到新的時間軸；中間點被剪掉的刪掉（同句子，EditPlan.mapSentence）
     static func remap(_ db: Database, meetingId: Int64, plan: EditPlan) throws {
+        try ForkRetranscribe.invalidatePending(db, meetingId: meetingId)   // F12.15：說話者可能被移除，pending 失效（§F12.9）
         for tag in try SpeakerTag.filter(Column("meeting_id") == meetingId).fetchAll(db) {
             if let kept = plan.mapSentence(meetingId, start: tag.start, end: tag.end) {
                 try db.execute(sql: "UPDATE speaker_tags SET start = ?, \"end\" = ? WHERE id = ?", arguments: [kept.start, kept.end, tag.id])
@@ -41,6 +43,7 @@ enum ForkSpeakerTags {
 
     /// 合併：另一場的標記複製過來（那場移到垃圾桶，它自己的標記留著，還原時用得到）
     static func copyForMerge(_ db: Database, into id: Int64, from other: Int64, plan: EditPlan) throws {
+        try ForkRetranscribe.invalidatePending(db, meetingId: id)   // F12.15：說話者合併、重新編號，pending 失效；另一場的建議不帶過來（§F12.9）
         for tag in try SpeakerTag.filter(Column("meeting_id") == other).order(Column("id")).fetchAll(db) {
             guard let kept = plan.mapSentence(other, start: tag.start, end: tag.end) else { continue }
             var copy = SpeakerTag(meetingId: id, start: kept.start, end: kept.end, name: tag.name, kind: tag.kind, createdAt: tag.createdAt)
@@ -50,6 +53,7 @@ enum ForkSpeakerTags {
 
     /// 分成兩場：切點之後的標記移到新的那場、時間減掉切點；跨過切點的切成兩段
     static func split(_ db: Database, from id: Int64, to newId: Int64, at cut: Double) throws {
+        try ForkRetranscribe.split(db, from: id, to: newId)   // F12.15：建議照編號複製到新的那場、pending 失效（§F12.9）
         for tag in try SpeakerTag.filter(Column("meeting_id") == id && Column("end") > cut).fetchAll(db) {
             if tag.start >= cut {
                 try db.execute(sql: "UPDATE speaker_tags SET meeting_id = ?, start = ?, \"end\" = ? WHERE id = ?",
@@ -64,6 +68,7 @@ enum ForkSpeakerTags {
 
     /// 還原編輯前：照快照放回這場的標記（合併進來、搬過的都換回原本的）
     static func restore(_ db: Database, meetingId: Int64) throws {
+        try ForkRetranscribe.restore(db, meetingId: meetingId)   // F12.15：建議、pending 回到編輯前（§F12.9）
         guard let json = try String.fetchOne(db, sql: "SELECT tags_json FROM ma_meeting_edit_tags WHERE meeting_id = ?", arguments: [meetingId]),
               let saved = try? JSONDecoder().decode([Saved].self, from: Data(json.utf8)) else { return }
         try db.execute(sql: "DELETE FROM speaker_tags WHERE meeting_id = ?", arguments: [meetingId])
