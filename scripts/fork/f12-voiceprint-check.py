@@ -711,9 +711,112 @@ def main():
         ok &= post[idx][0] == name and len(mine) == 1 and mine[0]['name'] == name and abs(cos(mine[0]['vec'], list(struct.unpack(f'<{DIM}f', cur))) - 1) < 1e-4
     check('重試後做完：名字跟著聲音換回來、每位一份新聲音的聲紋、待處理的紀錄消耗掉', ok, f'{post} {[(x["name"], x["meeting"], x["idx"]) for x in lib if x["meeting"] == Z]}')
 
+    # 重試前尊重使用者後來的決定（REV2-F12c P2-1）：學到一半失敗 → 使用者改名 → 重試不能把人物改回舊名字
+    retranscribe(Z, {'map': {'1': 2, '2': 1}, 'failLearn': True}, 'learnfail-rename')
+    pre2 = speaker_row(Z, 2)
+    ctl('mavoice', 'rename', Z, 2, 'UserNew'); settle()
+    ctl('mavoice', 'retranscribe-retry', Z); settle()
+    r2 = speaker_row(Z, 2)
+    owners = q('SELECT p.name FROM voiceprints v JOIN people p ON p.id = v.person_id WHERE v.meeting_id = ? AND v.speaker_idx = 2', (Z,))
+    check('失敗後使用者改名，重試跳過這一位：名字、人物、聲紋都是 UserNew',
+          r2[0] == 'UserNew' and r2[2] == person_id('UserNew') and owners == [('UserNew',)]
+          and not q('SELECT 1 FROM ma_retranscribe_pending WHERE meeting_id = ?', (Z,)), f'before={pre2} after={r2} owners={owners}')
+    r1 = speaker_row(Z, 1)
+    check('同一批沒被改的照樣重新學', r1[2] is not None and q('SELECT 1 FROM voiceprints WHERE meeting_id = ? AND speaker_idx = 1 AND person_id = ?', (Z, r1[2])),
+          str(r1))
+
     check('重新轉錄後：來源表沒有孤兒、foreign_key_check 沒有東西',
           q('SELECT count(*) FROM ma_voiceprint_source WHERE voiceprint_id NOT IN (SELECT id FROM voiceprints)')[0][0] == 0
           and not q('PRAGMA foreign_key_check'))
+
+    edits()
+
+
+def segments_of(meeting):
+    return q("SELECT start, end, speaker FROM segments WHERE meeting_id = ? AND kind = 'final' ORDER BY start", (meeting,))
+
+
+def keep_without(meeting, speaker):
+    """只留不是這位說話者的句子（給 editmeeting keep=…）"""
+    ranges = []
+    for start, end, spk in segments_of(meeting):
+        if spk == speaker: continue
+        if ranges and abs(ranges[-1][1] - start) < 0.01: ranges[-1][1] = end
+        else: ranges.append([start, end])
+    return ','.join(f'{a:.2f}-{b:.2f}' for a, b in ranges)
+
+
+def edits():
+    """編輯會議（REV2-F12c P2-2）：自動帶名下的舊名字建議跟著裁切、還原、分割；有 pending 時裁切、合併、還原"""
+    before = q('SELECT coalesce(max(id), 0) FROM meetings')[0][0]
+    ctl('seedfixtures', args.fixtures, 'zh', 'en', 'ja', 'yue', 'ko')
+    time.sleep(3)
+    fresh = {lang: mid for mid, lang in q("SELECT id, language FROM meetings WHERE deleted_at IS NULL AND id > ? ORDER BY id", (before,))}
+    EE, LIB, PZ, OTHER = fresh['en'], fresh['ja'], fresh['zh'], fresh['ko']
+
+    def run_retranscribe(meeting, spec, label):
+        path = OUT / f'retranscribe-{label}.json'
+        path.write_text(json.dumps(spec))
+        ctl('mavoice', 'retranscribe', meeting, path); settle(); time.sleep(1)
+
+    def shown(meeting, idx, label):
+        ctl('select', OTHER); settle(); ctl('select', meeting); settle()
+        return (speaker(state(label), idx) or {}).get('suggestion', {}).get('name')
+
+    setvoice(LIB, 1, unit(90)); ctl('mavoice', 'rename', LIB, 1, 'Other3'); settle()
+    setvoice(EE, 1, unit(91)); ctl('mavoice', 'rename', EE, 1, 'Old3'); settle()
+    run_retranscribe(EE, {'map': {}, 'vectors': {'1': unit(90)}}, 'edit-auto')
+    r = speaker_row(EE, 1)
+    check('編輯前：說話者 1 自動帶入 Other3，舊名字 Old3 是建議', r[0] == 'Other3' and r[1] == 'voiceprint' and shown(EE, 1, 'edit-before') == 'Old3', str(r))
+
+    keep = keep_without(EE, 3)
+    ctl('editmeeting', EE, f'keep={keep}'); settle(); time.sleep(1)
+    check('裁掉別位說話者：說話者 1 還在，Old3 建議照樣在（說話者自己的聲音雜湊沒變）', shown(EE, 1, 'edit-crop-other') == 'Old3')
+    ctl('restoreedit', EE); settle(); time.sleep(1)
+    keep = keep_without(EE, 1)
+    ctl('editmeeting', EE, f'keep={keep}'); settle(); time.sleep(1)
+    gone = not q('SELECT 1 FROM speakers WHERE meeting_id = ? AND idx = 1', (EE,))
+    shown(EE, 2, 'edit-crop-self')
+    check('裁掉說話者 1：說話者 1 不在了，建議紀錄刪了', gone and not q('SELECT 1 FROM ma_retranscribe_suggestion WHERE meeting_id = ? AND speaker_idx = 1', (EE,)))
+    ctl('restoreedit', EE); settle(); time.sleep(1)
+    r = speaker_row(EE, 1)
+    check('還原編輯：說話者 1 回來，仍是自動帶入的 Other3，Old3 建議也回來（快照放回）',
+          r and r[0] == 'Other3' and shown(EE, 1, 'edit-restored') == 'Old3'
+          and q('SELECT 1 FROM ma_retranscribe_suggestion WHERE meeting_id = ? AND speaker_idx = 1', (EE,)), str(r))
+
+    segs = [x for x in segments_of(EE) if x[2] == 1]
+    cut = segs[-1][0] - 0.01 if segs else None
+    end = max(x[1] for x in segments_of(EE))
+    if check('分割：說話者 1 在切點之後有說話', cut is not None and cut > 0.5, str(segs[-1:])):
+        before_split = q('SELECT coalesce(max(id), 0) FROM meetings')[0][0]
+        ctl('editmeeting', EE, f'keep=0-{end:.2f}', f'split={cut:.2f}'); settle(); time.sleep(1.5)
+        new = q('SELECT max(id) FROM meetings WHERE id > ?', (before_split,))[0][0]
+        rn = speaker_row(new, 1) if new else None
+        check('分割：新的那場有說話者 1，Old3 建議跟著到新的那場',
+              new and rn and rn[3] == 'Old3' and shown(new, 1, 'edit-split-new') == 'Old3'
+              and q('SELECT 1 FROM ma_retranscribe_suggestion WHERE meeting_id = ? AND speaker_idx = 1', (new,)), f'new={new} row={rn}')
+
+    # 有 pending 時：裁切讓 pending 失效、還原放回；合併也讓 pending 失效、還原放回
+    A, B = unit(92), unit(93)
+    setvoice(PZ, 1, A); ctl('mavoice', 'rename', PZ, 1, 'PenA'); settle()
+    setvoice(PZ, 2, B); ctl('mavoice', 'rename', PZ, 2, 'PenB'); settle()
+    run_retranscribe(PZ, {'map': {'1': 2, '2': 1}, 'failLearn': True}, 'edit-pending')
+    has = lambda: bool(q('SELECT 1 FROM ma_retranscribe_pending WHERE meeting_id = ?', (PZ,)))
+    check('有 pending（學到一半失敗）', has())
+    whole = max(x[1] for x in segments_of(PZ))
+    ctl('editmeeting', PZ, f'keep=0-{whole:.2f}'); settle(); time.sleep(1)
+    check('裁切：pending 失效', not has())
+    ctl('restoreedit', PZ); settle(); time.sleep(1)
+    check('還原：pending 放回', has())
+    ctl('editmeeting', PZ, f'keep=0-{whole:.2f}', f'merge={OTHER}'); settle(); time.sleep(1.5)
+    check('合併：pending 失效', not has())
+    ctl('restoreedit', PZ); settle(); time.sleep(1.5)
+    check('合併後還原：pending 放回', has())
+    ctl('mavoice', 'retranscribe-retry', PZ); settle()
+    check('還原後重試做完：PenA、PenB 跟著聲音、各有新聲音的聲紋',
+          not has() and speaker_row(PZ, 2)[0] == 'PenA' and speaker_row(PZ, 1)[0] == 'PenB'
+          and q('SELECT count(*) FROM voiceprints WHERE meeting_id = ?', (PZ,))[0][0] == 2,
+          f'{speaker_row(PZ, 1)} {speaker_row(PZ, 2)}')
 
 
 # ---------- 重啟（check.sh 真的結束、再開同一個 SHIYIN_HOME 的 DEBUG 版） ----------

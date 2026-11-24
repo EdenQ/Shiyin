@@ -13,13 +13,18 @@ enum ForkRetranscribe {
 
     /// `ma_retranscribe_pending.payload`
     struct Payload: Codable {
-        struct Mapped: Codable { var idx: Int; var name: String; var source: String }
+        /// 存檔後預期的名字、來源、人物、聲音雜湊：重試前核對，使用者後來改過就跳過（REV2-F12c P2-1）
+        struct Mapped: Codable { var idx: Int; var name: String; var source: String; var personId: Int64?; var voiceHash: String? }
         struct Unmatched: Codable { var name: String; var oldIdx: Int; var best: Int?; var score: Double }
         var mapped: [Mapped] = []
         var unmatched: [Unmatched] = []
     }
 
     struct DebugFailure: Error {}
+    /// 重新學時，說話者已經不是存檔後預期的樣子（使用者改過）：`ForkVoiceSources.willStore` 丟這個，讓那筆學習整個回滾
+    struct Stale: Error {}
+    /// 啟動時一次最多重試幾場
+    static let retryLimit = 20
     /// DEBUG 的模擬失敗（`mavoice retranscribe` 的 failSave、failLearn）
     static let debugFailSave = LockedValue(false)
     static let debugFailLearn = LockedValue(false)
@@ -39,6 +44,11 @@ enum ForkRetranscribe {
 
     static func fingerprint(_ rows: [SpeakerName]) -> String {
         fingerprint(rows.map { (idx: $0.idx, embedding: $0.embedding) })
+    }
+
+    /// 一位說話者的聲音雜湊（聲紋的 SHA-256）；沒有聲紋是 nil
+    static func voiceHash(_ embedding: Data?) -> String? {
+        embedding.map { SHA256.hash(data: $0).map { String(format: "%02x", $0) }.joined() }
     }
 
     // MARK: 存檔時（上游 saveTranscript 的交易裡）
@@ -69,7 +79,8 @@ enum ForkRetranscribe {
             let back = olds.compactMap { s, v in ForkVoiceSources.similarity(v, newVector).map { (s.idx, $0) } }.max(by: { $0.1 < $1.1 })
             if best.1 >= voiceThreshold, back?.0 == old.idx, result[best.0] == nil {
                 result[best.0] = old
-                payload.mapped.append(.init(idx: best.0, name: old.name, source: old.nameSource))
+                payload.mapped.append(.init(idx: best.0, name: old.name, source: old.nameSource, personId: old.personId,
+                                            voiceHash: voices[best.0].map { voiceHash(Voiceprint.data($0.embedding)) } ?? nil))
             } else {
                 payload.unmatched.append(.init(name: old.name, oldIdx: old.idx, best: best.0, score: best.1))
             }
@@ -130,11 +141,22 @@ enum ForkRetranscribe {
             return removed
         }
         // 2. 跟著聲音沿用的使用者取名，用新聲音重新學（同 rediarize；自動帶入的不學）。上游先刪這位說話者的聲紋再存，重做沒關係
-        var relearned = 0
+        var relearned = 0, skipped = 0
         if AppSettings.voiceprints {
             for item in loaded.payload.mapped.sorted(by: { $0.idx < $1.idx }) where item.source == "manual" || item.source == "suggestion" {
-                ForkVoiceSources.noteNaming(meetingId, item.idx, source: "retranscribe")
-                try app.learnVoiceprint(meetingId, idx: item.idx, name: item.name, source: item.source)
+                // 使用者後來改過（改名、不是他、只改名）就跳過：先比一次，學的交易裡 willStore 再比一次（REV2-F12c P2-1）
+                let current = try app.pool.read { db in
+                    try SpeakerName.filter(Column("meeting_id") == meetingId && Column("idx") == item.idx).fetchOne(db)
+                }
+                guard let current, current.name == item.name, current.nameSource == item.source, current.personId == item.personId,
+                      voiceHash(current.embedding) == item.voiceHash else { skipped += 1; continue }
+                ForkVoiceSources.noteNaming(meetingId, item.idx, source: "retranscribe", expectName: item.name, expectHash: item.voiceHash)
+                do {
+                    try app.learnVoiceprint(meetingId, idx: item.idx, name: item.name, source: item.source)
+                } catch is Stale {
+                    skipped += 1
+                    continue
+                }
                 relearned += 1
                 #if DEBUG
                 if debugFailLearn.value { debugFailLearn.value = false; throw DebugFailure() }
@@ -160,18 +182,22 @@ enum ForkRetranscribe {
                     UPDATE speakers SET suggested_name = ?, suggestion_reason = ?, suggestion_time = NULL WHERE meeting_id = ? AND idx = ?
                     """, arguments: [item.name, reason(item.name, language: language), meetingId, target])
                 try db.execute(sql: """
-                    INSERT OR REPLACE INTO ma_retranscribe_suggestion (meeting_id, speaker_idx, name, fingerprint, created_at) VALUES (?, ?, ?, ?, ?)
-                    """, arguments: [meetingId, target, item.name, loaded.stored, Clock.now()])
+                    INSERT OR REPLACE INTO ma_retranscribe_suggestion (meeting_id, speaker_idx, name, fingerprint, created_at, speaker_hash)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """, arguments: [meetingId, target, item.name, loaded.stored, Clock.now(), voiceHash(speakers[target]?.embedding)])
             }
             try db.execute(sql: "DELETE FROM ma_retranscribe_pending WHERE meeting_id = ?", arguments: [meetingId])
             return chosen.count
         }
-        log.info("retranscribe names: \(loaded.payload.mapped.count) by voice, \(loaded.payload.unmatched.count) unmatched (\(suggested) suggested), \(removed) stale voiceprints removed, \(relearned) relearned")
+        log.info("retranscribe names: \(loaded.payload.mapped.count) by voice, \(loaded.payload.unmatched.count) unmatched (\(suggested) suggested), \(removed) stale voiceprints removed, \(relearned) relearned, \(skipped) skipped (changed by the user)")
     }
 
     /// 啟動時（`ForkStartup.install`）：上次沒處理完的逐場再做（存檔後 app 結束、學到一半失敗）
     static func retryAll(_ app: AppDatabase) {
-        let ids = (try? app.pool.read { db in try Int64.fetchAll(db, sql: "SELECT meeting_id FROM ma_retranscribe_pending") }) ?? []
+        // 從最舊的開始，一次最多 retryLimit 場，其他的下次啟動再做（不拖慢啟動）
+        let ids = (try? app.pool.read { db in
+            try Int64.fetchAll(db, sql: "SELECT meeting_id FROM ma_retranscribe_pending ORDER BY created_at, meeting_id LIMIT ?", arguments: [retryLimit])
+        }) ?? []
         for id in ids {
             do { try after(app, id) } catch { log.error("retranscribe names retry failed: \(error.logSummary, privacy: .public)") }
         }
@@ -185,7 +211,7 @@ enum ForkRetranscribe {
         guard let meetingId = detail.meeting.id else { return }
         do {
             let saved = try app.pool.read { db in
-                try Row.fetchAll(db, sql: "SELECT speaker_idx, name, fingerprint FROM ma_retranscribe_suggestion WHERE meeting_id = ?",
+                try Row.fetchAll(db, sql: "SELECT speaker_idx, name, fingerprint, speaker_hash FROM ma_retranscribe_suggestion WHERE meeting_id = ?",
                                  arguments: [meetingId])
             }
             guard !saved.isEmpty else { return }
@@ -195,7 +221,10 @@ enum ForkRetranscribe {
             var restore: [(Int, String)] = []
             for row in saved {
                 let idx: Int = row["speaker_idx"], name: String = row["name"], stored: String = row["fingerprint"]
-                guard stored == current, let speaker = rows.first(where: { $0.idx == idx }),
+                let speaker = rows.first { $0.idx == idx }
+                // 同一個人：那位說話者的聲音雜湊相同（REV2-F12c P2-2；沒有記雜湊的舊紀錄才比整場指紋）
+                let same = (row["speaker_hash"] as String?).map { $0 == voiceHash(speaker?.embedding) } ?? (stored == current)
+                guard same, let speaker,
                       speaker.nameSource == "default" || speaker.nameSource == "voiceprint",
                       speaker.suggestedName != nil else {
                     drop.append(idx)
@@ -218,6 +247,65 @@ enum ForkRetranscribe {
             }
         } catch {
             log.error("retranscribe suggestions failed: \(error.logSummary, privacy: .public)")
+        }
+    }
+
+    // MARK: 編輯會議（REV2-F12c P2-2；由 ForkSpeakerTags 的編輯入口呼叫，同一筆交易）
+
+    struct EditSnapshot: Codable {
+        struct Suggestion: Codable { var idx: Int; var name: String; var fingerprint: String; var createdAt: String; var speakerHash: String? }
+        struct Pending: Codable { var fingerprint: String; var payload: String; var createdAt: String }
+        var suggestions: [Suggestion]
+        var pending: Pending?
+    }
+
+    /// 第一次編輯前：存下這場的建議、pending（跟著上游的 meeting_edits 刪）
+    static func snapshot(_ db: Database, meetingId: Int64) throws {
+        let suggestions = try Row.fetchAll(db, sql: """
+            SELECT speaker_idx, name, fingerprint, created_at, speaker_hash FROM ma_retranscribe_suggestion WHERE meeting_id = ? ORDER BY speaker_idx
+            """, arguments: [meetingId]).map {
+                EditSnapshot.Suggestion(idx: $0["speaker_idx"], name: $0["name"], fingerprint: $0["fingerprint"], createdAt: $0["created_at"], speakerHash: $0["speaker_hash"])
+            }
+        let pending = try Row.fetchOne(db, sql: "SELECT fingerprint, payload, created_at FROM ma_retranscribe_pending WHERE meeting_id = ?", arguments: [meetingId])
+            .map { EditSnapshot.Pending(fingerprint: $0["fingerprint"], payload: $0["payload"], createdAt: $0["created_at"]) }
+        let json = String(decoding: try JSONEncoder().encode(EditSnapshot(suggestions: suggestions, pending: pending)), as: UTF8.self)
+        try db.execute(sql: "INSERT OR REPLACE INTO ma_meeting_edit_retranscribe (meeting_id, snapshot_json) VALUES (?, ?)", arguments: [meetingId, json])
+    }
+
+    /// 裁切、刪中間一段、合併：pending 失效（存檔後的狀態已經不成立）；建議照留，present 用聲音雜湊判斷
+    static func invalidatePending(_ db: Database, meetingId: Int64) throws {
+        try db.execute(sql: "DELETE FROM ma_retranscribe_pending WHERE meeting_id = ?", arguments: [meetingId])
+    }
+
+    /// 分割：上游照原編號複製說話者到新的那場。建議照編號複製（新的那場有這位、聲音雜湊相同的）；兩場的 pending 失效
+    static func split(_ db: Database, from id: Int64, to newId: Int64) throws {
+        let hashes = Dictionary(try Row.fetchAll(db, sql: "SELECT idx, embedding FROM speakers WHERE meeting_id = ?", arguments: [newId])
+            .map { ($0["idx"] as Int, voiceHash($0["embedding"] as Data?)) }, uniquingKeysWith: { a, _ in a })
+        for row in try Row.fetchAll(db, sql: "SELECT * FROM ma_retranscribe_suggestion WHERE meeting_id = ?", arguments: [id]) {
+            let idx: Int = row["speaker_idx"]
+            guard let hash = hashes[idx] ?? nil, hash == (row["speaker_hash"] as String?) else { continue }
+            try db.execute(sql: """
+                INSERT OR REPLACE INTO ma_retranscribe_suggestion (meeting_id, speaker_idx, name, fingerprint, created_at, speaker_hash) VALUES (?, ?, ?, ?, ?, ?)
+                """, arguments: [newId, idx, row["name"] as String, row["fingerprint"] as String, row["created_at"] as String, hash])
+        }
+        try invalidatePending(db, meetingId: id)
+        try invalidatePending(db, meetingId: newId)
+    }
+
+    /// 還原編輯前：從快照放回這場的建議、pending，換掉編輯後的
+    static func restore(_ db: Database, meetingId: Int64) throws {
+        guard let json = try String.fetchOne(db, sql: "SELECT snapshot_json FROM ma_meeting_edit_retranscribe WHERE meeting_id = ?", arguments: [meetingId]),
+              let saved = try? JSONDecoder().decode(EditSnapshot.self, from: Data(json.utf8)) else { return }
+        try db.execute(sql: "DELETE FROM ma_retranscribe_suggestion WHERE meeting_id = ?", arguments: [meetingId])
+        try db.execute(sql: "DELETE FROM ma_retranscribe_pending WHERE meeting_id = ?", arguments: [meetingId])
+        for s in saved.suggestions {
+            try db.execute(sql: """
+                INSERT INTO ma_retranscribe_suggestion (meeting_id, speaker_idx, name, fingerprint, created_at, speaker_hash) VALUES (?, ?, ?, ?, ?, ?)
+                """, arguments: [meetingId, s.idx, s.name, s.fingerprint, s.createdAt, s.speakerHash])
+        }
+        if let p = saved.pending {
+            try db.execute(sql: "INSERT INTO ma_retranscribe_pending (meeting_id, fingerprint, payload, created_at) VALUES (?, ?, ?, ?)",
+                           arguments: [meetingId, p.fingerprint, p.payload, p.createdAt])
         }
     }
 

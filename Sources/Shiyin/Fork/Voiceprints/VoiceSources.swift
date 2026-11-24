@@ -9,6 +9,9 @@ enum ForkVoiceSources {
         var source: String
         var warned = false
         var noVoice = false
+        /// F12.15 重新轉錄後重新學：預期的名字、聲音雜湊；學的交易裡不合就丟 ForkRetranscribe.Stale（REV2-F12c P2-1）
+        var expectName: String?
+        var expectHash: String?
         var at = Date()
     }
 
@@ -19,8 +22,9 @@ enum ForkVoiceSources {
 
     static func key(_ meetingId: Int64, _ idx: Int) -> String { "\(meetingId)-\(idx)" }
 
-    static func noteNaming(_ meetingId: Int64, _ idx: Int, source: String, warned: Bool = false, noVoice: Bool = false) {
-        let intent = Intent(source: source, warned: warned, noVoice: noVoice)
+    static func noteNaming(_ meetingId: Int64, _ idx: Int, source: String, warned: Bool = false, noVoice: Bool = false,
+                           expectName: String? = nil, expectHash: String? = nil) {
+        let intent = Intent(source: source, warned: warned, noVoice: noVoice, expectName: expectName, expectHash: expectHash)
         lock.withLock { intents[key(meetingId, idx)] = intent }
     }
 
@@ -44,9 +48,15 @@ enum ForkVoiceSources {
 
     /// 上游 `learnVoiceprint` 的 `remembersVoice` 接點（經過 F2 之後）：在同一筆寫入交易裡、INSERT 之前。
     /// 回 false 不存聲紋（防呆選了「只改名」）；要存時記下來源（pending），事後對到 id
-    static func willStore(_ db: Database, meetingId: Int64, idx: Int, source: String) -> Bool {
+    static func willStore(_ db: Database, meetingId: Int64, idx: Int, source: String) throws -> Bool {
         let intent = takeIntent(meetingId, idx)
         if intent?.noVoice == true { return false }
+        // F12.15：重新轉錄後的重新學，說話者已經不是預期的樣子（使用者改過）→ 丟錯，讓上游整筆學習回滾（連人也不留）
+        if let expected = intent?.expectName {
+            let row = try Row.fetchOne(db, sql: "SELECT name, embedding FROM speakers WHERE meeting_id = ? AND idx = ?", arguments: [meetingId, idx])
+            guard let row, (row["name"] as String) == expected,
+                  ForkRetranscribe.voiceHash(row["embedding"] as Data?) == intent?.expectHash else { throw ForkRetranscribe.Stale() }
+        }
         do {
             try resolve(db)
             let kind: String

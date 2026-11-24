@@ -153,7 +153,8 @@ for scenario in ["fresh", "v7", "fork-v8", "upstream-v8", "upstream-v9", "upstre
         require(try db.tableExists("ma_meeting_edit_tags"), "Missing fork edit snapshot table")
         require(try db.tableExists("ma_voiceprint_source") && db.tableExists("ma_voiceprint_pending"), "Missing fork voiceprint source tables")
         require(try db.tableExists("ma_retranscribe_pending") && db.tableExists("ma_retranscribe_suggestion"), "Missing fork retranscribe tables")
-        require(migrator.migrations.suffix(4) == ["ma_speaker_tags_v1", "ma_meeting_edit_tags_v1", "ma_voiceprint_source_v1", "ma_retranscribe_v1"], "Fork migrations are not last")
+        require(try db.tableExists("ma_meeting_edit_retranscribe") && db.columns(in: "ma_retranscribe_suggestion").contains { $0.name == "speaker_hash" }, "Missing fork retranscribe v2")
+        require(migrator.migrations.suffix(5) == ["ma_speaker_tags_v1", "ma_meeting_edit_tags_v1", "ma_voiceprint_source_v1", "ma_retranscribe_v1", "ma_retranscribe_v2"], "Fork migrations are not last")
         require(try String.fetchOne(db, sql: "PRAGMA integrity_check") == "ok", "Integrity check failed")
         require(try Row.fetchAll(db, sql: "PRAGMA foreign_key_check").isEmpty, "Foreign key check failed")
         let count = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM speaker_tags")
@@ -186,9 +187,13 @@ for scenario in ["fresh", "v7", "fork-v8", "upstream-v8", "upstream-v9", "upstre
             try db.execute(sql: "INSERT INTO ma_meeting_edit_tags (meeting_id, tags_json) VALUES (1, '[]')")
             try db.execute(sql: "INSERT INTO meeting_edits (meeting_id, snapshot, audio_file, created_at, edited_at) VALUES (1, '{}', '', 'x', 'x')")
         }
+        try queue.write { db in
+            try db.execute(sql: "INSERT INTO ma_meeting_edit_retranscribe (meeting_id, snapshot_json) VALUES (1, '{}')")
+        }
         try queue.write { db in try db.execute(sql: "DELETE FROM meeting_edits WHERE meeting_id = 1") }
         try queue.read { db in
             require(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM ma_meeting_edit_tags") == 0, "Edit tag snapshot not cascaded")
+            require(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM ma_meeting_edit_retranscribe") == 0, "Edit retranscribe snapshot not cascaded")
             require(try Row.fetchAll(db, sql: "PRAGMA foreign_key_check").isEmpty, "Foreign key check failed after edit snapshot")
         }
     }

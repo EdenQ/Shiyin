@@ -127,7 +127,7 @@ extension ForkSpeakerTags {
             ForkVoiceSources.skip(meetingId, idx)
             return false
         }
-        return ForkVoiceSources.willStore(db, meetingId: meetingId, idx: idx, source: source)
+        return try ForkVoiceSources.willStore(db, meetingId: meetingId, idx: idx, source: source)
     }
 
     /// 上游 JobRunner 轉錄存檔、重新辨識說話者之後的接點（F2.3、F2.10）：在聲紋比對之前套用，使用者自己標的優先；
