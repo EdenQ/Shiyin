@@ -212,6 +212,10 @@ struct ForkPersonVoiceprints: View {
                         .accessibilityLabel(Text("刪除這份…"))
                 }
             }
+            ForEach(ForkVoiceSources.Flag.allCases.filter { row.flags.contains($0) }, id: \.self) { flag in
+                Label(ForkVoiceSources.flagText(flag), systemImage: "exclamationmark.triangle.fill")
+                    .font(.callout).foregroundStyle(.orange)
+            }
             if row.suspicious, let other = row.other {
                 Label("跟這個人其他樣本不像，跟 \(other.name) 很像（\(ForkVoiceScores.percent(other.score))%）", systemImage: "exclamationmark.triangle.fill")
                     .font(.callout).foregroundStyle(.orange)
@@ -220,9 +224,9 @@ struct ForkPersonVoiceprints: View {
                 Text("存的時候提醒過").font(.caption).foregroundStyle(.secondary)
             }
         }
-        .padding(.vertical, row.suspicious ? 4 : 0)
-        .padding(.horizontal, row.suspicious ? 8 : 0)
-        .background(row.suspicious ? Color.orange.opacity(0.08) : Color.clear, in: RoundedRectangle(cornerRadius: 6))
+        .padding(.vertical, row.needsCheck ? 4 : 0)
+        .padding(.horizontal, row.needsCheck ? 8 : 0)
+        .background(row.needsCheck ? Color.orange.opacity(0.08) : Color.clear, in: RoundedRectangle(cornerRadius: 6))
     }
 
     private func load() {

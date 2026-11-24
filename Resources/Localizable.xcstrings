@@ -22265,6 +22265,23 @@
         }
       }
     },
+    "跟本人其他聲音不像，請確認": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跟本人其他声音不像，请确认"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Doesn't sound like this person's other samples; please check"
+          }
+        }
+      }
+    },
     "跟著目前在用的螢幕": {
       "extractionState": "manual",
       "localizations": {
@@ -22278,6 +22295,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Screen you're using"
+          }
+        }
+      }
+    },
+    "跟這位說話者現在的聲音對不上（可能是重新轉錄前存的），請確認": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跟这位说话者现在的声音对不上（可能是重新转录前存的），请确认"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Doesn't match this speaker's current voice (may have been saved before re-transcribing); please check"
           }
         }
       }
@@ -23181,6 +23215,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "这个网址不是拾音的企业服务器"
+          }
+        }
+      }
+    },
+    "這兩份互相不像，請確認": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这两份互相不像，请确认"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "These two samples don't sound alike; please check"
           }
         }
       }
