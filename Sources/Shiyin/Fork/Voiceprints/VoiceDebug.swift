@@ -65,7 +65,7 @@ extension ForkDebug {
         case "delete":   // mavoice delete <聲紋 id>：同人物頁的刪除（不經過確認）
             if let id = meeting { _ = try? ForkVoiceSources.delete(model.db, voiceprintId: id); ForkVoiceprintsUI.afterDelete(model) }
         case "person":   // mavoice person <person id>：切到人物頁、選這個人
-            if let id = meeting { model.sidebarMode = .people; model.selectedPerson = id }
+            if let id = meeting { model.reloadPeopleOverview(); model.sidebarMode = .people; model.selectedPerson = id }
         default:
             break
         }

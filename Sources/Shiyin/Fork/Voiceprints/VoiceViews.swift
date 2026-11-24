@@ -141,6 +141,7 @@ struct ForkVoiceGuardSheet: View {
         }
         .padding(20)
         .frame(width: 460)
+        .background(Color(nsColor: .windowBackgroundColor))   // 視窗底色畫進內容裡：DEBUG 的 mawindowshot 才畫得出文字
     }
 
     /// 「『說話者 6』→ Ben：聲音很像 Amy（95%），跟 Ben 之前的聲音只有 26%。」
