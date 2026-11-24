@@ -1159,12 +1159,17 @@ CREATE TABLE ma_retranscribe_suggestion (   -- 對不上的舊名字建議，等
 - `README.md`、`.github/README.md` 改寫成會議助手的：簡介（MIT 授權的拾音 fork）、fork 加的功能、怎麼用、系統需求、安裝（EdenQ/Shiyin 的 Releases、自簽、仍要打開）、從原始碼建置（clone EdenQ/Shiyin）、資料與隱私（沒有匿名使用統計）、開發（docs/fork）、使用的開源專案、授權（MIT，附上游 repo 連結）。
 - 兩份是上游的檔（不在接點檢查範圍）；合併上游時一律取 fork 的版本，上游 README 新增的功能說明要不要寫進來另外判斷（`docs/fork/upstream-sync.md`）。
 
-### F13.6 驗證
+### F13.6 更新視窗的「完整說明在官網」
+
+- 上游 `ReleaseNotes.text` 沒列完時加一行「……還有 N 項，完整說明在官網。」（查翻譯表）。fork 沒有官網，`brand.json` 的 `phrases` 換成「完整說明在 GitHub 的 Releases 頁面。」（簡中、英文各一條，`required` 指到各自的 `Localizable.strings`）。
+- 這句沒有品牌字：`brand()` 原本只處理有「拾音」「Shiyin」的字串，改成有任何一條 `phrases` 的 `from` 也處理。不加 Swift 接點。
+
+### F13.7 驗證
 
 - `brand-test.py`：apply 後三份 Credits 沒有贊助、有 MIT 聲明；`ThirdPartyLicenses.txt` 有那一項和全文；重跑不變；上游贊助句改了標點要失敗；把 MIT 那一節刪掉後 `check` 要失敗；`release-notes.py app` 只拿掉兩行。
 - `check.sh --only 3`（品牌：release、DEBUG 建置結果）；`isolation-check`（make-dmg.sh 的新接點登記在 manifest）。
 - 用建好的 release 版的 `ThirdPartyLicenses.txt` 照 `make-dmg.sh` 的方式放進暫存的 DMG，掛載後確認內容。
-- 用 v5.0.3、v5.0.4 的 tag 說明跑 `release-notes.py app`，結果用 `ReleaseNotes.brief`（`brand-hooks-test`）列出的第一項是這版的改變。
+- 用 v5.0.3、v5.0.4 的 tag 說明跑 `release-notes.py app`，結果用上游的 `ReleaseNotes.brief` 列出的第一項是這版的改變；建好的 app 的三份 `Localizable.strings` 是 GitHub Releases 的那一句。
 
 ## F-DB. 資料庫規則（PLAN-fork-5.0 §6）
 

@@ -379,6 +379,7 @@
 - F13.3 tag 說明的「- 基於上游 拾音 X.Y.Z」「- Based on upstream Shiyin X.Y.Z」不進 app 內更新說明（`shiyin-update.json` 的 `notes`）；GitHub Release 的說明照 DF6 保留這行當紀錄。
 - F13.4 fork 不跑官網的 workflow（`site/` 是上游的官網、讀上游的 Release；fork 沒有官網）。
 - F13.5 README（繁中、英文）改寫成會議助手自己的：功能、安裝、從原始碼建置、資料與隱私、授權；寫明是 MIT 授權的拾音 fork，附上游 repo 的連結當授權來源。不寫上游官網、`git clone` 上游、Ko-fi、上游的更新網址、Windows 版、匿名使用統計（fork 沒設）。
+- F13.6 app 內更新視窗沒列完時的「……還有 N 項，完整說明在官網。」改成「完整說明在 GitHub 的 Releases 頁面。」（簡中、英文同）：fork 沒有官網（2026-11-25 實作時發現，屬於 F13.4 不指向上游官網的範圍）。
 
 ### 接點（上限 100，維持不變）
 
@@ -395,6 +396,6 @@
 
 - 建好的 app：三份 Credits 沒有 Ko-fi、「喝杯咖啡」、「改自」、「based on Shiyin」；Credits 和 `ThirdPartyLicenses.txt` 有上游 `LICENSE` 全文（含 `Copyright (c) 2026 juinwei7`）和「拾音 Shiyin (MIT)」那一項；上游的贊助句變了要建置失敗；拿掉 MIT 那一段要失敗（`brand-test.py`）。
 - DMG 的 `Third-Party Licenses.txt` 跟 app 裡的一樣，有 MIT 聲明。
-- `shiyin-update.json` 的 `notes` 沒有「基於上游」「Based on upstream」那兩行，其他行不變；app 的更新視窗列出的第一項是這版真正的改變。
+- `shiyin-update.json` 的 `notes` 沒有「基於上游」「Based on upstream」那兩行，其他行不變；app 的更新視窗列出的第一項是這版真正的改變；沒列完時說完整說明在 GitHub 的 Releases 頁面。
 - GitHub 上官網的 workflow 不再執行（跑了也是略過）。
 - README 中英文沒有 `weibuilds`、`ko-fi`、`juinwei7/Shiyin.git`；授權一節有上游 repo 的連結。
