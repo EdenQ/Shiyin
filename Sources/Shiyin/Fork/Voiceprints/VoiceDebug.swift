@@ -65,12 +65,49 @@ extension ForkDebug {
             }], to: args[3])
         case "delete":   // mavoice delete <聲紋 id>：同人物頁的刪除（不經過確認）
             if let id = meeting { _ = try? ForkVoiceSources.delete(model.db, voiceprintId: id); ForkVoiceprintsUI.afterDelete(model) }
+        case "retranscribe":   // mavoice retranscribe <會議> <設定.json>：模擬重新轉錄（§F12.9），同 JobRunner 的順序
+            guard let meeting, args.count > 3, let data = FileManager.default.contents(atPath: args[3]),
+                  let spec = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return true }
+            simulateRetranscribe(model, meeting, spec)
         case "person":   // mavoice person <person id>：切到人物頁、選這個人
             if let id = meeting { model.reloadPeopleOverview(); model.sidebarMode = .people; model.selectedPerson = id }
         default:
             break
         }
         return true
+    }
+
+    /// {"map": {"舊編號": 新編號}, "vectors": {"新編號": [向量]}, "seconds": {"新編號": 秒數}}：用目前的段落換編號、換聲紋，
+    /// 呼叫上游 saveTranscript，再 afterTranscription、matchVoiceprints
+    private static func simulateRetranscribe(_ model: AppModel, _ meetingId: Int64, _ spec: [String: Any]) {
+        let map = (spec["map"] as? [String: Int] ?? [:]).reduce(into: [Int: Int]()) { r, kv in if let k = Int(kv.key) { r[k] = kv.value } }
+        let vectors = (spec["vectors"] as? [String: [Double]] ?? [:]).reduce(into: [Int: [Float]]()) { r, kv in if let k = Int(kv.key) { r[k] = kv.value.map(Float.init) } }
+        let seconds = (spec["seconds"] as? [String: Double] ?? [:]).reduce(into: [Int: Double]()) { r, kv in if let k = Int(kv.key) { r[k] = kv.value } }
+        do {
+            let db = model.db
+            let old = try db.speakers(meetingId)
+            let segments = try db.segments(meetingId).enumerated().map { i, s -> Segment in
+                var copy = s
+                copy.id = nil
+                copy.seq = i
+                copy.speaker = s.speaker.map { map[$0] ?? $0 }
+                return copy
+            }
+            var voices: [Int: SpeakerVoice] = [:]
+            for o in old {
+                let n = map[o.idx] ?? o.idx
+                let vector = vectors[n] ?? o.embedding.map(Voiceprint.vector)
+                if let vector { voices[n] = SpeakerVoice(embedding: vector, seconds: seconds[n] ?? o.speechSeconds, source: o.audioSource) }
+            }
+            for (n, v) in vectors where voices[n] == nil { voices[n] = SpeakerVoice(embedding: v, seconds: seconds[n] ?? 30, source: "mix") }
+            let count = max(segments.compactMap(\.speaker).max() ?? 0, voices.keys.max() ?? 0)
+            try db.saveTranscript(meetingId, segments: segments, duration: model.detail?.meeting.durationSeconds ?? 0, speakerCount: count, voices: voices)
+            ForkSpeakerTags.afterTranscription(db, meetingId)
+            if AppSettings.voiceprints { try db.matchVoiceprints(meetingId) }
+        } catch {
+            log.error("mavoice retranscribe failed: \(error.logSummary, privacy: .public)")
+        }
+        if model.selection == meetingId { model.reloadDetail() } else { model.selection = meetingId }
     }
 
     private static func voiceState(_ model: AppModel) -> [String: Any] {

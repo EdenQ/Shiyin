@@ -107,6 +107,7 @@ enum ForkVoiceScores {
             }
         }
         detail.forkTags.voice = bases
+        ForkRetranscribe.restoreSuggestions(&detail, rows, app: app)   // F12.15：被聲紋比對換掉的建議補回一次
         let language = detail.meeting.meetingLanguage
         for (idx, suggestion) in detail.speakerSuggestions {
             detail.speakerSuggestions[idx]?.reason = suggestionReason(suggestion, basis: bases[idx], language: language)
@@ -190,6 +191,9 @@ enum ForkVoiceScores {
 
     /// 建議的原因（會議語言）：聲紋的改寫成依據；AI 猜的前面加「依內容猜：」；算不出分數的聲紋建議照上游
     static func suggestionReason(_ suggestion: SpeakerNaming.Suggestion, basis: Basis?, language: MeetingLanguage) -> String {
+        if ForkRetranscribe.isRetranscribeSuggestion(suggestion) {   // F12.15：重新轉錄前的名字，用目前的會議語言重新寫
+            return ForkRetranscribe.reason(suggestion.name, language: language)
+        }
         if isVoiceprintSuggestion(suggestion) {
             guard let basis else { return suggestion.reason }
             return describe(basis, name: suggestion.name, phrases: .meeting(language))

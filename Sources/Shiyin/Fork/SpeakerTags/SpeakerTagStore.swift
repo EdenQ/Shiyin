@@ -148,5 +148,7 @@ extension ForkSpeakerTags {
     /// 套用失敗不影響逐字稿和之後的整理，只記 log
     static func afterTranscription(_ db: AppDatabase, _ meetingId: Int64) {
         do { try applyTags(db, meetingId) } catch { log.error("apply speaker tags failed: \(error.logSummary, privacy: .public)") }
+        // F12.15：重新轉錄後刪對不上的舊聲紋、沿用的名字重新學、對不上的名字存成建議（只處理 saveTranscript 記下結果的會議）
+        do { try ForkRetranscribe.after(db, meetingId) } catch { log.error("retranscribe names failed: \(error.logSummary, privacy: .public)") }
     }
 }

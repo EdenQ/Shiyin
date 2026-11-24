@@ -15,7 +15,9 @@
      改會議語言（en → zh、zh → ja、一般語言 ko → zh）後聲紋的建議照樣認得、用目前的語言顯示；時間空的 AI 建議不當成聲紋
   8. 其他要確認的樣本（F12.11a）：A 跟本人其他不像、B 兩份互相不像、C 跟來源說話者現在的聲音對不上；
      來源說話者不在、會議永久刪除後不比；互相一致的正常樣本不標
-  9. windowshot：防呆視窗開著的會議頁、人物頁（看一眼）
+  9. 重新轉錄後名字跟著聲音（F12.15）：mavoice retranscribe 模擬（編號對調、聲音對不上、沒聲紋照編號、F2 標記不沿用、
+     對不上的存成建議被聲紋比對蓋掉後補回、一鍵套用、舊聲紋刪除與重新學、來源 retranscribe）
+  10. windowshot：防呆視窗開著的會議頁、人物頁（看一眼）
 用法：python3 scripts/fork/f12-voiceprint-check.py <SHIYIN_HOME> <shiyinctl> --out <資料夾> [--fixtures <fixtures.json>]
 只讀寫 --out 和暫存 SHIYIN_HOME 的資料庫；同時只能開一個 DEBUG 版（shiyinctl 是廣播）。exit 0 通過、1 不符。
 """
@@ -600,6 +602,78 @@ def main():
           json.dumps(rows, ensure_ascii=False)[:300])
     ctl('mavoice', 'person', person_id('Pat')); settle()
     check('截圖：人物頁（要確認的樣本）', shot('f12-person-flags'))
+
+    # ---------- 9. 重新轉錄後名字跟著聲音（F12.15） ----------
+    before = q('SELECT coalesce(max(id), 0) FROM meetings')[0][0]
+    ctl('seedfixtures', args.fixtures, 'zh', 'en', 'ja', 'yue', 'ko')
+    time.sleep(3)
+    fresh = {lang: mid for mid, lang in q("SELECT id, language FROM meetings WHERE deleted_at IS NULL AND id > ? ORDER BY id", (before,))}
+    Z, EN, JA = fresh.get('zh'), fresh.get('en'), fresh.get('ja')
+    if not check('重新轉錄：示範會議', Z and EN and JA, json.dumps(fresh)):
+        return
+
+    def retranscribe(meeting, spec, label):
+        path = OUT / f'retranscribe-{label}.json'
+        path.write_text(json.dumps(spec))
+        ctl('mavoice', 'retranscribe', meeting, path); settle(); time.sleep(1)
+        ctl('select', meeting); settle()
+        return state(f'retranscribe-{label}')
+
+    def sources(meeting, idx):
+        return q('SELECT v.id, p.name, s.source FROM voiceprints v JOIN people p ON p.id = v.person_id '
+                 'LEFT JOIN ma_voiceprint_source s ON s.voiceprint_id = v.id WHERE v.meeting_id = ? AND v.speaker_idx = ?', (meeting, idx))
+
+    # 情況一：說話者 1、2 的編號對調；說話者 3 說話不到 8 秒（沒有聲紋可比，照編號）
+    A1, B1, C1 = unit(60), unit(61), unit(62)
+    setvoice(Z, 1, A1); setvoice(Z, 2, B1); setvoice(Z, 3, C1, seconds=5)
+    learn((Z, 1), 'Ann2', A1)
+    ctl('mavoice', 'suggest', Z, 2, 'Bob2', '00:00:05', 'x'); settle()
+    ctl('mavoice', 'apply', Z, 2); settle()
+    ctl('mavoice', 'rename', Z, 3, 'Cid'); settle()
+    pre = {i: speaker_row(Z, i) for i in (1, 2, 3)}
+    check('重新轉錄前：Ann2（手動）、Bob2（套用建議）各有聲紋，Cid 沒有',
+          pre[1][0] == 'Ann2' and pre[2][0] == 'Bob2' and pre[2][1] == 'suggestion' and pre[3][0] == 'Cid' and sources(Z, 1) and sources(Z, 2) and not sources(Z, 3),
+          str(pre))
+    retranscribe(Z, {'map': {'1': 2, '2': 1}}, 'swap')
+    post = {i: speaker_row(Z, i) for i in (1, 2, 3)}
+    check('名字跟著聲音：Ann2 換到說話者 2、Bob2 換到說話者 1，來源照舊',
+          post[2][0] == 'Ann2' and post[2][1] == 'manual' and post[2][2] == person_id('Ann2')
+          and post[1][0] == 'Bob2' and post[1][1] == 'suggestion' and post[1][2] == person_id('Bob2'), str(post))
+    check('沒有聲紋可比的照編號：Cid 還在說話者 3', post[3][0] == 'Cid', str(post[3]))
+    s1, s2 = sources(Z, 1), sources(Z, 2)
+    check('舊聲紋刪了，沿用的名字用新聲音重新學（來源 retranscribe）',
+          len(s1) == 1 and s1[0][1] == 'Bob2' and s1[0][2] == 'retranscribe' and len(s2) == 1 and s2[0][1] == 'Ann2' and s2[0][2] == 'retranscribe',
+          f'{s1} {s2}')
+    lib = library()
+    check('重新學的聲紋是新說話者的聲音',
+          abs(cos(next(x['vec'] for x in lib if x['meeting'] == Z and x['idx'] == 2), f32(A1)) - 1) < 1e-4
+          and abs(cos(next(x['vec'] for x in lib if x['meeting'] == Z and x['idx'] == 1), f32(B1)) - 1) < 1e-4)
+
+    # 情況二：說話者 1 的聲音換成別人（對不上）；說話者 3 是 F2 標記的名字（不沿用）；另一場有 Fay 讓聲紋比對想建議她
+    D1, E1, X1, T1 = unit(64), unit(65), unit(66), unit(67)
+    setvoice(JA, 1, mix((0.75, 66), 68)); learn((JA, 1), 'Fay', mix((0.75, 66), 68))
+    setvoice(EN, 1, D1); setvoice(EN, 2, E1); setvoice(EN, 3, T1)
+    learn((EN, 1), 'Dee', D1)
+    learn((EN, 2), 'Eve', E1)
+    write_sql("UPDATE speakers SET name = 'Tgg', name_source = 'tag' WHERE meeting_id = ? AND idx = 3", (EN,))
+    st = retranscribe(EN, {'map': {}, 'vectors': {'1': X1}}, 'unmatched')
+    r1, r2, r3 = speaker_row(EN, 1), speaker_row(EN, 2), speaker_row(EN, 3)
+    check('聲音對不上：說話者 1 回到預設名稱', r1[1] == 'default' and r1[2] is None, str(r1))
+    sg = (speaker(st, 1) or {}).get('suggestion', {})
+    want_reason = 'Name before re-transcribing: Dee (the voice didn\'t match; please check)'
+    check('對不上的名字存成建議（聲紋比對想建議 Fay，補回 Dee），原因不是「依內容猜」也不是聲紋分數',
+          sg.get('name') == 'Dee' and sg.get('reason') == want_reason and sg.get('time') == '' and r1[3] == 'Dee',
+          json.dumps(sg, ensure_ascii=False) + f' db={r1}')
+    check('聲音對得上的照舊：Eve', r2[0] == 'Eve' and r2[1] == 'manual', str(r2))
+    check('F2 標記的名字不沿用', r3[1] == 'default', str(r3))
+    check('Dee 對不上的舊聲紋刪了', not [x for x in sources(EN, 1) if x[1] == 'Dee'], str(sources(EN, 1)))
+    ctl('mavoice', 'apply', EN, 1); settle()
+    r1 = speaker_row(EN, 1)
+    st = state('retranscribe-applied')
+    check('一鍵套用：說話者 1 改回 Dee、建議清掉', r1[0] == 'Dee' and r1[3] is None and not st['guard'], str(r1))
+    check('重新轉錄後：來源表沒有孤兒、foreign_key_check 沒有東西',
+          q('SELECT count(*) FROM ma_voiceprint_source WHERE voiceprint_id NOT IN (SELECT id FROM voiceprints)')[0][0] == 0
+          and not q('PRAGMA foreign_key_check'))
 
 
 try:

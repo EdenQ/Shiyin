@@ -224,6 +224,7 @@ enum ForkVoiceSources {
         case "tag": return String(localized: "錄音時標記")
         case "merge": return String(localized: "合併說話者")
         case "rediarize": return String(localized: "重新辨識說話者")
+        case "retranscribe": return String(localized: "重新轉錄後重新學")
         default: return String(localized: "不明")
         }
     }
