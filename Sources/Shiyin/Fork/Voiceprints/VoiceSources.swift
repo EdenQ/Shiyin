@@ -131,17 +131,33 @@ enum ForkVoiceSources {
     /// 一份聲紋要確認的地方。mine：這個人所有的聲紋；current：來源那一場那位說話者現在的聲紋（沒有是 nil）
     static func flags(for print: ForkVoiceScores.Print, mine: [ForkVoiceScores.Print], current: [Float]?) -> Set<Flag> {
         var flags: Set<Flag> = []
-        let rest = mine.filter { $0.id != print.id }
-        let own = rest.map { Voiceprint.similarity(print.vector, $0.vector) }.max()
-        if let own, own < unlikeThreshold {
-            let agreeing = rest.filter { a in rest.contains { b in b.id != a.id && Voiceprint.similarity(a.vector, b.vector) >= agreeThreshold } }
-            if agreeing.count >= 2 { flags.insert(.unlikeOthers) }
-            if mine.count == 2 { flags.insert(.pairUnlike) }
+        // 只比有效的向量（REV-F12b P3-1）：無效的略過，不當成「不像」；B 的「只有 2 份」也只數有效的
+        let valid = mine.filter { isValid($0.vector) }
+        if isValid(print.vector) {
+            let rest = valid.filter { $0.id != print.id }
+            let own = rest.compactMap { similarity(print.vector, $0.vector) }.max()
+            if let own, own < unlikeThreshold {
+                let agreeing = rest.filter { a in rest.contains { b in b.id != a.id && (similarity(a.vector, b.vector) ?? -1) >= agreeThreshold } }
+                if agreeing.count >= 2 { flags.insert(.unlikeOthers) }
+                if valid.count == 2 { flags.insert(.pairUnlike) }
+            }
         }
-        if print.audioSource != "enroll", let current, Voiceprint.similarity(print.vector, current) < unlikeThreshold {
+        if print.audioSource != "enroll", let current, let score = similarity(print.vector, current), score < unlikeThreshold {
             flags.insert(.staleSpeaker)
         }
         return flags
+    }
+
+    /// 有效的聲紋向量：非空、數值有限、長度不是 0
+    static func isValid(_ v: [Float]) -> Bool {
+        guard !v.isEmpty, v.allSatisfy(\.isFinite) else { return false }
+        return v.contains { $0 != 0 }
+    }
+
+    /// 兩個有效、維度相同的向量的 cosine；不能比時是 nil（不當成「不像」）
+    static func similarity(_ a: [Float], _ b: [Float]) -> Double? {
+        guard a.count == b.count, isValid(a), isValid(b) else { return nil }
+        return Voiceprint.similarity(a, b)
     }
 
     /// 說明的文字（介面語言）

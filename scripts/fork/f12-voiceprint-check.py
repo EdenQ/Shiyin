@@ -509,7 +509,7 @@ def main():
     # 「會議已刪」要一整場只給這一項用：挑最後一場，其他項目從別場挑
     purge_meeting = max(by_meeting)
     free = [(m, i) for m, i in slots if m != purge_meeting]
-    if not check('其他要確認的樣本：有足夠的說話者可以用', len(free) >= 9, f'{len(free)} 位'):
+    if not check('其他要確認的樣本：有足夠的說話者可以用', len(free) >= 10, f'{len(free)} 位'):
         return
 
     def learn(slot, name, vec):
@@ -541,6 +541,17 @@ def main():
     _, rows = flags_of('Quinn', quinn[0])
     check('B：只有 2 份、互相不像，兩份都標 pairUnlike', len(rows) == 2 and all(r['flags'] == ['pairUnlike'] for r in rows), json.dumps(rows, ensure_ascii=False)[:400])
 
+    # 無效的向量不比（REV-F12b P3-1）：全 0 的聲紋不算一份、不標；Quinn 有效的 2 份照樣互相不像
+    zero = free[8]
+    learn(zero, 'Quinn', [0.0] * DIM)
+    zid = q('SELECT id FROM voiceprints WHERE meeting_id = ? AND speaker_idx = ?', zero)
+    _, rows = flags_of('Quinn', quinn[0])
+    zrow = next((r for r in rows if zid and r['id'] == zid[0][0]), None)
+    valid = [r for r in rows if not zid or r['id'] != zid[0][0]]
+    check('無效向量：全 0 的聲紋不標（不當成不像、也不比來源說話者）', zrow is not None and zrow['flags'] == [], json.dumps(zrow, ensure_ascii=False)[:300])
+    check('無效向量：B 只數有效的聲紋，Quinn 有效的 2 份照樣標 pairUnlike',
+          len(valid) == 2 and all(r['flags'] == ['pairUnlike'] for r in valid), json.dumps(valid, ensure_ascii=False)[:300])
+
     rae = free[6]
     learn(rae, 'Rae', unit(29))
     f, rows = flags_of('Rae', rae)
@@ -555,6 +566,12 @@ def main():
     write_sql('DELETE FROM speakers WHERE meeting_id = ? AND idx = ?', tor)
     f, rows = flags_of('Tor', tor)
     check('C：來源說話者不在了就不比', f == [], json.dumps(rows, ensure_ascii=False)[:300])
+
+    uma = free[9]
+    learn(uma, 'Uma', unit(35))
+    write_sql("UPDATE speakers SET embedding = x'' WHERE meeting_id = ? AND idx = ?", uma)
+    f, rows = flags_of('Uma', uma)
+    check('無效向量：來源說話者的聲紋是空的 BLOB 時不比 C', f == [], json.dumps(rows, ensure_ascii=False)[:300])
 
     sky = (purge_meeting, by_meeting[purge_meeting][0])
     learn(sky, 'Sky', unit(31))
