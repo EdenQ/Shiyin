@@ -419,7 +419,69 @@ class Phrases(unittest.TestCase):
         self.edit("ThirdPartyLicenses.txt", "verbatim.\n", "verbatim.\nSponsor us at https://example.invalid/sponsor\n")
         code, out = run("apply", self.app)
         self.assertEqual(code, 1, out)
-        self.assertIn("ThirdPartyLicenses.txt：授權內容前面有不認得的文字「Sponsor us at", out)
+        self.assertIn("ThirdPartyLicenses.txt：授權開場白「Sponsor us at", out)
+
+    def edit_all_licenses(self, old, new):
+        """授權檔和三份 Credits（HTML 跳脫過的）同一處一起改，跟上游 build-app.sh 從同一份授權檔產生一樣"""
+        self.edit("ThirdPartyLicenses.txt", old, new)
+        for lang in ("en", "zh-Hant", "zh-Hans"):
+            self.edit(f"{lang}.lproj/Credits.html", html.escape(old), html.escape(new))
+
+    def test_intro_same_line_additions_fail(self):
+        """REV2-F13 P2-5：上游在開場白同一行接上作者、贊助或兩者，白名單是 brand.json 的完整句子，不會跟著變"""
+        opener = "Their license terms follow, verbatim."
+        for i, (name, extra) in enumerate((("author", " Created by juinwei7."),
+                            ("sponsor", " Support development at https://github.com/sponsors/juinwei7."),
+                            ("both", " Created by juinwei7. Support development at https://github.com/sponsors/juinwei7."))):
+            with self.subTest(name):
+                if i:
+                    self.tearDown()
+                    self.setUp()
+                self.edit_all_licenses(opener, opener + extra)
+                code, out = run("apply", self.app)
+                self.assertEqual(code, 1, out)
+                self.assertIn("授權開場白「Meeting Assistant uses the following open-source software.", out)
+                self.assertIn("licenseIntro.lines", out)
+                for rel in ("ThirdPartyLicenses.txt", "en.lproj/Credits.html", "zh-Hant.lproj/Credits.html", "zh-Hans.lproj/Credits.html"):
+                    self.assertIn(f"{rel}：授權開場白", out)
+
+    def test_fake_list_items_fail(self):
+        """REV2-F13 P2-5：套件清單裡的假項目（不是「- 名稱 (授權) 網址」，或網址是贊助網站）要失敗"""
+        first = "- whisper.cpp b5454 (MIT) https://github.com/ggml-org/whisper.cpp\n"
+        for i, (name, fake) in enumerate((("text", "- Support development at https://github.com/sponsors/juinwei7"),
+                                          ("formatted-sponsor", "- Sponsor this project (MIT) https://github.com/sponsors/juinwei7"),
+                                          ("continuation", "  Created by juinwei7, thanks to our supporters"))):
+            with self.subTest(name):
+                if i:
+                    self.tearDown()
+                    self.setUp()
+                self.edit_all_licenses(first, first + fake + "\n")   # 放在清單中間（第一個項目後面）
+                code, out = run("apply", self.app)
+                self.assertEqual(code, 1, out)
+                self.assertIn(f"ThirdPartyLicenses.txt：套件清單有不認得的行「{fake.strip()[:20]}", out)
+                self.assertIn("en.lproj/Credits.html：套件清單有不認得的行", out)
+
+    def test_new_package_passes_and_is_idempotent(self):
+        """REV2-F13 P2-5 的正對照：上游合法新增一個套件（清單一項＋一節條款）照常通過，重跑不變"""
+        item = "- ReviewExample 1.0 (MIT) https://example.com/review-example"
+        block = "=" * 80 + "\nReviewExample 1.0: LICENSE\n" + "=" * 80 + "\n\nMIT License\n\nCopyright (c) 2026 Example\n\n\n"
+        self.edit_all_licenses("- whisper.cpp", item + "\n- whisper.cpp")
+        p = self.res / "ThirdPartyLicenses.txt"
+        text = p.read_text(encoding="utf-8")
+        cut = text.rindex("=" * 80 + "\n", 0, text.index("whisper.cpp b5454: LICENSE"))
+        p.write_text(text[:cut] + block + text[cut:], encoding="utf-8")
+        for lang in ("en", "zh-Hant", "zh-Hans"):
+            c = self.res / f"{lang}.lproj/Credits.html"
+            ct = c.read_text(encoding="utf-8")
+            cc = ct.rindex("=" * 80 + "\n", 0, ct.index("whisper.cpp b5454: LICENSE"))
+            c.write_text(ct[:cc] + html.escape(block) + ct[cc:], encoding="utf-8")
+        code, out = run("apply", self.app)
+        self.assertEqual(code, 0, out)
+        self.assertIn(item, (self.res / "ThirdPartyLicenses.txt").read_text(encoding="utf-8"))
+        before = {q: q.read_bytes() for q in self.res.rglob("*") if q.is_file()}
+        code, out = run("apply", self.app)
+        self.assertEqual(code, 0, out)
+        self.assertEqual(before, {q: q.read_bytes() for q in self.res.rglob("*") if q.is_file()}, "重跑 apply 改了檔案")
 
     def test_bad_source_license_fails(self):
         """REV-F13 P2-2：repo 的 LICENSE 空檔、只有空白、被截斷時，apply 要失敗（用一份匯出的 brand.py，不改 repo）"""

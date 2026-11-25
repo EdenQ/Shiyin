@@ -167,24 +167,39 @@ CREDITS_SHAPE = re.compile(r'<!doctype html><html lang="[A-Za-z-]+"><meta charse
 
 
 def known_intro_lines():
-    """已知的授權開場白：repo 的 ThirdPartyLicenses.txt 開頭（第一個「- 」項目之前）裡有開場白整句
-    （phrases 裡 required 有 ThirdPartyLicenses.txt 的 from）的行，換過品牌後的樣子（各語言）。
-    開頭多出別的行（例如贊助）不算已知"""
-    openers = [p["from"] for p in CONFIG["phrases"] if "ThirdPartyLicenses.txt" in p.get("required", [])]
-    source = (ROOT / "Resources/ThirdPartyLicenses.txt").read_text(encoding="utf-8")
-    m = re.search(r"(?m)^- ", source)
-    lines = [l.strip() for l in (source[:m.start()] if m else source).splitlines() if any(o in l for o in openers)]
-    return {brand(l, lang) for l in lines for lang in list(CONFIG["names"]) + ["all"]}
+    """已知的授權開場白：brand.json 的 licenseIntro.lines（人工核對過的上游完整句子）換過品牌後的樣子（各語言）。
+    不從待檢查的授權檔推導（REV2-F13 P2-5）：上游在開場白同一行接上作者、贊助，跟白名單對不上就失敗"""
+    return {brand(line, lang) for line in CONFIG["licenseIntro"]["lines"] for lang in list(CONFIG["names"]) + ["all"]}
+
+
+# 套件清單的一項：「- 名稱 (授權) 網址」，授權是 SPDX 式的代號（REV2-F13 P2-5）
+LIST_ITEM = re.compile(r"- \S.*? \([A-Za-z0-9.+-]+(?: (?:OR|AND|WITH) [A-Za-z0-9.+-]+)*\) https?://\S+")
 
 
 def intro_problems(rel, plain):
-    """授權內容前面（第一個「- 」項目之前）的非空行只能是已知的開場白（known_intro_lines）"""
+    """開場白（第一個「- 」之前）只能是 known_intro_lines；套件清單（第一個「- 」到第一條分隔線）每一行要是
+    LIST_ITEM 或 licenseList.continuations，網址不能是贊助網站。後面的授權條款不解析"""
     known = known_intro_lines()
     m = re.search(r"(?m)^- ", plain)
     head = plain[:m.start()] if m else plain
-    return [f"{rel}：授權內容前面有不認得的文字「{line.strip()[:60]}」（F13.1：只能是授權開場白；"
-            f"上游加了贊助或作者介紹時要人工看過，改 fork/brand.json）"
-            for line in head.splitlines() if line.strip() and line.strip() not in known]
+    problems = [f"{rel}：授權開場白「{line.strip()[:60]}」不是已知的句子（F13.1：上游改了開場白、或接上作者、贊助；"
+                f"人工看過、確定沒有贊助後才改 fork/brand.json 的 licenseIntro.lines）"
+                for line in head.splitlines() if line.strip() and line.strip() not in known]
+    if not m:
+        return problems + [f"{rel}：找不到套件清單（「- 」開頭的行）"]
+    rest = plain[m.start():]
+    sep = rest.find(LICENSE_SEPARATOR)
+    if sep < 0:
+        return problems + [f"{rel}：找不到授權條款的分隔線"]
+    conf = CONFIG["licenseList"]
+    for line in rest[:sep].splitlines():
+        if not line.strip() or line in conf["continuations"]:
+            continue
+        bad_url = next((u for u in conf["forbiddenUrls"] if re.search(u, line)), None)
+        if not LIST_ITEM.fullmatch(line) or bad_url:
+            problems.append(f"{rel}：套件清單有不認得的行「{line.strip()[:70]}」（F13.1：要是「- 名稱 (授權) 網址」、不能是贊助網址；"
+                            f"上游加了別種接續行時，人工看過再加進 fork/brand.json 的 licenseList.continuations）")
+    return problems
 
 
 def license_problems(rel, text, is_html):
