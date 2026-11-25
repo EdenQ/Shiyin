@@ -20,7 +20,7 @@
 
 - 原始碼、翻譯表、`Info.plist`、安裝說明照上游寫「拾音」「Shiyin」，**不要在原始碼寫「會議助手」**：建置時 `scripts/fork/brand.py apply` 把建好的 app 換成會議助手（`build-app.sh`、`--debug`、`make-dmg.sh` 都會跑）。名稱、整句特例、不換的片段在 `fork/brand.json`。
 - 不經過翻譯表的寫法（`ui(zh:`、`verbatim:`、字串串接）不能有品牌字；`python3 scripts/fork/brand.py check-sources` 會擋，真的不換的（MCP 給 AI 的訊息、資料夾名稱）列在 `fork/brand-allow.txt`。改過 `brand.py` 跑 `python3 scripts/fork/brand-test.py`。
-- 不換：`.shiyin`、`shiyin://`、`Application Support/Shiyin`、鑰匙圈的「拾音 API key」、bundle id `com.weiwei.shiyin`、User-Agent、DMG 和 `shiyin-update.json` 的檔名、原作者署名。
+- 不換：`.shiyin`、`shiyin://`、`Application Support/Shiyin`、鑰匙圈的「拾音 API key」、bundle id `com.weiwei.shiyin`、User-Agent、DMG 和 `shiyin-update.json` 的檔名、上游的 MIT 聲明（`brand.py` 插進 app 和 DMG 的授權檔，fork design §F13.2）。「關於 MA」不放原作者的署名和贊助（F13.1）。
 
 ### 改到上游的檔（fork design §F0）
 
@@ -30,7 +30,7 @@
 ### 版本號、發布（DF6）
 
 - build 號從 31 起單調遞增。合併上游 X.Y.Z 的那一版是 X.Y.(Z+1)（比目前小時取 fork 的 patch + 1），fork 自己的發布只加 patch。
-- Release 說明照下面「發布新版的說明文字」，標題寫「會議助手 X.Y.Z」，第一行後面加「- 基於上游 拾音 X.Y.Z」（英文「- Based on upstream Shiyin X.Y.Z」）。合併上游的流程見 `docs/fork/upstream-sync.md`（避免 cherry-pick）。
+- Release 說明照下面「發布新版的說明文字」，標題寫「會議助手 X.Y.Z」，第一行後面加「- 基於上游 拾音 X.Y.Z」（英文「- Based on upstream Shiyin X.Y.Z」）；這行只留在 GitHub Release，`make-dmg.sh` 產生 `shiyin-update.json` 時拿掉（app 內更新說明看不到，F13.3）。合併上游的流程見 `docs/fork/upstream-sync.md`（避免 cherry-pick）。
 
 ## 上游拾音的說明（開發與驗證）
 
@@ -86,7 +86,7 @@ scripts/export-signing-cert.sh --to-github <owner/repo>   # 把自簽憑證設�
 # CI：.github/workflows/release.yml，推 v* tag 就建置並發布 Release；手動執行只產出 artifact
 node site/build.mjs              # 產生官網到 site/dist（讀 GitHub Releases，不用裝套件）；node site/serve.mjs 本機預覽 http://localhost:4321/
 site/make-images.sh              # docs/images 的截圖或圖示換過後跑：產生官網用的 AVIF、favicon、分享預覽圖，連同 site/public 一起 commit
-# 官網 CI：.github/workflows/site.yml，推到 main 改到 site/ 或 docs/images/、發布新版之後，部署到 Cloudflare Pages
+# 官網 CI：.github/workflows/site.yml，推到 main 改到 site/ 或 docs/images/、發布新版之後，部署到 Cloudflare Pages（fork 停用：job 的 if 只在上游 repo 成立，F13.4）
 swiftc scripts/dev/shiyinctl.swift -o ~/Library/Caches/ShiyinBuild/shiyinctl
 ~/Library/Caches/ShiyinBuild/shiyinctl state /tmp/s.json      # 讀狀態；其他指令見 Sources/Shiyin/Debug/DebugControl.swift
 open -g "build/Meeting Assistant.app"
@@ -140,7 +140,7 @@ sqlite3 ~/Library/Application\ Support/Shiyin/shiyin.sqlite # 看資料
 
 ## 發布新版的說明文字
 
-官網的版本說明直接讀 GitHub Release（`docs/website.md` §7），格式不對時官網建置失敗、不會更新。tag 的說明文字（`git tag -a vX.Y.Z -F 說明.txt`，會變成 Release 的內容）一律寫成：
+官網的版本說明直接讀 GitHub Release（`docs/website.md` §7），格式不對時官網建置失敗、不會更新。fork 沒有官網（官網 workflow 停用，F13.4），不用拿 fork 的說明試建置。tag 的說明文字（`git tag -a vX.Y.Z -F 說明.txt`，會變成 Release 的內容）一律寫成：
 
 ```
 拾音 3.3.0：日文會議、自動偵測會議語言
