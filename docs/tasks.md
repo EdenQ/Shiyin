@@ -7,6 +7,19 @@
 > - 新任務照 SDD：先寫進 `requirements.md`、改 `design.md`，再加到這裡
 > - 需求見 `requirements.md`，設計見 `design.md`（以下簡稱 §）
 
+## 定時停止錄音（R110，design §84、design-windows §11.43、D191；2026-11-23 使用者轉來的許願，使用者：「可以」）
+
+- [~] **TS3 Mac 時間到先倒數 30 秒**（R110.3、§84、D192）：程式完成，DEBUG 版驗過（2026-11-23，見 commit 訊息）。還差（要使用者）：錄音島關掉、有通知權限時的通知和它的「停止並轉錄」「繼續錄」（測試版沒有通知權限，走的是小視窗）；錄音畫面、選單列小視窗裡的「繼續錄」「停止並轉錄」用真的滑鼠按（背景的測試版收不到第一下點擊，同一個函式用島的按鈕驗過）
+- [~] **TS1 Mac**（§84）：程式完成，DEBUG 版驗過（2026-11-23，見 commit 訊息）。還差（要使用者）：真的選單列圖示點開小視窗、在裡面打開「定時停止」選單（這次用 `preview menubar` 看的）；「指定時間…」打一個錯的時間（例如 25:00）看說明行和「設定」不能按（背景的測試版打不了字，規則用小程式驗過）
+
+## 會議中的畫面（R109，design §83、design-windows §11.42、D186～D190、D173；2026-11-19 Threads 上的使用者建議，使用者選了截整個螢幕、也送圖片、匯出也放）
+
+- [~] **SC1 Mac 資料、截圖、貼上、回看、搜尋**（§83.1～§83.4）：程式完成，DEBUG 版驗過（2026-11-19，見 commit 訊息）。還差（要使用者在電腦前，或借前景）：第一次按 ⌃⌥⌘S 跳出「錄製螢幕」的詢問、拒絕時錄音島和錄音畫面的提示、「打開系統設定」；真的 Zoom／Teams／Meet 分享畫面時截到的是對方的畫面、沒有拾音的視窗，兩個螢幕時截游標那個；剛允許權限時沒重開拾音的提示；點一下畫面那一列選到後按 Return、Delete、⌘C（背景的測試版第一下點擊收不到）；在「我的筆記」裡按 ⌘V 貼上 ⌃⌘⇧4 截的圖；從 Finder 拖圖片到錄音畫面；設定「錄音」頁下方的 ⌃⌥⌘S 開關（要捲動，沒截到）
+- [~] **SC2 Mac 整理、提問送畫面**（§83.5）：程式完成，標準答案和假伺服器、真的 Claude Code 驗過（2026-11-19，見 commit 訊息）。還差：codex 的 `--image` 參數名稱和整理一場（這台沒有裝 codex）；Gemini Interactions 的圖片格式用真的 Gemini key 試一次；OpenAI 相容 API 接一個真的不能看圖的本機模型（Ollama）打開開關，自動退回只送文字
+- [~] **SC3 Mac 匯出、封包、編輯會議、MCP**（§83.6、§83.7）：程式完成，DEBUG 版驗過（2026-11-19，見 commit 訊息）。還差（要使用者）：有畫面的 Word 檔用真的 Microsoft Word 打開（這次用 Quick Look 的縮圖和 xmllint 驗的）；md 用 Typora、Obsidian 之類的編輯器打開看圖片
+- [ ] **SC4 Windows**（design-windows §11.42；migration v16、`MeetingDocument.At`、`Documents` 不含畫面在 SC1 一起做了，標準答案的 `db/` 通過）：驗證：`dotnet test` 標準答案全部通過（提示詞、請求、匯出、編輯、MCP）；虛擬機用控制通道和 UI Automation 走錄音中截圖（`debugFakeScreenshot` 和真的 `Windows.Graphics.Capture` 各一次）、Ctrl+Alt+Shift+S、貼上、回看、刪除、改時間，匯出的 docx、PDF 打開看。要真的 Windows 電腦：真的 Teams／Zoom 分享畫面時截圖、兩個螢幕、150% 縮放
+- [ ] **SC5 使用說明、官網**：Mac、Windows 的使用說明加「會議中的畫面」和快捷鍵 ⌘⇧S、⌃⌥⌘S（Windows Ctrl+Shift+S、Ctrl+Alt+Shift+S）；官網功能列表加一條（website.md 先寫）。驗證：`l10n.py check`、`windows-check` 沒有缺的英文；官網 `node site/build.mjs` 建得起來
+
 ## 使用者回報：多選、刪除一句、分割會議（R88～R90，design §62～§64、design-windows §11.23、D170、D171；2026-11-16，GitHub #9、#10）
 
 - [~] **MS1、DS1、SP1 Mac 多選、清空垃圾桶、刪除一句、分割會議**（§62～§64）：程式完成，DEBUG 指令和真的視窗驗過（2026-11-16，見 commit 訊息）。還差（AX 要把視窗拉到使用者畫面上）：真的滑鼠 ⌘ 點選、Shift 點選；會議列表的右鍵選單（多選時是全部、資料夾列的右鍵照舊）；逐字稿右鍵的「刪除這句」「從這裡分成兩場…」（第一句沒有）「復原：刪除一句…」，沒辨識說話者的會議也有前兩項
@@ -43,9 +56,9 @@
 
 - [~] **ST2 Windows**（R108.7，design-windows §11.41）：程式完成，單元測試通過，虛擬機用 UI Automation 和真的滑鼠點過導覽換頁、搜尋「麥克風」「API key」「快捷鍵」、關掉重開和重開 app 停在上次那頁、拉大和縮到最小，十一頁淺色、深色、英文截圖看過；150%、對比主題（水生十一頁、沙漠）、只用鍵盤（Tab、↑ ↓ 換頁、Enter 選第一項）、導覽的 UI Automation 名稱 2026-11-17 巡檢過（見 commit 訊息）。還差：真的開朗讀程式聽導覽和搜尋框（UI Automation 的名稱都對）
 
-## Mac 上的通話佔住麥克風（R57.7；GitHub #11，2026-11-17 已回覆會做）
+## Mac 上的通話佔住麥克風（R57.7，design §45.5；GitHub #11，2026-11-17 已回覆會做）
 
-- [ ] **MC1 Mac 通話佔住麥克風時說清楚原因**（R57.7，design §45 要先寫）：麥克風沒有收到聲音或幾乎收不到聲音時，讀 Core Audio 的程序物件，正在收音的是系統的通話服務（avconferenced 這類，先用使用者 #11 的 log 和自己的 FaceTime／接續互通通話確認程序名稱）就換成通話的提示。驗證：真的在 Mac 上接一通 iPhone 轉接的電話或 FaceTime 錄音，10 秒內出現新的提示、通知；一般錄音、Safari Meet（#4）的提示不變；做好在 #11 回覆
+- [~] **MC1 Mac 通話佔住麥克風時說清楚原因**（R57.7、§45.5）：程式完成，DEBUG 版用 `meetingapp com.apple.avconferenced` 模擬通話驗過（2026-11-24，見 commit 訊息）。還差（要使用者）：真的在 Mac 上接一通 iPhone 轉接的電話或 FaceTime，用內建麥克風錄音，10 秒內出現通話的提示、通知（看 Core Audio 回報的真的是 `com.apple.avconferenced` 在收音）；發布後在 #11 回覆
 
 ## 沒人講話時編出整句（design §6.2；2026-11-16 驗 GitHub #9 時發現）
 
@@ -142,7 +155,7 @@
 
 - [ ] **整理時 app 本身的處理時間**（N2）
   - 驗證：DEBUG 版用 `scripts/dev/fake-llm-server.py`（立刻回應）整理一場 1 小時的會議，從工作開始到存好會議紀錄、扣掉假伺服器回應的時間，不超過 10 秒
-- [~] **M1 的轉錄速度**（N2）：M1 沒有實測過，改看匿名統計（R40；查詢要使用者在統計後台跑）
+- [ ] **M1 的轉錄速度**（N2）：M1 沒有實測過，改看匿名統計（R40）。2026-11-19 查：中位數 2.8 倍速，沒過；降低 beam 評估後不採用（design §17.7），下一步待使用者決定
   - 驗證：晶片是 M1（不含 Pro、Max）、那天只用 Breeze 轉錄的 Mac，`transcribed_seconds ÷ transcribe_wall_seconds` 至少 5 倍速
 
 ## 等使用者在真的 Mac 上操作
@@ -164,6 +177,8 @@
 ## 官網
 
 - [~] **首屏示範**（docs/website.md W10、§10）：還差：使用者用真的 iPhone 看手機版（自動播放、整段播完、沒有左右捲動）
+- [~] **Google 還沒收官網**（docs/website.md §14.4、§14.5；2026-11-18 查到編入索引 0／23、整個網域外部連結 0）：2026-11-18 已經在 Search Console 對 7 個網址「要求建立索引」（三種語言的首頁、Windows 頁、指南列表、比較、Google Meet 逐字稿）。還差要使用者同意才能做的：§14.4 的站外收錄（AlternativeTo、OpenAlternative、Product Hunt、Show HN、台灣媒體和社群）；Bing Webmaster Tools 匯入；一週後看這 7 個有沒有收，沒收的指南再送
+  - 驗證：Search Console「網頁」的已建立索引大於 0、「連結」的外部連結大於 0；之後照 §14.5 每週看曝光
 
 ## Windows 版（R26～R28，design-windows.md；2026-10-20 使用者決定方向）
 

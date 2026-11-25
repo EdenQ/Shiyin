@@ -307,7 +307,10 @@ enum DebugControl {
             switch current {
             case .start(let app): text = "start:\(app.bundleID)"
             case .stop(let app): text = "stop:\(app.bundleID)"
-            case nil: text = ""
+            case nil:
+                // 會議的提醒以外，開著的是定時停止的倒數（R110.3）
+                let stopTimer = RecordingIsland.isEnabled ? RecordingIsland.shared.state.prompt != nil : MeetingPromptPanel.shared.showsStopTimer
+                text = stopTimer ? "stoptimer" : ""
             }
             let actions = RecordingIsland.isEnabled ? (RecordingIsland.shared.state.prompt?.actions.map(\.id) ?? []).sorted()
                 : MeetingPromptPanel.shared.actions.keys.sorted()
@@ -745,6 +748,8 @@ enum DebugControl {
             model.recorder.simulateFlapping(times: Int(args[1]) ?? 0, seconds: args.count > 2 ? Double(args[2]) ?? 0 : 0)
         case "recordlang":   // recordlang <語言代碼>：錄音中換會議語言（等於按「改回」；zh、en、ja、yue、ko…）
             if let language = MeetingLanguage(rawValue: args[1]) { model.recorder.switchLanguage(to: language) }
+        case "stoptimer":   // stoptimer <秒數|off>：從現在起幾秒後定時停止（design §84）
+            model.setStopTimer(args.count > 1 && args[1] != "off" ? Date().addingTimeInterval(Double(args[1]) ?? 0) : nil)
         case "record-sim":
             // record-sim <音檔> <倍速> <both: 1/0/2>：2 是雙聲道、電腦聲音那一聲道全是 0（design §51.1）
             let channels = args.count > 3 ? args[3] : "0"
@@ -808,6 +813,22 @@ enum DebugControl {
         // docread <檔案> <zh|en|ja> <輸出.json>（只讀出文字，不寫資料庫）；docbanner <會議 id> dismiss|resummarize（文件有變動的提示條）
         case "adddoc": if let id { model.addDocuments(args.dropFirst(2).map { URL(fileURLWithPath: $0) }, to: id) }
         case "drop": model.requestImport(args.dropFirst().map { URL(fileURLWithPath: $0) })
+        // 會議中的畫面（design §83.8）：screenadd <圖檔> [秒數]：同貼上（錄音中用當下時間；給秒數時加到選取的會議的那個時間）
+        case "screenadd":
+            guard args.count > 1, let image = ScreenImages.load(URL(fileURLWithPath: args[1])) else { break }
+            if args.count > 2, let seconds = Double(args[2]), let id = model.selection { model.addScreens([image], at: seconds, to: id) }
+            else { model.addScreensHere([image]) }
+        case "screenshot": GlobalHotKey.shared.fireScreenshot()   // 同按 ⌃⌥⌘S
+        case "screenmove": if args.count > 2, let screen = Int64(args[1]), let seconds = Double(args[2]) { model.moveScreen(screen, to: seconds) }
+        case "screendelete": if args.count > 1, let screen = Int64(args[1]) { model.deleteScreen(screen) }
+        case "screenpreview":   // screenpreview <id>：放大（Quick Look）；screenpreview off 關掉
+            if args.count > 1, args[1] == "off" { model.screenPreview = nil }
+            else if args.count > 1, let screen = Int64(args[1]), let document = model.detail?.screens.first(where: { $0.id == screen }) {
+                model.previewScreen(document)
+            }
+        case "screenmenu":   // screenmenu <id> <項目>：選單的某一項（改時間…、刪除…會開彈窗）
+            if args.count > 2, let screen = Int64(args[1]), let document = model.detail?.screens.first(where: { $0.id == screen }),
+               let entry = model.screenMenu(document).first(where: { $0.title == args[2] }), case .action(let action) = entry.kind { action() }
         case "removedoc":
             if let docId = Int64(args[1]), let document = try? model.db.document(docId) { model.removeDocument(document) }
         case "docread":
@@ -1025,7 +1046,7 @@ enum DebugControl {
         case "setkey": try? Keychain.set(args[1], args[2])          // setkey anthropic|openai <key>
         case "delkey": Keychain.delete(args[1])
         case "settings": model.openWindowById?(SettingsPage.windowID)
-        case "preview":   // preview <settings|onboarding [步驟]|import|rename> [front] [height=<點>]（import：匯入對話框；rename：說話者的改名小視窗，design §26.2、§24.2）
+        case "preview":   // preview <settings|onboarding [步驟]|import|rename|stoptimer|menubar> [front] [height=<點>]（import：匯入對話框；rename：說話者的改名小視窗，design §26.2、§24.2）
             // 設定視窗要 app 在前景才打得開；這裡把畫面放進桌面層的無邊框視窗（被所有視窗蓋住；
             // 螢幕外的視窗截不到），不搶前景，再用 screencapture -l 截（closewindow <settings|onboarding>-preview 關掉）。
             // preview detail：目前選取的會議頁（量長會議的效能用，design §21.12：不在畫面上的視窗 SwiftUI 不更新）
@@ -1053,7 +1074,7 @@ enum DebugControl {
             window.title = window.identifier!.rawValue
             window.isReleasedWhenClosed = false
             // editinfo、replace：會議頁裡自己打開的彈窗（編輯會議資訊、用詞修正，design §80），用目前選取的會議
-            if args.count > 1, ["import", "rename", "editinfo", "replace", "rediarize", "noteseditor"].contains(args[1]) {
+            if args.count > 1, ["import", "rename", "editinfo", "replace", "rediarize", "noteseditor", "stoptimer", "menubar"].contains(args[1]) {
                 window.identifier = NSUserInterfaceItemIdentifier("\(args[1])-preview")
                 window.title = window.identifier!.rawValue
                 let view: AnyView = switch args[1] {
@@ -1061,6 +1082,8 @@ enum DebugControl {
                 case "editinfo":
                     if let meeting = model.detail?.meeting { AnyView(EditInfoForm(meeting: meeting) {}.environment(model)) } else { AnyView(EmptyView()) }
                 case "replace": AnyView(ReplaceSheet(initialFind: "Lumeo").environment(model))
+                case "stoptimer": AnyView(StopTimerSheet().environment(model))   // 定時停止的「指定時間…」（design §84）
+                case "menubar": AnyView(MenuBarContent().environment(model).tint(.celadon))   // 選單列的小視窗（snapshot 畫不出裡面的 Menu）
                 case "noteseditor":   // 編輯會議紀錄（紀錄分頁的「編輯」，R6.6）
                     if let notes = model.detail?.notes {
                         AnyView(NotesEditor(notes: .constant(notes)) { _ in }.frame(width: 900, height: 560).environment(model))
@@ -1133,6 +1156,17 @@ enum DebugControl {
             },
             "readingDocuments": Dictionary(uniqueKeysWithValues: model.readingDocuments.map { (String($0.key), $0.value) }),
             "documentsChanged": model.documentsChanged.sorted(),
+            // 會議中的畫面（design §83.8）：選取中的會議
+            "screens": (model.detail?.screens ?? []).map { s -> [String: Any] in
+                ["id": s.id ?? 0, "at": s.at ?? 0, "file": s.file, "reading": model.readingScreens.contains(s.id ?? 0),
+                 "chars": s.screenText.count, "text": String(s.screenText.prefix(80)),
+                 "exists": FileManager.default.fileExists(atPath: s.fileURL.path)]
+            },
+            "screensChanged": model.screensChanged.sorted(),
+            "screenshotProblem": model.screenshotProblem.map { "\($0)" } ?? "",
+            "screenPreview": model.screenPreview?.lastPathComponent ?? "",
+            "movingScreen": model.movingScreen ?? 0,
+            "screenshotHotKey": GlobalHotKey.shared.isScreenshotRegistered,
             // 選中的會議：說話者的名字、來源、建議、最像的幾位認識的人（R33，「自動」名字的選單）
             "speakers": (model.detail?.speakers ?? [:]).keys.sorted().map { idx -> [String: Any] in
                 ["idx": idx, "name": model.detail?.speakers[idx] ?? "", "source": model.detail?.speakerSources[idx] ?? "",
@@ -1206,6 +1240,7 @@ enum DebugControl {
                          "permissionRestarts": model.recorder.permissionRestarts,   // 允許了權限而重新接上電腦聲音（design §51.1）
                          "systemSilent": model.recorder.systemSilent,
                          "idle": model.recorder.idleInfo,   // 忘了停止錄音（design §35）
+                         "stopTimer": model.recorder.stopTimerInfo,   // 定時停止（design §84）
                          "failure": model.recorder.failureMessage ?? "", "language": model.recorder.language.rawValue,
                          "languageSwitch": model.recorder.languageSwitch.map { "\($0.from.rawValue)→\($0.to.rawValue)" } ?? "",
                          "deviceWarning": model.recorder.deviceWarning ?? "",
@@ -1246,8 +1281,9 @@ enum DebugControl {
                                             "minSizeW": $0.minSize.width, "minSizeH": $0.minSize.height,
                                             "width": $0.frame.width, "height": $0.frame.height,
                                             "number": $0.windowNumber, "sharing": $0.sharingType.rawValue,
-                                            "resizable": $0.styleMask.contains(.resizable), "maxW": $0.maxSize.width, "maxH": $0.maxSize.height,
-                                            "contentMaxW": $0.contentMaxSize.width, "contentMaxH": $0.contentMaxSize.height] },
+                                            // 最大尺寸可能是無限大（錄音島），JSON 寫不進去會當掉：寫 -1
+                                            "resizable": $0.styleMask.contains(.resizable), "maxW": finite($0.maxSize.width), "maxH": finite($0.maxSize.height),
+                                            "contentMaxW": finite($0.contentMaxSize.width), "contentMaxH": finite($0.contentMaxSize.height)] },
         ]
         if let status = model.detailStatus { out["detailStatus"] = status.label }
         if let detail = model.detail {
@@ -1377,8 +1413,12 @@ enum DebugControl {
         }
     }
 
+    /// 無限大、NaN 寫成 -1（JSONSerialization 遇到會丟 Objective-C 例外，整個 app 當掉）
+    private static func finite(_ x: CGFloat) -> CGFloat { x.isFinite ? x : -1 }
+
     private static func write(_ object: [String: Any], to path: String) {
-        guard let data = try? JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys]) else { return }
+        guard JSONSerialization.isValidJSONObject(object),
+              let data = try? JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys]) else { return }
         try? data.write(to: URL(fileURLWithPath: path))
     }
 

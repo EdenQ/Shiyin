@@ -324,13 +324,13 @@ CREATE VIRTUAL TABLE search USING fts5(meeting_id UNINDEXED, kind UNINDEXED, ref
 ## 12. 發布（R10）
 
 - `scripts/make-signing-cert.sh`：建立一張自簽的程式簽章憑證「Shiyin Self-Signed」，只要做一次。放在獨立的鑰匙圈 `~/Library/Application Support/ShiyinSigning/shiyin-signing.keychain-db`（密碼在同一個資料夾），有效到 2036-10-12。codesign 只肯用受信任的憑證，本機要用的話加 `--trust`（要輸入登入密碼）；沒有信任時 `build-app.sh` 用 ad-hoc。用這張憑證簽章時 designated requirement 是 `identifier "com.weiwei.shiyin" and certificate leaf = H"75f7e2a8…"`，固定不變，TCC 權限在更新後才會保留（R10.7）。
-  - 使用者的 Mac 不信任這張憑證：Gatekeeper 照樣擋（第一次要按「仍要打開」），但簽章檢查（`codesign --verify`、app 內更新的 `SecStaticCodeCheckValidity`）不看信任，會通過。
+  - 使用者的 Mac 不信任這張憑證：Gatekeeper 照樣擋（第一次要按「強制打開」），但簽章檢查（`codesign --verify`、app 內更新的 `SecStaticCodeCheckValidity`）不看信任，會通過。
   - 從 ad-hoc 換成這張憑證（2026-10-19 起 CI 用它簽）：ad-hoc 版的 designated requirement 只看 identifier，所以舊版可以用 app 內更新升到憑證版；升級之後就鎖定這張憑證，之後每一版都要用它簽，ad-hoc 或別的憑證簽的會被擋下。
   - 憑證到期：已經裝好的 app 照常打開、權限不受影響（使用者的 Mac 本來就不信任它），但到期後不能再用它簽新版，換新憑證會被舊版的 app 內更新擋下。到期前（2034 年左右）先出一版過渡版本，designated requirement 寫成 `identifier "com.weiwei.shiyin" and (certificate leaf = H"舊" or certificate leaf = H"新")`，大部分人升級後再改用新憑證。
 - `scripts/make-dmg.sh`：用 hdiutil 建立 DMG，裡面有 Shiyin.app、Applications 資料夾的捷徑、`安裝說明.pdf` 和 `Install Guide.pdf`（3.1 起，§16.7）。
 - 安裝說明的內容：
   - 拖進「應用程式」
-  - 第一次打開時被擋的話，到「系統設定 → 隱私權與安全性」按「仍要打開」（macOS 15 之後已經不能按右鍵開啟）
+  - 第一次打開時被擋的話，先按「完成」（預設的藍色按鈕是「丟到垃圾桶」），再到「系統設定 → 隱私權與安全性」的「安全性」按「強制打開」（macOS 26 的字；macOS 15 之後已經不能按右鍵開啟）
   - 進階做法：`xattr -dr com.apple.quarantine /Applications/Shiyin.app`
 - 更新（R10.6，D10）：
   - 更新資訊是一個 JSON 檔（`shiyin-update.json`）：`{"version": "3.0.1", "url": "Shiyin-3.0.1.dmg", "sha256": "…", "notes": "…"}`，`url` 可以是相對於這個 JSON 的路徑。`make-dmg.sh` 會跟 DMG 一起產生，發布時兩個檔案放在同一個位置
@@ -429,10 +429,11 @@ CREATE VIRTUAL TABLE search USING fts5(meeting_id UNINDEXED, kind UNINDEXED, ref
 | 資料 | 用途 | 來源 |
 |---|---|---|
 | 使用者的真實會議 | 主要依據 | Q2，待使用者提供 |
-| AISHELL-4 M_R003S01C01（38 分鐘、6 人） | 遠距收音的中文會議 | 已下載，`~/Library/Caches/ShiyinSpike/aishell4/` |
-| AMI ES2004a 片段 | 英文會議 | 已有 |
+| AISHELL-4 M_R003S01C01（38 分鐘、6 人） | 遠距收音的中文會議 | OpenSLR 111 的 test.tar.gz（5.2 GB）串流到這一場就停，取第 1 聲道成 `~/Library/Caches/ShiyinSpike/aishell4/mono.wav` |
+| AMI ES2004a（17 分鐘、4 人） | 英文會議 | `ami-mix`：四支耳麥的混音；AMI 網站下載不到時用 FluidAudio 資料集裡的 `ES2004a.Mix-Headset.wav` |
 | 模擬線上會議 | 分聲道、回音 | AMI ES2004a 的個人麥克風（Headset-0～3，CC BY 4.0）：一人放麥克風聲道、另外三人混成電腦聲音聲道；「有回音」版本再把電腦聲音延遲、衰減後加進麥克風聲道，模擬用喇叭開會 |
-| 合成的中英夾雜會議（91 秒） | 專有名詞（關鍵詞） | 已有 |
+| `zh-synth`（79 秒、3 人） | 專有名詞（關鍵詞） | `make-eval-data-langs.py zh`：macOS 語音合成的中英夾雜週會（原本 91 秒的那份在 2026-11-09 清暫存時遺失） |
+| `zh-fleurs`（11 分鐘） | 真人朗讀的普通話 | `make-eval-data-langs.py zh`：FLEURS cmn_hans_cn 測試集前 60 句 |
 
 - 每項改進前後的數字和耗時寫在 commit 訊息，結論寫進這裡對應的章節。
 
@@ -471,6 +472,21 @@ whisper.cpp 內建的 VAD 會把小聲、遠處的說話當成安靜跳過，漏
 
 - 只有評估後採用的改進才在設定裡放開關，預設值依評估結果決定（R14 驗收），寫進這一節。目前：偵測說話片段不採用；分聲道等真實會議；逐字稿校正的開關放在「整理工具」分頁（它用的是整理工具）。
 - 開關全部關閉時，轉錄流程跟 3.1 完全一樣（R14.6）。
+
+### 17.7 轉錄速度：降低 beam（N2，2026-11-19）：評估後不改
+
+- 起因：匿名統計（11/1～18，當天只用 Breeze、轉錄 10 分鐘以上的 Mac，每台每天一筆取中位數）M1 是 2.8 倍速（18 台、48 天），沒達到 N2 的 5 倍；M2～M4 3.9～4.7 倍、M5 7.9 倍、Pro／Max 6.8～15 倍。統計的秒數含說話者辨識，也可能含電腦睡著的時間。
+- 評估：`transcribe-eval` 的 `tuning.beamSize`（`best_of` 一起設）用 5（正式）、3、2、1，M5 Pro。倍速只算「轉錄」階段，不含說話者辨識（`memory.stages[].seconds`，DEBUG 的 `MemoryMeter` 記各階段的秒數）。同一個設定跑兩次，轉錄時間差 1%～7%。
+
+  | 資料（錯字率、轉錄倍速） | beam 5（正式） | beam 3 | beam 2 | beam 1 |
+  |---|---|---|---|---|
+  | AISHELL-4（38 分鐘） | 28.8%、22.4× | 29.1%、24.2× | 30.0%、25.5× | 32.0%、21.2× |
+  | `zh-fleurs`（11 分鐘） | 5.4%、22.5× | 6.1%、23.5× | 6.2%、24.5× | 8.3%、26.9× |
+  | `ami-mix`（17 分鐘，WER） | 35.5%、24.5× | 36.5%、25.9× | 36.5%、27.8× | 38.5%、29.9× |
+  | `zh-synth`（79 秒，關鍵詞） | 8.2%（5/7） | 7.9%（5/7） | 8.6%（6/7） | 10.4%（6/7） |
+
+- 結論：不改。GPU 一次算 5 條候選跟只算 1 條差不多快，時間大多花在編碼器和每個 token 讀一次模型。beam 2 只快 9%～14%，錯字卻多 0.8～1.2 個百分點；beam 1 在 AISHELL-4 反而更慢（降溫重試變多）。說話者辨識約佔全部時間的四分之一，跟 beam 無關。記憶體峰值 2.7～3.9 GB，同一個設定兩次就差到 470 MB，beam 1 大約少 0.3～0.5 GB。
+- M1 要加速得從別的地方下手（還沒評估）：編碼器改用 Core ML（Neural Engine）、轉錄和說話者辨識同時跑（8 GB 的 Mac 要注意記憶體）、較小的量化。
 
 ## 18. 日文（3.3，R15、R16）
 
@@ -2179,7 +2195,7 @@ id 42 · shiyin://open?meeting=42 · transcript: get_transcript(meeting_id: 42)
 ### 45.2 是哪個 app
 
 - 提示出現的那一刻讀一次 Core Audio 的程序物件（同 §21.7：`kAudioProcessPropertyIsRunningInput`），加讀 `kAudioProcessPropertyPID`。拾音自己不算。
-- 名稱依序找：已知的會議 app、瀏覽器（§21.7 的名單，helper 歸到主程式；瀏覽器只寫名稱，不加「可能是 Google Meet」）→ `com.apple.WebKit.GPU`（Safari 的網頁是這個程序在收音，GitHub #4 的 log）寫 Safari → 其他一般的 app（`NSRunningApplication` 的 `activationPolicy == .regular`）用它的名稱 → 都沒有就寫「其他 app」（R57.2）。系統的背景程序（語音喚醒等）不算。
+- 名稱依序找：Mac 上的通話（§45.5，最優先）→ 已知的會議 app、瀏覽器（§21.7 的名單，helper 歸到主程式；瀏覽器只寫名稱，不加「可能是 Google Meet」）→ `com.apple.WebKit.GPU`（Safari 的網頁是這個程序在收音，GitHub #4 的 log）寫 Safari → 其他一般的 app（`NSRunningApplication` 的 `activationPolicy == .regular`）用它的名稱 → 都沒有就寫「其他 app」（R57.2）。系統的背景程序（語音喚醒等）不算。
 - 名稱在提示出現時決定，之後不跟著變（提示列的字不要跳）。
 
 ### 45.3 顯示
@@ -2195,8 +2211,16 @@ id 42 · shiyin://open?meeting=42 · transcript: get_transcript(meeting_id: 42)
 
 ### 45.4 驗證
 
-- DEBUG：state 的 `recorder.levelCheck` 加 `nearSilent`、`floor`（稍早的背景）、`suppressedApp`；`record-sim` 的麥克風不是真的裝置，啟動參數 `-debugMicBuiltIn YES` 當成內建麥克風；哪個 app 在用麥克風用 `meetingapp <bundleID> on` 模擬。
+- DEBUG：state 的 `recorder.levelCheck` 加 `nearSilent`、`floor`（稍早的背景）、`suppressedApp`；`record-sim` 的麥克風不是真的裝置，啟動參數 `-debugMicBuiltIn YES` 當成內建麥克風；哪個 app 在用麥克風用 `meetingapp <bundleID> start` 模擬。
 - 離線：`afconvert` 加 numpy（§26.1 的做法）。實際的語音處理：`scripts/dev/vpio-hold.swift` 對內建麥克風開語音處理時用真的麥克風錄音（要使用者在電腦前）。
+
+### 45.5 Mac 上的通話（R57.7；GitHub #11）
+
+- 在 Mac 上接 iPhone 轉接的電話、打 FaceTime 時，收音的是系統的 `avconferenced`（#11 的 log：它建立 VoiceProcessor、把內建麥克風接進語音處理）。它在 Core Audio 的程序物件裡是 bundle ID `com.apple.avconferenced`（2026-11-24 在這台 Mac 列出來看過；`callservicesd` 是 `com.apple.TelephonyUtilities`、`MacInCallService` 是 `com.apple.InCallService`，它們不收音，不看）。
+- `MicrophoneUser` 加 `isCall`。`microphoneUser()` 看到正在收音的 `com.apple.avconferenced` 就回傳通話，比會議 app、瀏覽器優先（通話開的語音處理才是聲音變 0 的原因，同時開著 Chrome 的會議也一樣）。
+- 讀的時機：§45.2 只在「被佔住」出現時讀；現在「沒有收到聲音」（`.silent`，#11 是整段 0）出現時也讀一次，存在同一個地方（同樣出現時決定、之後不變）。
+- 文字：是通話時，`.silent`、`.suppressed` 都換成 R57.7 那一句；不是通話時照舊（`.silent` 是原本那句，`.suppressed` 照 §45.3）。提示的種類不變，所以「知道了」、通知一場一次、圖示都照舊。
+- 驗證：DEBUG 用 `meetingapp com.apple.avconferenced start` 模擬通話，`record-sim` 送整段 0 的錄音（`.silent`）和 −85 dBFS 的雜訊加 `-debugMicBuiltIn YES`（`.suppressed`），state 的 `recorder.levelCheck.text` 是通話那句；關掉模擬時是原本的兩句。真的通話要使用者：在 Mac 上接一通 iPhone 轉接的電話或 FaceTime 錄音。
 
 ## 46. 把一句拆成兩句（R70，D152；GitHub #6）
 
@@ -2881,6 +2905,122 @@ id 42 · shiyin://open?meeting=42 · transcript: get_transcript(meeting_id: 42)
 - DEBUG：`preview settings <頁面代號或編號>`（0 整理工具…10 檢查與更新，只當預覽的起始頁，不寫進設定）。
 - Windows：design-windows §11.41（`NavigationView`，同樣十一項、四組、搜尋、記住頁面；圖示是彩色的字、沒有底色方塊，同 Windows 11 的設定）。
 
+## 83. 會議中的畫面：截圖、照片對到時間點（R109，D186～D190）
+
+Windows 的做法在 design-windows §11.42。
+
+### 83.1 資料（migration `v16`，D186）
+
+```sql
+ALTER TABLE documents ADD COLUMN at REAL;   -- 錄音時間（秒）；NULL 是一般的參考文件（§39），有值是那個時間點的畫面
+```
+
+- 畫面就是 `kind = 'image'`、`at` 有值的文件：檔案、文字辨識、永久刪除、合併時複製、封包都沿用 §39。`MeetingDocument.at`；`MeetingDetail.documents` 只放 `at IS NULL` 的（「文件」選單、§39.3 的長度分配不變），`MeetingDetail.screens` 放有 `at` 的，照 `at`、`id` 排。
+- 存檔：`documents/<id>/screen.jpg`（`name` 固定是 `screen.jpg`）；畫面上的名稱照時間現算（「畫面 12:34」「Screen 12:34」），改時間不用改檔名。先用原圖做文字辨識（§39.2 的 `recognize`），再縮成長邊最多 2560 px、JPEG 品質 0.85 存起來（`ScreenImages.jpeg`，有透明的先鋪白底，R109.11）；heic、png 也轉成 JPEG（Windows 讀不了 heic）。讀檔用 `ScreenImages.load`（照 EXIF 轉正）。
+- `AppDatabase.addScreen(meetingId, at:)`（先插入、再填 `file`，同 `addDocument`；`ScreenStore.save` 寫檔，寫不進去就刪掉那一列）、`setScreenText(id, text:)`（文字辨識完寫回 `pages`、更新索引）、`setScreenTime(id, at:)`、刪除用 `deleteDocument`（一起刪索引）。同一場、同一張（JPEG 的 SHA-256 一樣）不再加，提示「這張畫面已經加過了」。
+- 搜尋（R109.5）：`search` 加 `kind = 'screen'`、rowid 是 2^51 + 文件 id、`ref` 是文件 id、`text` 是辨識出的文字（參考文件照舊不進索引）；重建索引時 `at` 欄位存在才讀（更早的 migration 裡還沒有）。搜尋結果的種類寫「會議中的畫面」，點了打開那場、逐字稿捲到那張、跳到 `at`；本地 MCP 的 `search_meetings` 列成 `- screen 12:34: …`。
+
+### 83.2 截圖（`Capture/ScreenShot.swift`，D187）
+
+- ScreenCaptureKit：`SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)` → 找游標（`NSEvent.mouseLocation`）所在的 `SCDisplay`；`SCContentFilter(display:excludingApplications: [拾音自己], exceptingWindows: [])`（主視窗、錄音島、浮動視窗都不會進去，不管 R77 的設定）；`SCStreamConfiguration` 的寬高是那個螢幕的像素（`frame` × `backingScaleFactor`）、`showsCursor = false`；`SCScreenshotManager.captureImage(contentFilter:configuration:)`。
+- 時間：按下去的那一刻的 `recorder.elapsed`（截圖、讀字要一點時間，不能用存好的時間）。錄音暫停時一樣可以截，時間是暫停的位置。
+- 權限（R109.3）：截之前 `CGPreflightScreenCaptureAccess()`；false 時 `CGRequestScreenCaptureAccess()`（只有第一次會跳出系統的詢問）。還是 false：不截，錄音島展開提醒「要允許拾音「錄製螢幕」才能截圖。」＋「打開系統設定」（`x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture`）＋「知道了」；錄音畫面的提示列寫同一句。剛允許時 ScreenCaptureKit 可能要重新打開拾音才拿得到畫面：截圖失敗、權限是 true 時提示「重新打開拾音後才能截圖。」（錄音中不自動重開）。
+- 入口（R109.1）：
+  - 全域快捷鍵：`GlobalHotKey` 第 3 組 ⌃⌥⌘S（`kVK_ANSI_S`），跟標記重點一樣只在錄音中註冊。設定「錄音」頁的快捷鍵那一組加開關「錄音中按 ⌃⌥⌘S 截圖」（`screenshotHotKey`，預設開）。註冊不到（別的 app 佔了）時設定頁那一列寫「這組按鍵被別的 app 佔用了」。
+  - 錄音島：展開（滑過去）時的按鈕列在「標記重點」右邊加「截圖」（`camera.viewfinder`）。按島上的按鈕時島本身不會被截到（不在畫面裡）。
+  - 錄音畫面：「標記重點」旁邊加「截圖」按鈕；「檔案」選單「標記重點」（⌘B）下面加「截圖」（⌘⇧S）。使用說明的快捷鍵列表加 ⌘⇧S、⌃⌥⌘S。
+- 回饋：`NSSound(named: "Pop")`；錄音島展開 1.5 秒顯示縮圖、「已截圖」和「12:34 的畫面，整理時會一起參考」（`IslandState.flash`），之後收回；選單列圖示換成 `camera.circle.fill` 1 秒（同標記重點的星號）。島滑過去時的按鈕列（暫停、標記重點、截圖、打開拾音、停止並轉錄）放不下時，先讓「暫停」「打開拾音」只留圖示，再不夠就只有「停止並轉錄」留字（`ViewThatFits`；滑過提示、VoiceOver 照樣是完整的字）。
+- 讀字：存好圖（`at`、`pages` 先是空的）就顯示在逐字稿、時間軸上，文字辨識在背景做，完成後更新 `pages`、搜尋索引。辨識不到字照樣留著（跟參考文件不同：畫面的圖片本身就有用）。
+
+### 83.3 貼上、拖進來（R109.2）
+
+- ⌘V（`AppModel.handlePasteKey`，掛在 `AppDelegate` 的按鍵監看上）：主視窗（沒有開著的彈窗）裡按 ⌘V、剪貼簿沒有文字但有圖片時，加成畫面，不管焦點在哪裡（「我的筆記」是純文字，圖片本來就貼不進去）；剪貼簿有文字時照舊交給輸入框。要加到哪裡（`screenTarget`）：錄音中、正在看錄音的那場時是當下的 `recorder.elapsed`；其他時候是選取的會議（逐字稿、會議紀錄分頁）的播放位置（沒有錄音的會議是 0）；垃圾桶裡的、其他分頁不接手。選單的「編輯 → 貼上」不攔。
+- 拖進來：即時逐字稿那一塊的 `dropDestination`，圖片（`DocumentReader.kind == .image`）加成畫面，其他檔案照主視窗的規則（`requestImport`：參考文件、匯入）；拖到上面時一圈虛線框和「放開就加到 12:34 的畫面」。拖進主視窗其他地方的圖片照舊是參考文件（§39）。
+- 剪貼簿：`NSPasteboard` 的 `NSImage`（png、tiff）或圖片檔的網址（png、jpg、heic）；好幾張時照順序加，時間都一樣。
+
+### 83.4 回看（R109.4）
+
+- 逐字稿（`Views/ScreenViews.swift`，選了「夾在逐字稿裡一列」）：`ScreenPlacement` 把每張放在第一個 `start ≥ at` 的段落前面，比最後一段晚的放最後；一張一列 `ScreenRow`：時間（可以點，跳播）、縮圖（寬 220 pt × 文字大小，圓角 8、`primary` 12% 細框；背景讀檔縮成 720 px，記在 `ScreenThumbnailCache`）、辨識出的第一行字（次要文字，兩行）、「畫面 12:34」（更淡的小字）；讀取中寫「正在讀取畫面上的字…」，沒字寫「畫面上沒有辨識出文字」。還沒有逐字稿時（轉錄中）畫面照樣列出來。點縮圖、點兩下那一列：放大（SwiftUI 的 `quickLookPreview`，← → 看同一場的其他張），錄音跳到 `at`；給 Quick Look、預覽程式的是暫存資料夾裡名為「<會議> 12-34.jpg」的硬連結（標題才是看得懂的名字）。
+- 錄音中的即時逐字稿（選了「插在即時逐字稿裡」）：同樣的放法，小一號（縮圖寬 168、時間對齊即時逐字稿的時間欄），寫「畫面」和第一行字，沒有選單；加了畫面時跟著捲到最新。
+- 時間軸（`TimelineBar`）：在 `at` 畫一個 6×5 的小方框（像一張相片，`primary` 55%，跟重點標記的青瓷綠圓點分得開）。
+- 三條路（同 R105 的選單樣子）：滑過或選到時右邊的「⋯」；右鍵；點一下那一列選到（淡灰圓角底，不用強調色的焦點環），選到時鍵盤 Return 放大、Delete 刪除（先確認）、⌘C 複製圖片。選單：「放大 ↩」「從這裡播放」（有錄音時）「用預覽程式打開」「複製圖片 ⌘C」、分隔線、「改時間…」「刪除… ⌫」（紅字）。改時間用共用的彈窗（§80）：「改這張畫面的時間」、說明行、「錄音時間」欄位（帶目前的值、全選），左下「用目前播放的位置」；格式不對、超過會議長度時說明行改成原因、「儲存」不能按，沒改也不能按。刪除確認：「刪除 12:34 的畫面？」「圖片和辨識出的文字都會刪掉。已經整理好的會議紀錄要重新整理才會拿掉這張的內容。」
+- 已經有會議紀錄時加入、刪除畫面或改時間：`screensChanged`（同參考文件的 `documentsChanged`），紀錄分頁頂部同一條提示：只有畫面變動寫「畫面有變動，會議紀錄還沒用上。」，兩種都有寫「文件和畫面有變動，會議紀錄還沒用上。」；「不用」「重新整理會議紀錄」兩種一起清掉。
+
+### 83.5 整理、提問（R109.6、R109.7，D188）
+
+- `Notes/ScreenPrompt.swift`。`NotesContext.screens: [ScreenText]`（`at`、辨識出的文字、圖檔路徑）。使用者提示詞在重點標記之後、參考文件之前加一段（沒有畫面時沒有這一段，提示詞一字不差）：
+
+  ```
+  會議中的畫面（[時間] 是加入畫面時的錄音時間）：
+  [12:34]
+  （辨識出的文字）
+  [18:02]
+  （沒有辨識出文字）
+  ```
+
+  英文「Screens shown during the meeting ([time] is the recording time when the screen was added):」「(no text recognized)」，日文照語言檔的做法（`language.profile` 的 `prompt(…)`，不寫死語言）。
+- 長度：每張最多 1,500 字（多的截掉、接「…」），全部最多 20,000 字（跟參考文件的 40,000 分開算）；照時間先後放，額度用完之後的只放時間和「（文字太長，沒有放進來）」。
+- 系統提示詞（只有有畫面時加，接在參考文件的規則後面）：三條，編號接著前面最後一條（`ScreenPrompt.nextRuleNumber`：中文、英文沒有文件時是 13～15、有文件時 17～19，日文多一）。內容：「會議中的畫面」是會議當時螢幕上的內容、[時間] 是那時候的錄音時間、有附圖時圖片前面的「[12:34] 的畫面」說明是哪一張，用來看懂討論、補正確的數字和名稱；以會議中實際討論的為準，畫面上有但沒討論的不寫，說法不一致時照會議說的寫並列進 reviewItems；用到畫面的資訊時句尾註明「（12:34 的畫面）」，time 仍填討論到它的時間。英文、日文各一份。
+- 圖片本身（D188）：`LLMBackend.generateJSON` 多一個參數 `images: [LLMImage]`（`LLMImage` 是說明「[12:34] 的畫面」和 JPEG）。`ScreenPrompt.images`：縮成長邊最多 1568 px、JPEG 0.8；一次最多 20 張，超過時照時間平均挑（`pick`，第一張、最後一張一定在；文字照樣全部送），在背景做。哪些整理工具送（`LLMProvider.sendsScreenImages`）：Claude Code、Codex、三家 API 送；OpenAI 相容 API 看設定；企業伺服器不送。
+  - Claude Code：有圖片時改用 `--input-format stream-json --output-format stream-json --verbose`，stdin 寫一行使用者訊息（`content`：提示詞，再來每張的說明文字和 `image`（base64））；結果照舊讀最後一行（`type` 是 `result`）的 `structured_output`（2026-11-19 用 claude 2.1.311 試過）。沒有圖片時參數跟以前一樣。
+  - Codex：圖片寫進暫存資料夾，每張加 `--image <檔案>`（參數名稱還沒用真的 codex 確認）；提示詞最後列出「[1] [12:34] 的畫面」。
+  - Anthropic API：`content` 是提示詞、每張的說明和 `image`（`source.type = base64`）；OpenAI API（`/v1/responses`）：`input` 是一則使用者訊息，`input_text`、`input_image`（`data:image/jpeg;base64,…`）；Gemini（Interactions）：`input` 是 `text`、`image`（`data`、`mime_type`）的陣列（還沒用真的 Gemini 確認）。
+  - OpenAI 相容 API：設定「整理工具」在網址下面加開關「整理時附上會議中的畫面（模型要能看圖）」（`compatibleSendsImages`，預設關），說明「關掉時只送畫面上辨識出的文字。模型不能看圖時拾音會自動改成只送文字。」；打開時 `content` 是 `text`、`image_url`（data URL）。企業伺服器：先只送文字（伺服器那邊要另外支援，私人專案）。
+  - 失敗：模型不能看圖（`LLMError.rejectsImages`：失敗、格式不對，訊息提到 image、vision、multimodal、圖片）時，`LLMClient.generateJSON` 同一次整理改成只送文字再試一次，紀錄照常產生。
+- 草稿、校稿（重新整理）同整理。提問：只帶畫面的文字（不送圖片，每問一題都送圖太貴），系統提示詞加一條（編號接著最後一條）「用到畫面時寫出時間，例如 12:34 的畫面，citations 的 time 填那個時間」，回答裡的時間點本來就可以點（§21.8）。
+- 標準答案：`fixtures.json` 加 `meetingScreens`（每種會議語言；中文、英文、日文各三張：有字、沒字、太長，超過一小時的時間）和 `screenPickCounts`；`expected/prompts/<語言>/` 多 `notes-system-screens`、`summarize-general-screens`、有參考文件的會議再多 `notes-system-documents-screens`、`summarize-general-documents-screens`、`ask-meeting-system-documents-screens`，以及 `ask-meeting-system-screens`、`ask-meeting-prompt-screens`、`screen-image-labels.json`；`expected/screens/pick.json`。沒有畫面的舊情境完全不變。`mac-requests.jsonl`（四種 API 的請求）先不加有圖片的：JPEG 的位元組 Mac、Windows 編出來不一樣，Windows 要比的話先把圖片換成「<image N>」再比（SC4 一起做）。
+
+### 83.6 匯出（R109.8，D189）
+
+- `ExportBundle.screens`；`IO/ScreenExport.swift`。會議紀錄的 md、PDF、docx 最後加一節，標題跟著會議語言（`ExportText.screens`：「會議中的畫面」「Screens shown during the meeting」「会議中の画面」）；每張一小節：時間（`### 12:34`），下面是圖片。沒有會議紀錄時（「尚未整理成會議紀錄」）也照樣放這一節。
+  - md：`![12:34](<<檔名> 的畫面/12-34.jpg>)`（路徑有空白，用角括號包起來），圖片複製到 md 旁邊的資料夾「<檔名> 的畫面」（英文「<name> screens」、日文「<name> の画面」，`ScreenExport.folderName`）；檔名 `12-34.jpg`，同一個時間第二張起加 `-2`（`fileNames`）。
+  - HTML（PDF、docx 的來源）：先放位置標記 `<p class="screen">SHIYINSCREEN0001</p>`，簡體轉換（`ExportScript.html`）做完才換成圖片：幾 MB 的圖片資料不經過轉換。
+  - PDF：標記換成 `<img src="data:image/jpeg;base64,…">`（`inlineImages`）；HTML 讀進 `NSAttributedString` 的圖片是原本的像素大小，印之前縮到版面寬度、高度不超過半頁（`HTML.fitImages`，換成新的附件；不縮時一張 2560 px 的圖被切成好幾頁，2026-11-19 實測 7 頁 → 4 頁）。
+  - docx：`NSAttributedString` 寫出的 officeOpenXML 不帶圖片（2026-11-19 試過，`word/media/` 是空的），所以照常轉，標記那一段寫成文字，再由 `DocxImages.embed` 解開 docx（`/usr/bin/unzip`）、把標記所在的 `<w:p>` 換成 `w:drawing`（inline 圖片，寬度最多 15 公分、等比例；`a`、`pic` 命名空間寫在元素上，根元素本來就有 `r`、`wp`）、圖片放 `word/media/screenN.jpg`、`document.xml.rels` 加 image 關聯、`[Content_Types].xml` 加 jpg，再用 `/usr/bin/zip -X` 壓回去（`[Content_Types].xml` 放第一個）。圖檔不見時拿掉那一段，不留標記。
+- 逐字稿的 md、docx：在第一個 `start ≥ at` 的段落前面插入（`TranscriptExporter.interleave`，同畫面上的放法）；HTML 是一段時間加一段標記。txt、srt、vtt、複製到剪貼簿不放。
+- 封包：參考文件和畫面一起放（`documents.json` 和 `documents/` 的檔案），`DocumentJSON` 多選填的 `at`（一般的文件不寫這個鍵）；匯入時有 `at` 的用 `addScreen` 放回原本的時間和文字。舊版的拾音讀到會忽略 `at`，畫面變成一般的參考文件。
+- 沒有畫面時每一種匯出逐位元組跟以前相同（標準答案 `export/`、`package/` 不變）；有畫面的加 `export/<語言>/notes-screens.md`、`notes-screens.html`、`transcript-screens.md`、`transcript-screens.html`、`screen-files.json`、`package/<語言>/documents-screens.json`。
+
+### 83.7 編輯會議、MCP（R109.9、R109.10）
+
+- 編輯會議（§81）：這場的畫面 `at` 跟 `user_notes` 的時間點一樣用 `plan.snap`（落在刪掉那段裡的移到切口，D190）；合併時另一場的畫面跟參考文件一起複製過來，`at` 用 `snap(另一場, at)`，進搜尋索引；分成兩場（`splitMeeting`，逐字稿右鍵的分割也一樣）時 `at ≥ 切點` 的搬到新的那場、減掉切點，索引跟著搬（檔案在 `documents/<id>/`，id 不變不用搬）；分割的確認說明改成「這句和之後的逐字稿、錄音、標記重點、畫面變成新的一場…」。`EditSnapshot.screens`（每張的 id 和 `at`；沒有畫面時不寫，舊的快照、標準答案不變）：還原時搬回這場、改回原本的時間（被刪掉的就算了），編輯後才加的照參考文件的規則刪掉（連索引）。
+- MCP：`get_transcript` 在對應的時間插入一行 `[12:34] [Screen] <辨識出的文字，換行換成空格>`（沒有字是 `[Screen]`；只列 start～end 範圍內的，截斷時從下一行的時間接著讀）；`get_meeting_notes` 在我的筆記後面加「## 會議中的畫面」，每張一行 `- [12:34] 文字`；`search_meetings` 見 §83.1。
+
+### 83.8 DEBUG、驗證
+
+- `shiyinctl screenadd <圖檔> [秒數]`（同貼上：錄音中用當下時間；給秒數時加到選取的會議的那個時間）、`screenshot`（同按 ⌃⌥⌘S）、`screenmove <id> <秒數>`、`screendelete <id>`、`screenpreview <id>|off`（放大；Quick Look 的視窗在最上層，會出現在使用者的畫面上，非必要不用）、`screenmenu <id> <項目>`（選單的某一項）；`-debugFakeScreenshot <png>`：截圖不呼叫 ScreenCaptureKit、直接用這張（DEBUG 版是 ad-hoc 簽章，不要讓它跳權限詢問）。`state` 多 `screens`（id、at、file、讀取中、文字長度、前 80 字、檔案在不在）、`screensChanged`、`screenshotProblem`、`screenPreview`、`movingScreen`、`screenshotHotKey`；`island.mode` 多 `flash`。
+- 自動驗證：`record-sim` 錄音中 `screenshot`（假的截圖）、`screenadd` 兩張；停止、整理用 `fake-llm-server.py` 的四種 API 看請求裡的文字和圖片；匯出四種格式打開看；編輯會議裁掉、分成兩場、合併、還原後的 `at`；`Shiyin --mcp` 讀出來的內容。
+- 要使用者：真的權限詢問、拒絕後的提示和「打開系統設定」；真的 Zoom、Teams、Meet 分享畫面時按 ⌃⌥⌘S，截到的是對方分享的畫面、沒有拾音的視窗；全螢幕的會議 app 上按錄音島的「截圖」；真的 Claude Code、Codex 整理一場有截圖的會議，紀錄用得到圖表的內容。
+
+## 84. 定時停止錄音（R110，D191）
+
+Windows 的做法在 design-windows §11.43。
+
+- `Recorder.stopAt: Date?`（觀察的屬性，值變了才設）、`setStopTimer(_:)`（錄音中才有作用，`nil` 是取消）。`tick()`（每 0.05 秒）先看 `stopAt`，到了就 `stop(scheduled: true)`：放在整秒判斷的外面，暫停時（`elapsed` 不走）也會停。`cleanup()` 清掉（停止錄音就取消，R110.4）。`Result.scheduled`。
+- `Capture/StopTimer.swift`（Windows 的 `StopTimer` 寫同樣的規則和測試例子）：
+  - `presets`：30、60、90、120、180 分鐘，標題「30 分鐘後」「1 小時後」「1 小時 30 分鐘後」「2 小時後」「3 小時後」。
+  - `next(hour:minute:after:)`：今天的那個時間，不比現在晚（≤ 現在）就是明天。
+  - `parse(_:)`：「15:30」「15：30」（全形冒號）「1530」「9:05」「930」→ 時、分（0～23、0～59）；其他是 nil。
+  - `clock(_:)`：「15:30」（24 小時制，兩位數，「指定時間…」的欄位也用）；`label(_:now:)`：跟現在不是同一天時「明天 09:00」。`remaining(_:now:)`：分鐘無條件進位，用 `TimeFormat.duration`（「1 小時 25 分鐘」「5 分鐘」，不到 1 分鐘也寫 1 分鐘）。
+  - `defaultTime(now:)`：「指定時間…」沒設定過時帶的值：一小時後，分鐘往上取到 5 的倍數。
+- 選單內容（`StopTimerMenuItems`；錄音畫面、「檔案」選單、選單列的小視窗共用）：設定了時第一項是不能按的「15:30 自動停止錄音」、分隔線（不寫還有多久：選單的內容不一定每秒重算，剩下的時間寫在錄音畫面的滑過提示）；五個選項；「指定時間…」；設定了時再一條分隔線、「取消定時停止」。選了選項就從現在算起，取代原本的。
+- 錄音畫面：計時（`RecorderClock`）右邊一個無邊框的選單（`.menuStyle(.borderlessButton)`，同麥克風選單），`timer` 圖示加「定時停止」，設定了寫「15:30 停止」；滑過提示「時間到自動停止錄音並轉錄」／「15:30 自動停止錄音（還有 42 分鐘），點一下可以改或取消」。視窗窄的時候跟麥克風選單一起先縮（`layoutPriority(-1)`），放不下字時只留圖示（`ViewThatFits`），右邊按鈕的字留到最後；中文介面、預設寬度兩個都完整，英文時只留圖示、麥克風名稱留大半（2026-11-23 截圖）。
+- 「檔案」選單：「截圖」下面加子選單「定時停止」，不是錄音中時不能按。
+- 選單列的小視窗：錄音那一塊、狀態列下面一列小一號（`controlSize(.small)`；`.font` 改不到選單的字）的選單（同錄音畫面的圖示和字，設定了寫「15:30 自動停止錄音」）。
+- 錄音島：滑過去的畫面，最新一句下面一行次要文字「15:30 自動停止錄音」（`timer` 圖示）；收起時不顯示。
+- 「指定時間…」（`model.showStopTimerSheet`，主視窗的彈窗，§80 的共用樣子；從選單列、「檔案」選單打開時先打開主視窗）：標題「定時停止錄音」；說明行「今天 15:30 自動停止錄音並轉錄（1 小時 25 分鐘後）。」（明天時寫「明天 09:00 …」），欄位是空的時「輸入幾點幾分，到時間自動停止錄音並轉錄。」，格式不對時「請輸入像 15:30 的時間。」；欄位「停止的時間」（帶目前設定的時間，沒有時是 `defaultTime`，全選）；「取消」「設定」（格式不對不能按，Return 等於「設定」；「設定」在別處是名詞 Settings，這裡用 `MeetingLanguage.ui(zh:en:)` 寫 Set）。說明行照目前時間每秒更新。彈窗開著時錄音停了：自己收起來。
+- 時間到先倒數（R110.3、D192）：`tick()` 看到 `stopAt` 到了、還沒在倒數，就設 `stopCountdown = 現在 + 30 秒`（觀察的屬性；DEBUG `-stopTimerCountdownSeconds` 改秒數）、呼叫 `onStopTimerDue`；`stopCountdown` 到了才 `stop(scheduled: true)`。倒數中暫停照算。`continueAfterStopTimer()`：`stopAt`、`stopCountdown` 都清掉（取消定時，照常錄下去）；`setStopTimer` 換了時間、取消，也清掉倒數。
+- 倒數的提醒（`AppModel.showStopTimerPrompt`，分流同 R95 的 `showMeetingPrompt`）：
+  - 錄音島打開時：`RecordingIsland.showPrompt`，`deadline` 是 `stopCountdown`，訊息每秒換成「已到設定的時間，N 秒後停止錄音」，按鈕「繼續錄」「停止並轉錄」（最後一個是主要的）。島的 `IslandState.Prompt.prompt`（會議 app 的提醒）改成可以是 nil：nil 就是定時停止的提醒。
+  - 島關掉、有通知權限：`notifier.stopTimerPrompt`（類別 `STOP_TIMER`，按鈕「停止並轉錄」「繼續錄」；標題「已到設定的時間」，內文「30 秒後停止錄音並轉錄」；userInfo 有 `stopTimer`）。沒有權限：右上角的小視窗（`MeetingPromptPanel`，提醒的種類同樣可以是 nil）寫「已到設定的時間，30 秒後停止錄音」，不倒數。
+  - 錄音畫面的提示列（跟「好像沒人在說話了」同一種）、選單列的小視窗：倒數中寫同一句（`TimelineView` 每秒換秒數）和「繼續錄」「停止並轉錄」。
+  - 所有的「繼續錄」「停止並轉錄」、選單裡改定時或取消、錄音停了：走 `AppModel`（`continueAfterStopTimer`、`setStopTimer`、`recordingFinished`），同時收起島上、小視窗裡定時停止的提醒（會議 app 的提醒不動）。
+- 倒數完：`recordingFinished` 照一般的停止處理（整場轉錄，沒有 `until`）；`result.scheduled` 時 `notifier.timerStopped`：標題「已到設定的時間，自動停止錄音」、內文是會議標題，點了打開那場（同 `meetingEndStopped`）。
+- 跟 R48（`checkIdle`）、R95（`startMeetingEndCountdown`）各自判斷，先到先停；停了之後其他的跟著錄音停止收起（原本就是）。
+- 使用說明：「線上會議」那一條後面加一條定時停止的說明。
+- DEBUG：`shiyinctl stoptimer <秒數|off>`（從現在起幾秒後停止）；`state` 的 `recorder.stopTimer`（`remaining` 剩幾秒，沒設定是 -1；`label`；`countdown` 倒數剩幾秒，沒在倒數是 -1）；`meetingprompts` 的種類寫 `stoptimer`，`meetingaction continue|stop` 等於按島上、小視窗的按鈕；通知的 `recent` 多 `"timer": "stopped"`；`preview stoptimer`（指定時間的彈窗）、`preview menubar`（選單列的小視窗；`snapshot menubar` 畫不出裡面的選單）。
+- 驗證：`record-sim` 錄音中 `stoptimer 20` → 20 秒後開始倒數、島上寫「已到設定的時間，N 秒後停止錄音」，再 30 秒停止、轉錄整場、通知；倒數中 `meetingaction continue` → 定時取消、照常錄；錄音畫面的「繼續錄」「停止並轉錄」；島關掉時的通知、小視窗；暫停中到時間也停；`stoptimer off` 取消；停了再開始一場沒有定時；跟 `-idleStopSeconds` 一起時先到的先停；`StopTimer` 的規則用 `swift` 小程式跑例子。
+
 ## 14. 決策紀錄
 
 | # | 決策 | 不採用的方案與原因 |
@@ -3013,3 +3153,10 @@ id 42 · shiyin://open?meeting=42 · transcript: get_transcript(meeting_id: 42)
 | D183 | 編輯畫面是 sheet（§81.5） | 獨立的視窗：編輯時同一場會議可能在別的地方被改（開始整理、改名、移到垃圾桶），要處理衝突；sheet 期間這場會議不會有其他操作 |
 | D184 | 設定改成側欄十一項（§82），取代 D110 的四個分頁 | 保留四頁、只整理版面：「錄音與轉錄」「進階」兩頁還是很長要一直捲，模型清單、環境檢查這種長的東西跟常用開關擠在一起。D110 怕「七個分頁看起來很難」是因為上方的分頁一字排開；側欄分組、每項有圖示，十一項也好找，每頁短，加上搜尋 |
 | D185 | 設定用一般的 `Window` 場景（§82） | SwiftUI 的 `Settings` 場景：視窗沒有可以拉大的樣式，`.windowResizability(.contentMinSize)`、內容給最大尺寸、自己補 `styleMask` 都會被改回去（macOS 26 實測），R108.5 的「可以拉大」做不到。代價：選單列的「設定⋯」、⌘, 要自己接，視窗會出現在「視窗」選單 |
+| D186 | 畫面放在 `documents`，加一欄 `at`（§83.1） | 另開一張表：存檔、文字辨識、永久刪除、合併時複製、封包都要再寫一次（Mac、Windows 各一份）。畫面跟參考文件不同的地方（有時間、顯示在逐字稿、送圖片）都看 `at`，「文件」選單和參考文件的長度分配只看 `at IS NULL` 的，原本的行為不變 |
+| D187 | 截圖用 ScreenCaptureKit 截游標所在的整個螢幕、排除拾音自己（§83.2；使用者選了截整個螢幕） | 每次框選範圍：比較精準，但開會中多一個動作，使用者選了一鍵截。`screencapture` 指令：排除不了拾音自己的視窗，權限也算在拾音身上。`CGWindowListCreateImage`：macOS 15 起不能用。只截會議 app 的視窗：分享的畫面不一定在會議 app 裡（投影片放映、另一個螢幕），也要多判斷哪個是會議 app |
+| D188 | 整理時送畫面的文字，支援看圖的整理工具同時送圖片本身（§83.5；使用者選了也送圖片） | 只送文字：四種工具都能用，但沒有字的圖表、照片、白板看不到。只送圖片：不能搜尋，不能看圖的工具就什麼都沒有。取捨：一次最多 20 張、縮到 1568 px（大約每張 1,600 token）；OpenAI 相容 API 預設不送（很多本機模型不能看圖）；企業伺服器先只送文字；提問不送圖片（每一題都送太貴） |
+| D189 | 匯出的會議紀錄把畫面集中在最後一節，逐字稿插在時間點；Word 檔先照常用 NSAttributedString 寫，再解開補上圖片（§83.6） | 插進會議紀錄的條目裡：紀錄是整理工具寫的，對不準哪一條講的是哪張畫面，硬插會放錯地方。只放在封包：使用者要把紀錄（含畫面）寄給沒有拾音的人。Word 整份自己組 OOXML：要重做標題、表格、字型這些 NSAttributedString 本來就處理好的東西，風險比補圖片大；取捨：多用系統的 unzip、zip 兩個指令 |
+| D190 | 編輯會議時，落在刪掉那段裡的畫面移到切口，不刪（§83.7） | 跟重點標記一樣刪掉：畫面是使用者自己加的資料，同我的筆記（D181）留下來；要刪的話可以在逐字稿上刪 |
+| D191 | 定時停止跟著時鐘走、時間到整場轉錄、每場各自設定（§84） | 照錄音的長度算（錄滿 1 小時）：暫停時停止的時間會往後跑，人不在旁邊時看不出幾點會停；使用者的情境是「線上分享幾點結束」，用時鐘比較直接（「1 小時後」也是從按下去的那一刻算）。時間到只轉錄到最後說話（同 R48）：時間是使用者自己定的，不猜哪裡結束。記住上次的選擇：下一場忘了取消會被誤停，錄音不能重來 |
+| D192 | 定時停止的時間到了先倒數 30 秒，按「繼續錄」就取消定時（§84、R110.3；使用者要緩衝） | 時間到直接停：人在旁邊時（分享延長了）錄音被切掉，後面的錄不回來。倒數 60 秒（同 R95）：定時是使用者自己設的，不用猜會議是不是真的結束，30 秒夠看到、按下（使用者說的）。「繼續錄」改成延長幾分鐘：多一種狀態和選項；要停的人自己再設一次 |

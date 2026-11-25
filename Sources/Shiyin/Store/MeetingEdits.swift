@@ -50,6 +50,10 @@ struct EditSnapshot: Codable {
     var bookmarks: [Bookmark]
     var speakers: [SpeakerName]
     var documentIds: [Int64]
+    /// 會議中的畫面的時間（design §83.7）：還原時放回這場、改回原本的時間；沒有畫面時不寫（快照跟以前一樣）
+    var screens: [ScreenTime]? = nil
+
+    struct ScreenTime: Codable { var id: Int64; var at: Double }
 }
 
 extension AppDatabase {
@@ -152,6 +156,10 @@ extension AppDatabase {
                 }
             }
             try ForkSpeakerTags.remap(db, meetingId: id, plan: plan)   // MA-FORK(F2)：標記跟著搬到新的時間軸（F2.13）
+            // 會議中的畫面（design §83.7、D190）：同我的筆記，落在刪掉那段裡的移到切口，不刪
+            for screen in try MeetingDocument.filter(Column("meeting_id") == id && Column("at") != nil).fetchAll(db) {
+                try db.execute(sql: "UPDATE documents SET at = ? WHERE id = ?", arguments: [plan.snap(id, screen.at!), screen.id])
+            }
 
             // 合併：另一場的說話者對起來，句子、標記、參考文件複製過來（§81.4）
             var documentCopies: [(from: String, to: String)] = []
@@ -195,9 +203,12 @@ extension AppDatabase {
                     copy.id = nil
                     copy.meetingId = id
                     copy.createdAt = now
+                    // 會議中的畫面：時間照合併後的位置（design §83.7）
+                    if let at = document.at { copy.at = plan.snap(other, at) }
                     try copy.insert(db)
                     copy.file = "\(copy.id!)/\(document.name)"
                     try copy.update(db)
+                    if copy.isScreen { try AppDatabase.indexScreen(db, copy) }
                     documentCopies.append((document.file, copy.file))
                 }
                 notesParts.append((order(other), plan.remapUserNotes(source.userNotes, meetingId: other)))
@@ -312,9 +323,15 @@ extension AppDatabase {
                 }
                 try speaker.insert(db)
             }
+            // 會議中的畫面（design §83.7）：分到另一場的搬回來、時間改回原本的（被刪掉的就算了）
+            for screen in snapshot.screens ?? [] {
+                try db.execute(sql: "UPDATE documents SET meeting_id = ?, at = ? WHERE id = ? AND at IS NOT NULL", arguments: [id, screen.at, screen.id])
+                try db.execute(sql: "UPDATE search SET meeting_id = ? WHERE rowid = ?", arguments: [id, AppDatabase.screenRowidBase + screen.id])
+            }
             var removedDocuments: [String] = []
             for document in try MeetingDocument.filter(Column("meeting_id") == id).fetchAll(db) where !snapshot.documentIds.contains(document.id!) {
                 _ = try MeetingDocument.deleteOne(db, key: document.id!)
+                if document.isScreen { try db.execute(sql: "DELETE FROM search WHERE rowid = ?", arguments: [AppDatabase.screenRowidBase + document.id!]) }
                 removedDocuments.append(document.file)
             }
 
@@ -361,13 +378,15 @@ extension AppDatabase {
                               clean: try String.fetchOne(db, sql: "SELECT text FROM clean_lines WHERE segment_id = ?", arguments: [segment.id]),
                               corrections: try Correction.filter(Column("segment_id") == segment.id).order(Column("id")).fetchAll(db))
         }
-        let snapshot = EditSnapshot(
+        var snapshot = EditSnapshot(
             audioFile: meeting.audioFile, durationSeconds: meeting.durationSeconds, userNotes: meeting.userNotes, notes: meeting.notes,
             notesBy: meeting.notesBy, notesDraft: meeting.notesDraft, createdAt: meeting.createdAt, meetingDate: meeting.meetingDate,
             participants: meeting.participants, lines: lines,
             bookmarks: try Bookmark.filter(Column("meeting_id") == id).order(Column("time")).fetchAll(db),
             speakers: try SpeakerName.filter(Column("meeting_id") == id).order(Column("idx")).fetchAll(db),
             documentIds: try Int64.fetchAll(db, sql: "SELECT id FROM documents WHERE meeting_id = ? ORDER BY id", arguments: [id]))
+        let screens = try MeetingDocument.filter(Column("meeting_id") == id && Column("at") != nil).order(Column("id")).fetchAll(db)
+        snapshot.screens = screens.isEmpty ? nil : screens.map { EditSnapshot.ScreenTime(id: $0.id!, at: $0.at!) }
         return String(decoding: try JSONEncoder().encode(snapshot), as: UTF8.self)
     }
 

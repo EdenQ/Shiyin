@@ -60,6 +60,19 @@ struct MenuBarContent: View {
                     Button("停止") { recorder.stop() }
                 }
                 ForkMuteMenuBarRow(recorder: recorder)   // MA-FORK(F3)
+                // 定時停止（design §84、R110）
+                Menu {
+                    StopTimerMenuItems(model: model)
+                } label: {
+                    Label {
+                        if let stopAt = recorder.stopAt { Text("\(StopTimer.label(stopAt)) 自動停止錄音") } else { Text("定時停止") }
+                    } icon: {
+                        Image(systemName: "timer")
+                    }
+                }
+                .menuStyle(.borderlessButton)
+                .controlSize(.small)
+                .fixedSize()
                 if recorder.hasMic {
                     RecorderMeter(recorder: recorder, system: false, segments: 24).opacity(recorder.micMuted ? 0.35 : 1)   // MA-FORK(F3)
                     // 正在用哪一支麥克風（design §38.3）
@@ -78,6 +91,22 @@ struct MenuBarContent: View {
                         HStack {
                             Button("繼續錄") { recorder.continueAfterIdle() }
                             Button("停止錄音") { recorder.stop() }
+                        }
+                        .font(.caption)
+                    }
+                }
+                if let countdown = recorder.stopCountdown {
+                    // 定時停止的倒數（R110.3）：同錄音畫面
+                    VStack(alignment: .leading, spacing: 6) {
+                        TimelineView(.periodic(from: .now, by: 1)) { context in
+                            Label(String(localized: "已到設定的時間，\(StopTimer.secondsLeft(countdown, now: context.date)) 秒後停止錄音"),
+                                  systemImage: "timer")
+                        }
+                        .font(.caption)
+                        .foregroundStyle(Color.signal)
+                        HStack {
+                            Button("繼續錄") { model.continueAfterStopTimer() }
+                            Button("停止並轉錄") { recorder.stop() }
                         }
                         .font(.caption)
                     }

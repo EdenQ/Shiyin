@@ -4,9 +4,9 @@
   "upstream": {
     "remote": "https://github.com/juinwei7/Shiyin.git",
     "base": {
-      "tag": "v5.0.0",
-      "sha": "7e5b274",
-      "note": "5.0.1 起接回上游歷史：dab295f 合 4.8.1（merge-tree --merge-base=78ceab8，上層 3980efd）、f1fe30b 一般 merge v5.0.0"
+      "tag": "v5.1.1",
+      "sha": "edbd063",
+      "note": "5.1.2 一般 merge v5.1.1（ef3fbda）；之前：5.0.1 接回上游歷史（dab295f 合 4.8.1、f1fe30b merge v5.0.0）"
     },
     "cherryPicked": [
       {
@@ -216,102 +216,102 @@
         },
         {
           "file": "Sources/Shiyin/IO/Package.swift",
-          "line": 98,
+          "line": 99,
           "hook": "try ForkSpeakerTags.writePackage(b.speakerTags, to: dir)"
         },
         {
           "file": "Sources/Shiyin/IO/Package.swift",
-          "line": 167,
+          "line": 168,
           "hook": "try ForkSpeakerTags.readPackage(dir, meetingId: id, db: db)"
         },
         {
           "file": "Sources/Shiyin/Services/JobRunner.swift",
-          "line": 456,
+          "line": 462,
           "hook": "ForkSpeakerTags.afterTranscription(db, job.meetingId)"
         },
         {
           "file": "Sources/Shiyin/Services/JobRunner.swift",
-          "line": 529,
+          "line": 535,
           "hook": "if let speaker = old.first(where: { $0.idx == o }), speaker.nameSource != \"default\", speaker.nameSource != \"tag\" {"
         },
         {
           "file": "Sources/Shiyin/Services/JobRunner.swift",
-          "line": 540,
+          "line": 546,
           "hook": "ForkSpeakerTags.afterTranscription(db, job.meetingId)"
         },
         {
           "file": "Sources/Shiyin/Services/JobRunner.swift",
-          "line": 573,
+          "line": 579,
           "hook": "let named = Dictionary(old.filter { $0.nameSource != \"default\" && $0.nameSource != \"tag\" }.map { ($0.idx, $0) }, uniquingKeysWith: { a, _ in a })"
         },
         {
           "file": "Sources/Shiyin/Store/AppDatabase.swift",
-          "line": 379,
+          "line": 383,
           "hook": "ForkMigrations.register(&migrator)"
         },
         {
           "file": "Sources/Shiyin/Store/AppDatabase.swift",
-          "line": 607,
+          "line": 620,
           "hook": "try ForkSpeakerTags.split(db, from: id, to: newId, at: cut)"
         },
         {
           "file": "Sources/Shiyin/Store/AppModel.swift",
-          "line": 91,
+          "line": 93,
           "hook": "var forkTags = ForkSpeakerTags.DetailState()"
         },
         {
           "file": "Sources/Shiyin/Store/AppModel.swift",
-          "line": 147,
+          "line": 149,
           "hook": "forkTags.rebuild(segments)"
         },
         {
           "file": "Sources/Shiyin/Store/AppModel.swift",
-          "line": 632,
+          "line": 661,
           "hook": "loaded.speakerTags = (try? db.speakerTags(id)) ?? []"
         },
         {
           "file": "Sources/Shiyin/Store/AppModel.swift",
-          "line": 1198,
+          "line": 1284,
           "hook": "func speakerEditProblem(_ id: Int64, transcript: Bool = false) -> String? {"
         },
         {
           "file": "Sources/Shiyin/Store/AppModel.swift",
-          "line": 1244,
+          "line": 1330,
           "hook": "if AppSettings.voiceprints, source == \"manual\" || source == \"suggestion\" || source == \"tag\" {"
         },
         {
           "file": "Sources/Shiyin/Store/AppModel.swift",
-          "line": 1937,
+          "line": 2034,
           "hook": "let b = ForkSpeakerTags.attach(b, db: db, meetingId: meetingId)"
         },
         {
           "file": "Sources/Shiyin/Store/AppModel.swift",
-          "line": 2089,
+          "line": 2201,
           "hook": "if parts.contains(.speakerTags) { updated.speakerTags = (try? db.speakerTags(id)) ?? [] }"
         },
         {
           "file": "Sources/Shiyin/Store/AppModel.swift",
-          "line": 2097,
+          "line": 2212,
           "hook": "if !parts.isDisjoint(with: [.segments, .corrections, .speakerTags]) || !segmentIds.isEmpty { updated.buildIndexes() }"
         },
         {
           "file": "Sources/Shiyin/Store/MeetingEdits.swift",
-          "line": 124,
+          "line": 128,
           "hook": "if firstEdit { try ForkSpeakerTags.snapshot(db, meetingId: id) }"
         },
         {
           "file": "Sources/Shiyin/Store/MeetingEdits.swift",
-          "line": 154,
+          "line": 158,
           "hook": "try ForkSpeakerTags.remap(db, meetingId: id, plan: plan)"
         },
         {
           "file": "Sources/Shiyin/Store/MeetingEdits.swift",
-          "line": 192,
+          "line": 200,
           "hook": "try ForkSpeakerTags.copyForMerge(db, into: id, from: other, plan: plan)"
         },
         {
           "file": "Sources/Shiyin/Store/MeetingEdits.swift",
-          "line": 350,
+          "line": 367,
           "hook": "try ForkSpeakerTags.restore(db, meetingId: id)"
         },
         {
@@ -336,52 +336,52 @@
         },
         {
           "file": "Sources/Shiyin/Views/RecordingView.swift",
-          "line": 87,
+          "line": 123,
           "hook": ".forkSpeakerTagBar(detail)"
         },
         {
           "file": "Sources/Shiyin/Views/RecordingView.swift",
-          "line": 102,
+          "line": 161,
           "hook": ".onAppear { model.refreshKnownPeople() }"
         },
         {
           "file": "Sources/Shiyin/Views/RecordingView.swift",
-          "line": 199,
+          "line": 268,
           "hook": "let tagging = AppSettings.diarize, roster = detail.tagRoster"
         },
         {
           "file": "Sources/Shiyin/Views/RecordingView.swift",
-          "line": 208,
+          "line": 282,
           "hook": "LiveLineRow(line: line, tagged: tagging ? detail.liveTag(start: line.start, end: line.end)?.name : nil, roster: roster, starred: starred.contains(line.id), tagging: tagging).id(line.id)"
         },
         {
           "file": "Sources/Shiyin/Views/RecordingView.swift",
-          "line": 215,
+          "line": 290,
           "hook": "if tagging { Color.clear.frame(width: 64 * scale, height: 0) }"
         },
         {
           "file": "Sources/Shiyin/Views/TranscriptTab.swift",
-          "line": 421,
+          "line": 452,
           "hook": "tagged: detail.speakerSources[idx] == \"tag\","
         },
         {
           "file": "Sources/Shiyin/Views/TranscriptTab.swift",
-          "line": 462,
+          "line": 493,
           "hook": "if let idx = segment.speaker { ForEach(detail.unappliedTags(on: segment.id)) { UnappliedTagLine(tag: $0, idx: idx, detail: detail) } }"
         },
         {
           "file": "Sources/Shiyin/Views/TranscriptTab.swift",
-          "line": 668,
+          "line": 699,
           "hook": "var tagged = false"
         },
         {
           "file": "Sources/Shiyin/Views/TranscriptTab.swift",
-          "line": 683,
+          "line": 714,
           "hook": "if tagged { ForkTaggedNameNote() } else if automatic {"
         },
         {
           "file": "Sources/Shiyin/Views/TranscriptTab.swift",
-          "line": 694,
+          "line": 725,
           "hook": "if automatic || tagged, let onReject {"
         }
       ],
@@ -416,7 +416,8 @@
         "Sources/Shiyin/Fork/Mute/MuteDebug.swift",
         "Sources/Shiyin/Fork/Mute/ForkMuteSettingsRow.swift",
         "Sources/Shiyin/Fork/Mute/ForkIslandMute.swift",
-        "scripts/fork/f3-mute-check.py"
+        "scripts/fork/f3-mute-check.py",
+        "scripts/fork/hotkey-id-check.py"
       ],
       "upstreamFiles": [
         "Sources/Shiyin/App/RecordingIsland.swift",
@@ -473,7 +474,7 @@
       "markers": [
         {
           "file": "Sources/Shiyin/App/RecordingIsland.swift",
-          "line": 186,
+          "line": 208,
           "hook": "if let key = ForkIslandMute.hintKey(recorder) { return key }"
         },
         {
@@ -483,32 +484,32 @@
         },
         {
           "file": "Sources/Shiyin/Capture/Recorder.swift",
-          "line": 131,
+          "line": 139,
           "hook": "@ObservationIgnored let mute = ForkMute.State()"
         },
         {
           "file": "Sources/Shiyin/Capture/Recorder.swift",
-          "line": 198,
+          "line": 219,
           "hook": "func forkMuteChanged(_ muted: Bool) { writer?.setMuted(0, muted); if muted { if levelHint != nil { levelHint = nil } } else { (noisySeconds, quietSeconds) = (0, 0) } }"
         },
         {
           "file": "Sources/Shiyin/Capture/Recorder.swift",
-          "line": 318,
+          "line": 347,
           "hook": "guard writer.secondsSinceSamples(channel) < 1 else { continue }"
         },
         {
           "file": "Sources/Shiyin/Capture/Recorder.swift",
-          "line": 462,
+          "line": 491,
           "hook": "mute.resetForStart()"
         },
         {
           "file": "Sources/Shiyin/Capture/Recorder.swift",
-          "line": 634,
+          "line": 677,
           "hook": "if micMuted { updateLevelHint(systemDenied ? .systemDenied : nil); checkMuted(writer); return }"
         },
         {
           "file": "Sources/Shiyin/Capture/Recorder.swift",
-          "line": 878,
+          "line": 921,
           "hook": "mute.resetForStop()"
         },
         {
@@ -543,42 +544,42 @@
         },
         {
           "file": "Sources/Shiyin/Services/GlobalHotKey.swift",
-          "line": 44,
+          "line": 55,
           "hook": "func register(_ id: UInt32, key: Int) -> OSStatus {"
         },
         {
           "file": "Sources/Shiyin/Services/GlobalHotKey.swift",
-          "line": 54,
+          "line": 65,
           "hook": "if id == ForkMute.hotKeyID { ForkMute.fireHotKey(); return }"
         },
         {
           "file": "Sources/Shiyin/Services/GlobalHotKey.swift",
-          "line": 70,
+          "line": 85,
           "hook": "func unregister(_ id: UInt32) {"
         },
         {
           "file": "Sources/Shiyin/Store/AppModel.swift",
-          "line": 710,
+          "line": 741,
           "hook": "if let symbol = ForkMute.menuBarSymbol(recorder) { return symbol }"
         },
         {
           "file": "Sources/Shiyin/Store/AppModel.swift",
-          "line": 731,
+          "line": 762,
           "hook": "var mainWindowInFront: Bool {"
         },
         {
           "file": "Sources/Shiyin/Views/IslandView.swift",
-          "line": 105,
+          "line": 110,
           "hook": "} else if recorder.micMuted { ForkIslandMutedDot(alert: state.hintKey != nil)"
         },
         {
           "file": "Sources/Shiyin/Views/IslandView.swift",
-          "line": 156,
+          "line": 161,
           "hook": "ForkIslandMuteRow(recorder: recorder)"
         },
         {
           "file": "Sources/Shiyin/Views/IslandView.swift",
-          "line": 247,
+          "line": 292,
           "hook": "if let hint = ForkIslandMute.hint(recorder) { return hint }"
         },
         {
@@ -588,27 +589,27 @@
         },
         {
           "file": "Sources/Shiyin/Views/MenuBar.swift",
-          "line": 64,
+          "line": 77,
           "hook": "RecorderMeter(recorder: recorder, system: false, segments: 24).opacity(recorder.micMuted ? 0.35 : 1)"
         },
         {
           "file": "Sources/Shiyin/Views/MenuBar.swift",
-          "line": 101,
+          "line": 130,
           "hook": "ForkMuteMenuBarHint(recorder: recorder)"
         },
         {
           "file": "Sources/Shiyin/Views/RecordingView.swift",
-          "line": 63,
+          "line": 99,
           "hook": "ForkMuteHintBar(recorder: recorder)"
         },
         {
           "file": "Sources/Shiyin/Views/RecordingView.swift",
-          "line": 113,
+          "line": 172,
           "hook": "if recorder.canMuteMic { ForkMicMuteMeter(recorder: recorder) }"
         },
         {
           "file": "Sources/Shiyin/Views/RecordingView.swift",
-          "line": 117,
+          "line": 179,
           "hook": ".forkHidden(recorder.canMuteMic)"
         }
       ],
@@ -626,7 +627,10 @@
           "micmute",
           "unmute"
         ]
-      }
+      },
+      "checks": [
+        "python3 scripts/fork/hotkey-id-check.py"
+      ]
     },
     "F4": {
       "title": "紀錄條列頁的閱讀與複製",
@@ -693,7 +697,7 @@
         },
         {
           "file": "Sources/Shiyin/Store/AppModel.swift",
-          "line": 217,
+          "line": 219,
           "hook": "fork.selectionChanged()"
         },
         {
@@ -723,17 +727,17 @@
         },
         {
           "file": "Sources/Shiyin/Views/PlayerBar.swift",
-          "line": 66,
+          "line": 67,
           "hook": ".forkTrackTopic(topics, player: player, model: model)"
         },
         {
           "file": "Sources/Shiyin/Views/PlayerBar.swift",
-          "line": 89,
+          "line": 90,
           "hook": "var onTopic: ((Int) -> Void)? = nil"
         },
         {
           "file": "Sources/Shiyin/Views/PlayerBar.swift",
-          "line": 109,
+          "line": 110,
           "hook": "return Button { onSeek(range.start); onTopic?(range.branch) } label: {"
         }
       ],
@@ -818,8 +822,8 @@
         },
         {
           "file": "Sources/Shiyin/Views/IslandView.swift",
-          "line": 177,
-          "hook": "IslandButton(title: Brand.short(String(localized: \"打開拾音\")), symbol: \"macwindow\") {"
+          "line": 223,
+          "hook": "IslandButton(title: Brand.short(String(localized: \"打開拾音\")), symbol: \"macwindow\", iconOnly: iconOnly.contains(.open)) {"
         },
         {
           "file": "scripts/build-app.sh",
@@ -1034,22 +1038,22 @@
         },
         {
           "file": "Sources/Shiyin/Debug/DebugControl.swift",
-          "line": 1263,
+          "line": 1299,
           "hook": "ForkDebug.augmentState(&out, model: model)"
         },
         {
           "file": "Sources/Shiyin/Services/Notifier.swift",
-          "line": 156,
+          "line": 189,
           "hook": "if ForkDebugPrompts.quiet { return }"
         },
         {
           "file": "Sources/Shiyin/Store/AppModel.swift",
-          "line": 274,
+          "line": 276,
           "hook": "let fork = ForkAppState()"
         },
         {
           "file": "Sources/Shiyin/Store/AppModel.swift",
-          "line": 469,
+          "line": 496,
           "hook": "ForkStartup.install(self)"
         },
         {
@@ -1059,7 +1063,7 @@
         },
         {
           "file": "Sources/Shiyin/Views/SettingsView.swift",
-          "line": 1274,
+          "line": 1289,
           "hook": "ForkRecordingSettingsRows()"
         }
       ],
@@ -1114,7 +1118,7 @@
       "markers": [
         {
           "file": "Sources/Shiyin/Views/SettingsView.swift",
-          "line": 1521,
+          "line": 1536,
           "hook": "ForkBackupSettingsSection()"
         }
       ],
@@ -1159,7 +1163,7 @@
       "markers": [
         {
           "file": "Sources/Shiyin/App/RecordingIsland.swift",
-          "line": 110,
+          "line": 122,
           "hook": "guard let panel, let screen = ForkIsland.screen() ?? NSScreen.main ?? NSScreen.screens.first else { return }"
         }
       ],
@@ -1231,17 +1235,17 @@
       "markers": [
         {
           "file": "Sources/Shiyin/Store/AppDatabase.swift",
-          "line": 695,
+          "line": 708,
           "hook": "let named = try ForkRetranscribe.named(db, existing, voices: voices, count: speakerCount)"
         },
         {
           "file": "Sources/Shiyin/Store/AppModel.swift",
-          "line": 138,
+          "line": 140,
           "hook": "ForkVoiceScores.annotate(&self, rows)"
         },
         {
           "file": "Sources/Shiyin/Store/AppModel.swift",
-          "line": 1539,
+          "line": 1626,
           "hook": "if ForkVoiceGuard.holds(self, meetingId: id, idx: idx, name: name, source: source) { return }"
         },
         {
