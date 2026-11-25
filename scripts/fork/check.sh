@@ -199,6 +199,7 @@ i_f1() {
 # ---------- 隔離、l10n ----------
 i_iso() {
   run python3 "$ROOT/scripts/fork/isolation-check.py"; local c=$?
+  run python3 "$ROOT/scripts/fork/hotkey-id-check.py" || c=1   # fork 的快捷鍵 ID 不跟上游撞號（fork design §F14.1、DF17）
   NOTE="$(grep -o "上游程式裡 fork 的行數：[0-9]*（上限 [0-9]*）" "$LOG" | head -1)"
   [ $c = 0 ] || NOTE="$(grep -E '^  - ' "$LOG" | head -2 | sed 's/^  - //' | cut -c1-90 | tr '\n' '；')${NOTE}"
   return $c

@@ -41,8 +41,9 @@ enum ForkMute {
 
     // MARK: 全域快捷鍵 ⌃⌥⌘M（fork design §F3.3）
 
-    /// 上游 GlobalHotKey 用 1、2，fork 用 3
-    static let hotKeyID: UInt32 = 3
+    /// fork 的快捷鍵 ID 用 0x4D41_xxxx（「MA」＋序號，DF17）：上游 GlobalHotKey 用 1、2、3（5.1 的截圖）…往上加，
+    /// 同一個 signature 下撞號時後註冊的那組會靜靜失敗。scripts/fork/hotkey-id-check.py 擋重複
+    static let hotKeyID: UInt32 = 0x4D41_0001
     static var onMute: (() -> Void)?
     static var hotKeyRegistered = false
 
