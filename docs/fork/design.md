@@ -540,7 +540,7 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 - `bundleName` = MA、`displayName`（各語言）、`aboutName` = MA — Meeting Assistant、`shortName` = MA（錄音島上用的簡稱，F7.7）。
 - `phrases`：整句的特例（`from`、`to`、`required`），先換、不再被名稱對照影響：「「拾音」選單」→「「MA」選單」（應用程式選單叫 MA，F1.1）、`/Applications/Shiyin.app` → 加引號的 `Meeting Assistant.app`、第三方授權的開場白；Credits 的贊助說明（上游的「覺得拾音好用的話，可以請我喝杯咖啡」）換成空字串、整段拿掉（F13.1，§F13.1）。`required` 依資源指定哪些整句一定要命中（相對 `Contents/Resources` 的檔案，`guide:` 開頭是安裝說明）：換完的資源裡看不到 `to` 就失敗。上游改了句子（連一個標點）時，整句對不到，一般的名稱替換會把句子換成「Enjoying Meeting Assistant?」、署名消失，殘留檢查看不出來，所以要靠 `required`（2026-11-18 審查 P2-2）。檢查的是輸出有沒有 `to`，對換過的產物重跑結果不變。
 - `keep`：不換的片段（正規表示式，F7.2）。`Shiyin(?=[A-Z])` 是 `ShiyinIssuesURL` 這類鍵名、識別；`拾音 Shiyin(?= \(MIT\)|: LICENSE)` 是上游 MIT 聲明的那一項和標題（F13.2）。
-- `upstreamLicense`、`creditsForbidden`、`releaseNotes`：F13 用的設定（§F13）。
+- `upstreamLicense`、`creditsForbidden`、`licenseIntro`、`licenseList`、`releaseNotes`：F13 用的設定（§F13）。
 
 ### F7.2 建置時替換（`scripts/fork/brand.py apply <app>`）
 
@@ -1129,7 +1129,11 @@ CREATE TABLE ma_retranscribe_suggestion (   -- 對不上的舊名字建議，等
 
 - 上游 `build-app.sh` 產生三份 `Credits.html`（繁中、簡中、英文），最上面一段 `<p>` 是贊助句（R13.3），下面 `<pre>` 是第三方授權。
 - `brand.json` 的三條 `phrases` 把上游的贊助句（整句）換成空字串；`brand.py apply` 換完後把變成空的 `<p …></p>` 刪掉。
-- 結構檢查（REV-F13 P2-1，fail-closed）：`brand.py` 認得的 Credits 只有上游 `build-app.sh` 的骨架 `<!doctype html><html lang="…"><meta charset="utf-8"><pre …>…</pre>`，骨架和 `<pre>` 之間不能有任何東西（贊助句換成空字串、空 `<p>` 刪掉後就是這樣）；`<pre>` 裡第一個「- 」項目之前的非空行只能是授權開場白（`phrases` 裡 `required` 有 `ThirdPartyLicenses.txt` 的那幾條的 `to`）。`ThirdPartyLicenses.txt` 的開場白同一套規則。上游換了贊助平台（例如 GitHub Sponsors）、加了「Created by …」、改了骨架，都會失敗，要人工看過再改 `brand.json` 或 `brand.py`。不用關鍵字黑名單判斷（換一個寫法就漏），也不全域禁止 `juinwei7`（`LICENSE` 裡的著作權人要保留）。處理過的產物重跑一樣通過（冪等）。
+- 結構檢查（REV-F13 P2-1、REV2-F13 P2-5，fail-closed）：`brand.py` 認得的 Credits 只有上游 `build-app.sh` 的骨架 `<!doctype html><html lang="…"><meta charset="utf-8"><pre …>…</pre>`，骨架和 `<pre>` 之間不能有任何東西（贊助句換成空字串、空 `<p>` 刪掉後就是這樣）。`<pre>` 裡（`ThirdPartyLicenses.txt` 同一套）分三區檢查：
+  - **開場白**（第一個「- 」之前）：非空行只能是 `brand.json` 的 `licenseIntro.lines`（人工核對過的上游完整句子，現在是中英兩句）換過品牌後的樣子。白名單是寫死在設定裡的完整句子，**不從待檢查的授權檔推導**：上游在開場白同一行接上作者或贊助、改了開場白的任何一個字，都會失敗，錯誤訊息指到 `fork/brand.json` 的 `licenseIntro.lines`（人工看過、確定沒有贊助後才更新）。
+  - **套件清單**（第一個「- 」到第一條 `====` 分隔線之間）：非空行要嘛是套件項目 `- <名稱> (<授權>) <網址>`（授權是 SPDX 式的代號，網址是 http(s)、不是 `licenseList.forbiddenUrls` 裡的贊助網站），要嘛是 `licenseList.continuations` 列的接續行（現在只有 FluidAudio 的「and the third-party components it includes…」）。不符合（例如「- Support development at …」、不認得的接續行）就失敗，錯誤訊息指到 `licenseList`。合法新增的套件項目照常通過，不用把套件名稱寫死。
+  - **授權條款**（第一條分隔線之後）：不解析，只檢查上游 MIT 那一節（§F13.2）。
+  - 上游加了贊助平台（例如 GitHub Sponsors 的 `<p>`）、加了「Created by …」、改了骨架都會失敗，要人工看過再改 `brand.json` 或 `brand.py`。不用關鍵字黑名單判斷（換一個寫法就漏），也不全域禁止 `juinwei7`（`LICENSE` 裡的著作權人要保留）。處理過的產物重跑一樣通過（冪等）。
 - 另外保留關鍵字檢查（`check_app`）：每份 Credits 不能有 `creditsForbidden` 的任何一個（`ko-fi.com`、`weiwei_chang`、「喝杯咖啡」、`coffee`、「改自」、`based on Shiyin`）。上游改了贊助句（連一個標點），整句對不到時名稱替換會留下「覺得會議助手好用的話…Ko-fi」，這個檢查讓建置失敗，不會默默留下。
 
 ### F13.2 上游的 MIT 聲明（`upstreamLicense`）
@@ -1172,7 +1176,7 @@ CREATE TABLE ma_retranscribe_suggestion (   -- 對不上的舊名字建議，等
 
 ### F13.7 驗證
 
-- `brand-test.py`：REV-F13 的反例（Credits 換成 GitHub Sponsors、作者介紹要失敗；`LICENSE` 空檔、純空白、截斷要失敗；舊品牌鍵 `compare` 要對得上、`unbrand_key` 不膨脹）；apply 後三份 Credits 沒有贊助、有 MIT 聲明；`ThirdPartyLicenses.txt` 有那一項和全文；重跑不變；上游贊助句改了標點要失敗；把 MIT 那一節刪掉後 `check` 要失敗；`release-notes.py app` 只拿掉兩行。
+- `brand-test.py`：REV2-F13 P2-5 的反例（開場白同一行接作者、接贊助、兩者都接，假的清單項目要失敗；新增一個合法套件項目要通過、重跑不變）；REV-F13 的反例（Credits 換成 GitHub Sponsors、作者介紹要失敗；`LICENSE` 空檔、純空白、截斷要失敗；舊品牌鍵 `compare` 要對得上、`unbrand_key` 不膨脹）；apply 後三份 Credits 沒有贊助、有 MIT 聲明；`ThirdPartyLicenses.txt` 有那一項和全文；重跑不變；上游贊助句改了標點要失敗；把 MIT 那一節刪掉後 `check` 要失敗；`release-notes.py app` 只拿掉兩行。
 - `check.sh --only 3`（品牌：release、DEBUG 建置結果）；`isolation-check`（make-dmg.sh 的新接點登記在 manifest）。
 - 用建好的 release 版的 `ThirdPartyLicenses.txt` 照 `make-dmg.sh` 的方式放進暫存的 DMG，掛載後確認內容。
 - 用 v5.0.3、v5.0.4 的 tag 說明跑 `release-notes.py app`，結果用上游的 `ReleaseNotes.brief` 列出的第一項是這版的改變；建好的 app 的三份 `Localizable.strings` 是 GitHub Releases 的那一句。
