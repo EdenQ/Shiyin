@@ -374,11 +374,11 @@
 
 ### F13 原作者資訊（P1，只做 Mac）
 
-- F13.1 「關於 MA」（Credits）不放原作者的署名和贊助：拿掉「會議助手改自 juinwei7 的開源專案拾音 Shiyin」和 Ko-fi「請原作者喝杯咖啡」（繁中、簡中、英文三份）。上游改了贊助句、對不到時建置失敗，不能默默留下贊助連結。
-- F13.2 app 的授權內容（「關於 MA」的 Credits、`ThirdPartyLicenses.txt`）和 DMG 的 `Third-Party Licenses.txt` 附上上游拾音 Shiyin 的 MIT 著作權與許可聲明全文（repo 的 `LICENSE`）：清單第一項寫上游的專案名稱、MIT、網址，授權條款第一節是 `LICENSE` 原文。這段是授權必要的內容，品牌替換不改裡面的著作權人和專案名；缺了建置失敗。
+- F13.1 「關於 MA」（Credits）不放原作者的署名和贊助：拿掉「會議助手改自 juinwei7 的開源專案拾音 Shiyin」和 Ko-fi「請原作者喝杯咖啡」（繁中、簡中、英文三份）。Credits 除了授權內容只能有已知的結構和開場白；上游改了贊助句、換了贊助平台或加了作者介紹（任何不認得的段落）時建置失敗，不能默默留下（REV-F13 P2-1）。
+- F13.2 app 的授權內容（「關於 MA」的 Credits、`ThirdPartyLicenses.txt`）和 DMG 的 `Third-Party Licenses.txt` 附上上游拾音 Shiyin 的 MIT 著作權與許可聲明全文（repo 的 `LICENSE`）：清單第一項寫上游的專案名稱、MIT、網址，授權條款第一節是 `LICENSE` 原文。這段是授權必要的內容，品牌替換不改裡面的著作權人和專案名；缺了建置失敗。repo 的 `LICENSE` 是空的、只有空白、或缺了 MIT 的著作權行、許可段、免責段（例如被截斷）時也建置失敗（REV-F13 P2-2）。
 - F13.3 tag 說明的「- 基於上游 拾音 X.Y.Z」「- Based on upstream Shiyin X.Y.Z」不進 app 內更新說明（`shiyin-update.json` 的 `notes`）；GitHub Release 的說明照 DF6 保留這行當紀錄。
 - F13.4 fork 不跑官網的 workflow（`site/` 是上游的官網、讀上游的 Release；fork 沒有官網）。
-- F13.5 README（繁中、英文）改寫成會議助手自己的：功能、安裝、從原始碼建置、資料與隱私、授權；寫明是 MIT 授權的拾音 fork，附上游 repo 的連結當授權來源。不寫上游官網、`git clone` 上游、Ko-fi、上游的更新網址、Windows 版、匿名使用統計（fork 沒設）。
+- F13.5 README（繁中、英文）改寫成會議助手自己的：功能、安裝、從原始碼建置、資料與隱私、授權；寫明是 MIT 授權的拾音 fork，附上游 repo 的連結當授權來源。不寫上游官網、`git clone` 上游、Ko-fi、上游的更新網址、Windows 版、匿名使用統計（fork 沒設）。隱私說明照實寫：預設在本機轉錄、錄音不上傳；使用者自己選的例外照寫——登入企業伺服器、轉錄選「公司的伺服器」時錄音會送到公司的伺服器，雲端整理工具會收到逐字稿文字（REV-F13 P2-4）。
 - F13.6 app 內更新視窗沒列完時的「……還有 N 項，完整說明在官網。」改成「完整說明在 GitHub 的 Releases 頁面。」（簡中、英文同）：fork 沒有官網（2026-11-25 實作時發現，屬於 F13.4 不指向上游官網的範圍）。
 
 ### 接點（上限 100，維持不變）

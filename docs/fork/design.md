@@ -1129,7 +1129,8 @@ CREATE TABLE ma_retranscribe_suggestion (   -- 對不上的舊名字建議，等
 
 - 上游 `build-app.sh` 產生三份 `Credits.html`（繁中、簡中、英文），最上面一段 `<p>` 是贊助句（R13.3），下面 `<pre>` 是第三方授權。
 - `brand.json` 的三條 `phrases` 把上游的贊助句（整句）換成空字串；`brand.py apply` 換完後把變成空的 `<p …></p>` 刪掉。
-- 檢查（`check_app`）：每份 Credits 不能有 `creditsForbidden` 的任何一個（`ko-fi.com`、`weiwei_chang`、「喝杯咖啡」、`coffee`、「改自」、`based on Shiyin`）。上游改了贊助句（連一個標點），整句對不到時名稱替換會留下「覺得會議助手好用的話…Ko-fi」，這個檢查讓建置失敗，不會默默留下。
+- 結構檢查（REV-F13 P2-1，fail-closed）：`brand.py` 認得的 Credits 只有上游 `build-app.sh` 的骨架 `<!doctype html><html lang="…"><meta charset="utf-8"><pre …>…</pre>`，骨架和 `<pre>` 之間不能有任何東西（贊助句換成空字串、空 `<p>` 刪掉後就是這樣）；`<pre>` 裡第一個「- 」項目之前的非空行只能是授權開場白（`phrases` 裡 `required` 有 `ThirdPartyLicenses.txt` 的那幾條的 `to`）。`ThirdPartyLicenses.txt` 的開場白同一套規則。上游換了贊助平台（例如 GitHub Sponsors）、加了「Created by …」、改了骨架，都會失敗，要人工看過再改 `brand.json` 或 `brand.py`。不用關鍵字黑名單判斷（換一個寫法就漏），也不全域禁止 `juinwei7`（`LICENSE` 裡的著作權人要保留）。處理過的產物重跑一樣通過（冪等）。
+- 另外保留關鍵字檢查（`check_app`）：每份 Credits 不能有 `creditsForbidden` 的任何一個（`ko-fi.com`、`weiwei_chang`、「喝杯咖啡」、`coffee`、「改自」、`based on Shiyin`）。上游改了贊助句（連一個標點），整句對不到時名稱替換會留下「覺得會議助手好用的話…Ko-fi」，這個檢查讓建置失敗，不會默默留下。
 
 ### F13.2 上游的 MIT 聲明（`upstreamLicense`）
 
@@ -1138,6 +1139,7 @@ CREATE TABLE ma_retranscribe_suggestion (   -- 對不上的舊名字建議，等
   - `ThirdPartyLicenses.txt`：清單（第一個 `- ` 開頭的行）前面加一項 `- 拾音 Shiyin (MIT) https://github.com/juinwei7/Shiyin`；第一個 `====` 分隔區塊前面加一節，標題 `拾音 Shiyin: LICENSE`（跟其他套件的寫法一樣），內容是 `LICENSE` 原文。
   - 三份 `Credits.html`：`<pre>` 裡同樣的位置插入同樣的內容（HTML 跳脫，跟上游產生 Credits 的寫法一樣用 `html.escape`）。
   - 已經有 `拾音 Shiyin: LICENSE` 的檔不再插入（重跑結果不變）。找不到清單或分隔區塊（上游改了格式）就失敗。
+- 讀入 `LICENSE` 時檢查（REV-F13 P2-2）：去掉空白後不能是空的，而且要有 MIT 的三段——著作權行（`Copyright (c) …`）、許可段（`Permission is hereby granted, free of charge` 到 `copies or substantial portions of the Software.`）、免責段（`THE SOFTWARE IS PROVIDED "AS IS"` 到 `OTHER DEALINGS IN THE SOFTWARE.`）；比對時把連續空白視為一個空白。不符合就 `apply` 失敗、`check` 報錯，要人工核對（上游換授權或檔案壞了）。插入的仍是原文，不改寫。
 - `keep` 加 `拾音 Shiyin(?= \(MIT\)|: LICENSE)`，殘留檢查不把這兩處當成漏換。
 - 檢查（`check_app`）：`ThirdPartyLicenses.txt` 和每份 Credits（去掉 HTML 跳脫後）都要有那一項、標題和 `LICENSE` 全文，少了就失敗。
 - DMG：`make-dmg.sh` 已經拿 app 裡換過的 `ThirdPartyLicenses.txt` 放進 DMG（§F7.2），不用另外改。
@@ -1159,6 +1161,10 @@ CREATE TABLE ma_retranscribe_suggestion (   -- 對不上的舊名字建議，等
 - `README.md`、`.github/README.md` 改寫成會議助手的：簡介（MIT 授權的拾音 fork）、fork 加的功能、怎麼用、系統需求、安裝（EdenQ/Shiyin 的 Releases、自簽、仍要打開）、從原始碼建置（clone EdenQ/Shiyin）、資料與隱私（沒有匿名使用統計）、開發（docs/fork）、使用的開源專案、授權（MIT，附上游 repo 連結）。
 - 兩份是上游的檔（不在接點檢查範圍）；合併上游時一律取 fork 的版本，上游 README 新增的功能說明要不要寫進來另外判斷（`docs/fork/upstream-sync.md`）。
 
+### F13.5a `brand.py compare` 與拿掉型的 phrase（REV-F13 P2-3）
+
+- `compare` 找舊版的鍵時用 `unbrand_key` 把 fork 的寫法還原成上游的寫法（`to` → `from`）。`to` 是空字串的 phrase（Credits 的贊助）不能反向還原：空字串會在每個字元之間插入整句。`unbrand_key` 跳過 `to` 是空的 phrase；`compare` 先找完全相同的鍵，找不到才算還原的候選。
+
 ### F13.6 更新視窗的「完整說明在官網」
 
 - 上游 `ReleaseNotes.text` 沒列完時加一行「……還有 N 項，完整說明在官網。」（查翻譯表）。fork 沒有官網，`brand.json` 的 `phrases` 換成「完整說明在 GitHub 的 Releases 頁面。」（簡中、英文各一條，`required` 指到各自的 `Localizable.strings`）。
@@ -1166,7 +1172,7 @@ CREATE TABLE ma_retranscribe_suggestion (   -- 對不上的舊名字建議，等
 
 ### F13.7 驗證
 
-- `brand-test.py`：apply 後三份 Credits 沒有贊助、有 MIT 聲明；`ThirdPartyLicenses.txt` 有那一項和全文；重跑不變；上游贊助句改了標點要失敗；把 MIT 那一節刪掉後 `check` 要失敗；`release-notes.py app` 只拿掉兩行。
+- `brand-test.py`：REV-F13 的反例（Credits 換成 GitHub Sponsors、作者介紹要失敗；`LICENSE` 空檔、純空白、截斷要失敗；舊品牌鍵 `compare` 要對得上、`unbrand_key` 不膨脹）；apply 後三份 Credits 沒有贊助、有 MIT 聲明；`ThirdPartyLicenses.txt` 有那一項和全文；重跑不變；上游贊助句改了標點要失敗；把 MIT 那一節刪掉後 `check` 要失敗；`release-notes.py app` 只拿掉兩行。
 - `check.sh --only 3`（品牌：release、DEBUG 建置結果）；`isolation-check`（make-dmg.sh 的新接點登記在 manifest）。
 - 用建好的 release 版的 `ThirdPartyLicenses.txt` 照 `make-dmg.sh` 的方式放進暫存的 DMG，掛載後確認內容。
 - 用 v5.0.3、v5.0.4 的 tag 說明跑 `release-notes.py app`，結果用上游的 `ReleaseNotes.brief` 列出的第一項是這版的改變；建好的 app 的三份 `Localizable.strings` 是 GitHub Releases 的那一句。
