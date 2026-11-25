@@ -538,8 +538,9 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 
 - `names`：每個介面語言的名稱對照。zh-Hant「拾音→會議助手」、zh-Hans「拾音→会议助手」、en「Shiyin→Meeting Assistant」（en 的值偶爾夾中文，也換「拾音」）。之後才有的語言（日、韓介面）用 en 那一份。
 - `bundleName` = MA、`displayName`（各語言）、`aboutName` = MA — Meeting Assistant、`shortName` = MA（錄音島上用的簡稱，F7.7）。
-- `phrases`：整句的特例（`from`、`to`、`required`），先換、不再被名稱對照影響：「「拾音」選單」→「「MA」選單」（應用程式選單叫 MA，F1.1）、`/Applications/Shiyin.app` → 加引號的 `Meeting Assistant.app`、第三方授權的開場白、Credits 的贊助說明（「會議助手改自 juinwei7 的開源專案拾音 Shiyin…請原作者喝杯咖啡」）。`required` 依資源指定哪些整句一定要命中（相對 `Contents/Resources` 的檔案，`guide:` 開頭是安裝說明）：換完的資源裡看不到 `to` 就失敗。上游改了句子（連一個標點）時，整句對不到，一般的名稱替換會把句子換成「Enjoying Meeting Assistant?」、署名消失，殘留檢查看不出來，所以要靠 `required`（2026-11-18 審查 P2-2）。檢查的是輸出有沒有 `to`，對換過的產物重跑結果不變。
-- `keep`：不換的片段（正規表示式，F7.2）。`Shiyin(?=[A-Z])` 是 `ShiyinIssuesURL` 這類鍵名、識別。
+- `phrases`：整句的特例（`from`、`to`、`required`），先換、不再被名稱對照影響：「「拾音」選單」→「「MA」選單」（應用程式選單叫 MA，F1.1）、`/Applications/Shiyin.app` → 加引號的 `Meeting Assistant.app`、第三方授權的開場白；Credits 的贊助說明（上游的「覺得拾音好用的話，可以請我喝杯咖啡」）換成空字串、整段拿掉（F13.1，§F13.1）。`required` 依資源指定哪些整句一定要命中（相對 `Contents/Resources` 的檔案，`guide:` 開頭是安裝說明）：換完的資源裡看不到 `to` 就失敗。上游改了句子（連一個標點）時，整句對不到，一般的名稱替換會把句子換成「Enjoying Meeting Assistant?」、署名消失，殘留檢查看不出來，所以要靠 `required`（2026-11-18 審查 P2-2）。檢查的是輸出有沒有 `to`，對換過的產物重跑結果不變。
+- `keep`：不換的片段（正規表示式，F7.2）。`Shiyin(?=[A-Z])` 是 `ShiyinIssuesURL` 這類鍵名、識別；`拾音 Shiyin(?= \(MIT\)|: LICENSE)` 是上游 MIT 聲明的那一項和標題（F13.2）。
+- `upstreamLicense`、`creditsForbidden`、`licenseIntro`、`licenseList`、`releaseNotes`：F13 用的設定（§F13）。
 
 ### F7.2 建置時替換（`scripts/fork/brand.py apply <app>`）
 
@@ -548,7 +549,7 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
 - 各 `.lproj` 的 `Localizable.strings`、`.stringsdict`（xcstringstool 編出來的 XML plist）：只換值、鍵不動。繁中是翻譯表的來源語言，編出來的繁中檔也有全部的鍵（值等於鍵），所以換值就夠，不用另外寫明確的繁中值。
 - `InfoPlist.strings`：鍵也換（鍵是 Info.plist 的英文值，例如 `Shiyin Meeting`）；`CFBundleName`、`CFBundleDisplayName` 直接設成 `brand.json` 的值。
 - `Info.plist`：`CFBundleName` = MA、`CFBundleDisplayName` = Meeting Assistant；`infoPlistBrandKeys`（檔案類型名稱、權限說明）換名稱；識別（執行檔、bundle id、URL scheme、UTType）不動。另外寫入 `MABrand`（名稱對照、`aboutName`），給 §F7.3 的接點讀。
-- `Credits.html`、`ThirdPartyLicenses.txt`：用 `phrases` 換開場白和贊助說明。`build-app.sh` 產生 Credits 的程式照上游原樣。
+- `Credits.html`、`ThirdPartyLicenses.txt`：用 `phrases` 換開場白、拿掉贊助說明（拿掉後留下的空 `<p>` 一起刪），再插入上游的 MIT 聲明（§F13.2）。`build-app.sh` 產生 Credits 的程式照上游原樣。
 - 每一條換過的字串比對格式碼（`%@`、`%lld`、`%1$@`…）的種類和數量，不同就失敗（名稱裡不會有格式碼，這是防 `brand.json` 寫錯）。
 - `make-dmg.sh`：`brand.py guides` 把兩份安裝說明換好放到暫存資料夾再轉 PDF；DMG 裡的第三方授權改拿 app 裡換過的那份。
 - 驗證基準：`brand.py compare <上一版.app> <新.app>` 逐鍵比對各 `.lproj`、Info.plist（版本號除外）、Credits、第三方授權；舊版的鍵是 fork 寫死的「會議助手」時，先還原成上游的鍵再找。
@@ -1120,6 +1121,66 @@ CREATE TABLE ma_retranscribe_suggestion (   -- 對不上的舊名字建議，等
   - 略過之後再重啟，不復活。
 - 匯入封包不變靠 #6（F2 加上 5.0 的封包）。
 
+## F13. 拿掉原作者相關資訊（F13，DF16）
+
+不加 Swift 接點（100/100 不變）。設定都在 `fork/brand.json`，`brand.py` 在建置時處理建好的 app。
+
+### F13.1 Credits 的贊助說明（`phrases`）
+
+- 上游 `build-app.sh` 產生三份 `Credits.html`（繁中、簡中、英文），最上面一段 `<p>` 是贊助句（R13.3），下面 `<pre>` 是第三方授權。
+- `brand.json` 的三條 `phrases` 把上游的贊助句（整句）換成空字串；`brand.py apply` 換完後把變成空的 `<p …></p>` 刪掉。
+- 結構檢查（REV-F13 P2-1、REV2-F13 P2-5，fail-closed）：`brand.py` 認得的 Credits 只有上游 `build-app.sh` 的骨架 `<!doctype html><html lang="…"><meta charset="utf-8"><pre …>…</pre>`，骨架和 `<pre>` 之間不能有任何東西（贊助句換成空字串、空 `<p>` 刪掉後就是這樣）。`<pre>` 裡（`ThirdPartyLicenses.txt` 同一套）分三區檢查：
+  - **開場白**（第一個「- 」之前）：非空行只能是 `brand.json` 的 `licenseIntro.lines`（人工核對過的上游完整句子，現在是中英兩句）換過品牌後的樣子。白名單是寫死在設定裡的完整句子，**不從待檢查的授權檔推導**：上游在開場白同一行接上作者或贊助、改了開場白的任何一個字，都會失敗，錯誤訊息指到 `fork/brand.json` 的 `licenseIntro.lines`（人工看過、確定沒有贊助後才更新）。
+  - **套件清單**（第一個「- 」到第一條 `====` 分隔線之間）：非空行要嘛是套件項目 `- <名稱> (<授權>) <網址>`（授權是 SPDX 式的代號，網址是 http(s)、不是 `licenseList.forbiddenUrls` 裡的贊助網站），要嘛是 `licenseList.continuations` 列的接續行（現在只有 FluidAudio 的「and the third-party components it includes…」）。不符合（例如「- Support development at …」、不認得的接續行）就失敗，錯誤訊息指到 `licenseList`。合法新增的套件項目照常通過，不用把套件名稱寫死。
+  - **授權條款**（第一條分隔線之後）：不解析，只檢查上游 MIT 那一節（§F13.2）。
+  - 上游加了贊助平台（例如 GitHub Sponsors 的 `<p>`）、加了「Created by …」、改了骨架都會失敗，要人工看過再改 `brand.json` 或 `brand.py`。不用關鍵字黑名單判斷（換一個寫法就漏），也不全域禁止 `juinwei7`（`LICENSE` 裡的著作權人要保留）。處理過的產物重跑一樣通過（冪等）。
+- 另外保留關鍵字檢查（`check_app`）：每份 Credits 不能有 `creditsForbidden` 的任何一個（`ko-fi.com`、`weiwei_chang`、「喝杯咖啡」、`coffee`、「改自」、`based on Shiyin`）。上游改了贊助句（連一個標點），整句對不到時名稱替換會留下「覺得會議助手好用的話…Ko-fi」，這個檢查讓建置失敗，不會默默留下。
+
+### F13.2 上游的 MIT 聲明（`upstreamLicense`）
+
+- 設定：`{"file": "LICENSE", "name": "拾音 Shiyin", "license": "MIT", "url": "https://github.com/juinwei7/Shiyin"}`。`file` 是 repo 裡照上游原樣的 `LICENSE`（合併上游時跟著上游）。
+- `brand.py apply` 在品牌替換**之後**插入，所以裡面的專案名稱和著作權人不會被換掉：
+  - `ThirdPartyLicenses.txt`：清單（第一個 `- ` 開頭的行）前面加一項 `- 拾音 Shiyin (MIT) https://github.com/juinwei7/Shiyin`；第一個 `====` 分隔區塊前面加一節，標題 `拾音 Shiyin: LICENSE`（跟其他套件的寫法一樣），內容是 `LICENSE` 原文。
+  - 三份 `Credits.html`：`<pre>` 裡同樣的位置插入同樣的內容（HTML 跳脫，跟上游產生 Credits 的寫法一樣用 `html.escape`）。
+  - 已經有 `拾音 Shiyin: LICENSE` 的檔不再插入（重跑結果不變）。找不到清單或分隔區塊（上游改了格式）就失敗。
+- 讀入 `LICENSE` 時檢查（REV-F13 P2-2）：去掉空白後不能是空的，而且要有 MIT 的三段——著作權行（`Copyright (c) …`）、許可段（`Permission is hereby granted, free of charge` 到 `copies or substantial portions of the Software.`）、免責段（`THE SOFTWARE IS PROVIDED "AS IS"` 到 `OTHER DEALINGS IN THE SOFTWARE.`）；比對時把連續空白視為一個空白。不符合就 `apply` 失敗、`check` 報錯，要人工核對（上游換授權或檔案壞了）。插入的仍是原文，不改寫。
+- `keep` 加 `拾音 Shiyin(?= \(MIT\)|: LICENSE)`，殘留檢查不把這兩處當成漏換。
+- 檢查（`check_app`）：`ThirdPartyLicenses.txt` 和每份 Credits（去掉 HTML 跳脫後）都要有那一項、標題和 `LICENSE` 全文，少了就失敗。
+- DMG：`make-dmg.sh` 已經拿 app 裡換過的 `ThirdPartyLicenses.txt` 放進 DMG（§F7.2），不用另外改。
+
+### F13.3 app 內更新說明不寫「基於上游」（`releaseNotes`）
+
+- 來源：`release.yml` 的「更新內容」步驟把 tag 說明放進 `SHIYIN_RELEASE_NOTES`；同一個變數給 `make-dmg.sh` 寫進 `shiyin-update.json` 的 `notes`（app 內更新視窗讀這個，`ReleaseNotes.brief` 取中文或英文段落的「- 」條目），也給 `gh release create --notes`（GitHub Release）。
+- `make-dmg.sh` 產生 `shiyin-update.json` 之前加 1 行腳本接點：`SHIYIN_RELEASE_NOTES` 先經過 `scripts/fork/release-notes.py app`，拿掉符合 `brand.json` `releaseNotes.appDrop` 的行（`^- 基於上游 `、`^- Based on upstream `），其他行原樣（含空行、段落）。這個變數在 `make-dmg.sh` 的子程序裡，不影響 `release.yml` 後面的 `gh release create`，GitHub Release 保留這行。
+- 不在 app 裡過濾：要加 Swift 接點（`ReleaseNotes`），而且已經裝好的舊版也會讀新版的 `shiyin-update.json`；在產生的時候拿掉，舊版看到的也沒有這行。
+
+### F13.4 停用官網的 workflow
+
+- `site.yml` 的 job `deploy` 的 `if` 前面加 `github.repository == 'juinwei7/Shiyin' &&`（行尾 `# MA-FORK(F13)`）：在 fork 每次觸發（推 main、打包完成、每天的排程、手動）都是「略過」，不建置也不部署。
+- `.github` 不在接點檢查的範圍、不算行數（§F0.3）；合併上游時這一行如果上游也改了，保留 fork 的條件。
+- 不採用：在 GitHub 的 Actions 設定停用 workflow（不用改檔，但要使用者用網頁或 `gh` 操作，repo 裡看不出來；使用者想連「略過」紀錄都不要時可以另外做）；刪掉 `site.yml`（合併上游時每次衝突）。
+
+### F13.5 README
+
+- `README.md`、`.github/README.md` 改寫成會議助手的：簡介（MIT 授權的拾音 fork）、fork 加的功能、怎麼用、系統需求、安裝（EdenQ/Shiyin 的 Releases、自簽、仍要打開）、從原始碼建置（clone EdenQ/Shiyin）、資料與隱私（沒有匿名使用統計）、開發（docs/fork）、使用的開源專案、授權（MIT，附上游 repo 連結）。
+- 兩份是上游的檔（不在接點檢查範圍）；合併上游時一律取 fork 的版本，上游 README 新增的功能說明要不要寫進來另外判斷（`docs/fork/upstream-sync.md`）。
+
+### F13.5a `brand.py compare` 與拿掉型的 phrase（REV-F13 P2-3）
+
+- `compare` 找舊版的鍵時用 `unbrand_key` 把 fork 的寫法還原成上游的寫法（`to` → `from`）。`to` 是空字串的 phrase（Credits 的贊助）不能反向還原：空字串會在每個字元之間插入整句。`unbrand_key` 跳過 `to` 是空的 phrase；`compare` 先找完全相同的鍵，找不到才算還原的候選。
+
+### F13.6 更新視窗的「完整說明在官網」
+
+- 上游 `ReleaseNotes.text` 沒列完時加一行「……還有 N 項，完整說明在官網。」（查翻譯表）。fork 沒有官網，`brand.json` 的 `phrases` 換成「完整說明在 GitHub 的 Releases 頁面。」（簡中、英文各一條，`required` 指到各自的 `Localizable.strings`）。
+- 這句沒有品牌字：`brand()` 原本只處理有「拾音」「Shiyin」的字串，改成有任何一條 `phrases` 的 `from` 也處理。不加 Swift 接點。
+
+### F13.7 驗證
+
+- `brand-test.py`：REV2-F13 P2-5 的反例（開場白同一行接作者、接贊助、兩者都接，假的清單項目要失敗；新增一個合法套件項目要通過、重跑不變）；REV-F13 的反例（Credits 換成 GitHub Sponsors、作者介紹要失敗；`LICENSE` 空檔、純空白、截斷要失敗；舊品牌鍵 `compare` 要對得上、`unbrand_key` 不膨脹）；apply 後三份 Credits 沒有贊助、有 MIT 聲明；`ThirdPartyLicenses.txt` 有那一項和全文；重跑不變；上游贊助句改了標點要失敗；把 MIT 那一節刪掉後 `check` 要失敗；`release-notes.py app` 只拿掉兩行。
+- `check.sh --only 3`（品牌：release、DEBUG 建置結果）；`isolation-check`（make-dmg.sh 的新接點登記在 manifest）。
+- 用建好的 release 版的 `ThirdPartyLicenses.txt` 照 `make-dmg.sh` 的方式放進暫存的 DMG，掛載後確認內容。
+- 用 v5.0.3、v5.0.4 的 tag 說明跑 `release-notes.py app`，結果用上游的 `ReleaseNotes.brief` 列出的第一項是這版的改變；建好的 app 的三份 `Localizable.strings` 是 GitHub Releases 的那一句。
+
 ## F-DB. 資料庫規則（PLAN-fork-5.0 §6）
 
 ### F-DB.1 規則
@@ -1176,8 +1237,9 @@ CREATE TABLE ma_retranscribe_suggestion (   -- 對不上的舊名字建議，等
 | 上游 | fork 的補充 |
 |---|---|
 | §3 檔案配置 | `Resources/AppIcon.icns` 由 `Resources/AppIcon-1024.png` 經 `scripts/make-icon-from-png.sh` 產生（§F1）；上游的 `scripts/make-icon.swift` 畫舊圖示，fork 不用。另外有 `fork/`（品牌設定）、`scripts/fork/`（`brand.py` 等）、`Sources/Shiyin/Fork/`、`docs/fork/` |
-| §12.1 更新網址 | GitHub 的 repository variable `SHIYIN_UPDATE_URL` 設成 `https://github.com/EdenQ/Shiyin/releases/latest/download/shiyin-update.json`（fork 的更新來源，**不可指回上游**）。Release 的說明文字照 DF6 加「- 基於上游 拾音 X.Y.Z」 |
-| §12.1 Credits | 贊助說明、授權開場白在建置時換成「會議助手改自 juinwei7 的開源專案拾音 Shiyin…請原作者喝杯咖啡」（§F7.1），`build-app.sh` 產生 Credits 的程式照上游 |
+| §12.1 更新網址 | GitHub 的 repository variable `SHIYIN_UPDATE_URL` 設成 `https://github.com/EdenQ/Shiyin/releases/latest/download/shiyin-update.json`（fork 的更新來源，**不可指回上游**）。Release 的說明文字照 DF6 加「- 基於上游 拾音 X.Y.Z」；這行不進 `shiyin-update.json` 的 `notes`（`make-dmg.sh` 的 1 行接點，§F13.3） |
+| §12.1 Credits、R13.3 贊助 | 授權開場白在建置時換成會議助手；贊助說明拿掉；Credits 和第三方授權檔的最前面加上上游拾音的 MIT 聲明（§F7.1、§F13）。`build-app.sh` 產生 Credits 的程式照上游 |
+| 官網（`docs/website.md`、`.github/workflows/site.yml`） | fork 不跑官網的 workflow：job 的 `if` 多一個 `github.repository == 'juinwei7/Shiyin'`（§F13.4）。`site/` 的內容照上游 |
 | §21.9 回報問題 | Info.plist 的 `ShiyinIssuesURL` 設成 `https://github.com/EdenQ/Shiyin/issues`（F1.5）；程式裡的預設常數保留上游的值，減少合併衝突 |
 | §38.5 文字大小 | 錄音中說話者標記（F2）的名字、時間欄位與未定稿文字的空白欄一起依 `textScale` 縮放 |
 | §43 議題時間軸、D145 | fork 的議題帶改用 `MindMap.topicSegments`（依每條重點的時間切段，同一個議題可以有好幾段），點了在紀錄分頁也捲到那個議題（§F4.2、§F4.3、DF4）。上游的 `topicRanges` 和它的標準答案不變 |
@@ -1206,7 +1268,7 @@ CREATE TABLE ma_retranscribe_suggestion (   -- 對不上的舊名字建議，等
 | DF3 | 錄音中靜音麥克風時，麥克風那一聲道直接寫成 0（F3，2026-11-03） | 照錄、只記下靜音的時間範圍，轉錄和即時逐字稿時才拿掉：選錯了救得回來，但正式轉錄、說話者辨識、壓縮、匯出、封包、重新轉錄都要跟著處理這些範圍，錄音檔裡也還是有會議室的閒聊（使用者要的就是不錄）。跟 Teams 的靜音一樣「靜音就是沒錄」，最好懂；代價是忘了打開的那段救不回來，所以加上忘了打開的提醒（F3.4） |
 | DF4 | 紀錄條列頁先做分段複製、時間點降噪、色條、議題收合與目錄，議題帶改用新函式依重點時間切段（F4，2026-11-10 使用者看過預覽後確認） | 整頁換成一份文字（唯讀 NSTextView）讓原頁可以任意拖選：待確認的就地回答要改成彈出視窗、待辦表要重排、焦點與捲動都要重做，先用分段複製滿足「貼到 Slack／郵件」的實際需求。直接改 `topicRanges`：Windows 也比對它的標準答案，fork 只做 Mac，所以另寫 `topicSegments`。修正 D145「回頭講前面的議題算進後面的議題可以接受」：使用者想看出重回；整理工具給的每條重點時間已經夠用，不必請整理工具另給結束時間。最小片段 60 秒：一條時間填錯或順口提一句時，議題帶上會切出點不到的細線、目前議題來回跳；60 秒在一小時的會議約 1.6% 寬，差不多是點得到的寬度。開始段例外保留（2026-11-10 審查後決定）：併掉時議題列寫 00:00、議題帶上卻在一小時後才出現，議題列的開始時間、點開始時間播放、目前議題對不上；代價是議題帶上可能有很細的色塊（不寫字，滑過看名稱）。保護「包含 `start` 的段」而不是「最早的段」：早於 `start` 的重點可能是時間填錯，不該永久保留。零長度段（同一秒好幾個議題）不算一段，不然唯一有效的短段會被當成「還有別段」併掉。重回的段不往前多算：沒有依據，會吃掉前一個議題。議題膠囊目錄不是 D109 拒絕的側邊欄：只在議題 > 5 個時出現、放在紀錄上方一列、只做導覽不放要處理的內容，不佔寬度。重點先行、摘要收合：使用者看過預覽後不要。播放時自動捲動：使用者在讀別段時會被拉走，只標出 |
 | DF5 | 麥克風音源的 `deviceUID`、`current` 用短暫拿鎖的 `LockedValue` 存（上游 §50.2 的補充，見 §F-UP；2026-11-16 審查帶入的上游 R74 時發現） | 主執行緒先取 UID 的快照傳進背景：要改上游共用的 `AudioSource.restart()` 介面，`current` 從背景寫回仍然要同步，日後合併上游衝突多。換麥克風用 `deviceQueue.sync`：會等整個重新連接做完（藍牙要好幾秒），抵消 R74.4 的不卡住。改成 actor：`start()` 是同步的 AVAudioEngine 呼叫，要大改。上游 b042c94 原本是普通屬性，TSan 證實換麥克風和重新連接同時發生時有資料競態 |
-| DF6 | 版本號規則：build 號從 31 起單調遞增、不跟上游；合併上游 X.Y.Z 的那一版是 X.Y.(Z+1)，比 fork 目前的版本小時取 fork 的 patch + 1；fork 自己的發布只加 patch；說明文字第一行後面加「- 基於上游 拾音 X.Y.Z」（PLAN-fork-5.0 §2.3，2026-11-18 使用者同意） | 照上游的版本號：fork 自己的修正沒有號碼可用，跟上游同號會讓使用者以為是同一版。另外一套版本號（例如 1.0 起）：看不出基於上游哪一版，`Updater.isNewer` 只比數字，從 4.7.6 換到 1.0 使用者就收不到更新。這個規則永遠往上，app 內更新照常 |
+| DF6 | 版本號規則：build 號從 31 起單調遞增、不跟上游；合併上游 X.Y.Z 的那一版是 X.Y.(Z+1)，比 fork 目前的版本小時取 fork 的 patch + 1；fork 自己的發布只加 patch；說明文字第一行後面加「- 基於上游 拾音 X.Y.Z」（PLAN-fork-5.0 §2.3，2026-11-18 使用者同意；這行只留在 GitHub Release，不進 app 內更新說明，F13.3、DF16） | 照上游的版本號：fork 自己的修正沒有號碼可用，跟上游同號會讓使用者以為是同一版。另外一套版本號（例如 1.0 起）：看不出基於上游哪一版，`Updater.isNewer` 只比數字，從 4.7.6 換到 1.0 使用者就收不到更新。這個規則永遠往上，app 內更新照常 |
 | DF7 | 品牌在建置時換建好的 app（`brand.py apply`），原始碼、翻譯表、Info.plist 照上游寫（F7，2026-11-18） | 原始碼直接寫「會議助手」（4.7.6 以前）：每次合併上游，32 個 Swift 檔、翻譯表 89 個鍵、Info.plist、安裝說明都衝突，而且上游新加的字串一定是「拾音」，要人工找。在建置前換一份翻譯表再編（PLAN 的原案）：繁中是來源語言，要另外寫明確的繁中值，還要處理鍵；編出來的繁中 `.strings` 本來就有全部的鍵，直接換值比較簡單，也能一起處理 `.stringsdict`、InfoPlist.strings。Swift 裡用 `Brand.name(...)` 包每一處：還是會衝突。代價：有幾處不經過翻譯表（關於、更新說明、5.0 的提醒事項）要留 1 行接點，原始碼掃描擋住上游新增的。防護要嚴：原始碼掃描只認包住字串的最內層查表呼叫，不看附近幾行；整句特例依資源規定一定要命中，不能只看有沒有殘留的「拾音」（2026-11-18 審查 P2-1、P2-2）。原始碼掃描只放行能證明會查表的參數寫法（單一常值、兩邊都是常值的三元運算），其他保守報錯；正確性用 Swift 編譯器的 `-emit-localized-strings` 依位置核對（`brand.py crosscheck`），不在每次建置都跑編譯器：那要改上游的 `swift build` 那行或多編一次整個模組（複審 P2-3） |
 | DF8 | fork 功能隔離到 `Sources/Shiyin/Fork/`，上游檔只留標了 `MA-FORK` 的單行接點（PLAN-fork-5.0 階段 2，2026-11-19）：狀態放 fork 自己的物件（`ForkAppState`、`MeetingDetail.forkTags`、`ForkMute.State`），要用的上游 `private` 成員改 internal 並標成接點，條列模式整頁、`AutoSpeakerName` 這種整塊改過的畫面用 fork 的複本；「只改這句」在 fork 的函式裡用一筆交易重用上游的 `saveSpeakerUndo`、`addSpeaker`、`removeEmptySpeakers`（兩個 private 的由 SpeakerEdits 裡各 1 行轉呼叫的接點 `forkSaveSpeakerUndo`、`forkAddSpeaker` 開出來），改句子說話者的那幾行是 fork 的複本（跟上游 `reassignSegments` 的迴圈相同）；不改成先呼叫上游的 `reassignSegments` 再另開一筆改名：第二筆失敗時第一筆已經存了（多出一位預設名稱的說話者、句子已改、留下復原快照），跟 5.0.1 的整筆回復不同（REVIEW-2 P2-1，`scripts/fork/f2-atomic-check.py` 用 SQLite trigger 讓改名失敗來檢查）；標記的名字存不存聲紋改由 `learnVoiceprint` 裡 1 行接點問 `ForkSpeakerTags.remembersVoice`；`LockedValue` 類別搬到 `Fork/DF5`；用 `isolation-check.py` 檢查（§F0.3） | 照舊在上游的函式加參數（`reassignSegments(name:)`、`learnVoiceprint(remember:)`）：改了上游函式的簽章，上游改同一個函式就衝突（§F0.1 第 4 點）。在上游元件加參數（`NotesSection` 的 count、accent、copy，`TimeButton` 的 subdued）：上游 5.0 就地編輯時已經衝突過一次，複本的代價是上游改原元件時要人工比對（manifest `highRisk`）。把上游的條列模式留著、fork 的另開一頁：同一份內容兩份程式，使用者看到的仍是 fork 的，上游的那份只是佔位。「只改這句」第二筆失敗時再補做復原：補做本身也可能失敗，中間別的寫入看得到改了一半的資料，不是原子性。接點的範圍用「開始、結束」兩個記號包住一段：可以包很長一段，失去「上游檔只留接點」的意思，行數也看不出來 |
 | DF9 | 定期備份用 sqlite3_backup（來源是 GRDB 讀取交易裡的快照；目的地自己用 `O_EXCL | O_NOFOLLOW` 建、`SQLITE_OPEN_NOFOLLOW` 開，§F10.1a），寫完跑 `integrity_check` 才改名；上一次成功的時間看 `backups/daily/` 裡最新的檔，不存在設定；設定（一般頁）的一段用 1 行接點（98 → 99），啟動、「MA」選單改走 F0 的共用入口 `ForkStartup`、`ForkAppMenuCommands`，換掉既有的 2 行（F10，2026-11-20 使用者確認） | `VACUUM INTO`：不能在交易裡跑，GRDB 的讀取一律包交易，要另開連線，又會重排整個檔，沒有多的好處。存 `maBackupLastSuccess`（需求草稿的寫法）：設定跟著 bundle id、不跟著 `SHIYIN_HOME`，換了資料夾（測試、示範資料夾）時會拿別的資料夾的時間判斷，所以改成看檔案、另存 `maBackupFailingSince` 算 7 天。各功能各加接點：會用掉剩下的 2 行；提高接點上限：使用者選共用入口 |
@@ -1216,3 +1278,4 @@ CREATE TABLE ma_retranscribe_suggestion (   -- 對不上的舊名字建議，等
 | DF13 | 改名防呆擋在上游 `AppModel.renameSpeaker` 開頭（1 行接點），所有使用者取名的路徑都經過它；別人 ≥ 0.88、取的名字既有的 < 0.50（或沒有樣本）才擋；一次好幾位時擋下的集中在一個視窗、選項套用到全部；「只改名」沿用 F2.9 的「只連到人、不存聲紋」（F12，2026-11-24） | 改完才問（在 `remembersVoice` 先不存聲紋、事後再問要不要存）：取消時要把名字、會議紀錄、建議改回去，會多存一版會議紀錄，也清不回被上游清掉的復原。只看別人很像、不看取的名字：同一個人的聲紋本來就可能跟別人 0.88 以上（使用者的資料裡不同的人有 0.85），會常常誤擋。門檻用 0.65／0.88 的差距：沒有實際資料支撐。一位一個視窗：全部套用 5 位時要按 5 次，而且上游的迴圈是同步的，做不到一個接一個問。也擋合併說話者、重新辨識時的重新學習：那時名字是使用者早就確認過的，不是新的取名 |
 | DF14 | 聲紋的來源記在 fork 的表 `ma_voiceprint_source`（外鍵指到上游的 `voiceprints`、`ON DELETE CASCADE`），在既有的 `remembersVoice` 接點寫 pending、事後對到聲紋 id；取名的來源由防呆的接點記在記憶體，標記由 F2 的套用記，重新辨識看 `jobs`，其他算合併；待確認回答併進「套用建議」「手動取名」（F12，2026-11-24） | 在上游 `voiceprints` 加欄位：違反 §F-DB.1 第 2 點，降回舊版時 INSERT 沒填也沒關係，但上游以後的 migration 可能重建這張表。在 `INSERT` 之後多 1 行接點拿 id：接點已經用到 100。用觸發器（trigger）在上游的表上：上游重建表時會不見，也是改上游表的行為。以 `meeting_id`、`speaker_idx` 當鍵、不對到 id：分成兩場會改 `meeting_id`，紀錄會對錯。分出「待確認回答」：上游的待確認送出直接呼叫 `renameSpeaker`，要再 1 行接點才分得出來，對判斷聲紋可不可信沒有幫助 |
 | DF15 | 重新轉錄時用聲紋對應舊、新說話者（雙向最像、≥ 0.80）沿用名字，對不上的存成建議；存檔後刪掉跟同編號新說話者對不上（< 0.50）的舊聲紋，沿用的使用者取名用新聲音重新學（F12.15，2026-11-24 使用者決定）。偏離上游 `saveTranscript`「照編號沿用、不動聲紋」：重新分群會照出現順序重新編號，同一個編號可能是別人（使用者的 #11：重新轉錄後 Kiki 的編號變成別人，舊聲紋跟新說話者只像 0.20，名字也掛錯）。0.80 的依據：同一場重新轉錄前後同一個聲音 0.88～0.98（#11），使用者的資料裡不同人最高 0.56～0.60（EV-voiceprint、AN-vpclean）；再加雙向最像，避免兩位聲音接近時對錯。只改既有的接點行，不新增接點。對不上的建議、存檔後待處理的結果存在 fork 的表（`ma_retranscribe_suggestion`、`ma_retranscribe_pending`，跟 `saveTranscript` 同一筆交易寫入），用說話者指紋判斷是不是同一批說話者；刪、學、存建議各自一筆交易，pending 到最後才消耗，失敗留著重試（REV-F12c P2-1～P2-3）。重試前每一項核對存檔後預期的名字、來源、人物、聲音雜湊，使用者改過就跳過；編輯會議時兩張表用快照保存、還原，分割照編號複製建議，不再以「聲紋雜湊一定會變」當前提（REV2-F12c）；使用者在 pending 期間自己取名（包括同名「只改名」）就在那筆學習交易裡讓這位的項目失效，不只比四個欄位（REV3-F12c）。高信心自動帶名時保留上游的自動名字、舊名字照樣當建議問（「『Other』是 Old 嗎？」，2026-11-24 使用者決定）：改成預設名稱要動上游 `matchVoiceprints` 的自動帶名，而且聲紋 ≥ 0.88、領先 0.15 本身就是很強的證據，讓使用者在待確認一鍵選擇即可 | 照時間重疊對應（rediarize 的做法）：`saveTranscript` 先刪舊段落才算名字，要在刪之前留一份得多 1 行接點，而且重新轉錄時段落邊界也會變。只刪舊聲紋、名字照編號：名字掛錯時會把錯的人的新聲音學進去，更糟。對不上的名字直接丟掉：使用者自己取的名字會消失，所以存成建議讓使用者一鍵套回。結果放記憶體（第一版）：存檔回滾後殘留、重啟後遺失、刪了舊聲紋卻學失敗就無法重試（REV-F12c） |
+| DF16 | 拿掉 app 裡原作者的署名、贊助，改附上游 `LICENSE` 全文；「基於上游」只留在 GitHub Release；fork 停用官網的 workflow（F13，2026-11-25 使用者決定） | 保留「改自 juinwei7 的開源專案拾音」一句、不附 MIT 全文（現況）：使用者不要 app 裡有原作者的字句，而且 MIT 要求散布時附上著作權與許可聲明，一句話不算。在 app 顯示時過濾「基於上游」：要加 Swift 接點，已經裝好的舊版仍會顯示。連 GitHub Release 也拿掉：看不出基於上游哪一版，合併上游時要靠它對照（DF6）。在 GitHub 網頁停用官網：repo 裡看不出來，要使用者操作。改 bundle id、鑰匙圈、資料夾等識別：現有使用者的設定、API key、權限、更新會斷 |

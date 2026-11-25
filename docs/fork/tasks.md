@@ -4,6 +4,11 @@
 > 上游任務在 fork 這邊的實測狀態寫在這裡。需求在 `docs/fork/requirements.md`，設計在 `docs/fork/design.md`。
 > 規則同 CLAUDE.md：每項都有驗證方式；`[~]` 是程式完成、還差要使用者的驗證。要使用者在電腦前測的，照場次排在 `docs/fork/acceptance-mac.md`。「design §F#」指 fork design，「design §數字」「D#」「R#」指上游文件。
 
+## 拿掉原作者相關資訊（F13，design §F13、DF16；2026-11-25 使用者決定）
+
+- [~] **DB3 官網 workflow 在 GitHub 上略過**（F13.4）：`site.yml` 的 `if` 加了 `github.repository == 'juinwei7/Shiyin'`，本機解析過條件。還差：合併推上 GitHub 後，Actions 的「官網」顯示略過（每天的排程、推 main 都不建置）。使用者想連略過的紀錄都不要時，在 GitHub 的 Actions 頁面停用「官網」workflow。
+- 下一次發布（5.0.5 起）確認 `shiyin-update.json` 的 `notes` 沒有「基於上游」，GitHub Release 有（F13.3；5.0.4 的 tag 在 F13 之前，重跑時還是舊做法）。
+
 ## 說話者聲紋：分數顯示、改名防呆、人物頁管理單份聲紋（F12，design §F12、DF12～DF14；2026-11-24 使用者決定範圍）
 
 在電腦前怎麼測：`docs/fork/acceptance-mac.md` 場次 8。

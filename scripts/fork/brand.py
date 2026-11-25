@@ -3,7 +3,8 @@
 
 用法：
   brand.py apply <App.app>             換掉 app 裡的翻譯（各 .lproj 的 .strings、.stringsdict、InfoPlist.strings）、
-                                       Info.plist、Credits.html、ThirdPartyLicenses.txt；寫入 Info.plist 的 MABrand；
+                                       Info.plist、Credits.html、ThirdPartyLicenses.txt；Credits 拿掉贊助、插入上游的 MIT 聲明
+                                       （F13）；寫入 Info.plist 的 MABrand；
                                        比對格式碼；最後跑 check（有違規 exit 1）。build-app.sh（含 --debug）呼叫
   brand.py check <App.app>             只檢查建置結果和原始碼，不改檔
   brand.py check-sources               只檢查原始碼：包住字串的最內層呼叫不是查表的，字串裡卻有「拾音」「Shiyin」
@@ -20,6 +21,7 @@
 
 只用 Python 標準函式庫。repo 裡的翻譯表、Info.plist 都不改。
 """
+import html
 import json
 import plistlib
 import re
@@ -46,7 +48,7 @@ def names_for(lang):
 
 def brand(text, lang):
     """phrases（整句換）→ keep（不換）→ 名稱，三種先換成佔位字再還原，互不影響"""
-    if not isinstance(text, str) or not UPSTREAM.search(text):
+    if not isinstance(text, str) or not (UPSTREAM.search(text) or any(p["from"] in text for p in CONFIG["phrases"])):
         return text
     slots = []
 
@@ -98,6 +100,136 @@ def target_texts(app, target):
         data, _ = load_plist(path)
         return [v for _, v in flatten(data)]
     return [path.read_text(encoding="utf-8")]
+
+
+# MARK: - 上游的 MIT 聲明（F13.2）
+
+LICENSE_SEPARATOR = "=" * 80
+EMPTY_PARAGRAPH = re.compile(r"<p\b[^>]*>\s*</p>")
+
+
+# MIT 的三段（REV-F13 P2-2）：著作權行、許可段、免責段；比對時連續空白算一個空白
+MIT_PARTS = (
+    ("著作權行", re.compile(r"(?m)^Copyright \(c\) \S.*$")),
+    ("許可段", re.compile(r"Permission is hereby granted, free of charge, to any person obtaining a copy .*? "
+                       r"The above copyright notice and this permission notice shall be included in all copies or "
+                       r"substantial portions of the Software\.")),
+    ("免責段", re.compile(r'THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, .*? '
+                       r"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE\.")),
+)
+
+
+class LicenseError(ValueError):
+    pass
+
+
+def validate_license(text, where):
+    """LICENSE 要有內容，而且是完整的 MIT 聲明；不符合丟 LicenseError（要人工核對，不默默附一份殘缺的）"""
+    if not text.strip():
+        raise LicenseError(f"{where} 是空的（F13.2 要附上游的 MIT 聲明全文）")
+    flat = re.sub(r"\s+", " ", text)
+    missing = [name for name, pattern in MIT_PARTS
+               if not (pattern.search(text) if name == "著作權行" else pattern.search(flat))]
+    if missing:
+        raise LicenseError(f"{where} 不是完整的 MIT 聲明，缺少{'、'.join(missing)}（被截斷或上游換了授權，要人工核對）")
+
+
+def upstream_license():
+    """(清單的那一項, 標題, LICENSE 原文)；LICENSE 空的或不是完整的 MIT 丟 LicenseError"""
+    conf = CONFIG["upstreamLicense"]
+    text = (ROOT / conf["file"]).read_text(encoding="utf-8").strip("\n")
+    validate_license(text, conf["file"])
+    return f"- {conf['name']} ({conf['license']}) {conf['url']}", f"{conf['name']}: {conf['file']}", text
+
+
+def insert_upstream_license(text, escape):
+    """清單第一項前面加上游那一項、第一個分隔區塊前面加 LICENSE 一節；已經有了就不動（冪等）。
+    escape：Credits.html 的 <pre> 裡是 html.escape 過的文字。找不到插入的位置（上游改了格式）丟 ValueError"""
+    item, title, body = upstream_license()
+    if escape:
+        item, title, body = html.escape(item), html.escape(title), html.escape(body)
+    if title in text:
+        return text
+    m = re.search(r"(?m)^- ", text)
+    if not m:
+        raise ValueError("找不到第三方套件的清單（「- 」開頭的行）")
+    text = text[:m.start()] + item + "\n" + text[m.start():]
+    sep = text.find(LICENSE_SEPARATOR)
+    if sep < 0:
+        raise ValueError("找不到授權條款的分隔線")
+    block = f"{LICENSE_SEPARATOR}\n{title}\n{LICENSE_SEPARATOR}\n\n{body}\n\n\n"
+    return text[:sep] + block + text[sep:]
+
+
+# 上游 build-app.sh 產生的 Credits 骨架（REV-F13 P2-1）：骨架和 <pre> 之間不能有東西（贊助拿掉後就是這樣）；
+# <pre> 裡是 html.escape 過的授權檔，不會有「<」
+CREDITS_SHAPE = re.compile(r'<!doctype html><html lang="[A-Za-z-]+"><meta charset="utf-8"><pre(?: style="[^"<>]*")?>([^<]*)</pre>\s*')
+
+
+def known_intro_lines():
+    """已知的授權開場白：brand.json 的 licenseIntro.lines（人工核對過的上游完整句子）換過品牌後的樣子（各語言）。
+    不從待檢查的授權檔推導（REV2-F13 P2-5）：上游在開場白同一行接上作者、贊助，跟白名單對不上就失敗"""
+    return {brand(line, lang) for line in CONFIG["licenseIntro"]["lines"] for lang in list(CONFIG["names"]) + ["all"]}
+
+
+# 套件清單的一項：「- 名稱 (授權) 網址」，授權是 SPDX 式的代號（REV2-F13 P2-5）
+LIST_ITEM = re.compile(r"- \S.*? \([A-Za-z0-9.+-]+(?: (?:OR|AND|WITH) [A-Za-z0-9.+-]+)*\) https?://\S+")
+
+
+def intro_problems(rel, plain):
+    """開場白（第一個「- 」之前）只能是 known_intro_lines；套件清單（第一個「- 」到第一條分隔線）每一行要是
+    LIST_ITEM 或 licenseList.continuations，網址不能是贊助網站。後面的授權條款不解析"""
+    known = known_intro_lines()
+    m = re.search(r"(?m)^- ", plain)
+    head = plain[:m.start()] if m else plain
+    problems = [f"{rel}：授權開場白「{line.strip()[:60]}」不是已知的句子（F13.1：上游改了開場白、或接上作者、贊助；"
+                f"人工看過、確定沒有贊助後才改 fork/brand.json 的 licenseIntro.lines）"
+                for line in head.splitlines() if line.strip() and line.strip() not in known]
+    if not m:
+        return problems + [f"{rel}：找不到套件清單（「- 」開頭的行）"]
+    rest = plain[m.start():]
+    sep = rest.find(LICENSE_SEPARATOR)
+    if sep < 0:
+        return problems + [f"{rel}：找不到授權條款的分隔線"]
+    conf = CONFIG["licenseList"]
+    for line in rest[:sep].splitlines():
+        if not line.strip() or line in conf["continuations"]:
+            continue
+        bad_url = next((u for u in conf["forbiddenUrls"] if re.search(u, line)), None)
+        if not LIST_ITEM.fullmatch(line) or bad_url:
+            problems.append(f"{rel}：套件清單有不認得的行「{line.strip()[:70]}」（F13.1：要是「- 名稱 (授權) 網址」、不能是贊助網址；"
+                            f"上游加了別種接續行時，人工看過再加進 fork/brand.json 的 licenseList.continuations）")
+    return problems
+
+
+def license_problems(rel, text, is_html):
+    """F13.1、F13.2：Credits 只能有已知的骨架和開場白（不認得的段落就失敗）、不能有贊助的關鍵字；
+    Credits 和授權檔要有上游的 MIT 聲明"""
+    problems = []
+    if is_html:
+        shape = CREDITS_SHAPE.fullmatch(text)
+        if not shape:
+            problems.append(f"{rel}：Credits 的結構跟上游 build-app.sh 的骨架不同，授權以外多了內容"
+                            f"（F13.1：贊助、作者介紹不能留下；要人工看過再改 fork/brand.json 或 brand.py）")
+            plain = html.unescape(text)
+        else:
+            plain = html.unescape(shape.group(1))
+    else:
+        plain = text
+    problems += intro_problems(rel, plain)
+    try:
+        item, title, body = upstream_license()
+    except LicenseError as e:
+        return problems + [f"{rel}：{e}"]
+    for need, what in ((item, "上游 MIT 那一項"), (title, "上游 LICENSE 的標題"), (body, "上游 LICENSE 全文")):
+        if need not in plain:
+            problems.append(f"{rel}：缺少{what}（F13.2）")
+    if is_html:
+        for pattern in CONFIG["creditsForbidden"]:
+            hit = re.search(pattern, plain)
+            if hit:
+                problems.append(f"{rel}：還有「{hit.group(0)}」（贊助或原作者署名，F13.1；上游的贊助句改了就改 fork/brand.json 的 phrases）")
+    return problems
 
 
 # MARK: - apply
@@ -192,10 +324,12 @@ def apply(app):
             report.append(f"{lproj.name}/{f.name}: {counter[0]}")
         credits = lproj / "Credits.html"
         if credits.exists():
-            credits.write_text(brand(credits.read_text(encoding="utf-8"), lang), encoding="utf-8")
+            text = EMPTY_PARAGRAPH.sub("", brand(credits.read_text(encoding="utf-8"), lang))   # 贊助換成空字串後留下的空段落（F13.1）
+            credits.write_text(insert_upstream_license(text, escape=True), encoding="utf-8")
     licenses = res / "ThirdPartyLicenses.txt"
     if licenses.exists():
-        licenses.write_text(brand(licenses.read_text(encoding="utf-8"), "all"), encoding="utf-8")
+        text = brand(licenses.read_text(encoding="utf-8"), "all")
+        licenses.write_text(insert_upstream_license(text, escape=False), encoding="utf-8")
     apply_info_plist(app / "Contents/Info.plist")
     print("brand.py：換過的條目 " + "、".join(report))
 
@@ -214,6 +348,8 @@ def check_app(app):
                     text = "\n".join(m.group(4) for m in map(STRINGS_LINE.match, text.splitlines()) if m)
                 for hit in leftover(text):
                     problems.append(f"{rel}：還有「{hit}」")
+                if f.name == "Credits.html":
+                    problems += license_problems(rel, text, is_html=True)
             elif f.suffix in (".strings", ".stringsdict"):
                 data, _ = load_plist(f)
                 for key, value in flatten(data):
@@ -221,9 +357,11 @@ def check_app(app):
                         problems.append(f"{rel}：{key[:60]} → {value[:80]}")
     licenses = res / "ThirdPartyLicenses.txt"
     if licenses.exists():
-        for line in licenses.read_text(encoding="utf-8").splitlines()[:5]:
+        text = licenses.read_text(encoding="utf-8")
+        for line in text.splitlines()[:5]:
             if leftover(line):
                 problems.append(f"ThirdPartyLicenses.txt：{line[:80]}")
+        problems += license_problems("ThirdPartyLicenses.txt", text, is_html=False)
     info, _ = load_plist(app / "Contents/Info.plist")
     identity = set(CONFIG["infoPlistIdentityKeys"])
     for key, value in flatten(info):
@@ -534,7 +672,8 @@ def report(problems, what):
 def unbrand_key(key):
     """4.7.6 以前的鍵是 fork 直接寫在原始碼的「會議助手」：還原成上游的寫法"""
     for phrase in CONFIG["phrases"]:
-        key = key.replace(phrase["to"], phrase["from"])
+        if phrase["to"]:   # 拿掉型的 phrase（to 是空的）不能反向還原：空字串會插進每個字元之間（REV-F13 P2-3）
+            key = key.replace(phrase["to"], phrase["from"])
     for table in CONFIG["names"].values():
         for old, new in table.items():
             key = key.replace(new, old)
@@ -599,10 +738,14 @@ def compare_bundles(old_app, new_app):
     for (rel, key), value in sorted(old.items()):
         if rel == "Info.plist" and (key in skip or key.startswith("MABrand")):
             continue
-        cand = [(rel, key), (rel, unbrand_key(key))]
-        if rel.endswith("InfoPlist.strings"):
-            cand.append((rel, unbrand_key(key).replace("會議助手", "Shiyin").replace("Meeting Assistant", "Shiyin")))
-        hit = next((c for c in cand if c in new), None)
+        if (rel, key) in new:   # 完全相同的鍵優先，找不到才算還原的候選（REV-F13 P2-3）
+            hit = (rel, key)
+        else:
+            unbranded = unbrand_key(key)
+            cand = [(rel, unbranded)]
+            if rel.endswith("InfoPlist.strings"):
+                cand.append((rel, unbranded.replace("會議助手", "Shiyin").replace("Meeting Assistant", "Shiyin")))
+            hit = next((c for c in cand if c in new), None)
         if hit is None:
             diffs.append(f"只有舊版：{rel} {key[:70]} = {value[:70]}")
             continue
@@ -625,7 +768,7 @@ def main(argv):
         app = Path(argv[1])
         try:
             apply(app)
-        except FormatMismatch as e:
+        except (FormatMismatch, ValueError) as e:
             print(f"brand.py：{e}", file=sys.stderr)
             return 1
         return report(check_app(app) + check_sources(), "建置結果和原始碼")
