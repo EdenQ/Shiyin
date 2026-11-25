@@ -4,9 +4,9 @@
   "upstream": {
     "remote": "https://github.com/juinwei7/Shiyin.git",
     "base": {
-      "tag": "v5.0.0",
-      "sha": "7e5b274",
-      "note": "5.0.1 起接回上游歷史：dab295f 合 4.8.1（merge-tree --merge-base=78ceab8，上層 3980efd）、f1fe30b 一般 merge v5.0.0"
+      "tag": "v5.1.1",
+      "sha": "edbd063",
+      "note": "5.1.2 一般 merge v5.1.1（ef3fbda）；之前：5.0.1 接回上游歷史（dab295f 合 4.8.1、f1fe30b merge v5.0.0）"
     },
     "cherryPicked": [
       {

@@ -4,6 +4,10 @@
 > 上游任務在 fork 這邊的實測狀態寫在這裡。需求在 `docs/fork/requirements.md`，設計在 `docs/fork/design.md`。
 > 規則同 CLAUDE.md：每項都有驗證方式；`[~]` 是程式完成、還差要使用者的驗證。要使用者在電腦前測的，照場次排在 `docs/fork/acceptance-mac.md`。「design §F#」指 fork design，「design §數字」「D#」「R#」指上游文件。
 
+## 合併上游 5.1.1（F14，design §F14、DF17；2026-11-25 使用者決定）
+
+- [~] **UP51 真的畫面**（F14.1～F14.4）：程式完成，DEBUG 版驗過快捷鍵、錄音中截圖＋定時停止＋靜音＋標記一起用（見合併的 commit）。還差（要使用者在電腦前）：錄音島加了截圖鈕後的樣子（中英文、靜音中）、第一次截圖時系統問「錄製螢幕」權限、匯出的紀錄和逐字稿帶畫面、Teams 裡按 ⌃⌥⌘M 和 ⌃⌥⌘S。
+
 ## 拿掉原作者相關資訊（F13，design §F13、DF16；2026-11-25 使用者決定）
 
 - 5.0.5 發布後確認 `shiyin-update.json` 的 `notes` 沒有「基於上游」，GitHub Release 有（F13.3；5.0.4 的 tag 在 F13 之前，重跑時還是舊做法）。

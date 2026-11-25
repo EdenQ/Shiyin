@@ -755,7 +755,7 @@ CREATE INDEX speaker_tags_meeting ON speaker_tags(meeting_id);
   - 情況：`builtin`（有內建螢幕時在內建螢幕）、`follow`（`pick` 是 null、在 `upstream` 螢幕，跟上游算的一樣）、`mainWindow` 模擬主視窗在每一個螢幕、模擬主視窗關著（用記下的）、記下的清掉（退到上游）、`builtin` 加模擬沒有內建螢幕（退到主視窗的螢幕；主視窗關著又沒記下時退到上游）。
   - 只接一個螢幕的電腦：「每一個螢幕」只有一個，照樣核對退路；這台的螢幕數寫進證據。
   - 最後 `maisland simulate off`；不停止錄音（停止後的轉錄會在暫存的 `SHIYIN_HOME` 下載、編譯說話者辨識的模型，跟 F11 無關，2026-11-23 在 CoreML 編譯時當掉過一次），錄音中的 DEBUG 版由 check.sh 結束。
-  - fork 還沒帶入上游 4c3a8d3（錄音島的面板存在時，DEBUG 的 `state` 會讓 app 當掉），所以一律用 `maisland screens`，不呼叫 `state`。
+  - 一律用 `maisland screens` 核對島的位置（5.1.2 起帶入上游 4c3a8d3，錄音島開著時 `state` 不會再讓 DEBUG 版當掉，但 `state` 沒有螢幕的資料）。
 - 截圖：`mawindowshot <輸出> island` 拍內建螢幕（瀏海）、外接螢幕（膠囊）的樣子各一張，放進證據（需要時看）。
 - 使用者在電腦前（acceptance-mac 場次 7）：真的切換操作螢幕、闔上筆電、全螢幕的會議 app。
 - 測完 `defaults read` 正式網域前後比對：完全相同（check.sh #12）。
@@ -1181,6 +1181,28 @@ CREATE TABLE ma_retranscribe_suggestion (   -- 對不上的舊名字建議，等
 - 用建好的 release 版的 `ThirdPartyLicenses.txt` 照 `make-dmg.sh` 的方式放進暫存的 DMG，掛載後確認內容。
 - 用 v5.0.3、v5.0.4 的 tag 說明跑 `release-notes.py app`，結果用上游的 `ReleaseNotes.brief` 列出的第一項是這版的改變；建好的 app 的三份 `Localizable.strings` 是 GitHub Releases 的那一句。
 
+## F14. 合併上游 5.1.1（F14，DF17）
+
+照 `docs/fork/upstream-sync.md` §2.2：一般 merge `refs/upstream-tags/v5.1.1`（merge-base `7e5b274`＝v5.0.0），不 cherry-pick。上游三份 docs、`website.md`、`site/`、Windows、`shared/golden` 照上游。衝突 14 個檔，都是 fork 的接點行跟上游在同一處新加的行相鄰，接點數不變（100/100）。
+
+### F14.1 快捷鍵 ID（DF17）
+
+- 上游 `GlobalHotKey` 用 `EventHotKeyID(signature: 'SHYI', id:)`，ID 1 錄音、2 標記重點、5.1 起 3 截圖；`register` 看到 `hotKeys[id]` 已有就直接回 `noErr`。fork 的 ⌃⌥⌘M 原本用 3：跟截圖同時開著時後註冊的那組靜靜失敗，handler 也會先被 fork 那行攔下。
+- `ForkMute.hotKeyID` 改成 `0x4D41_0001`（「MA」＋序號）。fork 之後新的快捷鍵都用 `0x4D41_xxxx`，上游照它自己的小數字往上加，不會撞。
+- 靜態檢查 `scripts/fork/hotkey-id-check.py`：讀上游 `GlobalHotKey.swift` 的 `static let …ID: UInt32 = N` 和 `Sources/Shiyin/Fork/**` 的 `hotKeyID: UInt32 = N`，fork 的 ID 不能跟上游的重複、也不能在 `0x4D41_0000` 區段外；有問題 exit 1。check.sh 的 I1（接點隔離）一起跑。
+- 驗證：DEBUG 版錄音中（`both`）`shiyinctl hotkey` 分別模擬 ⌃⌥⌘M、⌃⌥⌘S，靜音切換、畫面多一張，互不影響。
+
+### F14.2 錄音畫面、錄音島
+
+- 即時逐字稿：上游的 `ForEach(Array(recorder.liveLines.enumerated()), id: \.element.id)` 先放 `placement.before[index]` 的畫面，再放 fork 的 `LiveLineRow(…).id(line.id)`（取代上游的 HStack，1 行接點）；`placement.trailing` 的畫面在最後一句後面。捲到最新用的 `bottom`、`volatile` 不變。
+- 錄音島：取上游的 `ViewThatFits`＋`controlButtons(iconOnly:)`，F7.7 的 `Brand.short(...)` 接點在 `controlButtons` 裡「打開拾音」那行（只留圖示時沒有字，不影響）。提示的順序：fork 的靜音提示（`ForkIslandMute.hintKey`／`hint`）在上游截圖問題前。
+
+### F14.3 驗證
+
+- `check.sh` 完整模式（含 #1 建置、#2 migration、#3 品牌逐鍵比對 5.0.5、#5～#10、#14～#16、#11、#12）；`brand.py crosscheck`；`git diff refs/upstream-tags/v5.1.1 -- docs/requirements.md docs/design.md docs/tasks.md` 沒有差異。
+- DEBUG 版錄音中一起用：截圖（`screenshot` 類的 DEBUG 指令或 `hotkey`）、定時停止、靜音、標記說話者；`state` 在錄音島開著時可以用。
+- 使用者在電腦前：錄音島變擠後的樣子、截圖權限的系統詢問、匯出帶畫面（tasks UP51）。
+
 ## F-DB. 資料庫規則（PLAN-fork-5.0 §6）
 
 ### F-DB.1 規則
@@ -1215,6 +1237,7 @@ CREATE TABLE ma_retranscribe_suggestion (   -- 對不上的舊名字建議，等
 - `editmeeting 1 split=1800`：戊切成這場的 1790–1800 和新會議的 0–10；丙、丁移到新會議的 200–210、1200–1220。`restoreedit 1`：這場回到原本的 5 個，新會議移到垃圾桶。
 - `editmeeting 2 merge=1:0-100`：會議 1 的甲接在會議 2（125 秒）後面變成 135–145，會議 1 移到垃圾桶、它的標記不變；`restoreedit 2`：會議 2 只剩它自己的標記，會議 1 拿出垃圾桶。
 
+- **上游 5.1 的會議中的畫面**（5.1.2 檢查，§F14）：畫面存在上游的 `documents`（`at` 不是 NULL）。刪會議（CASCADE＋清搜尋索引）、分成兩場（`splitMeeting` 把 `at >= cut` 的搬到新會議、減切點）、編輯會議（`MeetingEdits` 把落在刪掉段的移到切口）、合併、封包都由上游自己處理；fork 的表跟畫面無關，上面這組 fork 入口不用改。
 - **F12.15 的 `ma_retranscribe_suggestion`、`ma_retranscribe_pending`**（§F12.9，REV2-F12c P2-2）也走上面同一組 fork 入口：
   - 快照存進 `ma_meeting_edit_retranscribe`、還原時放回；
   - 裁切、合併時 pending 失效；
@@ -1256,8 +1279,11 @@ CREATE TABLE ma_retranscribe_suggestion (   -- 對不上的舊名字建議，等
 | 上游 5.0 的就地編輯（R100）、加到提醒事項（R76） | 條列模式整頁是 fork 的 `ForkNotesList`（§F0.2）；段落用 `ForkNotesSection`：fork 的條數、色條、複製鈕加上上游的 `accessory`（「待辦」的「加到提醒事項」放在複製鈕後面）；條目在編輯中用上游的 `NoteItemEditor`，其他時候用 fork 的 `NoteRow`，接上 `noteItemActions`（右鍵、⋯），可以就地編輯的條目不設成可選取；待辦表（`ForkActionItemsTable`）保留 fork 的欄位順序（負責人、期限、事項、時間點），負責人加上游的頭像，事項接上就地編輯和提醒事項的勾。上游的 `NotesSection`、`ActionItemsTable` 不動 |
 | 上游 R70 拆句、`addSpeaker()` | F2.12「只改這句」在 fork 的 `AppDatabase.reassignSegments(…naming:…)` 用一筆 `pool.write` 照 5.0.1 的順序做完：上游的 `saveSpeakerUndo`（復原快照）、`addSpeaker()`（新增說話者）、`ForkSpeakerTags.nameNewSpeaker`（標記的名字）、改句子的說話者、上游的 `removeEmptySpeakers`；任何一步失敗整筆回復（DF8）。上游 private 的 `saveSpeakerUndo`、`addSpeaker` 由 SpeakerEdits 裡各 1 行接點 `forkSaveSpeakerUndo`、`forkAddSpeaker` 轉呼叫（`saveSpeakerUndo` 的參數用到 private 的 `SpeakerSnapshot`，不能直接改 internal；只加行、不改上游的行）；上游的函式不改簽章 |
 | 上游 `AppDatabase.saveTranscript`（重新轉錄存檔，§5.3、§21.4） | 名字改成照聲音沿用、對不上的存成建議、存檔後刪對不上的舊聲紋並重新學（F12.15、§F12.9、DF15）。上游照編號沿用、不動聲紋；沒有舊說話者時（匯入、第一次轉錄）跟上游一樣 |
-| 上游 5.0 的 DEBUG `state` | 錄音中錄音島出現時，視窗清單裡島的面板 `maxSize` 是無限大，`state` 寫 JSON 時丟例外、DEBUG 版結束（上游原樣也一樣；正式版不受影響）。fork 不改上游的檔：測錄音中的狀態時用 `-recordingIsland NO` 啟動。島的畫面用 fork 的 DEBUG 指令 `mawindowshot <輸出.png> island` 拍 |
 | 上游 5.0 的提醒事項（R101） | 列表名稱「會議助手」、舊名「拾音」列表沿用（F7.5、§F7.3 的接點） |
+| 上游 5.1 的全域快捷鍵（R109 截圖 ⌃⌥⌘S，`GlobalHotKey.screenshotID = 3`） | fork 的 ⌃⌥⌘M 原本用 ID 3，跟上游撞號；5.1.2 改成 fork 自己的區段（DF17），`scripts/fork/hotkey-id-check.py`（check.sh I1）擋重複。`GlobalHotKey` 的 handler 裡 fork 那 1 行接點留在上游的 switch 前（§F14） |
+| 上游 5.1 錄音畫面的即時逐字稿插畫面（R109、design §83.4） | 用上游的 `ForEach(enumerated)`＋`ScreenRow`，每一句的列是 fork 的 `LiveLineRow`（F2.2，含 `.id(line.id)`）；1 行接點不變（§F14） |
+| 上游 5.1 的錄音島（截圖鈕、`ViewThatFits`、截圖權限提示） | F7.7 的「打開 MA」接點搬到 `controlButtons` 的「打開拾音」那行；`hintKey`／`hint` 裡 fork 的靜音提示在上游截圖提示前（§F14） |
+| 上游 5.1 的 migration `v16`（`documents.at`） | 放在 `ForkMigrations.register` 前（§F-DB.1）；已跑過 fork migration 的資料庫之後補跑 `v16`，兩者無關 |
 
 ## DF. fork 的決策紀錄
 
@@ -1279,3 +1305,4 @@ CREATE TABLE ma_retranscribe_suggestion (   -- 對不上的舊名字建議，等
 | DF14 | 聲紋的來源記在 fork 的表 `ma_voiceprint_source`（外鍵指到上游的 `voiceprints`、`ON DELETE CASCADE`），在既有的 `remembersVoice` 接點寫 pending、事後對到聲紋 id；取名的來源由防呆的接點記在記憶體，標記由 F2 的套用記，重新辨識看 `jobs`，其他算合併；待確認回答併進「套用建議」「手動取名」（F12，2026-11-24） | 在上游 `voiceprints` 加欄位：違反 §F-DB.1 第 2 點，降回舊版時 INSERT 沒填也沒關係，但上游以後的 migration 可能重建這張表。在 `INSERT` 之後多 1 行接點拿 id：接點已經用到 100。用觸發器（trigger）在上游的表上：上游重建表時會不見，也是改上游表的行為。以 `meeting_id`、`speaker_idx` 當鍵、不對到 id：分成兩場會改 `meeting_id`，紀錄會對錯。分出「待確認回答」：上游的待確認送出直接呼叫 `renameSpeaker`，要再 1 行接點才分得出來，對判斷聲紋可不可信沒有幫助 |
 | DF15 | 重新轉錄時用聲紋對應舊、新說話者（雙向最像、≥ 0.80）沿用名字，對不上的存成建議；存檔後刪掉跟同編號新說話者對不上（< 0.50）的舊聲紋，沿用的使用者取名用新聲音重新學（F12.15，2026-11-24 使用者決定）。偏離上游 `saveTranscript`「照編號沿用、不動聲紋」：重新分群會照出現順序重新編號，同一個編號可能是別人（使用者的 #11：重新轉錄後 Kiki 的編號變成別人，舊聲紋跟新說話者只像 0.20，名字也掛錯）。0.80 的依據：同一場重新轉錄前後同一個聲音 0.88～0.98（#11），使用者的資料裡不同人最高 0.56～0.60（EV-voiceprint、AN-vpclean）；再加雙向最像，避免兩位聲音接近時對錯。只改既有的接點行，不新增接點。對不上的建議、存檔後待處理的結果存在 fork 的表（`ma_retranscribe_suggestion`、`ma_retranscribe_pending`，跟 `saveTranscript` 同一筆交易寫入），用說話者指紋判斷是不是同一批說話者；刪、學、存建議各自一筆交易，pending 到最後才消耗，失敗留著重試（REV-F12c P2-1～P2-3）。重試前每一項核對存檔後預期的名字、來源、人物、聲音雜湊，使用者改過就跳過；編輯會議時兩張表用快照保存、還原，分割照編號複製建議，不再以「聲紋雜湊一定會變」當前提（REV2-F12c）；使用者在 pending 期間自己取名（包括同名「只改名」）就在那筆學習交易裡讓這位的項目失效，不只比四個欄位（REV3-F12c）。高信心自動帶名時保留上游的自動名字、舊名字照樣當建議問（「『Other』是 Old 嗎？」，2026-11-24 使用者決定）：改成預設名稱要動上游 `matchVoiceprints` 的自動帶名，而且聲紋 ≥ 0.88、領先 0.15 本身就是很強的證據，讓使用者在待確認一鍵選擇即可 | 照時間重疊對應（rediarize 的做法）：`saveTranscript` 先刪舊段落才算名字，要在刪之前留一份得多 1 行接點，而且重新轉錄時段落邊界也會變。只刪舊聲紋、名字照編號：名字掛錯時會把錯的人的新聲音學進去，更糟。對不上的名字直接丟掉：使用者自己取的名字會消失，所以存成建議讓使用者一鍵套回。結果放記憶體（第一版）：存檔回滾後殘留、重啟後遺失、刪了舊聲紋卻學失敗就無法重試（REV-F12c） |
 | DF16 | 拿掉 app 裡原作者的署名、贊助，改附上游 `LICENSE` 全文；「基於上游」只留在 GitHub Release；fork 停用官網的 workflow（F13，2026-11-25 使用者決定） | 保留「改自 juinwei7 的開源專案拾音」一句、不附 MIT 全文（現況）：使用者不要 app 裡有原作者的字句，而且 MIT 要求散布時附上著作權與許可聲明，一句話不算。在 app 顯示時過濾「基於上游」：要加 Swift 接點，已經裝好的舊版仍會顯示。連 GitHub Release 也拿掉：看不出基於上游哪一版，合併上游時要靠它對照（DF6）。在 GitHub 網頁停用官網：repo 裡看不出來，要使用者操作。改 bundle id、鑰匙圈、資料夾等識別：現有使用者的設定、API key、權限、更新會斷 |
+| DF17 | fork 的全域快捷鍵 ID 用 `0x4D41_xxxx`（「MA」＋序號），上游的 ID 照上游的小數字；靜態檢查擋重複（F14.1，2026-11-25 合併上游 5.1.1 時） | 照上游的規則接在後面（3、4…）：上游下一版再加快捷鍵又會撞，而且撞了不報錯。改上游 `register` 讓它撞號時報錯：要多改上游的行（接點已滿）。不同的 signature：`register` 的 signature 寫死在上游，同樣要改上游 |
