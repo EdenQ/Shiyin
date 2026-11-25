@@ -13,6 +13,8 @@ final class Recorder {
         var error: String?
         /// 沒人說話太久而自動停止（R48.2）：最後有人說話的秒數
         var idleSince: Double? = nil
+        /// 到了定時停止的時間（R110.3）
+        var scheduled = false
     }
 
     struct LiveLine: Identifiable, Hashable {
@@ -83,13 +85,19 @@ final class Recorder {
             }
             return String(localized: "麥克風幾乎收不到聲音：\(user.name) 可能正在用這支麥克風做回音消除，拾音收不到你的聲音。請讓 \(user.name) 和拾音用不同的麥克風。")
         }
+
+        /// Mac 上的通話佔住麥克風（design §45.5、R57.7）：沒有收到聲音、幾乎收不到聲音都換成這句
+        static var callText: String {
+            String(localized: "麥克風被 Mac 上的通話（iPhone 轉接的電話、FaceTime）佔住，拾音收不到你的聲音。請讓通話用 AirPods 或其他耳機的麥克風，或在 iPhone 上接聽。")
+        }
     }
     private(set) var levelHint: LevelHint?
     /// 提示的文字（錄音畫面、選單列、通知共用，R42）
     func text(for hint: LevelHint) -> String {
-        hint == .suppressed ? LevelHint.suppressedText(suppressedBy) : hint.text
+        if hint == .silent || hint == .suppressed, suppressedBy?.isCall == true { return LevelHint.callText }
+        return hint == .suppressed ? LevelHint.suppressedText(suppressedBy) : hint.text
     }
-    /// 被佔住的提示出現時，正在用麥克風的 app（design §45.2）；AppModel 接到 MeetingDetector
+    /// 沒有收到聲音、被佔住的提示出現時，正在用麥克風的 app（design §45.2、§45.5）；AppModel 接到 MeetingDetector
     @ObservationIgnored var microphoneUser: (() -> MeetingDetector.MicrophoneUser?)?
     @ObservationIgnored private var suppressedBy: MeetingDetector.MicrophoneUser?
     /// 這場錄音稍早的背景音量（最低值）；晚 10 秒才算數，還沒算數的放 pendingFloor（design §45.1）
@@ -137,6 +145,14 @@ final class Recorder {
     private(set) var idlePrompt = false
     /// 提醒出現（AppModel 送通知）
     @ObservationIgnored var onIdlePrompt: (() -> Void)?
+    /// 定時停止（design §84、R110）：到這個時間就停止錄音；跟著時鐘走，暫停也照算
+    private(set) var stopAt: Date?
+    /// 時間到了先倒數（R110.3、D192）：到這個時間才停止；nil 是沒在倒數
+    private(set) var stopCountdown: Date?
+    /// 倒數開始了（AppModel 顯示提醒）
+    @ObservationIgnored var onStopTimerDue: (() -> Void)?
+    /// 倒數 30 秒；DEBUG 可以用啟動參數縮短
+    static var stopCountdownSeconds: Double { debugSeconds("stopTimerCountdownSeconds") ?? 30 }
     /// 15 分鐘提醒、30 分鐘自動停止；DEBUG 可以用啟動參數縮短（design §35.2）
     static var idleRemindSeconds: Double { debugSeconds("idleRemindSeconds") ?? 900 }
     static var idleStopSeconds: Double { debugSeconds("idleStopSeconds") ?? 1800 }
@@ -154,6 +170,11 @@ final class Recorder {
     var idleInfo: [String: Any] {
         ["idleSeconds": isRecording ? elapsed - lastSpeechAt : 0, "lastSpeechAt": lastSpeechAt, "prompt": idlePrompt,
          "liveActive": liveActive, "remindAfter": Self.idleRemindSeconds, "stopAfter": Self.idleStopSeconds]
+    }
+    /// 定時停止（design §84）：shiyinctl state 的 recorder.stopTimer
+    var stopTimerInfo: [String: Any] {
+        ["remaining": stopAt.map { max(0, $0.timeIntervalSinceNow) } ?? -1, "label": stopAt.map { StopTimer.label($0) } ?? "",
+         "countdown": stopCountdown.map { max(0, $0.timeIntervalSinceNow) } ?? -1]
     }
     #endif
 
@@ -287,6 +308,14 @@ final class Recorder {
         markSpeech()
     }
 
+    /// 定時停止（R110.1）：錄音中才有作用；nil 是取消（倒數中的「繼續錄」也是）。選了新的時間就取代原本的，倒數也收起
+    func setStopTimer(_ date: Date?) {
+        guard isRecording, date != stopAt else { return }
+        stopAt = date
+        if stopCountdown != nil { stopCountdown = nil }
+        if let date { log.info("stop timer set, \(Int(date.timeIntervalSinceNow))s from now") } else { log.info("stop timer cancelled") }
+    }
+
     /// 有人在說話：重新計時，提醒收掉
     private func markSpeech() {
         lastSpeechAt = elapsed
@@ -378,7 +407,7 @@ final class Recorder {
         self.levelHint = nil
     }
 
-    func stop(idleSince: Double? = nil) {
+    func stop(idleSince: Double? = nil, scheduled: Bool = false) {
         guard isRecording, let meetingId else { return }
         // 在重新連接的佇列上停：等正在進行的重新連接做完，不會同時動 AVAudioEngine（design §50.2）
         let stopping = Array(sources.values)
@@ -398,7 +427,7 @@ final class Recorder {
         }
         cleanup()
         log.info("recording stopped, \(Int(duration))s")
-        onFinished?(Result(meetingId: meetingId, file: file, duration: duration, error: nil, idleSince: idleSince))
+        onFinished?(Result(meetingId: meetingId, file: file, duration: duration, error: nil, idleSince: idleSince, scheduled: scheduled))
     }
 
     static func openPrivacySettings(_ pane: String = "Privacy_Microphone") {
@@ -593,6 +622,20 @@ final class Recorder {
             stop()
             return
         }
+        // 定時停止（design §84）：放在整秒的判斷外面，暫停時 elapsed 不走也要停。時間到先倒數，倒數完才停（R110.3）
+        if let stopAt, Date() >= stopAt {
+            if let stopCountdown {
+                if Date() >= stopCountdown {
+                    log.info("recording stopped at the scheduled time")
+                    stop(scheduled: true)
+                    return
+                }
+            } else {
+                stopCountdown = Date().addingTimeInterval(Self.stopCountdownSeconds)
+                log.info("stop timer reached, counting down")
+                onStopTimerDue?()
+            }
+        }
         // 觀察的屬性只在值真的變了才設（@Observable 設成同樣的值也會讓畫面重算，design §25）
         elapsed = writer.recordedSeconds
         let seconds = Int(elapsed)
@@ -680,8 +723,8 @@ final class Recorder {
     private func updateLevelHint(_ hint: LevelHint?) {
         let shown = hint.flatMap { dismissedLevelHints.contains($0) ? nil : $0 }
         guard shown != levelHint else { return }
-        // 是哪個 app 在提示出現時決定，之後不跟著變（design §45.2）
-        if shown == .suppressed { suppressedBy = microphoneUser?() }
+        // 是哪個 app 在提示出現時決定，之後不跟著變（design §45.2）；沒有收到聲音時也看是不是 Mac 上的通話（§45.5）
+        if shown == .suppressed || shown == .silent { suppressedBy = microphoneUser?() }
         levelHint = shown
         // 第一次出現才通知（R42.1）；提示消失又出現不再通知
         if let shown, notifiedLevelHints.insert(shown).inserted { onLevelHint?(shown) }
@@ -877,6 +920,8 @@ final class Recorder {
         micDevice = nil
         mute.resetForStop()   // MA-FORK(F3)
         idlePrompt = false
+        stopAt = nil
+        stopCountdown = nil
         liveActive = false
         meetingId = nil
         startedAt = nil

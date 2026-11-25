@@ -222,6 +222,7 @@ struct SettingsPageView: View {
 // MARK: 整理工具與金鑰（R6.1）
 
 struct ProviderSettings: View {
+    @AppStorage(AppSettings.compatibleSendsImagesKey) private var compatibleSendsImages = false
     @Environment(AppModel.self) private var model
     @AppStorage(AppSettings.providerKey) private var storedProvider = ""
     @AppStorage(AppSettings.autoSummarizeKey) private var autoSummarize = true
@@ -325,6 +326,10 @@ struct ProviderSettings: View {
                 if !baseURL.trimmingCharacters(in: .whitespaces).isEmpty && OpenAICompatibleAPI.normalized(baseURL) == nil {
                     Text("網址要以 http:// 或 https:// 開頭").font(.caption).foregroundStyle(.red)
                 }
+                // 會議中的畫面（design §83.5、D188）：很多本機模型不能看圖，預設只送畫面上辨識出的文字
+                Toggle("整理時附上會議中的畫面（模型要能看圖）", isOn: $compatibleSendsImages)
+                Text("關掉時只送畫面上辨識出的文字。模型不能看圖時拾音會自動改成只送文字。")
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             // 公司：模型由公司的後台決定，這裡只顯示（R51.1）
             if current == .enterprise && EnterpriseServer.shared.isSignedIn && EnterpriseServer.shared.account?.llm == true {
@@ -1195,6 +1200,7 @@ struct RecordingSettings: View {
     @AppStorage(AppSettings.recordingIslandKey) private var recordingIsland = true
     @AppStorage(AppSettings.idleStopKey) private var idleStop = true
     @AppStorage(AppSettings.bookmarkHotKeyKey) private var bookmarkHotKey = true
+    @AppStorage(AppSettings.screenshotHotKeyKey) private var screenshotHotKey = true
     @State private var mutedApps: [String] = []
     @State private var hotKeyFailed = false
 
@@ -1271,6 +1277,15 @@ struct RecordingSettings: View {
                 .onChange(of: bookmarkHotKey) { _, enabled in
                     GlobalHotKey.shared.setBookmarkEnabled(enabled && model.recorder.isRecording)
                 }
+            // 會議中的畫面（R109.1、design §83.2）
+            Toggle("錄音中按 \(GlobalHotKey.screenshotDisplay) 截圖（在其他 app 裡也能用）", isOn: $screenshotHotKey)
+                .onChange(of: screenshotHotKey) { _, enabled in
+                    GlobalHotKey.shared.setScreenshotEnabled(enabled && model.recorder.isRecording)
+                }
+            if screenshotHotKey && model.recorder.isRecording && !GlobalHotKey.shared.isScreenshotRegistered {
+                Text("這組按鍵被別的 app 佔用了，可以用錄音島或錄音畫面上的「截圖」。")
+                    .font(.caption).foregroundStyle(.red)
+            }
             ForkRecordingSettingsRows()   // MA-FORK(F0)：fork 的設定列（F3 的 ⌃⌥⌘M；fork design §F0.7）
         }
     }

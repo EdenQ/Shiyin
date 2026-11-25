@@ -161,6 +161,9 @@ enum MCPTools {
                 case .title: out.append("- title: \(hit.snippet)")
                 case .notes: out.append("- notes: \(hit.snippet)")
                 case .userNotes: out.append("- my notes: \(hit.snippet)")
+                case .screen:
+                    guard let at = try db.document(hit.ref)?.at else { continue }
+                    out.append("- screen \(TimeFormat.string(at)): \(hit.snippet) · \(link(id, at: at))")
                 case .segment:
                     guard let s = segments[hit.ref] else { continue }
                     let who = s.speaker.map { " " + speakerName(names[$0] ?? "", idx: $0, m) } ?? ""
@@ -180,6 +183,11 @@ enum MCPTools {
         var out = NotesExporter.markdown(bundle)
         let userNotes = m.userNotes.trimmingCharacters(in: .whitespacesAndNewlines)
         if !userNotes.isEmpty { out += "\n## \(bundle.text.userNotes)\n\n\(userNotes)\n" }
+        // 會議中的畫面（design §83.7、R109.10）：時間和辨識出的文字
+        let screens = try db.screens(id)
+        if !screens.isEmpty {
+            out += "\n## \(bundle.text.screens)\n\n" + screens.map { "- [\(TimeFormat.string($0.at ?? 0))] \(screenLine($0))\n" }.joined()
+        }
         out += "\n---\nid \(id) · \(link(id)) · transcript: get_transcript(meeting_id: \(id))\n"
         return Result(text: out, isError: false)
     }
@@ -199,17 +207,28 @@ enum MCPTools {
             return Result(text: "No transcript \(range) (the meeting is \(TimeFormat.string(length)) long).\n", isError: false)
         }
         let bundle = ExportBundle(meeting: m, segments: [], speakers: try speakerTable(db, id), bookmarks: [], notes: nil)
+        // 會議中的畫面（design §83.7）：在時間點插一行「[12:34] [Screen] 辨識出的文字」
+        let screens = try db.screens(id).filter { ($0.at ?? 0) >= start && (end == nil || ($0.at ?? 0) < end!) }
+        var entries: [(time: Double, line: String)] = []
+        var next = 0
+        for s in selected {
+            while next < screens.count, (screens[next].at ?? 0) <= s.start {
+                entries.append(screenEntry(screens[next]))
+                next += 1
+            }
+            entries.append((s.start, TranscriptExporter.line(bundle, s, times: true, speakers: true)))
+        }
+        entries += screens.dropFirst(next).map(screenEntry)
         var lines: [String] = []
         var used = 0
         var stoppedAt: Double?
-        for s in selected {
-            let line = TranscriptExporter.line(bundle, s, times: true, speakers: true)
-            if !lines.isEmpty && used + line.utf16.count > limit {
-                stoppedAt = s.start
+        for entry in entries {
+            if !lines.isEmpty && used + entry.line.utf16.count > limit {
+                stoppedAt = entry.time
                 break
             }
-            lines.append(line)
-            used += line.utf16.count
+            lines.append(entry.line)
+            used += entry.line.utf16.count
         }
         var out = "\(header(m)) · duration \(TimeFormat.string(length))\n\n" + lines.joined(separator: "\n") + "\n"
         if let stoppedAt {
@@ -217,6 +236,16 @@ enum MCPTools {
             out += "\n(Stopped at \(at) of \(TimeFormat.string(length)) to keep this short. Continue with get_transcript(meeting_id: \(id), start: \"\(at)\").)\n"
         }
         return Result(text: out, isError: false)
+    }
+
+    /// 畫面辨識出的文字，換行換成空格
+    private static func screenLine(_ screen: MeetingDocument) -> String {
+        screen.screenText.split(whereSeparator: \.isNewline).joined(separator: " ")
+    }
+
+    private static func screenEntry(_ screen: MeetingDocument) -> (time: Double, line: String) {
+        let text = screenLine(screen)
+        return (screen.at ?? 0, "[\(TimeFormat.string(screen.at ?? 0))] [Screen]" + (text.isEmpty ? "" : " " + text))
     }
 
     private static func actionItems(_ args: [String: Any], _ db: AppDatabase) throws -> Result {
