@@ -6,7 +6,7 @@
 
 A meeting-notes app for macOS. Record a meeting (in person or online) and watch a live transcript as it happens. Afterwards Meeting Assistant transcribes the recording on your Mac, identifies the speakers, and has Claude, Codex or an API write the meeting notes. Every item in the notes carries a timestamp: click it to hear what was actually said.
 
-- Recording, transcription and speaker identification all run locally; recordings are never uploaded
+- By default, recording, transcription and speaker identification run locally and recordings are not uploaded (exception: if you sign in to your company's enterprise server and choose server transcription, recordings are sent to that server; see "Data and privacy")
 - No Python, Homebrew or ffmpeg to install: download the DMG and go
 - Interface in English, Traditional Chinese and Simplified Chinese (follows your macOS language); meetings can be in English, Chinese, Japanese, Cantonese or Korean (experimental)
 - Requires Apple Silicon and macOS 26
@@ -55,7 +55,7 @@ Meeting Assistant is a fork of [Shiyin 拾音](https://github.com/juinwei7/Shiyi
 | Memory | 8 GB or more (transcription plus speaker identification peaks at about 2.9 GB) |
 | Disk space | About 1.7 GB for the transcription model (downloaded on first use; not needed with macOS speech recognition), plus 574 MB for Japanese and Korean meetings, 60 MB for language detection, about 2.5 GB for Qwen3-ASR or Cantonese meetings, and your recordings (m4a, about 10–30 MB per hour) |
 | Notes tool | One of: a signed-in [Claude Code](https://claude.com/claude-code), Codex CLI, an Anthropic / OpenAI / Gemini API key, or an OpenAI-compatible API. Or choose "No notes" |
-| Network | Needed to download models and write notes; recording, transcription and speaker identification work offline |
+| Network | Needed to download models and write notes; recording, local transcription and speaker identification work offline |
 
 ## Install
 
@@ -82,14 +82,15 @@ Without `make-signing-cert.sh --trust` the app is signed ad hoc, and macOS may a
 | Item | Where it goes |
 |---|---|
 | Recordings, transcripts, database, models | `~/Library/Application Support/Shiyin` (mode 700, not synced by iCloud); scheduled database backups in `backups/` in the same folder |
-| Recording, transcription, speaker identification | Entirely on your Mac, no network |
-| Notes, proofreading, Ask, speaker guesses | Transcript text, your notes, text read from reference documents, the glossary and basic meeting details go to the service you chose; audio is never sent |
+| Recording, transcription, speaker identification | By default (local Breeze, Qwen3-ASR or macOS speech recognition) entirely on your Mac, no network |
+| Enterprise server (only if you sign in and choose the company server for transcription) | Recordings are sent to your company's own server for transcription and deleted afterwards; speaker identification and voice prints stay on this Mac. With the "Company" notes tool, transcripts are sent to the company server for notes. The sign-in token is kept in the Keychain |
+| Notes, proofreading, Ask, speaker guesses | Transcript text, your notes, text read from reference documents, the glossary and basic meeting details go to the notes tool you chose (Claude, Codex, Anthropic, OpenAI, Google, the URL of an OpenAI-compatible API, or the company server); audio is not sent to notes tools. With a local OpenAI-compatible API (Ollama, LM Studio) the content stays on this Mac |
 | AI tools reading meetings (only when turned on) | Meeting content you ask about in an AI tool is handled by that tool; read-only |
 | Voice prints | Voice features (numbers, not audio) stay in the local database, are never uploaded or put in exported packages; you can view, delete or turn them off |
 | Report a problem | Opens this repo's Issues in your browser only when you click "Report on GitHub"; you review and send it yourself, with no meeting content |
 | Usage statistics | None |
 | API keys | Stored in the macOS Keychain, never in files or logs |
-| Notes tool set to "No notes" | Fully offline |
+| Local transcription, "No notes" (or local Ollama / LM Studio), no enterprise server | Recordings and meeting content never leave this Mac (downloading models and checking for updates still use the network) |
 
 ## Development
 

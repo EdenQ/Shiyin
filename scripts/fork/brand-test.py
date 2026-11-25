@@ -3,7 +3,7 @@
 
 - 原始碼掃描：只認包住字串的那個查表呼叫（REVIEW-0b-brand P2-1 的 ReviewBrandProbe），真正跨行的查表呼叫要放過
 - 整句特例：授權開場白、安裝說明的整句對不到時要失敗（P2-2 的標點漂移），對換過的產物重跑不變（冪等）
-- F13：Credits 的贊助拿掉、上游贊助句漂移要失敗；Credits 和授權檔有上游的 MIT 聲明，少了要失敗；更新說明拿掉「基於上游」
+- F13：Credits 的贊助拿掉、上游贊助句漂移或換成別的贊助、作者介紹要失敗（REV-F13 P2-1）；LICENSE 空的、截斷要失敗（P2-2）；舊品牌鍵 compare 對得上（P2-3）；Credits 和授權檔有上游的 MIT 聲明，少了要失敗；更新說明拿掉「基於上游」
 - 漏換、格式碼不同要失敗
 
 只用標準函式庫；所有檔案放在暫存資料夾，不碰 repo 和使用者的 app。
@@ -12,6 +12,7 @@ import html
 import importlib.util
 import json
 import plistlib
+import re
 import shutil
 import subprocess
 import sys
@@ -391,6 +392,63 @@ class Phrases(unittest.TestCase):
         self.assertIn("ThirdPartyLicenses.txt：缺少上游 LICENSE 全文", out)
         self.assertIn("en.lproj/Credits.html：缺少上游 MIT 那一項", out)
 
+    def replace_first_paragraph(self, lang, text):
+        p = self.res / f"{lang}.lproj/Credits.html"
+        old = p.read_text(encoding="utf-8")
+        new = re.sub(r"(?s)(<p[^>]*>).*?(</p>)", lambda m: m[1] + text + m[2], old, count=1)
+        self.assertNotEqual(old, new)
+        p.write_text(new, encoding="utf-8")
+
+    def test_unknown_sponsor_fails(self):
+        """REV-F13 P2-1：上游換成別的贊助平台（不是 Ko-fi、沒有舊關鍵字），不能默默留下"""
+        promo = 'Support development: <a href="https://github.com/sponsors/juinwei7">Sponsor this project</a>.'
+        self.replace_first_paragraph("en", promo)
+        code, out = run("apply", self.app)
+        self.assertEqual(code, 1, out)
+        self.assertIn("en.lproj/Credits.html：Credits 的結構跟上游 build-app.sh 的骨架不同", out)
+
+    def test_unknown_author_intro_fails(self):
+        """REV-F13 P2-1：上游加了作者介紹（沒有贊助關鍵字）也要失敗；juinwei7 本身不是禁字（LICENSE 裡要保留）"""
+        self.replace_first_paragraph("zh-Hant", "Created by juinwei7. Thanks to our supporters.")
+        code, out = run("apply", self.app)
+        self.assertEqual(code, 1, out)
+        self.assertIn("zh-Hant.lproj/Credits.html：Credits 的結構跟上游 build-app.sh 的骨架不同", out)
+
+    def test_unknown_line_before_license_list_fails(self):
+        """REV-F13 P2-1：授權檔開頭（清單前）多了不認得的一行（贊助寫在授權檔裡）也要失敗"""
+        self.edit("ThirdPartyLicenses.txt", "verbatim.\n", "verbatim.\nSponsor us at https://example.invalid/sponsor\n")
+        code, out = run("apply", self.app)
+        self.assertEqual(code, 1, out)
+        self.assertIn("ThirdPartyLicenses.txt：授權內容前面有不認得的文字「Sponsor us at", out)
+
+    def test_bad_source_license_fails(self):
+        """REV-F13 P2-2：repo 的 LICENSE 空檔、只有空白、被截斷時，apply 要失敗（用一份匯出的 brand.py，不改 repo）"""
+        full = (ROOT / "LICENSE").read_text(encoding="utf-8")
+        cut = full[:full.index("THE SOFTWARE IS PROVIDED")]
+        for name, text, expect in (("empty", "", "是空的"), ("blank", " \n\t\n", "是空的"),
+                                   ("truncated", cut, "缺少免責段")):
+            with self.subTest(name):
+                root = self.tmp / f"root-{name}"
+                (root / "scripts/fork").mkdir(parents=True)
+                (root / "fork").mkdir()
+                (root / "Resources").mkdir()
+                shutil.copy(BRAND, root / "scripts/fork/brand.py")
+                for f in ("brand.json", "brand-allow.txt"):
+                    shutil.copy(ROOT / "fork" / f, root / "fork" / f)
+                shutil.copy(ROOT / "Resources/ThirdPartyLicenses.txt", root / "Resources/ThirdPartyLicenses.txt")
+                shutil.copytree(ROOT / "Sources", root / "Sources")
+                (root / "LICENSE").write_text(text, encoding="utf-8")
+                app = self.tmp / f"{name}.app"
+                shutil.copytree(self.app, app)
+                p = subprocess.run([sys.executable, str(root / "scripts/fork/brand.py"), "apply", str(app)],
+                                   capture_output=True, text=True)
+                self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+                self.assertIn(expect, p.stdout + p.stderr)
+                self.assertNotIn("拾音 Shiyin: LICENSE", (app / "Contents/Resources/ThirdPartyLicenses.txt").read_text(encoding="utf-8"))
+
+    def test_validate_license_accepts_repo_license(self):
+        brand.validate_license((ROOT / "LICENSE").read_text(encoding="utf-8"), "LICENSE")   # 不丟例外
+
     def test_license_format_change_fails(self):
         """F13.2：上游改了授權檔的格式、找不到插入的位置時要失敗，不能默默沒附"""
         p = self.res / "ThirdPartyLicenses.txt"
@@ -468,6 +526,17 @@ class Compare(unittest.TestCase):
         (bad / "Contents/Resources/en.lproj/Localizable.strings").unlink()
         code, out = run("compare", self.make("A.app", {"a": "A"}), bad)
         self.assertEqual(code, 2, out)
+
+    def test_legacy_branded_key_still_matches(self):
+        """REV-F13 P2-3：舊版的鍵是 fork 寫死的「結束會議助手」、新版是上游的「結束拾音」，值相同 → 對得上、沒有差異；
+        拿掉型的 phrase（to 是空的）不能讓 unbrand_key 膨脹"""
+        old = self.make("Old.app", {"結束會議助手": "Quit Meeting Assistant", "a": "A"})
+        new = self.make("New.app", {"結束拾音": "Quit Meeting Assistant", "a": "A"})
+        code, out = run("compare", old, new)
+        self.assertEqual(code, 0, out)
+        self.assertIn("差異 0 條", out)
+        self.assertEqual(brand.unbrand_key("打開會議助手"), "打開拾音")
+        self.assertTrue(any(p["to"] == "" for p in brand.CONFIG["phrases"]), "這個測試要有拿掉型的 phrase 才有意義")
 
     def test_unreadable_strings_is_2(self):
         bad = self.make("Bad.app", {"a": "A"})
