@@ -273,6 +273,11 @@ with tempfile.TemporaryDirectory(prefix='ma-fork-regression-') as work:
     # diarization-quality property so this database test does not load audio engines.
     records = (ROOT/'Sources/Shiyin/Model/Records.swift').read_text().split('struct Segment:', 1)[0]
     records = re.sub(r'^    var mayHaveMergedSpeakers:.*\n', '', records, flags=re.M)
+    # 上游 5.1 起搜尋索引的 helper 也收畫面（indexScreen 用 MeetingDocument，design §83.1）：一起帶上文件的型別
+    full_records = (ROOT/'Sources/Shiyin/Model/Records.swift').read_text()
+    doc = re.search(r'^enum DocumentKind\b.*?^struct MeetingDocument\b.*?^}\n', full_records, re.S | re.M)
+    if doc:
+        records += '\n' + doc.group(0)
     model = work/'MigrationRecords.swift'
     model.write_text(records)
     products = args.scratch_path / 'debug'
